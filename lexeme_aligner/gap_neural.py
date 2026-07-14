@@ -108,7 +108,7 @@ def main() -> int:
     methods = tuple(m.strip() for m in args.methods.split(","))
     accept = {p.strip() for p in args.accept_priors.split(",") if p.strip()}
     heb = HebrewSource()
-    recs = build_corpus(books, args.usj_dir, heb, remap=remapper(args.iso))   # match eflomal/gloss numbering
+    recs = build_corpus(books, args.usj_dir, heb, remap=remapper(args.iso, str(args.usj_dir)))  # auto-detected scheme, match eflomal/gloss numbering
     lex_pos, lex_translit = load_priors(args.prior_pack)
     covered_h, taken_t, anchors, strong_surf, target_pos = load_covered(
         args.iso, args.out, methods, args.min_score, lex_pos)

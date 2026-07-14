@@ -1,10 +1,10 @@
 {
   "_doc": "TEMPORARY local versification assignments (per aligned iso) — a STOPGAP until bcv-commons/bibles publishes the per-text `versification` field, at which point the aligner should SOURCE this from there (the curated overlay: meta/texts/<iso>/<textId>.json → `versification`) and this file goes away. Values use the bibles schema enum: protestant | hebrew | septuagint | vulgate | orthodox | catholic | other. Only NON-protestant entries actually matter for remapping (protestant = KJV-standard = identity with our source numbering); the protestant rows are recorded for completeness / future-proofing.",
   "_supersede": "bcv-commons/bibles meta/texts/<iso>/<textId>.json .versification (see internal-docs/bcv-query-wishlist.md hand-over)",
-  "_rus_note": "rus = HEBREW (Original/Masoretic), NOT orthodox/lxx: russyn OT=23,214 verses fingerprints to org/hebrew (23,213) — 150 Psalms — not Russian Orthodox rso (23,406, Psalm 151) nor Rahlfs-LXX (22,646). Confirmed by eBible/BibleNLP (aligns to vref.txt 'Original') + our earlier empirical test (orthodox→lxx made rus WORSE 44%→42%). The `hebrew` scheme (bcv-commons/versification, 2031 diffs) is the remap to test.",
-  "rus": "hebrew",
+  "_rus_note": "rus = SEPTUAGINT (LXX Psalm renumbering) — CORRECTED 2026-07-13. The earlier `hebrew` guess was WRONG: fingerprinting our INGESTED data/usj-rus verse structure against the 7 CDN /_vrs/ schemes shows rus_syn matches rso (Russian Orthodox) 99.7% and lxx Psalms 149/150, but hebrew/org only 17/150 Psalms (133 mismatched). CDN index labels helloao:rus_syn=`vul`, but the delivered text matches rso/lxx Psalms better than vul (mismatch 1 vs 7) — so the empirical structure, not the label, is ground truth. We hold no rso/vul table (CDN .vrs are structure-only; bcv-commons/versification HF is gone), but lxx.tsv reproduces the rus Psalter at 149/150 → use `septuagint`. The old 'lxx made rus worse 44→42%' was scored vs the DEFECTIVE Clear rus gold (see internal-docs/clear-rus-defect.md), not the text. Robust method for any lang: fingerprint ingested USJ vs CDN schemes, map to best available table.",
+  "rus": "septuagint",
   "spa": "protestant",
-  "fra": "protestant",
+  "fra": "hebrew",
   "hau": "protestant",
   "hin": "protestant",
   "asm": "protestant",
@@ -12,6 +12,7 @@
   "ind": "protestant",
   "arb": "protestant",
   "eng": "protestant",
-  "swk": "protestant",
-  "swe": "protestant"
+  "swk": "hebrew",
+  "swe": "hebrew",
+  "_fra_swe_note": "fra/swe/swk = HEBREW (org Psalm superscription) — CORRECTED 2026-07-13. Fingerprinting data/usj-{fra-lsg,swe,swk} vs CDN /_vrs/ schemes: all match orgw (fra 100%, swe 96%, swk 97%), org PSA-mismatch=0, but eng/identity mismatches 62 superscripted Psalms. CDN index labels these orgw; no orgw table exists (CDN .vrs structure-only), but hebrew.tsv (org) reproduces their Psalter exactly (PSA-mismatch=0); org-vs-orgw residual is non-Psalm single-verse boundaries only. NT unaffected (hebrew.tsv has no NT diffs) so gold scores hold."
 }

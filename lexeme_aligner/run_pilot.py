@@ -217,10 +217,11 @@ def main() -> int:
 
     heb = HebrewSource()
     from lexeme_aligner.versification import remapper, scheme_of
-    remap = remapper(args.iso)
+    usj_dir = str(args.usj_dir)
+    remap = remapper(args.iso, usj_dir)                       # scheme auto-detected from the ingested USJ
     if remap:
-        print(f"[pilot] versification: {args.iso} = {scheme_of(args.iso)} → remapping verses to source",
-              file=sys.stderr)
+        print(f"[pilot] versification: {args.iso} = {scheme_of(args.iso, usj_dir)} (auto-detected) "
+              f"→ remapping verses to source", file=sys.stderr)
     print(f"[pilot] loading corpus: {len(books)} book(s) …", file=sys.stderr)
     recs = build_corpus(books, args.usj_dir, heb, remap)
     print(f"[pilot] {len(recs)} verses loaded", file=sys.stderr)

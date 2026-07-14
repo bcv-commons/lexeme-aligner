@@ -21,7 +21,6 @@ dependencies = [
 ingest = ["usfmtc"]                       # USFM/USX → USJ conversion (source ingest)
 publish = ["pyarrow", "huggingface_hub"]  # Parquet export + push lexeme-alignments to a HF dataset
 validate = ["pyarrow", "snowballstemmer"] # karnbibeln_diff test — read Parquet + Swedish stemming
-neural = ["torch", "transformers", "numpy"]      # neural method: LaBSE + our SimAlign core (~1.8 GB model)
 
 [project.scripts]
 lexeme-align = "lexeme_aligner.run_pilot:main"

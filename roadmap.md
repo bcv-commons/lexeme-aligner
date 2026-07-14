@@ -31,8 +31,10 @@ Packaging/run: **`README.md`**.
 - **statistical** — **IBM-1** (`stat_align`, pure Python) and **eflomal** (`eflomal_align`, HMM
   distortion). Needs only parallel text + Strong's → **works for any language, no LLM/encoder**. This
   is the **universal spine** and the workhorse.
-- **neural** (planned, not built) — SimAlign+LaBSE, ~500-language encoder reach; a 3rd method + an
-  ensemble combiner. See `docs/aligner-plan.md`.
+- **gapfill** — model-free gap-filling (strong-rollup back-off + name transliteration + #1 cross-lingual
+  span extension + #3 target-stopword gate) for tokens neither eflomal nor gloss aligned. A neural
+  (LaBSE/bge-m3) approach was tried and retired (~7.5% contribution on its best-case language, zero on
+  languages without encoder coverage) — no target-language model needed, works for any language.
 
 **Pilot result** (full-OT Indonesian, 23k verses): gloss 51% · IBM-1 62% · **eflomal 89% coverage /
 62% hi-conf** · union 95%. Gold (gloss ∩ eflomal hi-conf, same target) ~18% @ ~99% precision.
@@ -54,8 +56,8 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    `--method` against `--gold clear|lexicon`: Clear-Bible attestations (91.8% fra / 95.6% hau) *and* a
    manual Strong's→translation lexicon (karnbibeln.se Swedish — Greek ~92% both translations, Hebrew
    ~87% swk / ~79% swe). `docs/benchmark.md`. **Only the statistical (eflomal) mode is scored so far;**
-   gloss (needs priors), IBM-1, neural, and the merged ensemble are runnable through the same tool once
-   produced — a natural companion to the multi-version + neural work below.
+   gloss (needs priors), IBM-1, gapfill, and the merged ensemble are runnable through the same tool once
+   produced — a natural companion to the multi-version work below.
 4. **Publish `lexeme-alignments` to a data channel** — `export_lex --publish <hf-repo> --create` is wired
    (uploads the partition + manifest + card via `huggingface_hub`, credential-gated, `--dry-run`
    verified). Remaining: create the HF dataset repo + `huggingface-cli login`, then run the push for
@@ -109,7 +111,9 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    now strips harakat/niqqud, so Arabic tokenizes by word.)
 9. **Multi-version pooling** — align a language's several translations together for a richer lexicon
    (design below).
-10. **Neural method** — SimAlign+LaBSE as the 3rd aligner + ensemble combiner (design in the plan).
+10. ~~Neural method~~ **Done, then retired** — SimAlign+LaBSE was built, measured (~7.5% contribution on
+    its best-case language, zero on languages without encoder coverage), and replaced by **gapfill**
+    (model-free: strong-rollup back-off, name transliteration, #1 cross-lingual span, #3 stopword gate).
 11. **Standalone README polish** — a "Standalone setup" section (env table + dangling-defaults note)
     if desired.
 

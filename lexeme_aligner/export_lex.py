@@ -3,7 +3,7 @@
 Lexeme-anchored, provenance-honest, additive (docs/publishing-principles.md). Data contract:
     surface, lexeme, strong, method, count, share, hi_conf
 The anchor is the **lexeme** (MACULA `lang:augmented-strong`); `strong` is its rollup (bridge key).
-Rows are the ADDITIVE UNION of the methods, each tagged with its source `method` (eflomal/gloss/neural)
+Rows are the ADDITIVE UNION of the methods, each tagged with its source `method` (eflomal/gloss/gapfill)
 — a pair attested by two methods is two rows, nothing merged away (principles 3 + 5). `share` =
 P(lexeme | surface) computed WITHIN that method. `hi_conf` = fraction of the pair's occurrences that
 were intersection-backed (score >= 0.9). Content tokens only.
@@ -36,7 +36,7 @@ from lexeme_aligner.config import LEX_ROOT, OUT, SPINE_DB
 
 SCHEMA = ["surface", "lexeme", "strong", "method", "base_text", "count", "share", "hi_conf"]
 _HI_SCORE = 0.9   # eflomal intersection-backed link (both directions agree) — the reliable core
-_METHODS = ("eflomal", "gloss", "neural")   # union order; a method absent for an iso is simply skipped
+_METHODS = ("eflomal", "gloss", "gapfill")   # union order; a method absent for an iso is simply skipped
 
 Row = tuple[str, str, str, str, str, int, float, float]
 
@@ -51,7 +51,7 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str]
     """Fold the ADDITIVE UNION of the methods' align_<method>_<align_iso>_<BOOK>.jsonl content pairs into
     (surface, lexeme, strong, method, base_text, count, share, hi_conf). The anchor is the LEXEME; `strong`
     is its rollup. Rows are keyed by (surface, lexeme, METHOD, BASE_TEXT) — two honest provenance axes:
-    `method` (how aligned: eflomal/gloss/neural) and `base_text` (which edition). A pair attested by two
+    `method` (how aligned: eflomal/gloss/gapfill) and `base_text` (which edition). A pair attested by two
     methods or two editions is separate rows — nothing merged away. `editions` is a list of
     (align_iso, base_text): POOLING several editions of one language into a single partition keeps every
     row tagged by its base_text, with `share` = P(lexeme | surface) computed WITHIN (method, base_text) —
@@ -222,7 +222,7 @@ def main() -> int:
                     help="override the PRIMARY iso's edition tag (default: its source.edition)")
     ap.add_argument("--methods", default=None,
                     help="comma-sep methods to UNION into the partition (default: auto-detect present, "
-                         "e.g. eflomal,gloss,neural). Each row is tagged with its source method.")
+                         "e.g. eflomal,gloss,gapfill). Each row is tagged with its source method.")
     ap.add_argument("--min-count", type=int, default=1,
                     help="drop (surface,lexeme,method,base_text) below this count")
     ap.add_argument("--lang-name", default=None, help="human language name, recorded in the manifest")

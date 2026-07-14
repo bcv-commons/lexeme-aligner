@@ -9,7 +9,7 @@
   Metric: **stem-overlap agreement** between our top surface per Strong's and the manual gloss.
 
 Both are type/lexicon-level and ref-agnostic (sidestepping versification + tokenization). So far only
-the **statistical** mode (eflomal) has been scored; gloss/neural/merged are runnable through the same
+the **statistical** mode (eflomal) has been scored; gloss/gapfill/merged are runnable through the same
 tool once produced.
 
 ## Clear backend — eflomal vs Clear-Bible alignments

@@ -12,7 +12,7 @@ Strong's, mined multilingual glosses, senses, domains, and a name-bridge attach 
   dictionary-bounded.
 - **statistical** — IBM-1 (pure Python, `stat_align`) and **eflomal** (HMM distortion, `eflomal_align`).
   Needs only parallel text + Strong's → **works for any language, no LLM/encoder** (the universal spine).
-- **neural** (planned) — SimAlign+LaBSE, ~500-language encoder reach.
+- **gapfill** — model-free gap-filling (strong-rollup back-off + name transliteration + cross-lingual span priors) for tokens neither eflomal nor gloss aligned. No target-language model — works for any language, same as eflomal/gloss.
 
 **Pilot result** (full-OT Indonesian, 23k verses): gloss 51% · IBM-1 62% · **eflomal 89% coverage /
 62% high-confidence** · union 95%. eflomal is the workhorse.

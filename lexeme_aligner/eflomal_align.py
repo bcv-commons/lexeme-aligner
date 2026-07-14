@@ -64,21 +64,25 @@ def _grow_diag_final_and(fwd, rev, n_src, n_trg):
 
 
 class EflomalAligner:
-    def __init__(self, anchor: str = "strong"):
+    def __init__(self, anchor: str = "strong", stem: bool = False):
         # source-side key eflomal learns co-occurrence over: "strong" (coarse rollup) or "lexeme"
         # (finer — separates homonyms one Strong's conflates). Decode is positional either way, so the
         # output pairs carry both regardless; only the statistical model's granularity changes.
+        # stem: #2 — feed the target's STEM (norm.stem) instead of its surface, so inflected variants of a
+        # word pool into one co-occurrence type. Decode stays positional → output surface = the raw token.
         self.by_verse: dict[tuple, dict] = {}
         self.anchor = anchor
+        self.stem = stem
 
     def run(self, recs, norm, priors_pairs=None) -> None:
         src_lines, trg_lines, meta = [], [], []
+        tgt_form = (lambda w: norm.stem(w)) if self.stem else (lambda w: norm.forms(w)[0])
         for rec in recs:
             src_toks = [t for t in rec.heb if getattr(t, self.anchor)]
             if not src_toks or not rec.toks:
                 continue
             src_lines.append(" ".join(getattr(t, self.anchor) for t in src_toks))
-            trg_lines.append(" ".join(norm.forms(w)[0] for w in rec.toks))
+            trg_lines.append(" ".join(tgt_form(w) for w in rec.toks))
             meta.append((rec.book, rec.ch, rec.v, src_toks, rec.toks))
 
         with tempfile.NamedTemporaryFile("w+", suffix=".src") as sf, \

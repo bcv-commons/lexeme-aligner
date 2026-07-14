@@ -21,13 +21,13 @@ produces a clean Strong's-keyed view (surface ↔ Strong's, filtered/shaped) for
 **anchor of record**. Lexeme-precise consumers use `lexeme`; Strong's-ecosystem consumers use the
 derived view. Nothing is hidden; the coarse key is a convenience, the fine key is the truth.
 
-### 3. Be honest about source and process — carry provenance, including neural
+### 3. Be honest about source and process — carry provenance, including gapfill
 Every datum must be traceable to **how it was produced**. A surface→lexeme mapping that exists only
-because the **neural** gap-filler proposed it must say so — it must not masquerade as an
+because the **gapfill** fallback proposed it must say so — it must not masquerade as an
 eflomal/gloss-attested fact. So provenance (`method`) and confidence (`hi_conf`, score) are **carried
 on the data**, not summarized away. This is the existing honesty discipline (row-level confidence, the
 senses takedown policy, no MARBLE sense labels) extended to method-provenance: the consumer can always
-see *who said this and how sure they were* — and can exclude neural-only facts if they want.
+see *who said this and how sure they were* — and can exclude gapfill-only facts if they want.
 
 ### 4. Respect enhanced translations — many-to-many, never force-fit 1:1
 Observed from the Swedish gold (Kärnbibeln/Folkbibeln): these are **enhanced/amplified** translations —
@@ -56,16 +56,16 @@ Canonical dataset (renamed to foreground the anchor — e.g. `lexeme-alignments`
 | `lexeme` | **the anchor** — MACULA `lang:augmented-strong` | 1 |
 | `surface` | target rendering, lowercased (content; may be multi-word) | 4 |
 | `strong` | Strong's **rollup** of `lexeme` (bridge key) | 2 |
-| `method` | **which method attested this pair** (eflomal / gloss / neural) | 3, 5 |
+| `method` | **which method attested this pair** (eflomal / gloss / gapfill) | 3, 5 |
 | `count` | times this (surface → lexeme) was aligned **by that method** | 3, 4 |
 | `share` | P(lexeme \| surface) — the sense distribution | 4 |
 | `hi_conf` | alignment reliability (intersection-backed share) | 3 |
 
 Key change vs today: rows are **partitioned by `method`** (additive union, principle 5) instead of one
-pre-merged winner. A surface→lexeme attested by both eflomal and neural is **two rows** (eflomal ×N,
-neural ×M) — nothing merged away, full provenance. Consumers:
+pre-merged winner. A surface→lexeme attested by both eflomal and gapfill is **two rows** (eflomal ×N,
+gapfill ×M) — nothing merged away, full provenance. Consumers:
 - **everything / max recall** → all rows;
-- **exclude neural** → `method != neural`;
+- **exclude gapfill** → `method != gapfill`;
 - **high precision** → `hi_conf ≥ x`, `count ≥ 2`;
 - **single best pick** → the derived merged view (below), clearly labelled lossy.
 

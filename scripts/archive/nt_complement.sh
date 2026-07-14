@@ -1,6 +1,6 @@
 #!/bin/bash
 # Complement NT for eng (BSB) + arb (arb_vdv) with the SAME editions as their OT.
-# Per lang: ingest NT + align NT eflomal (pipeline) -> export whole-Bible -> gloss NT -> neural NT ->
+# Per lang: ingest NT + align NT eflomal (pipeline) -> export whole-Bible -> gloss NT -> gapfill NT ->
 # benchmark vs Clear gold (now includes Greek NT). Preserves the fresh v2 OT (ingest is NT-scoped).
 cd "$(dirname "$0")/.." || exit 1
 exec > out/_nt_complement.log 2>&1
@@ -13,9 +13,9 @@ complementNT() {  # iso edition name
     || echo "!! pipeline $iso FAILED"
   echo ">>> [$iso NT] gloss"
   python3 -m lexeme_aligner.run_pilot --method gloss --nt --usj-dir "$dir" --iso "$iso" || echo "!! gloss $iso FAILED"
-  echo ">>> [$iso NT] neural gap-fill (publish-safe prior-gate)"
-  HF_HUB_OFFLINE=1 python3 -m lexeme_aligner.gap_neural --iso "$iso" --nt --usj-dir "$dir" \
-    --neural-model BAAI/bge-m3 --neural-layer 16 --neural-device mps || echo "!! neural $iso FAILED"
+  echo ">>> [$iso NT] gapfill (publish-safe prior-gate)"
+  HF_HUB_OFFLINE=1 python3 -m lexeme_aligner.gapfill --iso "$iso" --nt --usj-dir "$dir" \
+    || echo "!! gapfill $iso FAILED"
   echo ">>> [$iso] BENCHMARK (OT+NT vs Clear gold):"
   python3 -m lexeme_aligner.benchmark --iso "$iso" --method eflomal --gold clear 2>&1 \
     | grep -iE "top-1|per word|token-weighted|coverage" | head -5

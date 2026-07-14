@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build + benchmark MERGED for all 12 main languages (the format-decision evidence).
-# Per lang: merge (eflomal + gloss + neural, resolved by data/contest_rule.json) -> benchmark
+# Per lang: merge (eflomal + gloss + gapfill, resolved by data/contest_rule.json) -> benchmark
 # eflomal vs gloss vs merged (token-weighted top-1). Does NOT export/overwrite partitions — the
 # merged jsonl + numbers are for the decision; the actual export happens at publish time by method.
 cd "$(dirname "$0")/.." || exit 1
@@ -18,8 +18,8 @@ bench() {  # iso method [base_text]
 
 mergeBench() {  # iso name [base_text]
   iso=$1; name=$2; bt=$3
-  echo ">>> [$iso $(date +%H:%M:%S)] merge (eflomal,gloss,neural + contest-rule)"
-  python3 -m lexeme_aligner.merge_align --iso "$iso" --methods eflomal,gloss,neural \
+  echo ">>> [$iso $(date +%H:%M:%S)] merge (eflomal,gloss,gapfill + contest-rule)"
+  python3 -m lexeme_aligner.merge_align --iso "$iso" --methods eflomal,gloss,gapfill \
     --contest-rule data/contest_rule.json || echo "!! merge $iso FAILED"
   echo "  BENCH $iso token-weighted top-1 (gold${bt:+ base_text=$bt}):"
   bench "$iso" eflomal "$bt"

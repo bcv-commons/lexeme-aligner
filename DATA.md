@@ -77,9 +77,9 @@ scattered join artifact — the positional data needed to mine MWEs (see `aligne
   `surface, lexeme, strong, method, base_text, count, share, hi_conf` — the **lexeme** is the anchor of
   record, `strong` its rollup **bridge** (each lexeme → one Strong's, so a Strong's-ecosystem consumer can
   group either way). It is an **additive union**, not a pre-merged winner, across **two provenance axes**:
-  `method` ∈ `{eflomal, gloss, neural}` (*how* aligned) and `base_text` (*which* edition). A surface→lexeme
+  `method` ∈ `{eflomal, gloss, gapfill}` (*how* aligned) and `base_text` (*which* edition). A surface→lexeme
   attested by two methods or two editions is separate rows — nothing merged away, full provenance (a
-  `neural`-only fact can never masquerade as eflomal/gloss). Several editions of one language can be
+  `gapfill`-only fact can never masquerade as eflomal/gloss). Several editions of one language can be
   **pooled** into a single `iso=<lang>` partition, each row tagged by `base_text` (`--pool`), so
   cross-edition agreement (a surface→lexeme attested by >1 `base_text`) is derivable as a confidence signal.
   `count` is per-(method, base_text) (do **not** sum across methods); `share = count / Σ count for that

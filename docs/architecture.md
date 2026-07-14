@@ -41,7 +41,7 @@ No single method covers every language; they run as an ensemble (agreement ⇒ c
   dictionary-bounded. Needs gloss priors (absent here → no-op).
 - **statistical** — **IBM-1** (`stat_align`) and **eflomal** (`eflomal_align`, HMM). Needs only
   parallel text + the backbone → works for any language. **The universal spine and the workhorse.**
-- **neural** (planned) — SimAlign + LaBSE, ~500-language encoder reach; the 3rd method + a combiner.
+- **gapfill** — the 3rd method: model-free gap-filling for tokens neither eflomal nor gloss aligned (strong-rollup back-off + name transliteration + #1 cross-lingual span extension + #3 target-stopword gate). A neural (LaBSE/bge-m3) approach was tried and retired — measured at ~7.5% target-selection contribution on its best-case language, zero on languages without encoder coverage, i.e. most of the actual target population.
 
 A **merged/ensemble** output is future work; when built it's just another `--method` tag, scored the
 same way by `benchmark`.

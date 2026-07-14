@@ -1,6 +1,6 @@
-"""Direct gap-fill scorer — the honest metric for gap-neural.
+"""Direct gap-fill scorer — the honest metric for gapfill.
 
-Of the source tokens eflomal+gloss BOTH missed (the gaps), how many did gap-neural fill CORRECTLY,
+Of the source tokens eflomal+gloss BOTH missed (the gaps), how many did gapfill fill CORRECTLY,
 broken down by which prior fired (strong-back-off / name-translit / embedding). These tokens had ZERO
 alignment before, so a correct fill is strictly-additive coverage — which the aggregate top-1 benchmark
 HIDES (mixing hard new tokens into an easy average pulls the average down even when fills are right).
@@ -27,10 +27,10 @@ _PRIORS = ["strong", "name", "embedding"]
 
 
 def _gap_pairs(iso: str, out_dir: Path):
-    """Yield (ref, strong, target_words, prior) for every gap-neural fill (align_neural jsonl)."""
-    files = sorted(out_dir.glob(f"align_neural_{iso}_*.jsonl"))
+    """Yield (ref, strong, target_words, prior) for every gapfill fill (align_gapfill jsonl)."""
+    files = sorted(out_dir.glob(f"align_gapfill_{iso}_*.jsonl"))
     if not files:
-        raise SystemExit(f"no align_neural_{iso}_*.jsonl — run gap_neural --iso {iso} first")
+        raise SystemExit(f"no align_gapfill_{iso}_*.jsonl — run gapfill --iso {iso} first")
     for fp in files:
         with fp.open(encoding="utf-8") as fh:
             for line in fh:

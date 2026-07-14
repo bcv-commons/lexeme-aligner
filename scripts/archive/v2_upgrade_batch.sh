@@ -2,8 +2,8 @@
 # v2 upgrade batch (NO publishing — user publishes afterwards).
 #   Part 1  UPGRADE : re-align (eflomal → export lexeme-alignments → gloss) the 7 langs that lack t_idx
 #                     (arb eng fra hau ind swe swk). The 5 already-current langs (asm ben hin rus spa)
-#                     are kept as-is (fresh v2 builds with t_idx) — only neural-fed below.
-#   Part 2  NEURAL  : gap_neural on ALL 12 (publish-safe prior-gate: strong+name, embedding dropped),
+#                     are kept as-is (fresh v2 builds with t_idx) — only gapfill-fed below.
+#   Part 2  GAPFILL  : gapfill on ALL 12 (publish-safe prior-gate: strong+name, embedding dropped),
 #                     bge-m3 on MPS. This is the long pole — left running.
 #   Skips aligned_mwe (deferred); but the re-align gives t_idx so MWE is enabled for later.
 cd "$(dirname "$0")/.." || exit 1
@@ -28,27 +28,27 @@ reAlign ind data/usj-ind       --all Indonesian
 reAlign swe data/usj-swe       --all Swedish
 reAlign swk data/usj-swk       --all "Swedish Karnbibeln"
 
-echo "=== PART 1 (upgrade) COMPLETE $(date) — starting neural ==="
+echo "=== PART 1 (upgrade) COMPLETE $(date) — starting gapfill ==="
 
-neural() {  # iso dir scope
+gapfill_stage() {  # iso dir scope
   iso=$1; dir=$2; scope=$3
-  echo ">>> [neural $(date +%H:%M:%S)] $iso ($scope)"
-  HF_HUB_OFFLINE=1 python3 -m lexeme_aligner.gap_neural --iso "$iso" $scope --usj-dir "$dir" \
-    --neural-model BAAI/bge-m3 --neural-layer 16 --neural-device mps || echo "!! neural $iso FAILED"
-  echo "<<< [neural] $iso done"
+  echo ">>> [gapfill $(date +%H:%M:%S)] $iso ($scope)"
+  HF_HUB_OFFLINE=1 python3 -m lexeme_aligner.gapfill --iso "$iso" $scope --usj-dir "$dir" \
+    || echo "!! gapfill $iso FAILED"
+  echo "<<< [gapfill] $iso done"
 }
 
-neural arb data/usj-arb       --ot
-neural eng data/usj-eng       --ot
-neural fra data/usj-fra-lsg   --all
-neural hau data/usj-hau-ohcb  --all
-neural ind data/usj-ind       --all
-neural swe data/usj-swe       --all
-neural swk data/usj-swk       --all
-neural asm data/usj-asm       --all
-neural ben data/usj-ben       --all
-neural hin data/usj-hin       --all
-neural rus data/usj-rus       --all
-neural spa data/usj-spa       --all
+gapfill_stage arb data/usj-arb       --ot
+gapfill_stage eng data/usj-eng       --ot
+gapfill_stage fra data/usj-fra-lsg   --all
+gapfill_stage hau data/usj-hau-ohcb  --all
+gapfill_stage ind data/usj-ind       --all
+gapfill_stage swe data/usj-swe       --all
+gapfill_stage swk data/usj-swk       --all
+gapfill_stage asm data/usj-asm       --all
+gapfill_stage ben data/usj-ben       --all
+gapfill_stage hin data/usj-hin       --all
+gapfill_stage rus data/usj-rus       --all
+gapfill_stage spa data/usj-spa       --all
 
 echo "=== V2 BATCH COMPLETE $(date) ==="

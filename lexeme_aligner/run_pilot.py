@@ -81,7 +81,7 @@ def _hi(m) -> bool:
     return (m.method in _HI_METHODS
             or (m.method == "stat" and m.score >= 0.3)
             or (m.method == "eflomal" and m.score >= 0.9)    # intersection-backed core
-            or (m.method == "neural" and m.score >= 0.6))    # high cosine (LaBSE shared space)
+            or (m.method == "gapfill" and m.score >= 0.9))   # always 0.9 — only strong/name ever fire
 
 
 def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path) -> list[dict]:
@@ -189,7 +189,7 @@ def _totals(results: list[dict]) -> tuple[int, int, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", choices=["gloss", "stat", "eflomal", "neural", "both", "all"], default="gloss")
+    ap.add_argument("--method", choices=["gloss", "stat", "eflomal", "both", "all"], default="gloss")
     ap.add_argument("--eflomal-priors", action="store_true",
                     help="seed eflomal with gloss high-confidence alignments (semi-supervised)")
     ap.add_argument("--book", action="append")
@@ -200,15 +200,22 @@ def main() -> int:
     ap.add_argument("--iso", default="ind")
     ap.add_argument("--lang-name", default="Indonesian")
     ap.add_argument("--stat-iters", type=int, default=6)
+    ap.add_argument("--gloss-signals", default="morph",
+                    help="language-independent signals folded into gloss (comma-sep subset of "
+                         "morph=#2 unsupervised morphology, stopwords=#3 target function-word filter, "
+                         "cross=#1 cross-lingual span). DEFAULT morph-only: the gold ablation (fra/hin/arb) "
+                         "showed #2 is a clean win (coverage +5pt, precision flat) but #3 CRATERS gold-"
+                         "coverage in gloss (blocks legit function↔function alignments; it belongs in "
+                         "content-only gap-fill) and #1 has no measurable effect (gloss already spans "
+                         "multi-word priors). Enable them only to re-ablate.")
+    ap.add_argument("--cross-lang", type=Path, default=Path("resources/cross_lang_prior/profile.json"),
+                    help="#1 cross-lingual span profile (cross_lang_prior.py)")
+    ap.add_argument("--eflomal-stem", action="store_true",
+                    help="#2 for eflomal: feed STEMMED target tokens (learned morphology) so inflected "
+                         "variants pool into one co-occurrence type; output surfaces stay the raw tokens "
+                         "(eflomal aligns by position). A/B this vs the surface default before adopting.")
     ap.add_argument("--anchor", choices=["strong", "lexeme"], default="strong",
                     help="eflomal source-side key: strong (rollup) or lexeme (finer, separates homonyms)")
-    ap.add_argument("--neural-model", default="sentence-transformers/LaBSE",
-                    help="[neural] any multilingual HF encoder (e.g. intfloat/multilingual-e5-base, "
-                         "BAAI/bge-m3) — set HF_HUB_OFFLINE=1 to use an already-cached one")
-    ap.add_argument("--neural-layer", type=int, default=8,
-                    help="[neural] intermediate encoder layer (bge-m3/XLM-R-large: ~16; base models: ~8)")
-    ap.add_argument("--neural-device", default="auto",
-                    help="[neural] auto (mps/cuda/cpu) | mps (Apple GPU) | cuda | cpu")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
     books = (OT_BOOKS + NT_BOOKS if args.all else OT_BOOKS if args.ot else NT_BOOKS if args.nt
@@ -225,14 +232,31 @@ def main() -> int:
     print(f"[pilot] loading corpus: {len(books)} book(s) …", file=sys.stderr)
     recs = build_corpus(books, args.usj_dir, heb, remap)
     print(f"[pilot] {len(recs)} verses loaded", file=sys.stderr)
-    norm: Normalizer = NORMALIZERS.get(args.iso, Normalizer())
-
     want = {"gloss": args.method in ("gloss", "both", "all"),
             "stat": args.method in ("stat", "both", "all"),
-            "eflomal": args.method in ("eflomal", "all"),
-            "neural": args.method == "neural"}           # opt-in only (heavy: torch + LaBSE), not in "all"
+            "eflomal": args.method in ("eflomal", "all")}
+    signals = {s.strip() for s in args.gloss_signals.split(",") if s.strip()}
+    # #2 learned morphology — ONE stemmer, TWO consumers: gloss's Normalizer AND eflomal's stemmed input.
+    # Registered up front so eflomal can reach it too; forms()[0] is the original token, so eflomal in its
+    # default (surface) mode is untouched — only --eflomal-stem switches it to the stem.
+    if (args.eflomal_stem or (want["gloss"] and "morph" in signals)) and args.iso not in NORMALIZERS:
+        from lexeme_aligner.target_morph import LearnedNormalizer
+        lm = LearnedNormalizer(args.iso, str(args.usj_dir))
+        NORMALIZERS[args.iso] = lm
+        print(f"[pilot] #2 morphology (learned): {len(lm.suffixes)} suffixes, {len(lm.prefixes)} prefixes",
+              file=sys.stderr)
+    norm: Normalizer = NORMALIZERS.get(args.iso, Normalizer())
     runs = {}
     if want["gloss"]:
+        gloss_sw = None
+        if "stopwords" in signals:                       # #3: target function-word filter
+            from lexeme_aligner.target_stopwords import StopwordFilter
+            gloss_sw = StopwordFilter(args.iso, str(args.usj_dir))
+            print(f"[pilot] gloss #3 stopwords: {len(gloss_sw.words)} target function-words", file=sys.stderr)
+        gloss_xl = None
+        if "cross" in signals and args.cross_lang.exists():  # #1: cross-lingual span profile
+            gloss_xl = json.loads(args.cross_lang.read_text(encoding="utf-8"))
+            print(f"[pilot] gloss #1 cross-lingual: {len(gloss_xl)} lexeme span profiles", file=sys.stderr)
         csv_priors = GlossPriors(args.lang_name, args.iso)
         if csv_priors.perstem or csv_priors.by_strong:
             priors = csv_priors                          # external per-language gloss CSVs (legacy)
@@ -247,7 +271,8 @@ def main() -> int:
             else:
                 print(f"[pilot] gloss priors (bootstrap): {priors.stats['lexemes']} lexemes, "
                       f"{priors.stats['strongs']} strongs, {priors.stats['lxx']} LXX-bridged", file=sys.stderr)
-        runs["gloss"] = run_method(recs, lambda r: align_verse(r.heb, r.toks, priors, args.iso),
+        runs["gloss"] = run_method(recs, lambda r: align_verse(r.heb, r.toks, priors, args.iso,
+                                                               stopwords=gloss_sw, cross_lang=gloss_xl),
                                    args.iso, "gloss", args.out)
     if want["stat"]:
         ibm = IBM1(iters=args.stat_iters)
@@ -261,16 +286,11 @@ def main() -> int:
                        if args.eflomal_priors else None)
         if prior_pairs:
             print(f"[pilot] eflomal priors: {len(prior_pairs)} gloss anchors", file=sys.stderr)
-        eflo = EflomalAligner(anchor=args.anchor)
+        eflo = EflomalAligner(anchor=args.anchor, stem=args.eflomal_stem)
+        if args.eflomal_stem:
+            print(f"[pilot] #2 eflomal: aligning on STEMMED target tokens", file=sys.stderr)
         eflo.run(recs, norm, priors_pairs=prior_pairs)
         runs["eflomal"] = run_method(recs, lambda r: eflo.decode(r), args.iso, "eflomal", args.out)
-    if want["neural"]:
-        from lexeme_aligner.neural_align import NeuralAligner
-        neu = NeuralAligner(model_name=args.neural_model, layer=args.neural_layer, device=args.neural_device)
-        print(f"[pilot] neural: SimAlign on {args.neural_model} · device={neu.device} · layer={args.neural_layer}",
-              file=sys.stderr)
-        runs["neural"] = run_method(recs, lambda r: neu.align_verse(r.heb, r.toks),
-                                    args.iso, "neural", args.out)
 
     for tag, results in runs.items():
         report = write_report(results, args.iso, tag, args.out)

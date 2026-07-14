@@ -2,7 +2,7 @@
 # Build + benchmark the SECOND gold base_text per language (validation of the method on a 2nd edition):
 #   engy = English Young's Literal (helloAO eng_ylt) → benchmark vs eng gold, base_text=YLT
 #   arbn = Arabic New Arabic Version (helloAO ARBNAV) → benchmark vs arb gold, base_text=ONAV
-# eflomal + gloss only (no neural — these are validation editions, not the merged-all set). Whole Bible.
+# eflomal + gloss only (no gapfill — these are validation editions, not the merged-all set). Whole Bible.
 cd "$(dirname "$0")/.." || exit 1
 exec > out/_secondbase.log 2>&1
 echo "=== SECOND-BASE BUILD START $(date) ==="

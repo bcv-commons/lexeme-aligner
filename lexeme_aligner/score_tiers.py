@@ -2,12 +2,12 @@
 
 Bucket a mode's alignments by its own confidence tier and score each bucket against gold. If a low tier
 is mostly wrong, it should be DEMOTED to a gap (untrusted) and gap-filled by another mode — the framework
-proven with neural, generalised to eflomal + gloss. This is the diagnostic behind "turn eflomal's cutoff
+proven with gapfill, generalised to eflomal + gloss. This is the diagnostic behind "turn eflomal's cutoff
 down and let gloss re-run the residual".
 
   eflomal → tier by score   (0.9 = intersection core, 0.6 = union-only)
   gloss   → tier by method   (exact / stem / prefix / name / multi / head / fuzzy)
-  neural  → tier by prior    (strong / name / embedding)
+  gapfill → tier by prior    (strong / name)
 
     python3 -m lexeme_aligner.score_tiers --iso fra --method eflomal
     python3 -m lexeme_aligner.score_tiers --iso swk --method gloss --gold lexicon
@@ -28,7 +28,7 @@ def _tier(method: str, p: dict) -> str:
         return f"score {p.get('score')}"
     if method == "gloss":
         return p.get("method", "?")
-    if method == "neural":
+    if method == "gapfill":
         return p.get("prior", "embedding")
     return "all"
 
@@ -76,7 +76,7 @@ def _gold_clear(iso: str, res_dir: Path):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
-    ap.add_argument("--method", required=True, choices=["eflomal", "gloss", "neural", "stat"])
+    ap.add_argument("--method", required=True, choices=["eflomal", "gloss", "gapfill", "stat"])
     ap.add_argument("--gold", choices=["clear", "lexicon"], default="clear")
     ap.add_argument("--by", choices=["tier", "pos", "pos+tier"], default="tier",
                     help="bucket by confidence tier, POS category (bcv-query), or both")

@@ -29,3 +29,13 @@ internal-docs/
 resources/prior-pack/*.parquet
 resources/prior-pack/.cache/
 resources/prior-pack/.gitattributes
+# one-off debug/ablation/probe scripts — never committed; scripts/ itself holds only durable recipes
+# (+ scripts/archive/ for superseded historical batch runs, kept as provenance)
+scripts/adhoc/
+# target-morphology bulk data — same pattern as lexeme-alignments; only manifest.json + README.md committed
+data/morph/*.json
+!data/morph/manifest.json
+# target-stopwords bulk data — same pattern
+data/stopwords/*.txt
+# cross-lingual-span-profile bulk data — same pattern
+resources/cross_lang_prior/profile.json

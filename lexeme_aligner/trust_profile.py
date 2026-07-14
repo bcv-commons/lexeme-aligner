@@ -24,7 +24,7 @@ from lexeme_aligner.config import OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.score_tiers import _gold_clear, _load_pos, _tier
 
 GOLD = {"fra": "clear", "arb": "clear", "eng": "clear", "hau": "clear", "swk": "lexicon", "swe": "lexicon"}
-MODES = ["eflomal", "gloss", "neural"]
+MODES = ["eflomal", "gloss", "gapfill"]
 
 
 def _wilson_lb(correct: int, n: int, z: float = 1.96) -> float:

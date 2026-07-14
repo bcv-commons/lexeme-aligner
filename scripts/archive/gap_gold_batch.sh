@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Gap-neural across ALL gold languages, one go. Per language:
-#   ensure gloss  →  gap_neural (all priors, MPS)  →  merge  →  aggregate benchmark + DIRECT gap-fill score.
-# The DIRECT score is the honest gap metric: of the tokens eflomal+gloss missed, how many did gap-neural
+# Gap-fill across ALL gold languages, one go. Per language:
+#   ensure gloss  →  gapfill (all priors, MPS)  →  merge  →  aggregate benchmark + DIRECT gap-fill score.
+# The DIRECT score is the honest gap metric: of the tokens eflomal+gloss missed, how many did gapfill
 # fill CORRECTLY (by prior), which the aggregate top-1 hides. Clear langs = positional gold; swk/swe = karnbibeln.
 #
 #   bash scripts/gap_gold_batch.sh
@@ -16,11 +16,11 @@ run() {
     python3 -m lexeme_aligner.run_pilot --method gloss $scope --usj-dir "$usj" --iso "$iso" \
       --lang-name "$iso" 2>&1 | grep -aiE "bootstrap|gloss] overall|Error|Traceback"
   fi
-  echo "-- gap_neural $iso (strong + positional + POS + translit) --"
-  python3 -m lexeme_aligner.gap_neural --iso "$iso" $scope --usj-dir "$usj" \
-    --neural-model BAAI/bge-m3 --neural-layer 16 --neural-device mps 2>&1 | grep -aiE "gap_neural|Error|Traceback"
-  echo "-- merge (eflomal+gloss+neural) --"
-  python3 -m lexeme_aligner.merge_align --iso "$iso" --methods eflomal,gloss,neural 2>&1 | grep -aE "merged"
+  echo "-- gapfill $iso (strong + positional + POS + translit) --"
+  python3 -m lexeme_aligner.gapfill --iso "$iso" $scope --usj-dir "$usj" \
+    2>&1 | grep -aiE "gapfill|Error|Traceback"
+  echo "-- merge (eflomal+gloss+gapfill) --"
+  python3 -m lexeme_aligner.merge_align --iso "$iso" --methods eflomal,gloss,gapfill 2>&1 | grep -aE "merged"
   if [ "$gold" = clear ]; then
     echo "-- aggregate top-1 (gloss vs merged) --"
     for m in gloss merged; do printf "  %-8s " "$m"

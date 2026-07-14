@@ -22,14 +22,14 @@ from pathlib import Path
 
 from lexeme_aligner.config import OUT, PRIOR_PACK
 
-# trust order for tie-breaks (higher wins): eflomal's intersection core > gloss dict > neural > IBM-1
-PRIORITY = {"eflomal": 3, "gloss": 2, "neural": 1, "stat": 0}
+# trust order for tie-breaks (higher wins): eflomal's intersection core > gloss dict > gapfill > IBM-1
+PRIORITY = {"eflomal": 3, "gloss": 2, "gapfill": 1, "stat": 0}
 _AGREE_SCORE = 0.97          # ≥2 methods agree → high-confidence (≥ export_lex _HI_SCORE 0.9)
 
 
 def _present_methods(iso: str, out_dir: Path) -> list[str]:
     found = {p.name.split("_")[1] for p in out_dir.glob(f"align_*_{iso}_*.jsonl")}
-    return [m for m in ("eflomal", "gloss", "neural", "stat") if m in found]
+    return [m for m in ("eflomal", "gloss", "gapfill", "stat") if m in found]
 
 
 def _norm(target: str | None) -> str:
@@ -41,8 +41,8 @@ def _tier(mode: str, p: dict) -> str:
         return f"score {p.get('score')}"
     if mode == "gloss":
         return p.get("method", "?")
-    if mode == "neural":
-        return p.get("prior", "embedding")
+    if mode == "gapfill":
+        return p.get("prior", "?")                          # 'strong' or 'name' — no embedding tier now
     return "all"
 
 
@@ -70,7 +70,7 @@ def load_contest_rule(path: Path) -> dict:
 
 def _contest_pick(mp: dict, rule: dict):
     """Proven standard: eflomal+gloss agree → trust; disagree → rule[(ef_tier,gl_tier)] (default ef);
-    only one present → it; neither (neural gap) → the gap fill. Returns (winning_pair, voters, score)."""
+    only one present → it; neither → the gapfill. Returns (winning_pair, voters, score)."""
     ef, gl = mp.get("eflomal"), mp.get("gloss")
     if ef and gl:
         if _norm(ef.get("target")) == _norm(gl.get("target")):
@@ -82,8 +82,8 @@ def _contest_pick(mp: dict, rule: dict):
         return ef, ["eflomal"], (ef.get("score") or 0.5)
     if gl:
         return gl, ["gloss"], (gl.get("score") or 0.5)
-    neu = mp.get("neural")                                       # gap fill (neither eflomal nor gloss)
-    return neu, ["neural"], (neu.get("score") or 0.0)
+    gf = mp.get("gapfill")                                       # neither eflomal nor gloss had a signal
+    return gf, ["gapfill"], (gf.get("score") or 0.0)
 
 
 def merge(iso: str, methods: list[str], out_dir: Path, trust=None, pos_map=None, mode_default=None,
@@ -124,7 +124,7 @@ def merge(iso: str, methods: list[str], out_dir: Path, trust=None, pos_map=None,
             if trust is not None:
                 # TRUST-WEIGHTED vote (universal rules): each mode's pair votes with its empirical
                 # (mode × pos × tier) weight; agreement sums weights. name/noun-hi-conf dominate;
-                # eflomal-0.6 / gloss-head / neural barely count — the cutoff, learned not hand-set.
+                # eflomal-0.6 / gloss-head / gapfill barely count — the cutoff, learned not hand-set.
                 pos = (pos_map or {}).get(next(iter(mp.values())).get("lexeme"), "?")
                 wsum: collections.Counter = collections.Counter()
                 contrib: dict[str, list] = collections.defaultdict(list)

@@ -85,8 +85,11 @@ gbt/ — globalbibletools/data per-occurrence gloss JSON (hbo+grc source + per-l
   PIN — GBT_DATA_COMMIT = f5af0eb89e4b845b2b30beb9f4360b50ddb08f6a (2026-07-12)
   license: CC0-1.0 (org-wide default; confirmed no per-repo override, verified via study-app sibling repo)
   subdirs kept: hbo+grc/ (Hebrew/Greek interlinear source, 448k words), fra/ (72.6% glossed), eng/
-  (99.7% glossed, kept for cross-check) — other ~38 languages NOT copied in (available at the same pin
-  if needed later: github.com/globalbibletools/data/archive/<commit>.tar.gz)
+  (99.7% glossed, kept for cross-check), hin/ (33.6%), spa/ (71.3%), por/ (68.9%), rus/ (8.7% — kept
+  despite rus being gold-quarantined; still usable for the gbt-fallback benchmark tier). ben/ and hau/
+  checked and found 0.0% glossed (genuinely empty gloss project, not sparse) — NOT copied in, no
+  content to extract. Remaining ~36 languages not copied (available at the same pin if needed later:
+  github.com/globalbibletools/data/archive/<commit>.tar.gz)
   use: gbt_align.py extracts many-to-many occurrence alignment (source id(s) <-> target gloss slot(s))
   from the id-suffix addressing scheme; see gbt_align.py docstring for the validated classification.
   Provided out-of-band; gitignored (data/gbt/).

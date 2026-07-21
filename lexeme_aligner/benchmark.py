@@ -74,15 +74,20 @@ def strong_key(strong, lemma, grain: str) -> str | None:
 
 
 def load_produced(iso: str, tag: str, out_dir: Path, grain: str = "strong",
-                  morph_remap: dict | None = None, gbt_morph: dict | None = None):
+                  morph_remap: dict | None = None, gbt_morph: dict | None = None,
+                  hebrew_remap: dict | None = None):
     """surface -> Counter(key) from the aligner's jsonl (any method `tag`), at the chosen grain.
     Content pairs, single-token targets only (multi-word renderings are names/phrases, not 1:1
     lexicon entries).
 
     `morph_remap` + `gbt_morph` (both optional, both-or-neither): the greek_morph_strong.py bridge —
     for Greek pairs, translate our lemma-level Strong's to Clear's traditional tense/case-specific
-    numbering via the source word's own morphology, BEFORE building the surface->key aggregate. This
-    only affects the comparison key returned here, never the pair's own `strong` field on disk."""
+    numbering via the source word's own morphology, BEFORE building the surface->key aggregate.
+    `hebrew_remap` (optional): the hebrew_lexeme_strong.py table — for Hebrew pairs whose LEXEME our
+    spine's bare-Strong's rollup merges with a different, distinct lexeme (e.g. hbo:4714 "Egypt"
+    rolled into 4713 "Egyptian"), translate directly via the pair's own `lexeme` field — no
+    morphology bridge needed, the lexeme already disambiguates. Neither remap affects the pair's own
+    `strong` field on disk, only the comparison key returned here."""
     lex: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     files = sorted(out_dir.glob(f"align_{tag}_{iso}_*.jsonl"))
     if not files:
@@ -101,12 +106,15 @@ def load_produced(iso: str, tag: str, out_dir: Path, grain: str = "strong",
                 if not tgt or " " in tgt.strip():        # single-token surfaces only
                     continue
                 strong = p.get("strong")
+                lexeme = p.get("lexeme") or ""
                 if morph_remap is not None and gbt_morph is not None and strong and strong.startswith("G"):
                     m = gbt_morph.get(int(ref) * 100 + p.get("h_idx", -1) + 1)
                     if m:
                         remapped = morph_remap.get(f"{norm_strong(strong)}|{m[1]}")
                         if remapped:
                             strong = remapped
+                if hebrew_remap is not None and lexeme in hebrew_remap:
+                    strong = hebrew_remap[lexeme]
                 s = norm_surface(tgt)
                 k = strong_key(strong, p.get("lemma"), grain)
                 if s and k:
@@ -163,21 +171,54 @@ def load_gold_clear(iso: str, res_dir: Path, grain: str = "strong", base_text: s
     return gold, counts
 
 
+def load_gold_gbt(iso: str, occurrence_dir: Path, grain: str = "strong"):
+    """surface -> set(key) from gbt's own occurrence-alignment extraction (gbt_align.py), same shape
+    as load_gold_clear. Only real content (kind=="1:1", non-null target) counts — gbt's suffix-
+    addressed nulls are ~94% gloss-project incompleteness, not genuine elision (see
+    greek_morph_strong.py / gbt_align.py docstrings), so they carry no evidence either way and must
+    NOT be treated as "gbt attests nothing here". `many:1`/`1:many`/`dropped` rows are skipped too —
+    only clean single-word links are trustworthy enough to corroborate a benchmark comparison."""
+    fp = occurrence_dir / f"gbt_{iso}.jsonl"
+    if not fp.exists():
+        return {}, collections.Counter()
+    gold: dict[str, set] = collections.defaultdict(set)
+    counts: collections.Counter = collections.Counter()
+    for line in fp.open(encoding="utf-8"):
+        r = json.loads(line)
+        if r["kind"] != "1:1" or not r["target_gloss"][0]:
+            continue
+        s = norm_surface(r["target_gloss"][0])
+        for strong in r["source_strong"]:
+            k = strong_key(strong, None, grain)
+            if s and k:
+                gold[s].add(k)
+                counts[s] += 1
+    return gold, counts
+
+
 def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None = None,
-                base_text: str | None = None, morph_remap: bool = True):
+                base_text: str | None = None, morph_remap: bool = True, gbt_corroborate: bool = False,
+                hebrew_remap: bool = True):
     morph_table, gbt_morph = None, None
     if morph_remap:
         from lexeme_aligner.greek_morph_strong import load_table, _load_gbt_morphology
         morph_table = load_table()
         gbt_morph = _load_gbt_morphology(Path("data/gbt/hbo+grc"))
-    produced, nbooks, _ = load_produced(iso, tag, OUT, grain, morph_table, gbt_morph)
+    hebrew_table = None
+    if hebrew_remap:
+        from lexeme_aligner.hebrew_lexeme_strong import load_table as load_hebrew_table
+        hebrew_table = load_hebrew_table()
+    produced, nbooks, _ = load_produced(iso, tag, OUT, grain, morph_table, gbt_morph, hebrew_table)
     gold, gold_counts = load_gold_clear(gold_iso or iso, RESOURCES, grain, base_text=base_text)
+    gbt_gold = load_gold_gbt(gold_iso or iso, Path("resources/occurrence_align"), grain)[0] \
+               if gbt_corroborate else {}
     # Testament(s) the gold judges, from its own strong prefixes ({'G'} NT / {'H'} OT). A whole-Bible
     # produced lexicon carries BOTH per surface ("dieu" → G2316 and H0430); scoring its cross-testament
     # top-1 against a single-testament gold tanks it. So restrict the produced top-1 to the gold's side.
     gold_prefixes = {k[0] for ks in gold.values() for k in ks if k}
     shared = [s for s in produced if s in gold]
     n_types = correct_types = tok_total = tok_correct = 0
+    gbt_rescued_types = gbt_rescued_tok = 0             # Clear said NO; gbt, checked ONLY on that miss, says YES
     misses: list[tuple] = []
     for s in shared:
         cand = [(k, n) for k, n in produced[s].items() if k and k[0] in gold_prefixes]
@@ -185,12 +226,17 @@ def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None 
             continue
         top_strong, top_n = max(cand, key=lambda x: x[1])
         n_types += 1
-        ok = top_strong in gold[s]
+        ok = top_strong in gold[s]                           # Clear's verdict — unchanged, still the primary check
         correct_types += ok
         tok_total += top_n
         tok_correct += top_n if ok else 0
         if not ok:
-            misses.append((s, top_strong, sorted(gold[s]), top_n))
+            rescued = top_strong in gbt_gold.get(s, ())      # fallback: ONLY consulted because Clear failed
+            if rescued:
+                gbt_rescued_types += 1
+                gbt_rescued_tok += top_n
+            else:
+                misses.append((s, top_strong, sorted(gold[s]), top_n))
     gold_tok = sum(gold_counts.values())
     return {
         "iso": iso, "tag": tag, "grain": grain, "books": nbooks,
@@ -200,6 +246,7 @@ def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None 
         "coverage_types": n_types / max(1, len(gold)),
         "coverage_weighted": sum(gold_counts[s] for s in shared) / max(1, gold_tok),
         "misses": sorted(misses, key=lambda m: -m[3])[:15],
+        "gbt_rescued_types": gbt_rescued_types, "gbt_rescued_tok": gbt_rescued_tok,
     }
 
 
@@ -213,6 +260,11 @@ def report_clear(r: dict, show_misses: bool):
     print(f"COVERAGE of gold vocabulary")
     print(f"    types         : {r['coverage_types']:.1%}")
     print(f"    token-weighted: {r['coverage_weighted']:.1%}")
+    if r.get("gbt_rescued_types"):
+        n_types, n_tok = r["gbt_rescued_types"], r["gbt_rescued_tok"]
+        print(f"GBT FALLBACK (checked ONLY on Clear's misses, not blended into the above)")
+        print(f"    types  Clear missed but gbt independently confirms: {n_types}")
+        print(f"    tokens Clear missed but gbt independently confirms: {n_tok}")
     if show_misses:
         print("\n  top wrong calls (surface | produced | gold-options | n):")
         for s, got, want, n in r["misses"]:
@@ -372,6 +424,16 @@ def main(argv=None):
                          "before scoring — see greek_morph_strong.py. Corrects an artificial accuracy "
                          "gap on irregular/suppletive Greek words; does not affect published data. "
                          "DEFAULT ON — pass --no-morph-remap for the old (understated) NT scores.")
+    ap.add_argument("--hebrew-remap", action=argparse.BooleanOptionalAction, default=True,
+                    help="[clear] translate our spine's bare-Strong's rollup to Clear's preferred "
+                         "number for the small set of Hebrew lexemes our rollup merges with a "
+                         "different, distinct lexeme (e.g. hbo:4714 'Egypt' rolled into 4713 "
+                         "'Egyptian') — see hebrew_lexeme_strong.py. DEFAULT ON.")
+    ap.add_argument("--gbt-corroborate", action="store_true",
+                    help="[clear] EXPERIMENTAL fallback: for surfaces Clear's own check already got "
+                         "wrong, ALSO check gbt's independent occurrence alignment (real 1:1 content "
+                         "only) before giving up. Never consulted where Clear already decided — reported "
+                         "as a separate 'GBT FALLBACK' tier, not blended into the primary Clear score.")
     # lexicon
     ap.add_argument("--testament", choices=["greek", "hebrew"], help="[lexicon] required")
     ap.add_argument("--lexicon", choices=list(LEX_SOURCES), default="karnbibeln", help="[lexicon] source")
@@ -383,7 +445,8 @@ def main(argv=None):
 
     if a.gold == "clear":
         r = score_clear(a.iso, a.tag, a.grain, gold_iso=a.gold_iso, base_text=a.base_text,
-                        morph_remap=a.morph_remap)
+                        morph_remap=a.morph_remap, gbt_corroborate=a.gbt_corroborate,
+                        hebrew_remap=a.hebrew_remap)
         report_clear(r, a.misses)
     else:
         if not a.testament:

@@ -50,9 +50,11 @@ _MIN_PURITY = 0.90
 
 
 def _load_gbt_morphology(hbo_grc_dir: Path) -> dict[int, tuple[str, str]]:
-    """word_id -> (lemma, grammar_code), from gbt's hbo+grc source (Greek NT books only)."""
+    """word_id -> (lemma, grammar_code), from gbt's hbo+grc source (all 66 books — NT book numbers
+    span 40-66, so a "4*.json"-only glob silently drops 50-66/PHP-REV, 17 of 27 NT books; load
+    everything and let callers scope by source_id prefix instead)."""
     morph_by_id = {}
-    for fp in glob.glob(str(hbo_grc_dir / "4*.json")):
+    for fp in glob.glob(str(hbo_grc_dir / "*.json")):
         d = json.loads(Path(fp).read_text(encoding="utf-8"))
         for ch in d["chapters"]:
             for v in ch["verses"]:

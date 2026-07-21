@@ -78,3 +78,39 @@ lexeme-spine.db — LEXEME-ANCHORED backbone (MACULA) — data-contract §1
   full names qal/piel/hiphil); sense# = in-house hebrew-context. Sense key is (lexeme, stem, sense),
   fully CC-BY → publishable. new sha256: dc353d340215339093f453d8765af1fabf8b444dcd917b4d73a3d056b22ebb31
   (MACULA input also refreshed this cycle → macula_spine_sha256 = a3dbc0bb…; header pin updated to match.)
+
+gbt/ — globalbibletools/data per-occurrence gloss JSON (hbo+grc source + per-language target renderings)
+  seeded 2026-07-17 from bcv-query monorepo's already-fetched pin (shoresh/interlinear/fetch.py's
+  discipline: tarball, not git clone; commit pinned deliberately)
+  PIN — GBT_DATA_COMMIT = f5af0eb89e4b845b2b30beb9f4360b50ddb08f6a (2026-07-12)
+  license: CC0-1.0 (org-wide default; confirmed no per-repo override, verified via study-app sibling repo)
+  subdirs kept: hbo+grc/ (Hebrew/Greek interlinear source, 448k words), fra/ (72.6% glossed), eng/
+  (99.7% glossed, kept for cross-check) — other ~38 languages NOT copied in (available at the same pin
+  if needed later: github.com/globalbibletools/data/archive/<commit>.tar.gz)
+  use: gbt_align.py extracts many-to-many occurrence alignment (source id(s) <-> target gloss slot(s))
+  from the id-suffix addressing scheme; see gbt_align.py docstring for the validated classification.
+  Provided out-of-band; gitignored (data/gbt/).
+
+bsb/ — BSB-publishing/bsb-data-output's base/display/ (heb/grc + eng Strong's-tagged word spans,
+  the Berean Standard Bible publisher's own native span-tagging — a second, independent occurrence-
+  alignment source alongside gbt/ above; see internal-docs/gbt-alignment-handover.md "A second,
+  independent alignment source")
+  fetched 2026-07-17 via lexeme_aligner/bsb_fetch.py (pinned git tree + raw per-file download,
+  stdlib only, ~1,190 per-chapter files / 26.5MB)
+  PIN — BSB_DATA_OUTPUT_COMMIT = a0bcfbbcfe217c66f31b1c886dd95c4424061e0e (2026-07-17 build)
+  license: CC0 + CC-BY 4.0 (index-cc-by / OSHB morphology; base/display/ itself is the CC0 span data)
+  FRESHNESS NOTE: this commit's own VERSION.json pins bsb_usj sha=d3a411d (2026-06-13) — the ~5-month
+  staleness flagged in the handover doc (bsb2usfm@d8cdbaf, 2026-01-19) is RESOLVED as of this pin.
+  use: bsb_align.py extracts source(heb/grc)<->target(eng) occurrence alignment by Strong's-code FIFO
+  matching within each verse (no id-gap heuristic needed — BSB's own multi-word spans + explicit
+  `elided:true` flag make this structurally simpler and more authoritative than gbt/'s addressing
+  scheme; see bsb_align.py docstring). Provided out-of-band; gitignored (data/bsb/).
+
+occurrence_align/ (resources/, gitignored) — gbt_align.py + bsb_align.py write per-source
+  <source>_<lang>.jsonl (gbt_eng.jsonl, gbt_fra.jsonl, bsb_eng.jsonl); occurrence_union.py
+  concatenates same-language files into <lang>.jsonl, the additive union (docs/publishing-
+  principles.md §3/§5 — each source's rows kept + `source`-tagged, never merged/picked-a-winner,
+  same pattern as lexeme-alignments' `method`/`base_text` columns). Cross-validated 2026-07-17:
+  gbt's `suffix_pending` category confirmed (via BSB's authoritative `elided` marker, independently
+  of the earlier eflomal/gloss/merge cross-check) as ~94% gloss-project incompleteness, not genuine
+  elision — do not treat as an authoritative "no content" signal.

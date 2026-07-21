@@ -109,6 +109,7 @@ class Match:
     t_idx: list[int]            # target token index(es) — multiword glosses span several
     score: float
     method: str                 # exact | stem | prefix | name | multi
+    light: bool = False          # source lexeme is semantically light (low cross-lingual target dominance)
 
 
 _GLOSS_FORM_CACHE: dict[tuple[str, str], list[str]] = {}
@@ -122,7 +123,8 @@ def _gforms(word: str, norm: Normalizer, iso: str) -> list[str]:
 
 
 def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
-                stopwords=None, cross_lang: dict | None = None, multiword_floor: float = 0.6) -> list[Match]:
+                stopwords=None, cross_lang: dict | None = None, multiword_floor: float = 0.6,
+                skip_lexemes: set | None = None) -> list[Match]:
     """Deterministic gloss alignment, enhanced with the three language-independent signals:
       • #2 morphology — via `norm` (LearnedNormalizer for langs without a hand-coded one): both the prior
         rendering and the verse token are affix-stripped, so an inflected form matches its dictionary stem.
@@ -137,6 +139,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
     tok_forms = [norm.forms(t) for t in tokens]
     blocked = {j for j in range(len(tokens)) if stopwords and stopwords.is_function(tokens[j])}  # #3
 
+    light_h = {h.idx for h in heb if skip_lexemes and h.lexeme in skip_lexemes}
     cands: list[Match] = []
     for h in heb:
         if not h.strong:
@@ -206,4 +209,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
                 m.t_idx.append(nxt)
                 used_t.add(nxt)
                 m.method = "multi"
+    for m in out:
+        if m.h_idx in light_h:
+            m.light = True
     return sorted(out, key=lambda m: m.h_idx)

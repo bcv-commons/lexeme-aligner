@@ -62,12 +62,13 @@ def _isos_present(out_dir: Path) -> list[str]:
     return sorted(isos)
 
 
-def build_profile(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS) -> dict:
-    """{lexeme: {n_langs, n_occ, span_mean, multiword_rate}} — per-language stats averaged EQUALLY
-    across language groups (so a 2-edition language doesn't out-vote a 1-edition one)."""
+def _scan_alignments(out_dir: Path):
+    """Single pass over all eflomal+gloss jsonl: collect per-lexeme, per-language-group data
+    for both the span profile (#1) and the source-scatter profile (lexeme filter for gloss)."""
     isos = _isos_present(out_dir)
-    # lexeme -> lang_group -> [span_len, span_len, …]  (one entry per hi-conf occurrence, editions pooled)
-    per_lex_lang: dict[str, dict[str, list]] = collections.defaultdict(lambda: collections.defaultdict(list))
+    per_lex_lang_spans: dict[str, dict[str, list]] = collections.defaultdict(lambda: collections.defaultdict(list))
+    per_lex_lang_surfs: dict[str, dict[str, collections.Counter]] = collections.defaultdict(
+        lambda: collections.defaultdict(collections.Counter))
     for iso in isos:
         grp = _group(iso)
         for m in _METHODS:
@@ -79,10 +80,17 @@ def build_profile(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS) -> dict
                             if not (p.get("content") and p.get("lexeme") and p.get("t_idx")
                                     and _hi(p.get("method", ""), p.get("score") or 0)):
                                 continue
-                            per_lex_lang[p["lexeme"]][grp].append(len(p["t_idx"]))
+                            lex = p["lexeme"]
+                            per_lex_lang_spans[lex][grp].append(len(p["t_idx"]))
+                            surface = (p.get("target") or "").lower().strip()
+                            if surface:
+                                per_lex_lang_surfs[lex][grp][surface] += 1
+    return per_lex_lang_spans, per_lex_lang_surfs
 
+
+def _build_profile_from(per_lex_lang_spans: dict, min_langs: int = _MIN_LANGS) -> dict:
     profile = {}
-    for lexeme, by_lang in per_lex_lang.items():
+    for lexeme, by_lang in per_lex_lang_spans.items():
         langs = [g for g, spans in by_lang.items() if spans]
         if len(langs) < min_langs:
             continue
@@ -97,10 +105,55 @@ def build_profile(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS) -> dict
         profile[lexeme] = {
             "n_langs": len(langs),
             "n_occ": n_occ,
-            "span_mean": round(sum(lang_means) / len(lang_means), 3),      # equal per-language weight
-            "multiword_rate": round(sum(lang_multi) / len(lang_multi), 3),  # equal per-language weight
+            "span_mean": round(sum(lang_means) / len(lang_means), 3),
+            "multiword_rate": round(sum(lang_multi) / len(lang_multi), 3),
         }
     return profile
+
+
+def build_profile(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS) -> dict:
+    """{lexeme: {n_langs, n_occ, span_mean, multiword_rate}} — per-language stats averaged EQUALLY
+    across language groups (so a 2-edition language doesn't out-vote a 1-edition one)."""
+    per_lex_lang_spans, _ = _scan_alignments(out_dir)
+    return _build_profile_from(per_lex_lang_spans, min_langs)
+
+
+_DEFAULT_LIGHT_FLOOR = 0.30       # avg target dominance below this → "light" (semantically general)
+
+
+def _build_light_lexemes_from(per_lex_lang_surfs: dict, min_langs: int = _MIN_LANGS,
+                              dominance_floor: float = _DEFAULT_LIGHT_FLOOR) -> dict:
+    light = {}
+    for lexeme, by_lang in per_lex_lang_surfs.items():
+        langs = [g for g, counts in by_lang.items() if sum(counts.values()) >= 5]
+        if len(langs) < min_langs:
+            continue
+        lang_doms = []
+        for g in langs:
+            counts = by_lang[g]
+            total = sum(counts.values())
+            top_n = counts.most_common(1)[0][1]
+            lang_doms.append(top_n / total)
+        avg_dom = sum(lang_doms) / len(lang_doms)
+        if avg_dom < dominance_floor:
+            light[lexeme] = round(avg_dom, 4)
+    return light
+
+
+def build_light_lexemes(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS,
+                        dominance_floor: float = _DEFAULT_LIGHT_FLOOR) -> dict:
+    """Light-lexeme profile: {lexeme: avg_target_dominance} for semantically general source
+    lexemes whose average target-side dominance (across language groups) is BELOW `dominance_floor`.
+    These are light verbs (בּוֹא/come, ποιέω/do, δίδωμι/give), generic nouns (אִישׁ/man), and
+    similar lexemes where no target language has a stable one-to-one rendering — a type-level
+    dictionary entry is fundamentally wrong, so gloss tags them (kept but excluded from merge
+    votes) and gap-fill gets a chance to attempt them with contextual priors.
+
+    Computed from the same multi-language eflomal+gloss data as the span profile (#1), with
+    the same edition-deduplication (per language group, then averaged equally). Gets more
+    reliable as more languages are aligned — the signal is source-anchored and universal."""
+    _, per_lex_lang_surfs = _scan_alignments(out_dir)
+    return _build_light_lexemes_from(per_lex_lang_surfs, min_langs, dominance_floor)
 
 
 _CARD = """---
@@ -140,7 +193,9 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    profile = build_profile(args.out_dir, args.min_langs)
+    per_lex_lang_spans, per_lex_lang_surfs = _scan_alignments(args.out_dir)
+
+    profile = _build_profile_from(per_lex_lang_spans, args.min_langs)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(profile, sort_keys=True, ensure_ascii=False, indent=1) + "\n",
                         encoding="utf-8")
@@ -148,6 +203,13 @@ def main() -> int:
     print(f"[cross_lang_prior] {len(profile)} lexemes (≥{args.min_langs} languages) → {args.out}\n"
           f"  most multi-word across languages: "
           f"{[(lx, r['multiword_rate'], r['n_langs']) for lx, r in multiword]}", file=sys.stderr)
+
+    light = _build_light_lexemes_from(per_lex_lang_surfs, args.min_langs)
+    light_path = args.out.parent / "light_lexemes.json"
+    light_path.write_text(json.dumps(light, sort_keys=True, ensure_ascii=False, indent=1) + "\n",
+                          encoding="utf-8")
+    print(f"[cross_lang_prior] light lexemes: {len(light)} semantically general lexemes "
+          f"(avg dominance <{_DEFAULT_LIGHT_FLOOR}) → {light_path}", file=sys.stderr)
 
     if args.publish:
         readme = args.out.parent / "README.md"

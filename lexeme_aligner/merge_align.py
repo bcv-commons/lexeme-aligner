@@ -70,8 +70,12 @@ def load_contest_rule(path: Path) -> dict:
 
 def _contest_pick(mp: dict, rule: dict):
     """Proven standard: eflomal+gloss agree → trust; disagree → rule[(ef_tier,gl_tier)] (default ef);
-    only one present → it; neither → the gapfill. Returns (winning_pair, voters, score)."""
+    only one present → it; neither → the gapfill. Light-lexeme gloss pairs (semantically general
+    source lexemes with low cross-lingual target dominance) don't vote — kept in the gloss pool
+    but not used for merge decisions. Returns (winning_pair, voters, score)."""
     ef, gl = mp.get("eflomal"), mp.get("gloss")
+    if gl and gl.get("light"):
+        gl = None
     if ef and gl:
         if _norm(ef.get("target")) == _norm(gl.get("target")):
             return ef, ["eflomal", "gloss"], _AGREE_SCORE

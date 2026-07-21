@@ -39,3 +39,10 @@ data/morph/*.json
 data/stopwords/*.txt
 # cross-lingual-span-profile bulk data — same pattern
 resources/cross_lang_prior/profile.json
+resources/cross_lang_prior/light_lexemes.json
+# globalbibletools/data seeded copy — provided out-of-band, pinned commit in PROVENANCE.txt
+data/gbt/
+# occurrence-alignment extraction output (gbt + bsb) — bulk, regenerated from data/gbt/ + data/bsb/
+resources/occurrence_align/
+# BSB-publishing/bsb-data-output fetched copy — provided out-of-band, pinned commit in PROVENANCE.txt
+data/bsb/

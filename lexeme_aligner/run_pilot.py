@@ -122,11 +122,14 @@ def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path
                     if not m:
                         continue
                     rendering = " ".join(rec.toks[j] for j in m.t_idx)
-                    pairs.append({"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong,
-                                  "lemma": t.lemma, "stem": t.stem,
-                                  "surface": t.surface, "gloss_en": t.gloss_en, "sense": t.sense,
-                                  "target": rendering, "t_idx": list(m.t_idx), "score": m.score,
-                                  "method": m.method, "content": bool(t.is_content)})
+                    pair = {"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong,
+                            "lemma": t.lemma, "stem": t.stem,
+                            "surface": t.surface, "gloss_en": t.gloss_en, "sense": t.sense,
+                            "target": rendering, "t_idx": list(m.t_idx), "score": m.score,
+                            "method": m.method, "content": bool(t.is_content)}
+                    if getattr(m, "light", False):
+                        pair["light"] = True
+                    pairs.append(pair)
                     if t.is_content:
                         lex_agg[(rendering.lower(), t.strong)] += 1
                     # Anchor is the MACULA `lexeme` (CC-BY/CC0-safe), never BHSA `lex` (CC-BY-NC-SA):
@@ -200,14 +203,16 @@ def main() -> int:
     ap.add_argument("--iso", default="ind")
     ap.add_argument("--lang-name", default="Indonesian")
     ap.add_argument("--stat-iters", type=int, default=6)
-    ap.add_argument("--gloss-signals", default="morph",
+    ap.add_argument("--gloss-signals", default="morph,scatter",
                     help="language-independent signals folded into gloss (comma-sep subset of "
                          "morph=#2 unsupervised morphology, stopwords=#3 target function-word filter, "
-                         "cross=#1 cross-lingual span). DEFAULT morph-only: the gold ablation (fra/hin/arb) "
-                         "showed #2 is a clean win (coverage +5pt, precision flat) but #3 CRATERS gold-"
-                         "coverage in gloss (blocks legit function↔function alignments; it belongs in "
-                         "content-only gap-fill) and #1 has no measurable effect (gloss already spans "
-                         "multi-word priors). Enable them only to re-ablate.")
+                         "cross=#1 cross-lingual span, scatter=#4 light-lexeme filter). "
+                         "DEFAULT morph+scatter: #2 is a clean win (coverage +5pt, precision flat); "
+                         "#4 tags semantically light source lexemes (avg cross-lingual target dominance "
+                         "<30%%) — their gloss pairs stay in the output but don't vote in the merge "
+                         "and are opened to gap-fill. Zero regressions, +2pt Hausa/Assamese. #3 CRATERS "
+                         "(blocks legit function↔function alignments; belongs in gap-fill) and #1 has no "
+                         "measurable effect (gloss already spans multi-word priors). Enable them to re-ablate.")
     ap.add_argument("--cross-lang", type=Path, default=Path("resources/cross_lang_prior/profile.json"),
                     help="#1 cross-lingual span profile (cross_lang_prior.py)")
     ap.add_argument("--eflomal-stem", action="store_true",
@@ -271,8 +276,18 @@ def main() -> int:
             else:
                 print(f"[pilot] gloss priors (bootstrap): {priors.stats['lexemes']} lexemes, "
                       f"{priors.stats['strongs']} strongs, {priors.stats['lxx']} LXX-bridged", file=sys.stderr)
+        gloss_skip = None
+        if "scatter" in signals:
+            scatter_path = args.cross_lang.parent / "light_lexemes.json"
+            if scatter_path.exists():
+                scatter = json.loads(scatter_path.read_text(encoding="utf-8"))
+                gloss_skip = set(scatter.keys())
+                print(f"[pilot] gloss #4 light-lexeme filter: {len(gloss_skip)} semantically light "
+                      f"lexemes tagged (avg target dominance <30%%; kept in gloss, excluded from "
+                      f"merge votes + opened to gap-fill)", file=sys.stderr)
         runs["gloss"] = run_method(recs, lambda r: align_verse(r.heb, r.toks, priors, args.iso,
-                                                               stopwords=gloss_sw, cross_lang=gloss_xl),
+                                                               stopwords=gloss_sw, cross_lang=gloss_xl,
+                                                               skip_lexemes=gloss_skip),
                                    args.iso, "gloss", args.out)
     if want["stat"]:
         ibm = IBM1(iters=args.stat_iters)

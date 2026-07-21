@@ -73,10 +73,16 @@ def strong_key(strong, lemma, grain: str) -> str | None:
     return k if grain == "strong" else f"{k}|{_norm_lemma(lemma)}"
 
 
-def load_produced(iso: str, tag: str, out_dir: Path, grain: str = "strong"):
+def load_produced(iso: str, tag: str, out_dir: Path, grain: str = "strong",
+                  morph_remap: dict | None = None, gbt_morph: dict | None = None):
     """surface -> Counter(key) from the aligner's jsonl (any method `tag`), at the chosen grain.
     Content pairs, single-token targets only (multi-word renderings are names/phrases, not 1:1
-    lexicon entries)."""
+    lexicon entries).
+
+    `morph_remap` + `gbt_morph` (both optional, both-or-neither): the greek_morph_strong.py bridge —
+    for Greek pairs, translate our lemma-level Strong's to Clear's traditional tense/case-specific
+    numbering via the source word's own morphology, BEFORE building the surface->key aggregate. This
+    only affects the comparison key returned here, never the pair's own `strong` field on disk."""
     lex: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     files = sorted(out_dir.glob(f"align_{tag}_{iso}_*.jsonl"))
     if not files:
@@ -86,14 +92,23 @@ def load_produced(iso: str, tag: str, out_dir: Path, grain: str = "strong"):
     for f in files:
         for line in f.open(encoding="utf-8"):
             verses += 1
-            for p in json.loads(line)["pairs"]:
+            rec = json.loads(line)
+            ref = rec.get("ref")
+            for p in rec["pairs"]:
                 if not p.get("content"):
                     continue
                 tgt = p.get("target") or ""
                 if not tgt or " " in tgt.strip():        # single-token surfaces only
                     continue
+                strong = p.get("strong")
+                if morph_remap is not None and gbt_morph is not None and strong and strong.startswith("G"):
+                    m = gbt_morph.get(int(ref) * 100 + p.get("h_idx", -1) + 1)
+                    if m:
+                        remapped = morph_remap.get(f"{norm_strong(strong)}|{m[1]}")
+                        if remapped:
+                            strong = remapped
                 s = norm_surface(tgt)
-                k = strong_key(p.get("strong"), p.get("lemma"), grain)
+                k = strong_key(strong, p.get("lemma"), grain)
                 if s and k:
                     lex[s][k] += 1
     return lex, len(files), verses
@@ -149,8 +164,13 @@ def load_gold_clear(iso: str, res_dir: Path, grain: str = "strong", base_text: s
 
 
 def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None = None,
-                base_text: str | None = None):
-    produced, nbooks, _ = load_produced(iso, tag, OUT, grain)
+                base_text: str | None = None, morph_remap: bool = True):
+    morph_table, gbt_morph = None, None
+    if morph_remap:
+        from lexeme_aligner.greek_morph_strong import load_table, _load_gbt_morphology
+        morph_table = load_table()
+        gbt_morph = _load_gbt_morphology(Path("data/gbt/hbo+grc"))
+    produced, nbooks, _ = load_produced(iso, tag, OUT, grain, morph_table, gbt_morph)
     gold, gold_counts = load_gold_clear(gold_iso or iso, RESOURCES, grain, base_text=base_text)
     # Testament(s) the gold judges, from its own strong prefixes ({'G'} NT / {'H'} OT). A whole-Bible
     # produced lexicon carries BOTH per surface ("dieu" → G2316 and H0430); scoring its cross-testament
@@ -346,6 +366,11 @@ def main(argv=None):
                          "(e.g. produced eng_ylt scored vs eng gold)")
     ap.add_argument("--base-text", default=None,
                     help="[clear] restrict gold to one edition/base_text (e.g. YLT) when it pools several")
+    ap.add_argument("--morph-remap", action="store_true",
+                    help="[clear] translate our lemma-level Greek Strong's (e.g. G1510) to Clear's "
+                         "traditional tense/case-specific numbering (e.g. G2258) via source morphology "
+                         "before scoring — see greek_morph_strong.py. Corrects an artificial accuracy "
+                         "gap on irregular/suppletive Greek words; does not affect published data.")
     # lexicon
     ap.add_argument("--testament", choices=["greek", "hebrew"], help="[lexicon] required")
     ap.add_argument("--lexicon", choices=list(LEX_SOURCES), default="karnbibeln", help="[lexicon] source")
@@ -356,7 +381,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     if a.gold == "clear":
-        r = score_clear(a.iso, a.tag, a.grain, gold_iso=a.gold_iso, base_text=a.base_text)
+        r = score_clear(a.iso, a.tag, a.grain, gold_iso=a.gold_iso, base_text=a.base_text,
+                        morph_remap=a.morph_remap)
         report_clear(r, a.misses)
     else:
         if not a.testament:

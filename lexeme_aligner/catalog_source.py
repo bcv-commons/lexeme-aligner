@@ -2,33 +2,36 @@
 catalog-overlap.json, covering PKF (`p`), helloAO (`h`), and DBT (`d`) in one place.
 
 WHAT THIS IS: catalog-index.json is a flat [iso, testament, source, edition_count] list across all
-three sources (1,876 distinct languages). catalog-overlap.json adds a `defaults` pick per
-iso:testament (following priority [pkf, helloao, dbt]) plus, where multiple sources carry the SAME
-language, an actual TEXT-SIMILARITY comparison ("identical", 1.0 — derived from probe-verse
-fingerprinting, e.g. REV15/PSA117/PSA51, the same spirit as our own versification.py structural
-fingerprinting) — telling us whether a second source's edition is the same underlying text (skip, to
-avoid double-counting) or a genuinely different one (safe to pool, matching the existing
-eng=BSB+eng_ylt / arb=arb_vdv+ARBNAV pattern).
+three sources (1,876 distinct languages). catalog-overlap.json (schema updated 2026-07-22 — see below)
+groups editions that are the SAME underlying text into one entry (`ids`, e.g. `["dbt:SPNR02",
+"helloao:spa_r09"]` — Reina Valera 1909, hosted by two providers), each derived from probe-verse
+fingerprinting (REV15/PSA117/PSA51 — the same spirit as our own versification.py structural
+fingerprinting) — the same-text grouping avoids double-counting a duplicate-hosted edition as two
+"versions" when pooling.
 
-WHAT THIS UNLOCKS: for the 1,109 catalog languages absent from our own gold_langs/aligned set but
-reachable via pkf or helloao (sources we already have adapters for — cdn_source.py / helloao_source.py),
-`resolve()` gives a ready-to-use ingest plan (source + the EXACT parameter each adapter needs — pkf
-just needs --iso; helloAO needs the precise translation id, e.g. "aai_wbt", which only this catalog's
-comparison data reliably supplies) — no per-language manual research needed.
+SCHEMA CHANGE (2026-07-22): the catalog's own `defaults` top-level field is GONE; each grouped entry
+now optionally carries its OWN `default` (which id to prefer within that group) plus, for singleton
+entries, a `likely` classification (`distinct_translation` / `dialect_variant` /
+`orthography_convention`) + `closest` + `score` — a genuine qualitative signal ("is this a truly
+independent translation, or just a minor variant of one we already have") that the old binary
+"identical"/"distinct" comparison didn't give. `resolve()`/`all_versions()` below were rewritten for
+this shape; no top-level `defaults` lookup exists anymore.
 
-WHAT THIS DOES NOT UNLOCK: DBT-only languages (~755 more). Investigated directly (session-time,
-2026-07-21) — cdn.bibel.wiki exposes DBT DISCOVERY metadata only (this catalog + dbt/_catalog.json +
-dbt/<iso>/media.json's fileset routing), not actual fetchable verse text; a dozen plausible endpoint
-patterns (fileset-id-based, book-based, timing/caption-based) all 404, no browsable app either. That
-content most likely lives behind Faith Comes By Hearing's own DBP/DBT API, which needs registration +
-an API key — a credentials decision for the user, not something to route around silently. `resolve()`
-surfaces this case explicitly (source="dbt", fetchable=False) rather than pretending to support it.
+WHAT THIS UNLOCKS: for the ~1,864 catalog languages absent from our own gold_langs/aligned set,
+`resolve()` gives a ready-to-use single-edition ingest plan; `all_versions()` gives every distinct
+edition found (source + exact adapter parameter each needs), for the "pool everything available"
+default this project uses unless `data/language_editions.json` restricts a specific language. All
+three sources are fetchable: `pkf` -> `cdn_source.py --iso`, `helloao` -> `helloao_source.py
+--translation`, `dbt` -> `dbt_source.py --bible-id` (needs `BIBLE_API_KEY`, see .env; this CDN itself
+only exposes DBT *discovery* metadata, not fetchable text — dbt_source.py hits Faith Comes By
+Hearing's own DBP v4 API directly, verified live 2026-07-22).
 
 No git-commit anchor exists for this data (server-generated, no `generated_at`) — pinned by content
 sha256 instead (same discipline cdn_source.py already uses for its own PKF payload verification).
 
     python3 -m lexeme_aligner.catalog_source --fetch                    # pin the catalog locally
     python3 -m lexeme_aligner.catalog_source --resolve swa --testament nt
+    python3 -m lexeme_aligner.catalog_source --all-versions spa --testament nt
 """
 from __future__ import annotations
 
@@ -77,52 +80,95 @@ def load(dir_: Path = _DIR) -> tuple[dict, dict]:
             json.loads(ov_fp.read_text(encoding="utf-8")))
 
 
-def resolve(iso: str, testament: str = "nt", dir_: Path = _DIR) -> dict | None:
-    """iso + testament -> an ingest plan: {source, fetchable, param, edition_code, alternates}.
-    `param` is the exact value the corresponding adapter needs (pkf: the iso itself; helloao: the
-    translation id, e.g. "aai_wbt"; dbt: None, not fetchable here). `alternates` lists OTHER sources
-    that carry a genuinely DIFFERENT edition (not "identical" per the overlap comparison) — candidates
-    for edition-pooling, same pattern as eng=BSB+eng_ylt."""
+def _split_id(ref: str) -> tuple[str, str]:
+    """"helloao:spa_r09" -> ("helloao", "spa_r09")."""
+    source, _, edition_code = ref.partition(":")
+    return source, edition_code
+
+
+def _param_for(source: str, iso: str, edition_code: str) -> str | None:
+    if source == "pkf":
+        return iso
+    if source in ("helloao", "dbt"):
+        return edition_code   # helloao: translation id · dbt: bible_id (dbt_source.py --bible-id)
+    return None
+
+
+def _edition(ref: str, iso: str, **extra) -> dict:
+    source, edition_code = _split_id(ref)
+    d = {
+        "source": source, "fetchable": True,
+        "param": _param_for(source, iso, edition_code), "edition_code": edition_code,
+        "note": (None if source != "dbt" else
+                 "fetch via dbt_source.py --bible-id <edition_code> — needs BIBLE_API_KEY (see .env)."),
+    }
+    d.update(extra)
+    return d
+
+
+def all_versions(iso: str, testament: str = "nt", dir_: Path = _DIR) -> list[dict]:
+    """iso + testament -> every distinct edition the catalog knows about, one dict per edition (a
+    grouped entry's non-default ids are expanded too — same text, different host — each flagged
+    `same_text_as` the group's chosen id so a caller can skip them when pooling to avoid double-
+    counting). Each dict: {source, fetchable, param, edition_code, group_default, likely, closest,
+    score, same_text_as}. This is what "pool everything available" (the project default absent a
+    `data/language_editions.json` restriction) should iterate over."""
     _, overlap = load(dir_)
     matches = [e for e in overlap["entries"] if e[0] == iso and e[1] == testament]
-    if not matches:
+    out: list[dict] = []
+    for _, _, info in matches:
+        ids = info.get("ids", [])
+        default_id = info.get("default", ids[0] if ids else None)
+        # singleton entries (len(ids) == 1) carry likely/closest/score classifying THAT edition
+        # relative to the nearest other entry, instead of a `default` pick within a group
+        classification = ({"likely": info["likely"], "closest": info.get("closest"),
+                            "score": info.get("score")} if "likely" in info else {})
+        for ref in ids:
+            out.append(_edition(
+                ref, iso, group_default=(ref == default_id),
+                same_text_as=(None if ref == default_id else default_id),
+                **classification,
+            ))
+    return out
+
+
+def resolve(iso: str, testament: str = "nt", dir_: Path = _DIR) -> dict | None:
+    """iso + testament -> a single ingest plan for the ONE most-canonical edition (source, fetchable,
+    param, edition_code). Preference: an edition recognized by multiple providers as the SAME text
+    (i.e. its group's `default`) is treated as the most likely mainstream/canonical translation —
+    among those, PRIORITY (pkf > helloao > dbt) picks the first candidate. Falls back to PRIORITY over
+    every id in the catalog for this iso+testament if no group has a `default`. For the full set of
+    editions (needed to pool everything, this project's default behavior), use `all_versions()`."""
+    versions = all_versions(iso, testament, dir_)
+    if not versions:
         return None
 
-    default_key = f"{iso}:{testament}"
-    default_source = overlap["defaults"].get(default_key)
-    chosen = next((e for e in matches if e[2] == default_source), None) or matches[0]
+    def _priority_pick(cands: list[dict]) -> dict:
+        for src in PRIORITY:
+            for v in cands:
+                if v["source"] == src:
+                    return v
+        return cands[0]
 
-    source, edition_code = chosen[2], chosen[3]
-    comparisons = chosen[4] if len(chosen) > 4 else []
-    source_id = chosen[5] if len(chosen) > 5 else None
+    # a version is "recognized-canonical" if it's a group's default AND some other version in that
+    # same group points `same_text_as` at it (i.e. multiple providers host the same text)
+    referenced = {v["same_text_as"] for v in versions if v.get("same_text_as")}
+    canonical = [v for v in versions if v.get("group_default") and v["edition_code"] in referenced]
 
-    alternates = []
-    for other_src, verdict, score in comparisons:
-        other_source = other_src.split(":", 1)[0]
-        if verdict != "identical":
-            alternates.append({"source": other_source, "ref": other_src, "verdict": verdict, "score": score})
-
-    if source == "pkf":
-        param = iso
-    elif source == "helloao":
-        param = source_id
-    else:
-        param = None
-
-    return {
-        "iso": iso, "testament": testament, "source": source, "fetchable": source != "dbt",
-        "param": param, "edition_code": edition_code,
-        "alternates": alternates,
-        "note": (None if source != "dbt" else
-                 "DBT-native text is not fetchable via this CDN — needs Faith Comes By Hearing's "
-                 "DBP/DBT API (registration + API key required, not currently configured)."),
-    }
+    chosen = _priority_pick(canonical) if canonical else _priority_pick(versions)
+    plan = dict(chosen)
+    plan["iso"], plan["testament"] = iso, testament
+    plan.pop("group_default", None)
+    plan.pop("same_text_as", None)
+    return plan
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fetch", action="store_true", help="download + pin the catalog")
     ap.add_argument("--resolve", metavar="ISO", default=None)
+    ap.add_argument("--all-versions", metavar="ISO", default=None,
+                     help="list every distinct edition found for iso+testament")
     ap.add_argument("--testament", choices=["nt", "ot"], default="nt")
     ap.add_argument("--dir", type=Path, default=_DIR)
     args = ap.parse_args()
@@ -136,8 +182,15 @@ def main() -> int:
                   file=sys.stderr)
             return 1
         print(json.dumps(plan, indent=2, ensure_ascii=False))
-    if not args.fetch and not args.resolve:
-        ap.error("need --fetch and/or --resolve")
+    if args.all_versions:
+        versions = all_versions(args.all_versions, args.testament, args.dir)
+        if not versions:
+            print(f"[catalog_source] no {args.testament} entry for '{args.all_versions}' in the catalog",
+                  file=sys.stderr)
+            return 1
+        print(json.dumps(versions, indent=2, ensure_ascii=False))
+    if not args.fetch and not args.resolve and not args.all_versions:
+        ap.error("need --fetch and/or --resolve and/or --all-versions")
         return 1
     return 0
 

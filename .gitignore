@@ -2,6 +2,8 @@ out/
 __pycache__/
 *.egg-info/
 *.pyc
+# local secrets (HF token, DBT API key, ...) — never committed
+.env
 # copied-in spine.db / hbo.db — provided out-of-band, never committed
 *.db
 # private working notes / handover — not official (Claude auto-loads it)

@@ -1,0 +1,13 @@
+{
+  "_doc": "Languages/testaments to NEVER auto-process from the cdn.bibel.wiki catalog (catalog_source.py), regardless of what language_editions.json says. A language is excluded if it matches ANY rule below; a rule matches when its `iso` equals AND (`testament` is 'all' OR equals the requested testament). This exists because the catalog's own 'language' codes include ORIGINAL-LANGUAGE editions that aren't real target translations at all — running our normal target-language pipeline against them would align the source against itself (near-meaningless statistical noise, not a translation signal), not because of any editorial/licensing concern.",
+  "_examples": [
+    {"iso": "grc", "testament": "all"},
+    {"iso": "heb", "testament": "ot"}
+  ],
+  "exclude": [
+    {"iso": "grc", "testament": "all",
+     "reason": "grc's 9 NT catalog entries (grc_sbl, grc_gtr, grc_tis, etc.) are different scholarly/manuscript-tradition EDITIONS of the same original Greek New Testament our own spine already comes from (grc_sbl is the SBLGNT, the same text tradition Clear-Bible's own NT gold uses) — not translations. Aligning our Greek NT spine against another Greek NT text is source-against-itself, not a translation pair. The one OT entry (grc_bre, Brenton's Septuagint) IS a genuine Hebrew->Greek translation, but that overlaps with the existing LXX bridge in recipes.py (sourced from prior-pack) — a deliberate special case if ever wanted, not blanket auto-processing."},
+    {"iso": "heb", "testament": "ot",
+     "reason": "heb's OT catalog entry (HEBM95) is the Hebrew Masoretic Text itself — the same source our own OT spine already comes from. Same self-alignment problem as grc/NT: aligning our Hebrew OT spine against another Hebrew OT edition is source-against-itself, not a translation signal. heb/NT is NOT excluded — those 4 entries (heb_lbm, heb_mod, heb_scg, HEBM95) are genuine Hebrew translations of the New Testament (Modern Hebrew, Delitzsch-tradition, etc.), a real translation product like any other target language."}
+  ]
+}

@@ -11,13 +11,14 @@ Table `spine_words`, one row per original-language token:
 book TEXT, chapter INT, verse INT, idx INT,       -- PK (book,chapter,verse,idx)
 surface TEXT, strong INT, lemma TEXT, morph TEXT,  -- strong is a bare int; H vs G from OT/NT book
 is_content INT                                     -- 1 = N/V/A head-POS content word
-lexeme TEXT                                        -- OPTIONAL, forthcoming: the lexical ANCHOR
+lexeme TEXT                                        -- the lexical ANCHOR (present in the current spine)
 ```
 `lexeme` is the target anchor (MACULA lang+augmented-Strong's — finer than bare Strong's, which it
-rolls up to; see `docs/data-contracts.md` for the shoresh export contract). `hebrew_source` uses the
-column when present; **until it lands it derives `<paddedStrong>|<lemma>`**, so the pipeline is already
-lexeme-anchored. Where to get the spine (standalone): build from **STEPBible** TAHOT/TAGNT or **MACULA**
-(Clear-Bible) — both open; shoresh builds it (`shoresh/spine/parse.py`, MACULA in `shoresh/macula/`).
+rolls up to; see `docs/data-contracts.md` for the shoresh export contract). `hebrew_source` reads it
+directly when present, else derives `<paddedStrong>|<lemma>` as a fallback — so a spine without the
+column still works, just at coarser (Strong's-only) precision. Where to get the spine (standalone):
+build from **STEPBible** TAHOT/TAGNT or **MACULA** (Clear-Bible) — both open; shoresh builds it
+(`shoresh/spine/parse.py`, MACULA in `shoresh/macula/`).
 
 ### 2. Per-occurrence senses — `ALIGNER_HBO_DB` (SQLite, **optional** — sense-mining only)
 Table `occurrence`: `node, ref (BBCCCVVV), book, chapter, verse, lex, stem, sp, strong (H####),
@@ -74,23 +75,27 @@ scattered join artifact — the positional data needed to mine MWEs (see `aligne
 ### Promotable artifacts (benchmark-gated — passed, see docs/benchmark.md)
 - `lexeme-alignments/` (HF `bcv-commons/lexeme-alignments`, **CC0**) — an **`iso=<iso>/`-partitioned
   Parquet dataset**, one row per (surface → lexeme → **method**):
-  `surface, lexeme, strong, method, base_text, count, share, hi_conf` — the **lexeme** is the anchor of
-  record, `strong` its rollup **bridge** (each lexeme → one Strong's, so a Strong's-ecosystem consumer can
-  group either way). It is an **additive union**, not a pre-merged winner, across **two provenance axes**:
-  `method` ∈ `{eflomal, gloss, gapfill}` (*how* aligned) and `base_text` (*which* edition). A surface→lexeme
-  attested by two methods or two editions is separate rows — nothing merged away, full provenance (a
-  `gapfill`-only fact can never masquerade as eflomal/gloss). Several editions of one language can be
-  **pooled** into a single `iso=<lang>` partition, each row tagged by `base_text` (`--pool`), so
-  cross-edition agreement (a surface→lexeme attested by >1 `base_text`) is derivable as a confidence signal.
-  `count` is per-(method, base_text) (do **not** sum across methods); `share = count / Σ count for that
-  surface` **within (method, base_text)** = P(lexeme | surface); `hi_conf` = fraction of the pair's links
-  that were intersection-backed (eflomal score ≥ 0.9); content tokens only. Produced by
+  `surface, lexeme, method, base_text, count, hi_conf` — the **lexeme** is the anchor of record.
+  `strong` and `share` are **not stored** (dropped 2026-07: ~32% smaller, zero information lost — both
+  are exact, lossless derivations from the other columns; see `lexeme-alignments/README.md` for the
+  formulas and `scripts/strongs_view.py` for a ready-made derived view). It is an **additive union**,
+  not a pre-merged winner, across **two provenance axes**: `method` ∈ `{eflomal, gloss, gapfill}` (*how*
+  aligned) and `base_text` (*which* edition). A surface→lexeme attested by two methods or two editions
+  is separate rows — nothing merged away, full provenance (a `gapfill`-only fact can never masquerade
+  as eflomal/gloss). Several editions of one language can be **pooled** into a single `iso=<lang>`
+  partition, each row tagged by `base_text` (`--pool`), so cross-edition agreement (a surface→lexeme
+  attested by >1 `base_text`) is derivable as a confidence signal — same for cross-*method* agreement.
+  `count` is per-(method, base_text) (do **not** sum across methods); `hi_conf` = fraction of the pair's
+  links that were intersection-backed (eflomal score ≥ 0.9); content tokens only. Four small companion
+  reference files ship alongside the partitions (light-lexeme list, two Strong's edge-case correction
+  tables, the merge disagreement-resolution rule) — see `lexeme-alignments/README.md`. Produced by
   `python3 -m lexeme_aligner.export_lex --iso eng --pool engy --lang-name English` (needs the `[publish]`
   extra), which aggregates the `align_<method>_<iso>_*.jsonl` pairs → `lexeme-alignments/iso=<iso>/data.parquet`.
   **The Parquet is git-ignored and published out-of-band** (Hugging Face dataset / object storage);
-  only `lexeme-alignments/manifest.json` (per-language metadata + `content_sha256`) and `README.md` are
-  committed. This keeps regenerated bulk data out of git history at multi-thousand-language scale. Design
-  principles (lexeme anchor, Strong's bridge, method-provenance, additive union) live in
+  only `lexeme-alignments/manifest.json` (per-language metadata + `content_sha256`), `README.md`, and
+  the small companion reference files are committed. This keeps regenerated bulk data out of git
+  history at multi-thousand-language scale. Design principles (lexeme anchor, Strong's bridge,
+  method-provenance, additive union) live in
   `docs/publishing-principles.md`.
 - `aligned_mwe/` (**CC0**) — one row per (lexeme → **contiguous multi-word expression**):
   `lexeme, strong, phrase, n_words, count, share, contig`. Where `lexeme-alignments` is per token, this mines

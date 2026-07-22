@@ -1,58 +1,65 @@
 # lexeme-aligner
 
-Align *any* Bible translation to the **Strong's-tagged original** (Hebrew/Greek), and out comes a
-word-level interlinear plus `lexeme-alignments` (`surface → Strong's`) — and, because everything keys on
-Strong's, mined multilingual glosses, senses, domains, and a name-bridge attach for free. An offline
-**producer of data**, not a service. Architecture map: `docs/architecture.md`; full design:
-`docs/aligner-plan.md`; ingest/source-of-truth: `docs/bibles-recipe-layer.md`; cross-repo data flows:
-`docs/data-contracts.md`.
+Word-level alignments between Bible translations and their **Strong's-tagged Hebrew/Greek original**,
+growing in language coverage over time — plus derived datasets mined from the same alignment work (word
+senses, target-language stopword lists, cross-lingual structural stats). All published, all free to use.
 
-## Methods (ensemble)
-- **gloss-anchored** ($0) — match target tokens against known per-Strong's glosses. Precise, but
-  dictionary-bounded.
-- **statistical** — IBM-1 (pure Python, `stat_align`) and **eflomal** (HMM distortion, `eflomal_align`).
-  Needs only parallel text + Strong's → **works for any language, no LLM/encoder** (the universal spine).
-- **gapfill** — model-free gap-filling (strong-rollup back-off + name transliteration + cross-lingual span priors) for tokens neither eflomal nor gloss aligned. No target-language model — works for any language, same as eflomal/gloss.
+**Just want the data? Start here — no installation, no cloning, no Python package needed.**
 
-**Pilot result** (full-OT Indonesian, 23k verses): gloss 51% · IBM-1 62% · **eflomal 89% coverage /
-62% high-confidence** · union 95%. eflomal is the workhorse.
+## The main dataset: `lexeme-alignments`
 
-## Install
-```bash
-pip install -e .            # core: eflomal + numpy
-pip install -e '.[ingest]'  # + usfmtc (USFM/USX → USJ)
-```
-**eflomal on macOS (Apple clang):** the PyPI wheel fails on `-fopenmp`. Build from source with libomp:
-```bash
-brew install libomp
-git clone https://github.com/robertostling/eflomal && cd eflomal
-# in src/Makefile: -fopenmp → "-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include"
-#                  LDFLAGS  → "-lm -L$(brew --prefix libomp)/lib -lomp"
-pip install Cython && pip install --no-build-isolation .
+For each language: every target-language word-form (`surface`) attested for each original-language
+**lexeme**, with frequency and confidence. [**bcv-commons/lexeme-alignments**](https://huggingface.co/datasets/bcv-commons/lexeme-alignments) · CC0-1.0
+
+```python
+import pandas as pd
+df = pd.read_parquet("hf://datasets/bcv-commons/lexeme-alignments/iso=fra/data.parquet")
+df[df.lexeme == "grc:26"]   # ἀγάπη (agape/love) — every French rendering we found, with counts
 ```
 
-## Run
-```bash
-python -m lexeme_aligner.run_pilot --method all --ot \
-    --usj-dir <dir of NN-BOOK.json USJ files> --iso ind --lang-name Indonesian
-# methods: gloss | stat | eflomal | both | all ; --eflomal-priors = semi-supervised
+or with `pyarrow` directly:
+
+```python
+import pyarrow.parquet as pq
+t = pq.read_table("hf://datasets/bcv-commons/lexeme-alignments/iso=fra/data.parquet")
 ```
-Outputs to `$ALIGNER_OUT` (default `aligner/out/`, gitignored): `align_<method>_<iso>_<BOOK>.jsonl`
-+ `report_<method>_<iso>.md`.
 
-## Inputs / config (all env-overridable — see `config.py`)
-| env | what |
-|---|---|
-| `ALIGNER_SPINE_DB` | original backbone: `spine_words(book,chapter,verse,idx,surface,strong,lemma,morph,is_content)` |
-| `ALIGNER_HBO_DB` | per-occurrence sense sidecar (optional — sense-mining only) |
-| `ALIGNER_RESOURCES` | gloss priors dir (optional — gloss-anchored method only) |
-| `ALIGNER_OUT` | experiment output dir |
-| `--usj-dir` | target text as USJ (build it from USFM/PKF — see `docs/bibles-recipe-layer.md`) |
+See [`manifest.json`](https://huggingface.co/datasets/bcv-commons/lexeme-alignments/blob/main/manifest.json)
+for the current, always-up-to-date list of published languages — new ones are added regularly, so
+check there rather than trusting a list in prose. Each row is tagged with **how** it was found
+(`method`) and **which edition** (`base_text`) — nothing is silently merged away, so you can filter for
+exactly the confidence level you need.
 
-Schemas in `DATA.md`. The **eflomal** method needs *only* the spine + the target USJ — no glosses,
-no senses — so the standalone core has minimal inputs.
+**Full schema, worked examples, and the four companion reference files (light-lexeme list, Strong's
+edge-case tables, the disagreement-resolution rule) are documented in the dataset's own README:**
+[**lexeme-alignments/README.md**](lexeme-alignments/README.md) — read that first if you're building
+anything on this data. It covers:
+- the exact schema and how to derive `strong`/`share` (dropped from storage — they're pure functions
+  of the other columns, kept out to shrink the dataset ~32%)
+- how to read the `method`/`base_text` provenance tags, and how to use cross-method / cross-edition
+  agreement as a confidence signal
+- the companion resource files, and honestly which ones you can use standalone vs. which need extra
+  data you likely don't have
 
-## Modules
-`config` (paths) · `refs` (BBCCCVVV, vendored) · `usj_source` (USJ→verse tokens) ·
-`hebrew_source` (spine + hbo.db) · `gloss_priors` · `gloss_align` (gloss method) ·
-`stat_align` (IBM-1) · `eflomal_align` (eflomal) · `run_pilot` (runner + report).
+## Companion datasets
+
+Mined as a byproduct of the same alignment work — each is its own standalone, citable resource:
+
+| dataset | what it is | license |
+|---|---|---|
+| [`senses-attested`](https://huggingface.co/datasets/bcv-commons/senses-attested) | which word-sense (of several a Strong's number can carry) each rendering attests | CC-BY |
+| [`target-stopwords`](https://huggingface.co/datasets/bcv-commons/target-stopwords) | induced function-word lists per target language — many have no other curated list anywhere | CC0-1.0 |
+| [`target-morphology`](https://huggingface.co/datasets/bcv-commons/target-morphology) | learned per-language morphology (prefixes/suffixes) used internally for alignment | CC0-1.0 |
+| [`cross-lingual-span-profile`](https://huggingface.co/datasets/bcv-commons/cross-lingual-span-profile) | per-lexeme "does this typically need one word or a phrase," aggregated across every aligned language | CC0-1.0 |
+
+## License
+
+`lexeme-alignments` and most companions are **CC0-1.0** — derived counts and statistics, not the
+running text of any translation, so no copyrightable expression is reproduced. Each dataset's own
+README has the exact terms; `lexeme-alignments/manifest.json` links each language's source-text
+license (we never copy source text, only point to where its terms live).
+
+## Building or extending this yourself
+
+The above is everything most people need. If you want to run the alignment pipeline, add a new
+language, or understand how the data is produced: see [**docs/architecture.md**](docs/architecture.md).

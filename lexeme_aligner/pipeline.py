@@ -2,9 +2,11 @@
 
     ingest (PKF or helloAO → USJ)  →  align (eflomal)  →  export (Parquet + manifest)  [→ publish]
 
-Two text sources behind the same USJ seam (pick with --source):
+Three text sources behind the same USJ seam (pick with --source):
   - `pkf`     — cdn.bibel.wiki PKF (589 langs; Node edge via pkf2usfm/); language keyed by --iso.
   - `helloao` — bible.helloao.org JSON (~1,256 translations, pure Python); needs --translation <id>.
+  - `dbt`     — Faith Comes By Hearing's DBP v4 API (~1,488 langs with text); needs --bible-id <id>
+    and a BIBLE_API_KEY (see .env, dbt_source.py docstring).
 
 Each stage is the existing module CLI run in sequence, so every stage stays the single source of
 truth for its own args/behaviour; this driver just wires them and stops on the first failure.
@@ -46,12 +48,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
-    ap.add_argument("--source", choices=["pkf", "helloao", "auto"], default="pkf",
+    ap.add_argument("--source", choices=["pkf", "helloao", "dbt", "auto"], default="pkf",
                     help="text source (default pkf). auto = resolve via catalog_source.py's "
                          "cdn.bibel.wiki cross-source index (pkf/helloAO/DBT coverage) and dispatch "
-                         "to whichever of pkf/helloAO it recommends — DBT-native-only languages are "
-                         "not fetchable this way, see catalog_source.py docstring.")
+                         "to whichever it recommends.")
     ap.add_argument("--translation", default=None, help="helloAO translation id (required for --source helloao), e.g. swe_fol")
+    ap.add_argument("--bible-id", default=None, help="DBP bible_id (required for --source dbt), e.g. SPARVC")
     ap.add_argument("--lang-name", default=None)
     ap.add_argument("--method", default="eflomal")
     scope = ap.add_mutually_exclusive_group()
@@ -73,8 +75,8 @@ def main() -> int:
     if args.spine_db:
         env["ALIGNER_SPINE_DB"] = str(args.spine_db)
 
-    # 1) ingest — PKF or helloAO → pin → USJ (skip if the text is already local)
-    source, translation = args.source, args.translation
+    # 1) ingest — PKF, helloAO, or DBT → pin → USJ (skip if the text is already local)
+    source, translation, bible_id = args.source, args.translation, args.bible_id
     if source == "auto":
         from lexeme_aligner.catalog_source import resolve
         from lexeme_aligner.run_pilot import OT_BOOKS, NT_BOOKS
@@ -95,15 +97,27 @@ def main() -> int:
         source = plan["source"]
         if source == "helloao":
             translation = plan["param"]
+        elif source == "dbt":
+            bible_id = plan["param"]
         print(f"[pipeline] --source auto resolved '{args.iso}' -> {source}"
               + (f" (translation={translation})" if translation else "")
-              + (f" · {len(plan['alternates'])} alternate edition(s) also cataloged" if plan["alternates"] else ""),
+              + (f" (bible_id={bible_id})" if bible_id else ""),
               file=sys.stderr)
 
     if args.skip_ingest:
         print(f"[pipeline] skip ingest — using existing {usj}", file=sys.stderr)
     elif source == "pkf":
         _run("cdn_source", "--iso", args.iso, "--to-usj", usj, "--converter", args.converter, env=env)
+    elif source == "dbt":
+        if not bible_id:
+            raise SystemExit("[pipeline] --source dbt requires --bible-id (e.g. SPARVC)")
+        from lexeme_aligner.run_pilot import OT_BOOKS, NT_BOOKS
+        ingest_books = (OT_BOOKS + NT_BOOKS if args.whole
+                        else [b.upper() for b in args.book] if args.book
+                        else NT_BOOKS if args.nt else OT_BOOKS)
+        book_args = [a for b in ingest_books for a in ("--book", b)]
+        _run("dbt_source", "--bible-id", bible_id, "--iso", args.iso,
+             "--to-usj", usj, *book_args, env=env)
     else:  # helloao — needs a translation id; scope the fetch to the align books
         if not translation:
             raise SystemExit("[pipeline] --source helloao requires --translation (e.g. swe_fol)")
@@ -142,7 +156,8 @@ def main() -> int:
     man = LEX_ROOT / "manifest.json"
     if man.exists():
         e = json.loads(man.read_text(encoding="utf-8")).get("languages", {}).get(args.iso, {})
-        src = (e.get("source") or {}).get("license_url", "?")
+        sources = e.get("sources") or {}
+        src = "; ".join(f"{bt}→{s.get('license_url', '?')}" for bt, s in sources.items()) or "?"
         print(f"\n[pipeline] ✓ {args.iso}: {e.get('rows')} rows · {e.get('surfaces')} surfaces · "
               f"{e.get('strongs')} Strong's · license→{src}"
               + (f" · published to {args.publish}" if args.publish else ""), file=sys.stderr)

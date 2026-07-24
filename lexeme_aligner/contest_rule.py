@@ -20,6 +20,7 @@ import collections
 import json
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.benchmark import agrees, load_gold_lexicon, norm_surface
 from lexeme_aligner.config import OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.merge_align import _tier
@@ -33,13 +34,13 @@ _DEFAULT = {"fra": "clear", "arb": "clear", "eng": "clear", "hau": "clear", "swk
 _cfg = {k: v for k, v in (json.loads(_CFG.read_text(encoding="utf-8")) if _CFG.exists() else _DEFAULT).items()
         if not k.startswith("_")}
 GOLD = {iso: gt for iso, gt in _cfg.items()
-        if list(OUT.glob(f"align_eflomal_{iso}_*.jsonl")) and list(OUT.glob(f"align_gloss_{iso}_*.jsonl"))}
+        if tag_files(OUT, "eflomal", iso) and tag_files(OUT, "gloss", iso)}
 LANGS = list(GOLD)
 
 
 def _index(iso, method, out_dir):
     idx = {}
-    for fp in sorted(out_dir.glob(f"align_{method}_{iso}_*.jsonl")):
+    for fp in tag_files(out_dir, method, iso):
         with fp.open(encoding="utf-8") as fh:
             for line in fh:
                 rec = json.loads(line)

@@ -20,6 +20,7 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files, tag_files_any_method
 from lexeme_aligner.config import OUT, PRIOR_PACK
 
 # trust order for tie-breaks (higher wins): eflomal's intersection core > gloss dict > gapfill > IBM-1
@@ -28,7 +29,7 @@ _AGREE_SCORE = 0.97          # ≥2 methods agree → high-confidence (≥ expor
 
 
 def _present_methods(iso: str, out_dir: Path) -> list[str]:
-    found = {p.name.split("_")[1] for p in out_dir.glob(f"align_*_{iso}_*.jsonl")}
+    found = {p.name.split("_")[1] for p in tag_files_any_method(out_dir, iso)}
     return [m for m in ("eflomal", "gloss", "gapfill", "stat") if m in found]
 
 
@@ -96,7 +97,7 @@ def merge(iso: str, methods: list[str], out_dir: Path, trust=None, pos_map=None,
     verses: dict[int, dict] = {}
     per_method_pairs: collections.Counter = collections.Counter()   # content pairs each method aligned
     for m in methods:
-        files = sorted(out_dir.glob(f"align_{m}_{iso}_*.jsonl"))
+        files = tag_files(out_dir, m, iso)
         for fp in files:
             with fp.open(encoding="utf-8") as fh:
                 for line in fh:

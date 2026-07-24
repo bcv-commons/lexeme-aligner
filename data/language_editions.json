@@ -1,0 +1,148 @@
+{
+  "_doc": "Per-language RESTRICTION to specific editions, for languages with enough distinct versions that pooling everything (onboard.py's default) would be noisy/redundant rather than helpful. A language absent from `editions` is unaffected — onboard.py pools every fetchable edition catalog_source.all_versions() finds. Present here, it pools ONLY the listed editions. Each entry: {source: pkf|helloao|dbt, param: the value that source's adapter needs (helloAO translation id / DBT bible_id — pkf just uses the iso), edition_code: the catalog's own identifier for it (used to derive a stable per-edition tag; see onboard.py's _tag())}. The FIRST entry in the list is the primary edition (becomes the published partition's driving alignment tag); the rest are pooled. Adding/removing/reordering entries here is safe and incremental — see onboard.py's module docstring for exactly what re-runs (the changed edition only) vs what's untouched (everyone else's cached ingest+align data) when you edit a list.",
+  "_examples": {
+    "spa": [
+      {"source": "helloao", "param": "spa_r09", "edition_code": "spa_r09"},
+      {"source": "helloao", "param": "spa_bes", "edition_code": "spa_bes"}
+    ]
+  },
+  "editions": {
+    "spa": [
+      {"source": "helloao", "param": "spa_r09", "edition_code": "spa_r09",
+       "note": "canonical anchor — grouped with dbt:SPNR02 as the same text; our currently-published edition"},
+      {"source": "helloao", "param": "spa_bes", "edition_code": "spa_bes",
+       "note": "distinct_translation"},
+      {"source": "helloao", "param": "spa_blm", "edition_code": "spa_blm",
+       "note": "distinct_translation"},
+      {"source": "helloao", "param": "spa_onbv", "edition_code": "spa_onbv",
+       "note": "distinct_translation"},
+      {"source": "helloao", "param": "spa_pdt", "edition_code": "spa_pdt",
+       "note": "distinct_translation"},
+      {"source": "helloao", "param": "spa_vbl", "edition_code": "spa_vbl",
+       "note": "distinct_translation"},
+      {"source": "dbt", "param": "SPANTV", "edition_code": "SPANTV",
+       "note": "distinct_translation (NT-classified; OT classification still pending)"},
+      {"source": "dbt", "param": "SPAERV", "edition_code": "SPAERV",
+       "note": "unclassified (no likely verdict yet either way — grouped with dbt:SPAWTC as the same text; kept pending the producer's next fingerprinting pass rather than assumed redundant"}
+    ],
+    "por": [
+      {"source": "dbt", "param": "PORJFA", "edition_code": "PORJFA",
+       "note": "anchor — canonical João Ferreira de Almeida, Brazilian (vname confirms); matches the Clear-gold benchmark edition for por"},
+      {"source": "dbt", "param": "PORNLH", "edition_code": "PORNLH",
+       "note": "Brazilian; distinct_translation (0.67 vs PORWTC)"},
+      {"source": "dbt", "param": "PORTHF", "edition_code": "PORTHF",
+       "note": "Brazilian; distinct_translation (0.68 vs PORBBS)"},
+      {"source": "dbt", "param": "PORWTC", "edition_code": "PORWTC",
+       "note": "Brazilian; distinct_translation (0.76 vs PORBBS)"},
+      {"source": "dbt", "param": "PORB09", "edition_code": "PORB09",
+       "note": "probably European (no Brasil tag anywhere); distinct_translation (0.69 vs PORFAA)"},
+      {"source": "dbt", "param": "PORFAA", "edition_code": "PORFAA",
+       "note": "probably European (no Brasil tag); but textually close to the Brazilian Almeida cluster (0.85-0.86) — likely the historical Portugal-side Almeida revision, not a coincidence, since Almeida has both national lines"},
+      {"source": "helloao", "param": "por_blt", "edition_code": "por_blt",
+       "note": "probably European (no country tag); distinct_translation (0.68 vs PORNLH); NT-only"},
+      {"source": "helloao", "param": "por_onbv", "edition_code": "por_onbv",
+       "note": "probably European (no country tag); distinct_translation (0.73 NT / 0.78 OT)"},
+      {"source": "helloao", "param": "por_tft", "edition_code": "por_tft",
+       "note": "probably European (no country tag); distinct_translation (0.52 vs PORNLH — the most independent of all por editions); NT-only"}
+    ],
+    "eng": [
+      {"source": "helloao", "param": "BSB", "edition_code": "BSB",
+       "note": "anchor — existing primary published edition"},
+      {"source": "helloao", "param": "eng_ylt", "edition_code": "eng_ylt",
+       "note": "existing pooled edition (previously tagged 'engy')"},
+      {"source": "dbt", "param": "EN1ESV", "edition_code": "EN1ESV",
+       "note": "English Standard Version — major, unclassified but independently significant"},
+      {"source": "dbt", "param": "ENGNAS", "edition_code": "ENGNAS",
+       "note": "New American Standard Bible — flagged dialect_variant vs WEB (0.88) but kept for its stature"},
+      {"source": "dbt", "param": "ENGNLH", "edition_code": "ENGNLH",
+       "note": "New Living Translation — major, unclassified but independently significant"},
+      {"source": "dbt", "param": "ENGWEB", "edition_code": "ENGWEB",
+       "note": "World English Bible — major public-domain translation"},
+      {"source": "helloao", "param": "eng_cpb", "edition_code": "eng_cpb",
+       "note": "King James Version (Cambridge Paragraph — catalog's own pick within the KJV group)"},
+      {"source": "dbt", "param": "ENGNIV", "edition_code": "ENGNIV",
+       "note": "New International Version — MANUALLY ADDED; absent from the fingerprint graph entirely (not in any catalog-overlap.json entry), included on its own significance"},
+      {"source": "dbt", "param": "ENGEVD", "edition_code": "ENGEVD",
+       "note": "distinct_translation (Easy-to-Read Version)"},
+      {"source": "dbt", "param": "ENGNLV", "edition_code": "ENGNLV",
+       "note": "distinct_translation (New Life Version)"},
+      {"source": "dbt", "param": "ENGWMV", "edition_code": "ENGWMV",
+       "note": "distinct_translation (Wycliffe Modern, 0.57 vs KJV — the most independent of the historical-English cluster)"},
+      {"source": "helloao", "param": "GHT", "edition_code": "GHT",
+       "note": "distinct_translation (Garth's Hyper-literal Translation)"},
+      {"source": "helloao", "param": "eng_bbe", "edition_code": "eng_bbe",
+       "note": "distinct_translation (Bible in Basic English)"},
+      {"source": "helloao", "param": "eng_dby", "edition_code": "eng_dby",
+       "note": "distinct_translation (Darby Translation)"},
+      {"source": "helloao", "param": "eng_dra", "edition_code": "eng_dra",
+       "note": "distinct_translation (Douay-Rheims 1899, Vulgate-based Catholic tradition)"},
+      {"source": "helloao", "param": "eng_f35", "edition_code": "eng_f35",
+       "note": "distinct_translation (Family 35 NT, Byzantine minority-text tradition)"},
+      {"source": "helloao", "param": "eng_fbv", "edition_code": "eng_fbv",
+       "note": "distinct_translation (Free Bible Version)"},
+      {"source": "helloao", "param": "eng_gnv", "edition_code": "eng_gnv",
+       "note": "distinct_translation (Geneva Bible 1599)"},
+      {"source": "helloao", "param": "eng_jps", "edition_code": "eng_jps",
+       "note": "distinct_translation (JPS TaNaKH 1917, Jewish translation tradition)"},
+      {"source": "helloao", "param": "eng_lee", "edition_code": "eng_lee",
+       "note": "distinct_translation (Leeser Tanakh, Jewish translation tradition)"},
+      {"source": "helloao", "param": "eng_net", "edition_code": "eng_net",
+       "note": "distinct_translation (NET Bible)"},
+      {"source": "helloao", "param": "eng_ojb", "edition_code": "eng_ojb",
+       "note": "distinct_translation (Orthodox Jewish Bible)"},
+      {"source": "helloao", "param": "eng_rv5", "edition_code": "eng_rv5",
+       "note": "distinct_translation (Revised Version 1885)"},
+      {"source": "helloao", "param": "eng_t4t", "edition_code": "eng_t4t",
+       "note": "distinct_translation (Translation for Translators)"},
+      {"source": "helloao", "param": "eng_ulb", "edition_code": "eng_ulb",
+       "note": "distinct_translation (Unlocked Literal Bible)"},
+      {"source": "helloao", "param": "eng_wyc2017", "edition_code": "eng_wyc2017",
+       "note": "distinct_translation (Wycliffe's Bible, modern spelling)"}
+    ],
+    "fra": [
+      {"source": "helloao", "param": "fra_lsg", "edition_code": "fra_lsg",
+       "note": "anchor — existing published edition (LSG, Louis Segond 1910). FRALSG (dbt) went 404 (removed/renamed upstream on DBP after the catalog snapshot); FRNTLS was tried as a substitute but its own fingerprint pointed elsewhere (FRNO96/Ostervald) at the time. The catalog's 2026-07-23 update grouped FRALSG+FRNTLS+fra_lsg as the SAME text with fra_lsg as its own recommended default — confirms fra_lsg was the right pick, FRNTLS is NOT pooled separately below (would double-count the same translation)."},
+      {"source": "helloao", "param": "fra_ost", "edition_code": "fra_ost"},
+      {"source": "helloao", "param": "fra_jnd", "edition_code": "fra_jnd",
+       "note": "dbt:FRADBY (also 'Darby') dropped from this list — it's the same historical Darby translation as fra_jnd (0.996 near-identical), just hosted by DBT instead of helloAO; pooling both would double-count it. FRNO96 (dbt) also dropped — already same-text-grouped with fra_ost."},
+      {"source": "helloao", "param": "fra_ncl", "edition_code": "fra_ncl"}
+    ],
+    "hin": [
+      {"source": "helloao", "param": "HINIRV", "edition_code": "HINIRV", "note": "anchor — existing published edition (IRV)"},
+      {"source": "dbt", "param": "HINWTC", "edition_code": "HINWTC"},
+      {"source": "dbt", "param": "HNDSKV", "edition_code": "HNDSKV"},
+      {"source": "helloao", "param": "hin_cvb", "edition_code": "hin_cvb",
+       "note": "HINBIB, HINDPI, HINOHC dropped — regenerated from the fixed default auto-derivation (near-duplicate + testament-consistency fixes in onboard.py's _drop_near_duplicates()), each classified dialect_variant/orthography_convention/near_identical against something else in this list."}
+    ],
+    "ind": [
+      {"source": "pkf", "param": "ind", "edition_code": "INDPKF", "note": "anchor — existing published edition (PKF ind_C01)"},
+      {"source": "dbt", "param": "INDALA", "edition_code": "INDALA"},
+      {"source": "dbt", "param": "INDSHV", "edition_code": "INDSHV"},
+      {"source": "dbt", "param": "INDTSI", "edition_code": "INDTSI"},
+      {"source": "helloao", "param": "ind_ags", "edition_code": "ind_ags"},
+      {"source": "helloao", "param": "ind_ayt", "edition_code": "ind_ayt",
+       "note": "dbt:INDASV dropped — dialect_variant (0.91, OT) of this edition; also helloao:ind_obo dropped entirely (same text as the PKF anchor, was slipping through as a separate entry due to a testament-inconsistent same_text_as flag — fixed in onboard.py)."}
+    ],
+    "ben": [
+      {"source": "helloao", "param": "ben_irv", "edition_code": "ben_irv", "note": "anchor — existing published edition (IRV)"},
+      {"source": "dbt", "param": "BENWTC", "edition_code": "BENWTC"},
+      {"source": "helloao", "param": "ben_ocv", "edition_code": "ben_ocv",
+       "note": "dbt:BNGDIP dropped — near_identical (0.98) to this edition. Reverses an earlier per-language call to keep both as a 'cross-edition agreement signal'; the new DEFAULT policy (near-duplicates drop uniformly) takes precedence for consistency across languages."}
+    ]
+  },
+  "_excluded_tracks": {
+    "eng": {
+      "lxx": ["eng_boy", "eng_bre", "eng_lxu", "eng_lxx"],
+      "dialect": ["AUSWBT"],
+      "reason": "LXX-based (Greek-OT-sourced) English editions and dialect-specific editions (e.g. Aboriginal English) are deliberately excluded from the main eng pool — each needs its own dedicated pipeline/track rather than folding into the main-language partition. Listed here so they aren't silently forgotten, not because they're redundant."
+    },
+    "por": {
+      "video_or_audio_only": ["PTGLPF"],
+      "reason": "PTGLPF (Nova Versão Internacional 2011) has no text fileset on DBP at all — video_stream only (live-verified). It was originally included on prior knowledge of the translation's significance, but the 2026-07-23 catalog update dropped it from the fingerprint graph entirely, and it's still confirmed video-only live. Permanently unfetchable via dbt_source — not worth a wasted API call every onboarding run."
+    },
+    "ben": {
+      "video_or_audio_only": ["BENBIB", "BENCLV"],
+      "reason": "Both confirmed audio_drama/video_stream only on DBP, live-verified — no text fileset exists. BENBIB was also dropped from the catalog's fingerprint graph entirely (2026-07-23 update); BENCLV never carried a `likely` classification either (an unclassified singleton, same pattern). Kept out of the main ben pool for the same reason as por's PTGLPF."
+    }
+  }
+}

@@ -20,6 +20,7 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.benchmark import agrees, load_gold_lexicon, norm_surface
 from lexeme_aligner.config import OUT, RESOURCES
 
@@ -28,7 +29,7 @@ _PRIORS = ["strong", "name", "embedding"]
 
 def _gap_pairs(iso: str, out_dir: Path):
     """Yield (ref, strong, target_words, prior) for every gapfill fill (align_gapfill jsonl)."""
-    files = sorted(out_dir.glob(f"align_gapfill_{iso}_*.jsonl"))
+    files = tag_files(out_dir, "gapfill", iso)
     if not files:
         raise SystemExit(f"no align_gapfill_{iso}_*.jsonl — run gapfill --iso {iso} first")
     for fp in files:

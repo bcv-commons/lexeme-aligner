@@ -19,6 +19,7 @@ import collections
 import json
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.benchmark import agrees, load_gold_lexicon, norm_surface
 from lexeme_aligner.config import OUT, PRIOR_PACK, RESOURCES
 
@@ -45,7 +46,7 @@ def _load_pos(prior_pack: Path) -> dict:
 
 def _pairs(iso: str, method: str, out_dir: Path, pos_map: dict, by: str):
     """Yield (ref, strong, target-words, bucket). `by` = tier | pos | pos+tier (category × confidence)."""
-    files = sorted(out_dir.glob(f"align_{method}_{iso}_*.jsonl"))
+    files = tag_files(out_dir, method, iso)
     if not files:
         raise SystemExit(f"no align_{method}_{iso}_*.jsonl — run that mode first")
     for fp in files:

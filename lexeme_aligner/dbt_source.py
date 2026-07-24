@@ -37,7 +37,17 @@ from pathlib import Path
 
 BASE = os.environ.get("BIBLE_API_BASE_URL", "https://4.dbt.io/api")
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
-_TEXT_TYPES = {"text_plain", "text_format", "text_json", "text_usx", "text_html"}
+# A whole-Bible edition means hundreds to 1000+ individual calls (book_chapters + one per
+# book/chapter — no bulk endpoint exists). No delay at all appears to trigger server-side
+# throttling that shows up as multi-minute latency spikes on individual calls (observed empirically
+# across several onboarding batches — no official rate-limit is documented). Default matches that
+# empirical finding; override via BIBLE_API_DELAY_MS (e.g. "0" to disable).
+_REQUEST_DELAY = float(os.environ.get("BIBLE_API_DELAY_MS", "500")) / 1000.0
+# Preference order — text_plain/text_format are VERIFIED to work with the chapter-verse endpoint
+# (live-tested); text_json/text_usx/text_html are untested there and, for at least one real bible
+# (PORNLH), text_usx silently 404s on that endpoint even though the fileset exists. Only fall back
+# to them if no plain/format fileset is offered at all.
+_PREFERRED_TYPES = ("text_plain", "text_format", "text_json", "text_usx", "text_html")
 
 
 def _api_key() -> str:
@@ -49,7 +59,11 @@ def _api_key() -> str:
 
 
 def _get(path: str, params: dict, retries: int = 5) -> dict:
-    """GET a DBP endpoint, key injected, with backoff on transient errors."""
+    """GET a DBP endpoint, key injected, with backoff on transient errors. Paced by
+    BIBLE_API_DELAY_MS before every call (see module-level comment) — the single choke point all
+    DBT calls go through, so this covers bible_info/book_chapters/chapter_verses uniformly."""
+    if _REQUEST_DELAY:
+        time.sleep(_REQUEST_DELAY)
     q = dict(params)
     q["key"] = _api_key()
     q["v"] = "4"
@@ -80,20 +94,40 @@ def bible_info(bible_id: str) -> dict:
     return d["data"]
 
 
-def text_fileset_id(info: dict) -> str:
-    """Pick a text-bearing fileset id out of a bible's filesets (may differ from the bible_id)."""
-    for group in (info.get("filesets") or {}).values():
-        for f in group:
-            if f.get("type") in _TEXT_TYPES:
-                return f["id"]
-    raise SystemExit(f"[dbt_source] '{info.get('abbr')}' has no text fileset (audio/video-only)")
+def text_filesets(info: dict) -> dict:
+    """Pick the best fileset for each testament. Some bibles split NT and OT into SEPARATE filesets
+    (`size` == 'OT'/'NT' — e.g. PORNLH, live-verified); others have one combined fileset (any other
+    `size`, e.g. 'C', 'NTPOTP' — e.g. SPARVC, live-verified); some have BOTH, of differing quality
+    (e.g. INDASV: a combined text_plain 'INDASV' AND testament-specific text_usx ones — live-
+    verified: preferring the testament-specific one blindly picked the broken text_usx fileset over
+    the working combined one). So candidates for a testament are the union of its own testament-
+    specific filesets AND any combined (non-OT/NT-sized) ones, ranked by _PREFERRED_TYPES — type
+    quality wins regardless of whether the fileset is testament-specific or combined. Returns
+    {'OT': fileset_id|None, 'NT': fileset_id|None}."""
+    all_filesets = [f for group in (info.get("filesets") or {}).values() for f in group]
+
+    def best_for(testament: str) -> str | None:
+        candidates = [f for f in all_filesets
+                      if f.get("size") == testament or f.get("size") not in ("OT", "NT")]
+        for t in _PREFERRED_TYPES:
+            for f in candidates:
+                if f.get("type") == t:
+                    return f["id"]
+        return None
+
+    picks = {"OT": best_for("OT"), "NT": best_for("NT")}
+    if not any(picks.values()):
+        raise SystemExit(f"[dbt_source] '{info.get('abbr')}' has no text fileset (audio/video-only)")
+    return picks
 
 
 def book_chapters(bible_id: str) -> dict:
-    """GET /bibles/{bible_id}/book -> {book_id: [chapter numbers]} — the only source of truth for
-    how many chapters each book has; no bulk book+chapter fetch exists on this API."""
+    """GET /bibles/{bible_id}/book -> {book_id: {"chapters": [...], "testament": "OT"|"NT"}} — the
+    only source of truth for how many chapters each book has (and which testament it's in, needed
+    to route to the right fileset); no bulk book+chapter fetch exists on this API."""
     d = _get(f"bibles/{bible_id}/book", {})
-    return {b["book_id"]: b["chapters"] for b in d.get("data", [])}
+    return {b["book_id"]: {"chapters": b["chapters"], "testament": b.get("testament")}
+            for b in d.get("data", [])}
 
 
 def chapter_verses(fileset_id: str, book: str, chapter: int) -> list[dict]:
@@ -113,8 +147,9 @@ def _book_usfm(book: str, chapters: dict[int, list[dict]]) -> str:
     return "\n".join(out) + "\n"
 
 
-def to_usj(bible_id: str, fileset_id: str, usj_dir: Path, only: list[str] | None) -> int:
-    """Fetch every book/chapter for a bible and convert to USJ <NN>-<BOOK>.json."""
+def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None) -> int:
+    """Fetch every book/chapter for a bible and convert to USJ <NN>-<BOOK>.json. Each book is routed
+    to its OWN testament's fileset (falling back to 'ALL') — see text_filesets()."""
     try:
         import usfmtc
     except ImportError:
@@ -122,8 +157,8 @@ def to_usj(bible_id: str, fileset_id: str, usj_dir: Path, only: list[str] | None
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
 
     usj_dir.mkdir(parents=True, exist_ok=True)
-    chapters_by_book = book_chapters(bible_id)
-    wanted = [b for b in chapters_by_book if not only or b in only]
+    books_meta = book_chapters(bible_id)
+    wanted = [b for b in books_meta if not only or b in only]
     n = 0
     with tempfile.TemporaryDirectory() as td:
         for book in wanted:
@@ -131,13 +166,20 @@ def to_usj(bible_id: str, fileset_id: str, usj_dir: Path, only: list[str] | None
             if not nn:
                 print(f"[dbt_source] skip {book}: not in NN map", file=sys.stderr)
                 continue
+            meta = books_meta[book]
+            fileset_id = picks.get(meta["testament"])
+            if not fileset_id:
+                print(f"[dbt_source] skip {book}: no fileset covers testament "
+                      f"{meta['testament']!r}", file=sys.stderr)
+                continue
             chapters = {}
-            for ch in chapters_by_book[book]:
+            for ch in meta["chapters"]:
                 verses = chapter_verses(fileset_id, book, ch)
                 if verses:
                     chapters[ch] = verses
             if not chapters:
-                print(f"[dbt_source] skip {book}: no verse text returned", file=sys.stderr)
+                print(f"[dbt_source] skip {book}: no verse text returned "
+                      f"(fileset={fileset_id})", file=sys.stderr)
                 continue
             uf = Path(td) / f"{book}.usfm"
             uf.write_text(_book_usfm(book, chapters), encoding="utf-8")
@@ -147,14 +189,15 @@ def to_usj(bible_id: str, fileset_id: str, usj_dir: Path, only: list[str] | None
     return n
 
 
-def build_pin(info: dict, fileset_id: str, iso: str) -> dict:
+def build_pin(info: dict, picks: dict, iso: str) -> dict:
     publishers = info.get("publishers") or []
     license_url = next((p.get("url_website") for p in publishers if p.get("url_website")), None)
     return {
         "iso": iso,
         "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)",
+        "language_name": info.get("language"),   # e.g. "Cebuano" — DBP's own language field
         "bible_id": info.get("abbr"),
-        "fileset_id": fileset_id,
+        "filesets": picks,   # {'OT':..., 'NT':..., 'ALL':...} — see text_filesets()
         "name": info.get("vname") or info.get("name"),
         "copyright": info.get("mark"),
         "license_url": license_url,
@@ -179,17 +222,17 @@ def main() -> int:
     args = ap.parse_args()
 
     info = bible_info(args.bible_id)
-    fileset_id = text_fileset_id(info)
-    pin = build_pin(info, fileset_id, args.iso)
+    picks = text_filesets(info)
+    pin = build_pin(info, picks, args.iso)
     pin_path = args.pin or Path("data/pins") / f"{args.iso}.json"
     pin_path.parent.mkdir(parents=True, exist_ok=True)
     pin_path.write_text(json.dumps(pin, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     if args.sources:
         update_sources(pin, args.sources)
-    print(f"[dbt_source] {args.iso}: {pin['bible_id']} (fileset={fileset_id}, {pin['name']}) · "
+    print(f"[dbt_source] {args.iso}: {pin['bible_id']} (filesets={picks}, {pin['name']}) · "
           f"license→{pin['license_url']}", file=sys.stderr)
 
-    to_usj(args.bible_id, fileset_id, args.to_usj, args.book)
+    to_usj(args.bible_id, picks, args.to_usj, args.book)
     return 0
 
 

@@ -17,6 +17,7 @@ import collections
 import json
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.benchmark import norm_surface
 from lexeme_aligner.config import OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.merge_align import _tier, load_trust
@@ -25,7 +26,7 @@ from lexeme_aligner.score_tiers import _gold_clear
 
 def _index(iso: str, method: str, out_dir: Path) -> dict:
     idx: dict[tuple, tuple] = {}
-    for fp in sorted(out_dir.glob(f"align_{method}_{iso}_*.jsonl")):
+    for fp in tag_files(out_dir, method, iso):
         with fp.open(encoding="utf-8") as fh:
             for line in fh:
                 rec = json.loads(line)

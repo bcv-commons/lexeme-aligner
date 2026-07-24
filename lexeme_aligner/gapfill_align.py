@@ -10,6 +10,14 @@ here is re-ranked by priors extracted algorithmically from data already establis
 
   • strong-rollup back-off (`strong_surfaces`) — an untaken target matching a known surface of the gap's
     Strong's, from the taken pool: near-decisive.
+  • cross-edition back-off (`cross_edition_vocab`) — an untaken target matching a known surface of the
+    gap's LEXEME, from a DIFFERENT source than the taken pool: the published lexeme-alignments/iso=<iso>
+    pooled vocabulary, which unions every method AND every pooled edition of the language (not just this
+    one translation's own eflomal+gloss run). Live-verified (reverse_align_check.py, 2026-07): ~23% of
+    what a single edition's own eflomal+gloss leaves as gaps has a real, present-in-the-verse word already
+    attested by another pooled edition for the exact same lexeme — a signal strong-rollup can't see
+    because it only knows THIS translation's own choices. Weighted slightly below strong-rollup (a
+    same-translation Strong's match is still the more direct signal when both fire).
   • name transliteration (`lex_translit` + `lex_pos`, prior-pack) — for pos=name gaps, an untaken target
     whose surface ≈ the romanized source (edit-distance).
   • grammatical (`target_pos` bootstrapped from taken pool × `lex_pos`) — soft boost when the untaken
@@ -35,17 +43,19 @@ class GapFiller:
     """Fills gap tokens (eflomal+gloss missed) onto untaken targets, ranked by the priors above."""
 
     def __init__(self, pos_weight: float = 0.2, strong_boost: float = 0.6,
-                name_boost: float = 0.6, pos_boost: float = 0.15):
-        self.pos_weight, self.strong_boost, self.name_boost, self.pos_boost = (
-            pos_weight, strong_boost, name_boost, pos_boost)
+                name_boost: float = 0.6, pos_boost: float = 0.15, cross_edition_boost: float = 0.5):
+        self.pos_weight, self.strong_boost, self.name_boost, self.pos_boost, self.cross_edition_boost = (
+            pos_weight, strong_boost, name_boost, pos_boost, cross_edition_boost)
 
     def align_gap(self, heb, tokens: list[str], gap_idx: set, taken: set,
                   strong_surfaces: dict | None = None, anchors: dict | None = None,
                   lex_pos: dict | None = None, lex_translit: dict | None = None,
                   target_pos: dict | None = None, stopwords=None,
-                  cross_lang: dict | None = None, multiword_floor: float = 0.6) -> list[tuple]:
+                  cross_lang: dict | None = None, multiword_floor: float = 0.6,
+                  cross_edition_vocab: dict | None = None) -> list[tuple]:
         """Align ONLY the gap source tokens (`gap_idx`) onto the UNTAKEN targets. Returns (Match, prior)
-        pairs — prior is 'strong' or 'name' (the only two tiers that can ever fire, model-free)."""
+        pairs — prior is 'strong', 'name', or 'cross_edition' (the only three tiers that can ever fire,
+        model-free)."""
         content = [h for h in heb if h.strong and h.idx in gap_idx]
         avail = [j for j in range(len(tokens)) if j not in taken
                 and not (stopwords and stopwords.is_function(tokens[j]))]
@@ -73,6 +83,7 @@ class GapFiller:
         scored = []
         for i, h in enumerate(content):
             known = strong_surfaces.get(h.strong) if strong_surfaces else None
+            known_cross = cross_edition_vocab.get(h.lexeme) if cross_edition_vocab and h.lexeme else None
             spos = lex_pos.get(h.lexeme) if lex_pos else None
             translit = ((lex_translit.get(h.lexeme) or "").replace(".", "").replace("·", "")
                         if lex_translit else "")
@@ -80,22 +91,24 @@ class GapFiller:
             for j in avail:
                 is_strong = bool(known and tnorm[j] in known)
                 is_name = bool(spos == "name" and translit and _name_score(translit, tokens[j]) >= 0.8)
-                if not (is_strong or is_name):                      # model-free: only these can fire
+                is_cross = bool(not is_strong and known_cross and tnorm[j] in known_cross)
+                if not (is_strong or is_name or is_cross):          # model-free: only these can fire
                     continue
                 if exp is None:
                     exp = expected(h.idx)
                 pos_ok = bool(spos and target_pos and target_pos.get(tnorm[j]) == spos)
                 s = ((self.strong_boost if is_strong else 0.0) + (self.name_boost if is_name else 0.0)
+                     + (self.cross_edition_boost if is_cross else 0.0)
                      + (self.pos_boost if pos_ok else 0.0) - self.pos_weight * abs(j - exp) / n_trg)
-                scored.append((s, i, j, is_strong, is_name))
+                scored.append((s, i, j, is_strong, is_name, is_cross))
         scored.sort(key=lambda x: -x[0])
         out: list[tuple] = []                                       # (Match, prior) — prior tags the scorer
         done_src: set[int] = set()
         used: set[int] = set()
-        for s, i, j, is_strong, is_name in scored:
+        for s, i, j, is_strong, is_name, is_cross in scored:
             if i in done_src or j in used:
                 continue
-            prior = "strong" if is_strong else "name"
+            prior = "strong" if is_strong else "name" if is_name else "cross_edition"
             out.append((Match(content[i].idx, [j], 0.9, "gapfill"), prior))
             done_src.add(i)
             used.add(j)

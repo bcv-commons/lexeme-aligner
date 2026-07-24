@@ -38,6 +38,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT, SPINE_DB
 from lexeme_aligner.export_lex import publish_to_hf   # reuse the HF uploader (generic)
 
@@ -67,7 +68,7 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str):
     counts: collections.Counter = collections.Counter()      # (lexeme, stem, sense, surface, base_text) -> count
     n_files = 0
     for align_iso, base_text in editions:
-        files = sorted(out_dir.glob(f"align_{method}_{align_iso}_*.jsonl"))
+        files = tag_files(out_dir, method, align_iso)
         if not files:
             raise SystemExit(f"no align_{method}_{align_iso}_*.jsonl under {out_dir} — run the aligner first")
         n_files += len(files)

@@ -103,6 +103,8 @@ def build_pin(meta: dict, iso: str) -> dict:
     return {
         "iso": iso,
         "provider": "bible.helloao.org",
+        "language_name": meta.get("languageEnglishName"),   # e.g. "Cebuano" — distinct from meta['name'],
+        # which is the translation's own title (e.g. "Balaan nga Bibliya"), not the language name.
         "version_id": meta["id"],
         "sha256": meta.get("sha256"),
         "books": meta.get("numberOfBooks"),

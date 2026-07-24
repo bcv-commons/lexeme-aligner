@@ -11,10 +11,15 @@ captures what genuinely transfers across unrelated languages: SPAN LENGTH / mult
 lexeme rendered by a fixed phrase — an idiom, a construct-state relation, a compound concept — tends to
 need multiple target words in EVERY language, not just this one).
 
-Edition grouping: `arb`+`arbn`, `eng`+`engy`, `swe`+`swk` are two EDITIONS of the same language, not two
-languages — counting them separately would double-weight a language just for having more editions ingested.
-Every statistic is computed PER LANGUAGE GROUP first (pooling its editions), then averaged EQUALLY across
-language groups — so confidence genuinely means "N independent languages agree", not "N aligned files".
+Edition grouping: every language in `lexeme-alignments/manifest.json` may have several EDITIONS (e.g.
+`ind`+`ind_ags`+`ind_ayt`+`indala`+`indshv`+`indtsi`) — counting them separately would double-weight a
+language just for having more editions ingested. Every statistic is computed PER LANGUAGE GROUP first
+(pooling its editions), then averaged EQUALLY across language groups — so confidence genuinely means
+"N independent languages agree", not "N aligned files". Group membership is derived from the SAME
+onboard.editions_for()/_tag() discovery gapfill_batch.py uses (via `align_files`), NOT string-shape
+guessing — an earlier version regex-truncated any tag at its first internal underscore, which
+accidentally (and inconsistently) folded ind_ags/ind_ayt into "ind" while leaving indala/indshv/indtsi
+as three phantom extra "languages", since only the former happen to contain an underscore.
 
     python3 -m lexeme_aligner.cross_lang_prior --out resources/cross_lang_prior/profile.json
 """
@@ -22,27 +27,20 @@ from __future__ import annotations
 
 import argparse
 import collections
-import glob
 import hashlib
 import json
-import os
-import re
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
+from lexeme_aligner.config import LEX_ROOT
+from lexeme_aligner.gapfill_batch import discover_tags
 from lexeme_aligner.run_pilot import _HI_METHODS
 
 _OUT_DIR = Path("out")
 _DEFAULT_OUT = Path("resources/cross_lang_prior/profile.json")
 _METHODS = ("eflomal", "gloss")
 _MIN_LANGS = 2                            # a profile entry needs ≥2 independent languages to be usable
-
-# iso-in-jsonl -> language GROUP (dedupe editions of the same language before counting "N languages")
-_LANG_GROUP = {"arbn": "arb", "engy": "eng", "swk": "swe"}
-
-
-def _group(iso: str) -> str:
-    return _LANG_GROUP.get(iso, iso)
 
 
 def _hi(method: str, score: float) -> bool:
@@ -52,39 +50,43 @@ def _hi(method: str, score: float) -> bool:
             or (method == "gapfill" and score >= 0.9))
 
 
-def _isos_present(out_dir: Path) -> list[str]:
-    isos = set()
-    for m in _METHODS:
-        for fp in glob.glob(str(out_dir / f"align_{m}_*_*.jsonl")):
-            mobj = re.match(rf"align_{m}_([a-z0-9]+)_", os.path.basename(fp))
-            if mobj:
-                isos.add(mobj.group(1))
-    return sorted(isos)
+def _tags_by_group(out_dir: Path) -> dict[str, list[str]]:
+    """{primary_iso: [tag, ...]} for every published language with align output on disk."""
+    manifest_fp = LEX_ROOT / "manifest.json"
+    if not manifest_fp.exists():
+        return {}
+    manifest = json.loads(manifest_fp.read_text(encoding="utf-8"))
+    groups: dict[str, list[str]] = {}
+    for iso in sorted(manifest["languages"]):
+        tags = [t for t, _ in discover_tags(iso) if any(tag_files(out_dir, m, t) for m in _METHODS)]
+        if tags:
+            groups[iso] = tags
+    return groups
 
 
 def _scan_alignments(out_dir: Path):
     """Single pass over all eflomal+gloss jsonl: collect per-lexeme, per-language-group data
     for both the span profile (#1) and the source-scatter profile (lexeme filter for gloss)."""
-    isos = _isos_present(out_dir)
+    groups = _tags_by_group(out_dir)
     per_lex_lang_spans: dict[str, dict[str, list]] = collections.defaultdict(lambda: collections.defaultdict(list))
     per_lex_lang_surfs: dict[str, dict[str, collections.Counter]] = collections.defaultdict(
         lambda: collections.defaultdict(collections.Counter))
-    for iso in isos:
-        grp = _group(iso)
-        for m in _METHODS:
-            for fp in sorted(glob.glob(str(out_dir / f"align_{m}_{iso}_*.jsonl"))):
-                with open(fp, encoding="utf-8") as fh:
-                    for line in fh:
-                        rec = json.loads(line)
-                        for p in rec["pairs"]:
-                            if not (p.get("content") and p.get("lexeme") and p.get("t_idx")
-                                    and _hi(p.get("method", ""), p.get("score") or 0)):
-                                continue
-                            lex = p["lexeme"]
-                            per_lex_lang_spans[lex][grp].append(len(p["t_idx"]))
-                            surface = (p.get("target") or "").lower().strip()
-                            if surface:
-                                per_lex_lang_surfs[lex][grp][surface] += 1
+    for grp, tags in groups.items():
+        for tag in tags:
+            for m in _METHODS:
+                for fp in tag_files(out_dir, m, tag):
+                    with fp.open(encoding="utf-8") as fh:
+                        for line in fh:
+                            rec = json.loads(line)
+                            for p in rec["pairs"]:
+                                if not (p.get("content") and p.get("lexeme") and p.get("t_idx")
+                                        and _hi(p.get("method", ""), p.get("score") or 0)):
+                                    continue
+                                lex = p["lexeme"]
+                                per_lex_lang_spans[lex][grp].append(len(p["t_idx"]))
+                                surface = (p.get("target") or "").lower().strip()
+                                if surface:
+                                    per_lex_lang_surfs[lex][grp][surface] += 1
     return per_lex_lang_spans, per_lex_lang_surfs
 
 

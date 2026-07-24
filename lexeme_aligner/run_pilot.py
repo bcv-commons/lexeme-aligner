@@ -23,7 +23,7 @@ from lexeme_aligner.gloss_align import NORMALIZERS, Normalizer, align_verse
 from lexeme_aligner.gloss_priors import GlossPriors
 from lexeme_aligner.hebrew_source import HebToken, HebrewSource, encode
 from lexeme_aligner.stat_align import IBM1
-from lexeme_aligner.usj_source import read_verses, tokenize
+from lexeme_aligner.usj_source import read_verse_ranges, read_verses, tokenize
 
 from lexeme_aligner.config import OUT
 _HI_METHODS = {"exact", "stem", "name", "multi"}
@@ -58,22 +58,82 @@ class VerseRec:
     toks: list[str] = field(default_factory=list)
 
 
+def _range_coverage(ranges: dict) -> dict[tuple[int, int], tuple[int, int]]:
+    """Expand {(ch, verse_start): {..., verse_end}} into {(ch, v): (verse_start, verse_end)} for
+    EVERY v in [verse_start, verse_end] — a lookup on any individual verse tells you which range (if
+    any) it belongs to. Mirrors reverse_align_check.py's helper of the same name/shape."""
+    coverage: dict[tuple[int, int], tuple[int, int]] = {}
+    for (ch, vs), info in ranges.items():
+        for v in range(vs, info["verse_end"] + 1):
+            coverage[(ch, v)] = (vs, info["verse_end"])
+    return coverage
+
+
+def pooled_verse_groups(book: str, ch: int, heb: HebrewSource, ranges: dict, remap=None):
+    """Yield one group per ANCHOR verse in this chapter: (anchor_v, vs, ve, text, members), where
+    `members` is [(original_verse, HebToken), ...] in verse order, with each token's `.idx` RENUMBERED
+    to its 0-based POSITION within the pooled group.
+
+    Renumbering matters: spine `idx` resets to 0 at the start of EVERY verse (verified against
+    lexeme-spine.db directly) — concatenating verses 10-14's tokens naively would give duplicate
+    idx values (verse 10's token 0 and verse 11's token 0 would collide), making the alignment
+    output's `h_idx` ambiguous. After renumbering, `h_idx` means "position within this pooled
+    group" — the same thing it already meant for an ordinary (unpooled) single-verse group, so no
+    downstream pair-writing code needs to change, only the source of the groups.
+
+    SINGLE SOURCE OF TRUTH for range-pooling: `build_corpus()` (production alignment) and
+    reverse_align_check.py (QA) both call this, so their notion of "which verses are pooled
+    together, and what h_idx means" can't drift apart — a bug here always affects (and gets caught
+    by) both, not just alignment output."""
+    verses = heb.verses(book, ch)
+    coverage = _range_coverage(ranges)
+    target_verse_of = {v: (remap(book, ch, v)[1:] if remap else (ch, v)) for v in verses}
+    emitted_anchors: set[tuple[int, int]] = set()
+    for v in verses:
+        tc, tv = target_verse_of[v]
+        vs, ve = coverage.get((tc, tv), (tv, tv))
+        if tv != vs:
+            continue   # non-anchor range member — folded into its anchor's group below
+        if (tc, vs) in emitted_anchors:
+            continue
+        emitted_anchors.add((tc, vs))
+        info = ranges.get((tc, vs))
+        text = info["text"] if info else ""
+        members: list[tuple[int, HebToken]] = []
+        i = 0
+        for v2 in verses:
+            tc2, tv2 = target_verse_of[v2]
+            if tc2 == tc and vs <= tv2 <= ve:
+                for tok in heb.verse_tokens(book, ch, v2):
+                    tok.idx = i
+                    i += 1
+                    members.append((v2, tok))
+        yield v, vs, ve, text, members
+
+
 def build_corpus(books: list[str], usj_dir: Path, heb: HebrewSource, remap=None) -> list[VerseRec]:
     """`remap`: optional versification map (spine KJV ref → target scheme ref) so a non-KJV target (e.g.
-    Russian Synodal) is fetched at the right verse. None/protestant → identity (existing langs unchanged)."""
+    Russian Synodal) is fetched at the right verse. None/protestant → identity (existing langs unchanged).
+
+    Target verse RANGE markers ("3-4", "10-14", ...) pool several source verses' translation into one
+    combined block, keyed at the range's FIRST verse (`read_verse_ranges`/`usj_source.py`). Naively
+    fetching text per individual source verse (the old behaviour) left every NON-ANCHOR verse in a
+    range with empty text — structurally unalignable, not a real translation gap (reverse_align_check.py
+    quantified this: ~85% of what looked like "skipped verses" in PKF ind were actually this). Fixed
+    via `pooled_verse_groups()`: the anchor verse's VerseRec pools ALL spine tokens from every source
+    verse whose (remapped) target falls in [verse_start, verse_end], paired against the range's full
+    combined text; non-anchor verses emit no separate rec (their tokens are already in the anchor's)."""
     recs: list[VerseRec] = []
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         if not usj_path.exists():
             print(f"[pilot] skip {book}: no target USJ at {usj_path}", file=sys.stderr)
             continue
-        target = read_verses(usj_path)
+        ranges = read_verse_ranges(usj_path)
         for ch in heb.chapters(book):
-            for v in heb.verses(book, ch):
-                tc, tv = (remap(book, ch, v)[1:] if remap else (ch, v))   # target verse for this spine ref
-                text = target.get((tc, tv), "")
-                recs.append(VerseRec(book, ch, v, heb.verse_tokens(book, ch, v),
-                                     text, tokenize(text) if text else []))
+            for v, _vs, _ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
+                toks = [tok for _orig_v, tok in members]
+                recs.append(VerseRec(book, ch, v, toks, text, tokenize(text) if text else []))
     return recs
 
 

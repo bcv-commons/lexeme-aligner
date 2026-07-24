@@ -21,6 +21,7 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
 from lexeme_aligner.export_lex import publish_to_hf
 
@@ -36,7 +37,7 @@ def aggregate(out_dir: Path, iso: str, method: str):
     multi-word pairs were dropped as scattered (non-contiguous) — reported, never silently ignored."""
     counts: collections.Counter = collections.Counter()      # (lexeme, strong, phrase, n_words) -> count
     lex_strong: dict[str, str] = {}
-    files = sorted(out_dir.glob(f"align_{method}_{iso}_*.jsonl"))
+    files = tag_files(out_dir, method, iso)
     if not files:
         raise SystemExit(f"no align_{method}_{iso}_*.jsonl under {out_dir} — run the aligner first")
     seen_tidx = scattered = 0

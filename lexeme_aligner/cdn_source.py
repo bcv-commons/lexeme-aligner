@@ -23,6 +23,8 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -33,10 +35,27 @@ CDN = "https://cdn.bibel.wiki/pkf"
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 
 
-def _get(url: str) -> bytes:
+def _get(url: str, retries: int = 5) -> bytes:
+    """GET with backoff — retry transient errors (resets, timeouts, 5xx/429) but fail fast on a
+    real 4xx like 404. Was a bare one-shot fetch until an MX-region onboarding batch hit several
+    RemoteDisconnected resets on this CDN — same retry discipline dbt_source.py/helloao_source.py
+    already had, just missing here."""
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    with urllib.request.urlopen(req, timeout=60) as r:   # noqa: S310 — fixed https CDN origin
-        return r.read()
+    err: Exception = RuntimeError("no attempt")
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:   # noqa: S310 — fixed https CDN origin
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code < 500 and e.code != 429:
+                raise
+            err = e
+        except (urllib.error.URLError, OSError) as e:              # incl. RemoteDisconnected, timeouts
+            err = e
+        if attempt < retries - 1:
+            print(f"[cdn] retry {attempt + 1}/{retries - 1} after {err} — {url}", file=sys.stderr)
+            time.sleep(2 ** attempt)
+    raise err
 
 
 def _get_json(url: str) -> dict:
@@ -73,9 +92,11 @@ def build_pin(iso: str, manifest: dict, col: dict, cfg: dict, sha: str) -> dict:
     """The reproducibility record — hashed filename is the version, plus provenance + licence."""
     coll = cfg.get("collection", {})
     cr = cfg.get("copyright", {})
+    langs = manifest.get("languages", manifest)
     return {
         "iso": iso,
         "provider": "cdn.bibel.wiki",
+        "language_name": langs.get(iso, {}).get("nm"),   # the manifest's own language display name
         "version_id": coll.get("versionId") or Path(col["pkf"]).name.split(".")[0],
         "pkf": col["pkf"],
         "pkf_bytes": col["pkf_bytes"],

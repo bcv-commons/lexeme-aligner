@@ -19,6 +19,7 @@ import collections
 import re
 from pathlib import Path
 
+from lexeme_aligner.benchmark import norm_strong    # lexeme "hbo:0871a" -> strong "H0871"
 from lexeme_aligner.config import LEX_ROOT, PRIOR_PACK
 
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
@@ -63,8 +64,10 @@ class BootstrapPriors:
         for r in pq.read_table(fp).to_pylist():
             if r.get("method", "eflomal") != "eflomal":   # union parquet → bootstrap from the eflomal base
                 continue
+            strong = r.get("strong") or norm_strong(r["lexeme"])   # `strong` dropped from storage 2026-07
             per_lex[r["lexeme"]][r["surface"]] += r["count"]
-            per_str[r["strong"]][r["surface"]] += r["count"]
+            if strong:
+                per_str[strong][r["surface"]] += r["count"]
 
         for lexeme, ctr in per_lex.items():
             k = prior_rows.get(lexeme, {}).get("keyness") if prior_rows else "n/a"

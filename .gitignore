@@ -15,6 +15,9 @@ data/resources/
 # lexeme-alignments bulk data — regenerated per language, published out-of-band (HF / object storage).
 # Only manifest.json + README.md stay in git (see lexeme-alignments/README.md).
 lexeme-alignments/iso=*/
+# local cache of sha256s last successfully pushed per (repo, path) — avoids re-uploading unchanged
+# shared files (manifest/README/companions) on every language in a publish batch (export_lex.py).
+.publish_state.json
 # CDN PKF download cache — bulk, re-fetched by pin
 data/_pool/
 # Node edge converter deps (PKF->USFM) — installed locally, not committed

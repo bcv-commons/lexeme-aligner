@@ -12,6 +12,10 @@ download, works on any language with a Bible):
   • taken target positions from their `t_idx`  → constrain fill to leftover targets (bijection prior)
   • #3 target function-words (target_stopwords) → excluded from the candidate pool
   • #1 cross-lingual span profile (cross_lang_prior) → extends compound-lexeme fills to their neighbor
+  • #4 cross-edition vocab (lexeme-alignments/iso=<iso>) → a known surface of the gap's LEXEME from
+    ANOTHER pooled edition of the SAME language (not just this translation's own eflomal+gloss run) —
+    see gapfill_align.py's docstring. Defaults to this same --iso's own published pool; --cross-edition-iso
+    to point elsewhere; --no-cross-edition to disable. Silently skipped if nothing's been exported yet.
 
     python3 -m lexeme_aligner.gapfill --iso fra --all --usj-dir data/usj-fra-lsg
 """
@@ -23,10 +27,12 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files as _tag_files
 from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.gapfill_align import GapFiller
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.refs import encode
+from lexeme_aligner.reverse_align_check import load_lexeme_vocab
 from lexeme_aligner.run_pilot import build_corpus, OT_BOOKS, NT_BOOKS
 from lexeme_aligner.target_stopwords import StopwordFilter
 from lexeme_aligner.versification import remapper
@@ -67,7 +73,7 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
     strong_words: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     tpos: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for m in methods:
-        for fp in sorted(out_dir.glob(f"align_{m}_{iso}_*.jsonl")):
+        for fp in _tag_files(out_dir, m, iso):
             with fp.open(encoding="utf-8") as fh:
                 for line in fh:
                     rec = json.loads(line)
@@ -115,6 +121,9 @@ def main() -> int:
     ap.add_argument("--multiword-floor", type=float, default=0.6,
                     help="extend a hi-conf single-token fill to its neighbor when the OTHER languages we've "
                          "aligned render this lexeme as a phrase at least this often")
+    ap.add_argument("--cross-edition-iso", default=None,
+                    help="#4: iso to load the cross-edition vocab from (default: --iso's own published pool)")
+    ap.add_argument("--no-cross-edition", action="store_true", help="disable prior #4")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
@@ -129,15 +138,23 @@ def main() -> int:
         args.iso, args.out, methods, args.min_score, lex_pos)
     cross_lang = (json.loads(args.cross_lang.read_text(encoding="utf-8"))
                  if args.cross_lang and args.cross_lang.exists() else {})
+    cross_edition_vocab = {}
+    if not args.no_cross_edition:
+        try:
+            cross_edition_vocab = load_lexeme_vocab(args.cross_edition_iso or args.iso, hi_conf_only=True)
+        except SystemExit as e:
+            print(f"[gapfill] #4 cross-edition vocab unavailable ({e}) — skipping that prior", file=sys.stderr)
     filler = GapFiller()
     print(f"[gapfill] {args.iso}: {len(recs)} verses · covered-by {methods}\n"
           f"  priors: {len(strong_surf)} strong-surfaces · {len(target_pos)} bootstrapped target-POS · "
           f"{len(lex_pos)} lexeme-POS · {len(lex_translit)} translit · positional · "
           f"{len(stopwords.words)} target function-words (#3, gated out) · "
-          f"{len(cross_lang)} cross-lingual span profiles (#1, floor={args.multiword_floor})",
+          f"{len(cross_lang)} cross-lingual span profiles (#1, floor={args.multiword_floor}) · "
+          f"{len(cross_edition_vocab)} cross-edition lexeme-vocab entries (#4, hi_conf-only, "
+          f"from iso={args.cross_edition_iso or args.iso})",
           file=sys.stderr)
 
-    for fp in args.out.glob(f"align_gapfill_{args.iso}_*.jsonl"):
+    for fp in _tag_files(args.out, "gapfill", args.iso):
         fp.unlink()
 
     by_book: dict[str, list] = collections.defaultdict(list)
@@ -153,7 +170,8 @@ def main() -> int:
                                    strong_surfaces=strong_surf, anchors=anchors.get(ref),
                                    lex_pos=lex_pos, lex_translit=lex_translit, target_pos=target_pos,
                                    stopwords=stopwords, cross_lang=cross_lang,
-                                   multiword_floor=args.multiword_floor)
+                                   multiword_floor=args.multiword_floor,
+                                   cross_edition_vocab=cross_edition_vocab)
         pairs = []
         for m, prior in matches:
             t = next((h for h in r.heb if h.idx == m.h_idx), None)

@@ -39,6 +39,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import LEX_ROOT, OUT, SPINE_DB
 
 SCHEMA = ["surface", "lexeme", "method", "base_text", "count", "hi_conf"]   # the PUBLISHED columns
@@ -52,7 +53,7 @@ Row = tuple[str, str, str, str, str, int, float, float]
 
 def _present_methods(out_dir: Path, iso: str) -> list[str]:
     """Which of the known methods have align_<method>_<iso>_*.jsonl for this language."""
-    return [m for m in _METHODS if list(out_dir.glob(f"align_{m}_{iso}_*.jsonl"))]
+    return [m for m in _METHODS if tag_files(out_dir, m, iso)]
 
 
 def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str],
@@ -73,7 +74,7 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str]
     books: set[str] = set()                                      # distinct BOOK names
     for align_iso, base_text in editions:
         for method in methods:
-            files = sorted(out_dir.glob(f"align_{method}_{align_iso}_*.jsonl"))
+            files = tag_files(out_dir, method, align_iso)
             if not files:
                 continue
             present.add(method)
@@ -187,10 +188,25 @@ _COMPANION_RESOURCES = ["light_lexemes.json", "hebrew_lexeme_strong.json", "gree
                                                 # resources" section for what each one is
 
 
+def _publish_state_path(root: Path) -> Path:
+    return root / ".publish_state.json"
+
+
+def _sha256_file(fp: Path) -> str:
+    return hashlib.sha256(fp.read_bytes()).hexdigest()
+
+
 def publish_to_hf(root: Path, iso: str, rel_file: str, entry: dict,
                   repo_id: str, create: bool, dry_run: bool) -> None:
     """Upload this language's partition + the manifest + the dataset card + the companion reference
-    resources to a HF dataset repo. Other isos' local partitions (git-ignored) are untouched."""
+    resources to a HF dataset repo. Other isos' local partitions (git-ignored) are untouched.
+
+    The shared files (manifest/README/companions) are identical across every language in a batch —
+    without a cache, each language's call re-attempts to upload all of them, and the Hub silently
+    no-ops the unchanged ones server-side ("No files have been modified... skipping to prevent empty
+    commit"), wasting a network round trip per file per language. `.publish_state.json` (local,
+    gitignored, one per dataset root) caches the sha256 last successfully pushed per (repo, path) —
+    skip the upload_file call entirely when the local content still matches what's already up there."""
     uploads = [rel_file, "manifest.json", "README.md", *_COMPANION_RESOURCES]
     present = [f for f in uploads if (root / f).exists()]
     print(f"[publish] → dataset '{repo_id}'  files: {present}", file=sys.stderr)
@@ -198,7 +214,8 @@ def publish_to_hf(root: Path, iso: str, rel_file: str, entry: dict,
         print("[publish] dry-run — nothing pushed", file=sys.stderr)
         return
     try:
-        from huggingface_hub import HfApi                        # optional dep — see [publish] extra
+        from huggingface_hub import CommitOperationAdd, HfApi     # optional dep — see [publish] extra
+        from huggingface_hub.errors import HfHubHTTPError
     except ImportError:
         raise SystemExit("[publish] needs huggingface_hub — pip install -e '.[publish]'")
     api = HfApi()
@@ -209,10 +226,37 @@ def publish_to_hf(root: Path, iso: str, rel_file: str, entry: dict,
     if create:
         api.create_repo(repo_id, repo_type="dataset", exist_ok=True)
     msg = f"lexeme-alignments {iso}: {entry['rows']} rows ({entry['content_sha256'][:12]})"
-    for rel in present:
-        api.upload_file(path_or_fileobj=str(root / rel), path_in_repo=rel,
-                        repo_id=repo_id, repo_type="dataset", commit_message=msg)
-    print(f"[publish] pushed {len(present)} file(s) to {repo_id}", file=sys.stderr)
+    state_fp = _publish_state_path(root)
+    state = json.loads(state_fp.read_text(encoding="utf-8")) if state_fp.exists() else {}
+    repo_state = state.setdefault(repo_id, {})
+
+    digests = {rel: _sha256_file(root / rel) for rel in present}
+    changed = [rel for rel in present if repo_state.get(rel) != digests[rel]]
+    skipped = len(present) - len(changed)
+    if not changed:
+        print(f"[publish] 0 file(s) changed ({skipped} unchanged, cache-skipped) — no commit needed "
+              f"for {repo_id}", file=sys.stderr)
+        return
+    # ONE commit for every changed file (not one upload_file() call per file) — HF's commit-rate limit
+    # is per-COMMIT (128/hour), not per-file, so bundling directly multiplies effective batch throughput
+    # and is what the Hub's own 429 error message recommends ("upload entire folders at once").
+    ops = [CommitOperationAdd(path_in_repo=rel, path_or_fileobj=str(root / rel)) for rel in changed]
+    try:
+        api.create_commit(repo_id=repo_id, repo_type="dataset", operations=ops, commit_message=msg)
+    except HfHubHTTPError as e:
+        if e.response is not None and e.response.status_code == 429:
+            raise SystemExit(
+                f"[publish] HIT HF COMMIT RATE LIMIT (429) while publishing {iso} — "
+                f"HF caps commits at 128/hour per repo. Nothing was corrupted; the local "
+                f".publish_state.json only records what actually succeeded, so re-running the same "
+                f"batch command later will resume from here, not restart. Wait ~1 hour, then re-run."
+            ) from e
+        raise
+    for rel in changed:
+        repo_state[rel] = digests[rel]
+    state_fp.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"[publish] pushed {len(changed)} file(s) in 1 commit ({skipped} unchanged, cache-skipped) "
+          f"to {repo_id}", file=sys.stderr)
 
 
 def update_manifest(path: Path, iso: str, entry: dict) -> None:

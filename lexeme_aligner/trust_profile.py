@@ -19,6 +19,7 @@ import json
 import math
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.benchmark import agrees, load_gold_lexicon, norm_surface
 from lexeme_aligner.config import OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.score_tiers import _gold_clear, _load_pos, _tier
@@ -41,7 +42,7 @@ def _wilson_lb(correct: int, n: int, z: float = 1.96) -> float:
 def score_lang_mode(iso, method, gold_type, out, res, pos_map, cache):
     """(pos, tier) → [n, correct] for one (language, mode), judged against that language's gold."""
     cells: dict[tuple, list] = collections.defaultdict(lambda: [0, 0])
-    files = sorted(out.glob(f"align_{method}_{iso}_*.jsonl"))
+    files = tag_files(out, method, iso)
     if not files:
         return cells
     if gold_type == "clear":

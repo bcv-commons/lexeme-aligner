@@ -32,6 +32,7 @@ import unicodedata
 import urllib.request
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT, RESOURCES
 
 # ───────────────────────────── shared ─────────────────────────────
@@ -89,7 +90,7 @@ def load_produced(iso: str, tag: str, out_dir: Path, grain: str = "strong",
     morphology bridge needed, the lexeme already disambiguates. Neither remap affects the pair's own
     `strong` field on disk, only the comparison key returned here."""
     lex: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
-    files = sorted(out_dir.glob(f"align_{tag}_{iso}_*.jsonl"))
+    files = tag_files(out_dir, tag, iso)
     if not files:
         sys.exit(f"[benchmark] no produced files: {out_dir}/align_{tag}_{iso}_*.jsonl "
                  f"— run the aligner first (run_pilot --method {tag} --ot --iso {iso} …)")

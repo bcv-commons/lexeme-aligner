@@ -39,6 +39,8 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner.align_files import tag_files
+
 _TABLE_PATH = Path("data/hebrew_lexeme_strong.json")
 _MIN_N = 10
 _MIN_PURITY = 0.90
@@ -95,7 +97,7 @@ def build_table(out_dir: Path = Path("out"), gold_path: Path = Path("data/resour
     # rendering dominates over incidental overlap with a common word.
     by_lexeme: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     lexeme_own_strong: dict[str, str] = {}
-    for fp in sorted(out_dir.glob(f"align_{tag}_{iso}_*.jsonl")):
+    for fp in tag_files(out_dir, tag, iso):
         for line in fp.open(encoding="utf-8"):
             rec = json.loads(line)
             for p in rec["pairs"]:

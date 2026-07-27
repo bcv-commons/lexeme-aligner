@@ -1,0 +1,12 @@
+{
+  "name": "lexeme-aligner-pkf2usfm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PKF->USFM edge converter (Node/Proskomma) for the CDN ingest adapter. Run `npm install` here once, then lexeme_aligner.cdn_source --to-usj invokes export_usfm.mjs.",
+  "bin": { "export-usfm": "./export_usfm.mjs" },
+  "dependencies": {
+    "proskomma-core": "0.11.3",
+    "fflate": "0.8.3"
+  }
+}

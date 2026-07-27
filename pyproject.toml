@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lexeme-aligner"
+version = "0.1.0"
+description = "Strong's word-alignment factory — align any Bible translation to the Strong's-tagged original, producing lexeme-alignments + interlinear + mined multilingual glosses/senses."
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }   # eflomal is GPLv3; the combined work is GPL
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
+dependencies = [
+    "eflomal>=1.0.0b2",   # statistical aligner (HMM); C build — see README for the Apple-clang note
+    "numpy",              # pulled by eflomal
+]
+
+[project.optional-dependencies]
+ingest = ["usfmtc"]                       # USFM/USX → USJ conversion (source ingest)
+publish = ["pyarrow", "huggingface_hub"]  # Parquet export + push lexeme-alignments to a HF dataset
+validate = ["pyarrow", "snowballstemmer"] # karnbibeln_diff test — read Parquet + Swedish stemming
+
+[project.scripts]
+lexeme-align = "lexeme_aligner.run_pilot:main"
+lexeme-pipeline = "lexeme_aligner.pipeline:main"   # ingest → align → export [→ publish]
+
+[tool.setuptools]
+packages = ["lexeme_aligner"]
+package-dir = { "lexeme_aligner" = "pipeline/lexeme_aligner" }

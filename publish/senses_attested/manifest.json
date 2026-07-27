@@ -1,0 +1,165 @@
+{
+  "languages": {
+    "arb": {
+      "base_texts": [
+        "arb_vdv"
+      ],
+      "books": 39,
+      "content_sha256": "2f6fdb492cfbfb1883c600a06d246661581a5570fb9ffc6c8bc0082e0dfe11a2",
+      "file": "iso=arb/data.parquet",
+      "language": "Arabic",
+      "lexeme_stem_senses": 10124,
+      "lexemes": 6623,
+      "method": "eflomal",
+      "min_count": 1,
+      "rows": 52557,
+      "source_corpus": "WLC",
+      "sources": {
+        "arb_vdv": {
+          "edition": "arb_vdv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=arb-vd",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 37532,
+      "testament": "OT"
+    },
+    "eng": {
+      "base_texts": [
+        "BSB"
+      ],
+      "books": 39,
+      "content_sha256": "55d0ac4e89c24a214583f85fc866d9434b21df0b9f031043a3cb50ff067bd729",
+      "file": "iso=eng/data.parquet",
+      "language": "English",
+      "lexeme_stem_senses": 9996,
+      "lexemes": 6576,
+      "method": "eflomal",
+      "min_count": 1,
+      "rows": 34632,
+      "source_corpus": "WLC",
+      "sources": {
+        "BSB": {
+          "edition": "BSB",
+          "license_url": "https://berean.bible/",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 14327,
+      "testament": "OT"
+    },
+    "fra": {
+      "base_texts": [
+        "fra_lsg"
+      ],
+      "books": 66,
+      "content_sha256": "6527df17785481c21e3bb1ea61d64d1aeef26f5ed2862add3e532a1da0bf3f77",
+      "file": "iso=fra/data.parquet",
+      "language": "French",
+      "lexeme_stem_senses": 11916,
+      "lexemes": 6600,
+      "method": "eflomal",
+      "min_count": 1,
+      "rows": 40910,
+      "source_corpus": "WLC",
+      "sources": {
+        "fra_lsg": {
+          "edition": "fra_lsg",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=fraLSG",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 18446,
+      "testament": "OT"
+    },
+    "hau": {
+      "base_texts": [
+        "HAUBIB (Hausa Contemporary Bible / OHCB)"
+      ],
+      "books": 66,
+      "content_sha256": "3537b94887097049692cfb30cea95f9ff28a14a1482257f826c35f997cd739ee",
+      "file": "iso=hau/data.parquet",
+      "language": "Hausa",
+      "lexeme_stem_senses": 9870,
+      "lexemes": 6534,
+      "method": "eflomal",
+      "min_count": 1,
+      "rows": 41038,
+      "source_corpus": "WLC",
+      "sources": {
+        "HAUBIB (Hausa Contemporary Bible / OHCB)": {
+          "edition": "HAUBIB (Hausa Contemporary Bible / OHCB)",
+          "license_url": "https://ebible.org/hausa/",
+          "provider": "eBible.org"
+        }
+      },
+      "surfaces": 16190,
+      "testament": "OT"
+    },
+    "ind": {
+      "base_texts": [
+        "ind_C01"
+      ],
+      "books": 66,
+      "content_sha256": "ca99a49e21beeba7efc3ba5b5465d25203ecad9b478693c7dec3ac1ce019e96c",
+      "file": "iso=ind/data.parquet",
+      "language": "Indonesian",
+      "lexeme_stem_senses": 11199,
+      "lexemes": 6398,
+      "method": "eflomal",
+      "min_count": 1,
+      "rows": 51115,
+      "source_corpus": "WLC",
+      "sources": {
+        "ind_C01": {
+          "edition": "ind_C01",
+          "license_url": "https://cdn.bibel.wiki/pkf/ind/app-config.json",
+          "provider": "cdn.bibel.wiki"
+        }
+      },
+      "surfaces": 21863,
+      "testament": "OT"
+    },
+    "swe": {
+      "base_texts": [
+        "swe_fol",
+        "swe_svk"
+      ],
+      "books": 132,
+      "content_sha256": "561f274ec62976541aafc1b5caa561d34b59457926f0dc598daa0c81dae3c31c",
+      "file": "iso=swe/data.parquet",
+      "language": "Swedish",
+      "lexeme_stem_senses": 12167,
+      "lexemes": 6671,
+      "method": "eflomal",
+      "min_count": 1,
+      "rows": 86780,
+      "source_corpus": "WLC",
+      "sources": {
+        "swe_fol": {
+          "edition": "swe_fol",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=swef",
+          "provider": "bible.helloao.org"
+        },
+        "swe_svk": {
+          "edition": "swe_svk",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=swe",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 38006,
+      "testament": "OT"
+    }
+  },
+  "schema": [
+    "lexeme",
+    "stem",
+    "sense",
+    "surface",
+    "count",
+    "share",
+    "method",
+    "source_corpus",
+    "base_text"
+  ]
+}

@@ -1,0 +1,245 @@
+"""Cross-target structural prior (#1 in internal-docs/gap-fill-scaling-strategy.md) — the scaling
+MULTIPLIER, not a per-language fix. Every language aligns to the same MACULA lexeme anchor, so a lexeme's
+STRUCTURAL SHAPE (does it usually render as one word or a phrase? how consistently?) can be aggregated
+across every language we've ALREADY aligned and used to inform a gap-fill in a NEW language — no target-
+language model, no per-language work. Confidence = how many independent languages agree, mirroring the
+`senses_attested` cross-edition-agreement design, generalized from senses to alignment geometry.
+
+Deliberately narrow in scope: cross-lingual RELATIVE POSITION isn't aggregated (word order differs by
+language family — a French-derived position offset is not informative for Hindi), so this profile only
+captures what genuinely transfers across unrelated languages: SPAN LENGTH / multi-word tendency (a
+lexeme rendered by a fixed phrase — an idiom, a construct-state relation, a compound concept — tends to
+need multiple target words in EVERY language, not just this one).
+
+Edition grouping: every language in `lexeme-alignments/manifest.json` may have several EDITIONS (e.g.
+`ind`+`ind_ags`+`ind_ayt`+`indala`+`indshv`+`indtsi`) — counting them separately would double-weight a
+language just for having more editions ingested. Every statistic is computed PER LANGUAGE GROUP first
+(pooling its editions), then averaged EQUALLY across language groups — so confidence genuinely means
+"N independent languages agree", not "N aligned files". Group membership is derived from the SAME
+onboard.editions_for()/_tag() discovery gapfill_batch.py uses (via `align_files`), NOT string-shape
+guessing — an earlier version regex-truncated any tag at its first internal underscore, which
+accidentally (and inconsistently) folded ind_ags/ind_ayt into "ind" while leaving indala/indshv/indtsi
+as three phantom extra "languages", since only the former happen to contain an underscore.
+
+    python3 -m lexeme_aligner.cross_lang_prior --out resources/cross_lang_prior/profile.json
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+from lexeme_aligner.align_files import tag_files
+from lexeme_aligner.config import LEX_ROOT
+from lexeme_aligner.gapfill_batch import discover_tags
+from lexeme_aligner.run_pilot import _HI_METHODS
+
+_OUT_DIR = Path("pipeline/work/out")
+_DEFAULT_OUT = Path("publish/cross-lingual-span-profile/profile.json")
+_METHODS = ("eflomal", "gloss")
+_MIN_LANGS = 2                            # a profile entry needs ≥2 independent languages to be usable
+
+
+def _hi(method: str, score: float) -> bool:
+    return (method in _HI_METHODS
+            or (method == "stat" and score >= 0.3)
+            or (method == "eflomal" and score >= 0.9)
+            or (method == "gapfill" and score >= 0.9))
+
+
+def _tags_by_group(out_dir: Path) -> dict[str, list[str]]:
+    """{primary_iso: [tag, ...]} for every published language with align output on disk."""
+    manifest_fp = LEX_ROOT / "manifest.json"
+    if not manifest_fp.exists():
+        return {}
+    manifest = json.loads(manifest_fp.read_text(encoding="utf-8"))
+    groups: dict[str, list[str]] = {}
+    for iso in sorted(manifest["languages"]):
+        tags = [t for t, _ in discover_tags(iso) if any(tag_files(out_dir, m, t) for m in _METHODS)]
+        if tags:
+            groups[iso] = tags
+    return groups
+
+
+def _scan_alignments(out_dir: Path):
+    """Single pass over all eflomal+gloss jsonl: collect per-lexeme, per-language-group data
+    for both the span profile (#1) and the source-scatter profile (lexeme filter for gloss)."""
+    groups = _tags_by_group(out_dir)
+    per_lex_lang_spans: dict[str, dict[str, list]] = collections.defaultdict(lambda: collections.defaultdict(list))
+    per_lex_lang_surfs: dict[str, dict[str, collections.Counter]] = collections.defaultdict(
+        lambda: collections.defaultdict(collections.Counter))
+    for grp, tags in groups.items():
+        for tag in tags:
+            for m in _METHODS:
+                for fp in tag_files(out_dir, m, tag):
+                    with fp.open(encoding="utf-8") as fh:
+                        for line in fh:
+                            rec = json.loads(line)
+                            for p in rec["pairs"]:
+                                if not (p.get("content") and p.get("lexeme") and p.get("t_idx")
+                                        and _hi(p.get("method", ""), p.get("score") or 0)):
+                                    continue
+                                lex = p["lexeme"]
+                                per_lex_lang_spans[lex][grp].append(len(p["t_idx"]))
+                                surface = (p.get("target") or "").lower().strip()
+                                if surface:
+                                    per_lex_lang_surfs[lex][grp][surface] += 1
+    return per_lex_lang_spans, per_lex_lang_surfs
+
+
+def _build_profile_from(per_lex_lang_spans: dict, min_langs: int = _MIN_LANGS) -> dict:
+    profile = {}
+    for lexeme, by_lang in per_lex_lang_spans.items():
+        langs = [g for g, spans in by_lang.items() if spans]
+        if len(langs) < min_langs:
+            continue
+        lang_means = []
+        lang_multi = []
+        n_occ = 0
+        for g in langs:
+            spans = by_lang[g]
+            n_occ += len(spans)
+            lang_means.append(sum(spans) / len(spans))
+            lang_multi.append(sum(1 for s in spans if s > 1) / len(spans))
+        profile[lexeme] = {
+            "n_langs": len(langs),
+            "n_occ": n_occ,
+            "span_mean": round(sum(lang_means) / len(lang_means), 3),
+            "multiword_rate": round(sum(lang_multi) / len(lang_multi), 3),
+        }
+    return profile
+
+
+def build_profile(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS) -> dict:
+    """{lexeme: {n_langs, n_occ, span_mean, multiword_rate}} — per-language stats averaged EQUALLY
+    across language groups (so a 2-edition language doesn't out-vote a 1-edition one)."""
+    per_lex_lang_spans, _ = _scan_alignments(out_dir)
+    return _build_profile_from(per_lex_lang_spans, min_langs)
+
+
+_DEFAULT_LIGHT_FLOOR = 0.30       # avg target dominance below this → "light" (semantically general)
+
+
+def _build_light_lexemes_from(per_lex_lang_surfs: dict, min_langs: int = _MIN_LANGS,
+                              dominance_floor: float = _DEFAULT_LIGHT_FLOOR) -> dict:
+    light = {}
+    for lexeme, by_lang in per_lex_lang_surfs.items():
+        langs = [g for g, counts in by_lang.items() if sum(counts.values()) >= 5]
+        if len(langs) < min_langs:
+            continue
+        lang_doms = []
+        for g in langs:
+            counts = by_lang[g]
+            total = sum(counts.values())
+            top_n = counts.most_common(1)[0][1]
+            lang_doms.append(top_n / total)
+        avg_dom = sum(lang_doms) / len(lang_doms)
+        if avg_dom < dominance_floor:
+            light[lexeme] = round(avg_dom, 4)
+    return light
+
+
+def build_light_lexemes(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS,
+                        dominance_floor: float = _DEFAULT_LIGHT_FLOOR) -> dict:
+    """Light-lexeme profile: {lexeme: avg_target_dominance} for semantically general source
+    lexemes whose average target-side dominance (across language groups) is BELOW `dominance_floor`.
+    These are light verbs (בּוֹא/come, ποιέω/do, δίδωμι/give), generic nouns (אִישׁ/man), and
+    similar lexemes where no target language has a stable one-to-one rendering — a type-level
+    dictionary entry is fundamentally wrong, so gloss tags them (kept but excluded from merge
+    votes) and gap-fill gets a chance to attempt them with contextual priors.
+
+    Computed from the same multi-language eflomal+gloss data as the span profile (#1), with
+    the same edition-deduplication (per language group, then averaged equally). Gets more
+    reliable as more languages are aligned — the signal is source-anchored and universal."""
+    _, per_lex_lang_surfs = _scan_alignments(out_dir)
+    return _build_light_lexemes_from(per_lex_lang_surfs, min_langs, dominance_floor)
+
+
+_CARD = """---
+license: cc0-1.0
+tags:
+- alignment
+- multilingual
+- bible
+- interlingua
+---
+
+# cross-lingual-span-profile
+
+A per-**MACULA-lexeme** structural profile — span length / multi-word tendency — aggregated across every
+language the lexeme-aligner has aligned. Every language anchors to the same lexeme, so this is a
+language-independent INTERLINGUA signal: it tells you whether a Hebrew/Greek lexeme typically needs a
+single target word or a multi-word phrase (compound place names — "Kadesh Barnea" — compound numbers —
+"four thousand"), based on what OTHER languages actually did, with NO target-language model for the
+language you're applying it to.
+
+`n_langs` = how many independent languages (editions of the same language pooled first, so a 2-edition
+language doesn't out-vote a 1-edition one) attest the lexeme; `multiword_rate`/`span_mean` = the per-
+language-averaged span statistics. Confidence scales with `n_langs` — refresh as more languages are
+aligned (see the lexeme-aligner's `cross_lang_prior.py`).
+
+**CC0-1.0** — derived alignment statistics, no source text redistributed.
+"""
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out-dir", type=Path, default=_OUT_DIR, help="dir with align_<method>_<iso>_*.jsonl")
+    ap.add_argument("--min-langs", type=int, default=_MIN_LANGS)
+    ap.add_argument("--out", type=Path, default=_DEFAULT_OUT)
+    ap.add_argument("--publish", metavar="REPO_ID", default=None, help="HF dataset repo to push to")
+    ap.add_argument("--create", action="store_true", help="create the HF dataset repo if missing")
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    per_lex_lang_spans, per_lex_lang_surfs = _scan_alignments(args.out_dir)
+
+    profile = _build_profile_from(per_lex_lang_spans, args.min_langs)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(profile, sort_keys=True, ensure_ascii=False, indent=1) + "\n",
+                        encoding="utf-8")
+    multiword = sorted(profile.items(), key=lambda kv: -kv[1]["multiword_rate"])[:10]
+    print(f"[cross_lang_prior] {len(profile)} lexemes (≥{args.min_langs} languages) → {args.out}\n"
+          f"  most multi-word across languages: "
+          f"{[(lx, r['multiword_rate'], r['n_langs']) for lx, r in multiword]}", file=sys.stderr)
+
+    light = _build_light_lexemes_from(per_lex_lang_surfs, args.min_langs)
+    light_path = args.out.parent / "light_lexemes.json"
+    light_path.write_text(json.dumps(light, sort_keys=True, ensure_ascii=False, indent=1) + "\n",
+                          encoding="utf-8")
+    print(f"[cross_lang_prior] light lexemes: {len(light)} semantically general lexemes "
+          f"(avg dominance <{_DEFAULT_LIGHT_FLOOR}) → {light_path}", file=sys.stderr)
+
+    if args.publish:
+        readme = args.out.parent / "README.md"
+        manifest = args.out.parent / "manifest.json"
+        readme.write_text(_CARD, encoding="utf-8")
+        manifest.write_text(json.dumps(
+            {"lexemes": len(profile), "min_langs": args.min_langs,
+             "content_sha256": hashlib.sha256(
+                 json.dumps(profile, sort_keys=True).encode()).hexdigest()},
+            indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        files = [args.out.name, "manifest.json", "README.md"]
+        if args.dry_run:
+            print(f"[cross_lang_prior] dry-run → would push {files} to {args.publish}", file=sys.stderr)
+            return 0
+        try:
+            from huggingface_hub import HfApi
+        except ImportError as e:
+            raise SystemExit(f"[cross_lang_prior] needs huggingface_hub — pip install -e '.[publish]' ({e})")
+        api = HfApi()
+        if args.create:
+            api.create_repo(args.publish, repo_type="dataset", exist_ok=True)
+        for f in files:
+            api.upload_file(path_or_fileobj=str(args.out.parent / f), path_in_repo=f,
+                            repo_id=args.publish, repo_type="dataset",
+                            commit_message=f"cross-lingual-span-profile: {len(profile)} lexemes")
+        print(f"[cross_lang_prior] pushed {files} to {args.publish}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

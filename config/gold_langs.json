@@ -1,0 +1,16 @@
+{
+  "_doc": "Gold languages for the empirical trust/contest analysis (contest_rule / phase2 / trust_profile). Add a language by aligning it (eflomal + gloss) and adding one line here — no code edit. `clear` = positional Clear-Bible attestations (data/resources/strongs/attestations/<iso>.parquet); `lexicon` = karnbibeln Strong's→Swedish (stem-tolerant). Languages listed but not yet aligned are auto-skipped until their align_eflomal/align_gloss jsonl exist. We already HOLD Clear gold for asm/ben/hin/por/rus/spa — they just need ingest+align to join.",
+  "_quarantine": "rus is QUARANTINED for BAD GOLD, NOT a fixable alignment issue. Diagnosed (2026-07-10): the Clear RUSSYN gold is itself positionally mis-aligned — ~57% of its per-verse strong→word pairings are wrong (EXO 1:1: H3478/Israel→'вошли'/came, H4714/Egypt→'иаковом'/Jacob). Proof: verse boundaries agree 100% (gold ref R = our ref R word-bag, so NOT a versification offset), our aggregate strong→surface is correct (18/18 top strongs), yet positional match is only 40% vs 79% lexical — a 39pt gap (healthy langs 1-7pt). Every versification remap (identity/lxx/hebrew) stayed ~42-44% because the scramble is intra-verse, below where remapping has leverage. Auto-excluded by contest_rule --oracle-floor (0.5) and surfaced by the gold-health table (--gap-flag). Our rus lexeme-alignments (94.3% cov, aggregate-correct) is UNAFFECTED and fine to keep published; only Clear's rus reference is unusable. Re-check if Clear reships a corrected rus alignment.",
+  "fra": "clear",
+  "arb": "clear",
+  "eng": "clear",
+  "hau": "clear",
+  "asm": "clear",
+  "ben": "clear",
+  "hin": "clear",
+  "por": "clear",
+  "rus": "clear",
+  "spa": "clear",
+  "swk": "lexicon",
+  "swe": "lexicon"
+}

@@ -1,0 +1,137 @@
+lexeme-spine.db — LEXEME-anchored backbone (the current spine; spine_words table)  [ALIGNER_SPINE_DB]
+  from bcv-commons/shoresh MACULA export, 2026-07, CC-BY. 607,255 words (finer MACULA tokenization).
+  anchor: lexeme = lang:augmented-strong (e.g. hbo:0871a) ; strong = augment-stripped rollup
+    (Hebrew equivalence-canonicalized for spine.db parity). Adds gloss + role columns.
+  sources: Clear-Bible/macula-greek@main (Nestle1904) + macula-hebrew@main (WLC)
+  pin: spine_meta.macula_spine_sha256 = a3dbc0bbe95e19e0b45b5dbc533ae4b82eb61d66f1f0e817c87bb8628ac5d0ac
+  contract: docs/data-contracts.md §1. Provided out-of-band; gitignored (*.db).
+
+spine.db — legacy STEPBible bare-Strong's backbone (superseded by lexeme-spine.db; kept for parity checks)
+  copied 2026-07 from bcv-query monorepo (shoresh/spine/spine.db)
+  STEPBible-derived, CC-BY: uhb_tag v2.1.32 / ugnt_tag v0.34 ; 443,508 words
+  stable reference — refresh only on a deliberate STEPBible upgrade
+  (rebuild path: monorepo shoresh/spine/parse.py). Provided out-of-band; gitignored.
+
+usj-ind/ — Indonesian target text (67 USJ books)
+  derived 2026-07 from cdn.bibel.wiki PKF ind_C01 (ind_C01.CN8xM8h_.pkf)
+  pipeline: PKF -> USFM (Proskomma, example/scripts/export_usfm.mjs) -> USJ (usfmtc.outUsj)
+  license: Public Domain (verbal 2026-07, written confirmation pending) — experiment-only
+  proper long-term home: bcv-commons/bibles recipe layer (pinned). Provided out-of-band; gitignored.
+
+resources/strongs/attestations/*.parquet — GOLD word-alignments (10 languages)
+  copied 2026-07 from bcv-query monorepo resources/strongs/attestations/
+  source: Clear-Bible/Alignments (manual); base texts per-lang; CC-BY-SA-4.0 (see resources/strongs/README.md)
+  langs: arb asm ben eng fra hau hin por rus spa  (NO Indonesian — Clear has no ind gold)
+  schema: strong, lemma, surface, ref, target_id, source_id, method, source_corpus, base_text
+  use: benchmark a produced lexeme-alignments/<lang>.tsv against attestations/<lang> (gold). ALIGNER_RESOURCES=data/resources.
+
+usj-fra-lsg/ — French target text (66 USJ books, WHOLE BIBLE) — GOLD BENCHMARK + full alignment
+  source: eBible.org fraLSG — Louis Segond 1910, PUBLIC DOMAIN (ebible.org/fraLSG)
+  pipeline: eBible USFM zip -> usfmtc.outUsj -> USJ (aligner NN-BOOK.json numbering, OT+NT)
+  WHY THIS EDITION: gold attestations/fra base_text=LSG — matching editions is required for a
+    valid benchmark (else surfaces differ = measuring translation, not aligner quality).
+  use: run the aligner on this -> produced lexeme-alignments/fra -> score vs strongs/attestations/fra (gold).
+  NOTE 2026-07-09: fra was initially aligned NT-only; OT now aligned (96.1% cov) → lexeme-alignments/fra is
+    whole-Bible (60,276 rows) + senses_attested/fra built. Clears shoresh's "publish OT for all langs" ask.
+
+prior-pack/ — LANGUAGE-INDEPENDENT prior pack, PULLED from bcv-commons/prior-pack (HF dataset, CC-BY-4.0)
+  one row per MACULA lexeme (14,720): keyness, lxx_greek/lxx_hebrew, senses inventory, neighbors,
+  xling_confidence — feeds the recipes (R1 keyness-filter, R2 sense-surface, R3 gap-map, LXX NT-gap).
+  PIN — prior_pack.parquet sha256: 9874ac4a5ecd88f8f6a1bc74c8bf5be408d78c67bbd98bd501ddeb882bdb13a8
+  pull: huggingface_hub.snapshot_download(repo_id='bcv-commons/prior-pack', repo_type='dataset',
+        local_dir='resources/prior-pack'). Bulk parquet gitignored; manifest.json + README committed as
+  the pin. Rebuilt/re-pulled only on a shoresh component bump. Contract: internal-docs/aligner-handover.md.
+
+resources/lexeme-alignments_gold_derived/ — {fra,por,hau}.tsv
+  copied from monorepo resources/lexeme-alignments/ — CAUTION: these were DERIVED FROM the Clear gold
+  ("fra/LSG via Clear-Bible/Alignments manual word alignment"), so scoring them vs the Clear gold
+  is CIRCULAR (~100%). NOT aligner output. Use only as an upper-bound reference lexicon.
+
+usj-hau-ohcb/ — Hausa target text (39 OT USJ books) — 2nd gold benchmark (typologically distant)
+  source: eBible.org "hausa" (HAUBIB) = Hausa Contemporary Bible / OHCB, Biblica © 2009,2020
+    (redistributable via eBible; experiment-only, gitignored — NOT public domain)
+  pipeline: eBible USFM zip -> usfmtc.outUsj -> USJ (OT only). gold attestations/hau base_text=OHCB (match).
+  why: Chadic/Afro-Asiatic, lower-resource — tests whether the method generalizes off European/Latin
+    high-resource langs toward the Indonesian-like population (French alone = flattering case).
+
+lexeme-spine.db — LEXEME-ANCHORED backbone (MACULA) — data-contract §1
+  built 2026-07 in bcv-query monorepo: python -m macula.build_spine_words
+  source: Clear-Bible macula-greek@main (Nestle1904) + macula-hebrew@main (WLC), CC-BY-4.0
+  607,255 tokens; anchor lexeme=lang:augmented-strong (e.g. hbo:0871a); strong=augment-stripped rollup;
+  is_content=class in {noun,verb,adj}; gloss on 99.1%; role on 46,782; morph absent (MACULA carries none).
+  PIN — macula_spine_sha256 (input): a3dbc0bbe95e19e0b45b5dbc533ae4b82eb61d66f1f0e817c87bb8628ac5d0ac
+        build sha256 (this artifact):  c954889d951e1a9082557dac4b7a31b4803705670371d604a0be6da913ad8b04
+  use: set ALIGNER_SPINE_DB=data/lexeme-spine.db (has_lexeme=True). Finer tokenization than spine.db
+       (prefixes split); re-pin + re-align on a deliberate MACULA bump.
+
+  UPDATE 2026-07-09: rebuilt with per-occurrence `key` column (MACULA node id) — enables the
+  BHSA↔MACULA sense bridge join (lexeme-spine.key = bridge.key). Additive; aligner SELECT unaffected.
+  new build sha256: 8808bd09c4c880678495d3133fd20eb0c90e2ef51b512e43111ec45c45534127
+
+  UPDATE 2026-07-09b: enriched with BHSA sense/sense_conf/sense_source via the bridge
+  (macula.enrich_spine_senses) — 227,400 OT tokens carry homograph-precise sense. new sha256: ac0baa98af532e74759506e7ca630cbdd07121a4d846d0d9d453fd5984105ca7
+
+  UPDATE 2026-07-09c: + BHSA `lex` + `stem` (binyan) columns alongside sense — lets the
+  aligner emit shoresh canonical sense key (lex, stem, sense). new sha256: 752f77a7d0a77d0a09489ac1cac5bf89c762fae9b5d58d69db9899c45a25ad71
+
+  UPDATE 2026-07-09d: FREED TO CC-BY — dropped BHSA `lex`; `stem` now = MACULA binyan (CC-BY,
+  full names qal/piel/hiphil); sense# = in-house hebrew-context. Sense key is (lexeme, stem, sense),
+  fully CC-BY → publishable. new sha256: dc353d340215339093f453d8765af1fabf8b444dcd917b4d73a3d056b22ebb31
+  (MACULA input also refreshed this cycle → macula_spine_sha256 = a3dbc0bb…; header pin updated to match.)
+
+  UPDATE 2026-07-25: + `is_superscription` (532 tokens, Psalm-title vocabulary — combines UHB's own
+  \d-marked verse split with BSB-publishing heading data + an empirically-derived vocabulary for
+  titles merged into verse 1; 115/116 titled psalms flagged in an earlier build, PSA 72 confirmed
+  correctly flagged in the final one) + structured morphology (person/number/gender/case_/tense/
+  voice/mood/degree/state, from BHSA/MACULA) + `phrase_id`/`function`/`rela` (BHSA phrase-level
+  syntax — function = syntactic role e.g. Subj/Pred/Objc/Adju, 100% coverage across all 253,203
+  Hebrew OT phrases; phrase_id groups tokens into the same construct-chain/multi-word syntactic
+  unit; rela = fine relation within the phrase — NA=head, rec=construct-governed dependent,
+  par=coordination; populated on 296,356 tokens, Hebrew/OT-only, no Greek layer). Built via a new
+  resource, resources/occurrences/hbo_syntax.db, joined through the existing BHSA↔MACULA bridge —
+  same mechanism `sense` already used. An earlier build in this cycle briefly DROPPED sense/
+  sense_conf/sense_source (only ran build_spine_words, not build_bridge + enrich_spine_senses) —
+  caught via our own PRAGMA-based auto-detection going False + a direct 0/2,741-token spot-check;
+  fixed and rebuilt, verified restored: 227,400/607,255 tokens carry sense (37.4%), matching the
+  documented baseline exactly. Verified independently on the final build (2026-07-25): sense
+  coverage 227,400/607,255 (37.4%), phrase_id coverage 296,356/607,255 (48.8%), is_superscription
+  532/607,255 — all match exactly. new sha256: 0498790c57948c10d7158bb49ccd2593ae4be0aa1319570a1fac45c259541918
+
+gbt/ — globalbibletools/data per-occurrence gloss JSON (hbo+grc source + per-language target renderings)
+  seeded 2026-07-17 from bcv-query monorepo's already-fetched pin (shoresh/interlinear/fetch.py's
+  discipline: tarball, not git clone; commit pinned deliberately)
+  PIN — GBT_DATA_COMMIT = f5af0eb89e4b845b2b30beb9f4360b50ddb08f6a (2026-07-12)
+  license: CC0-1.0 (org-wide default; confirmed no per-repo override, verified via study-app sibling repo)
+  subdirs kept: hbo+grc/ (Hebrew/Greek interlinear source, 448k words), fra/ (72.6% glossed), eng/
+  (99.7% glossed, kept for cross-check), hin/ (33.6%), spa/ (71.3%), por/ (68.9%), rus/ (8.7% — kept
+  despite rus being gold-quarantined; still usable for the gbt-fallback benchmark tier). ben/ and hau/
+  checked and found 0.0% glossed (genuinely empty gloss project, not sparse) — NOT copied in, no
+  content to extract. Remaining ~36 languages not copied (available at the same pin if needed later:
+  github.com/globalbibletools/data/archive/<commit>.tar.gz)
+  use: gbt_align.py extracts many-to-many occurrence alignment (source id(s) <-> target gloss slot(s))
+  from the id-suffix addressing scheme; see gbt_align.py docstring for the validated classification.
+  Provided out-of-band; gitignored (data/gbt/).
+
+bsb/ — BSB-publishing/bsb-data-output's base/display/ (heb/grc + eng Strong's-tagged word spans,
+  the Berean Standard Bible publisher's own native span-tagging — a second, independent occurrence-
+  alignment source alongside gbt/ above; see internal-docs/gbt-alignment-handover.md "A second,
+  independent alignment source")
+  fetched 2026-07-17 via lexeme_aligner/bsb_fetch.py (pinned git tree + raw per-file download,
+  stdlib only, ~1,190 per-chapter files / 26.5MB)
+  PIN — BSB_DATA_OUTPUT_COMMIT = a0bcfbbcfe217c66f31b1c886dd95c4424061e0e (2026-07-17 build)
+  license: CC0 + CC-BY 4.0 (index-cc-by / OSHB morphology; base/display/ itself is the CC0 span data)
+  FRESHNESS NOTE: this commit's own VERSION.json pins bsb_usj sha=d3a411d (2026-06-13) — the ~5-month
+  staleness flagged in the handover doc (bsb2usfm@d8cdbaf, 2026-01-19) is RESOLVED as of this pin.
+  use: bsb_align.py extracts source(heb/grc)<->target(eng) occurrence alignment by Strong's-code FIFO
+  matching within each verse (no id-gap heuristic needed — BSB's own multi-word spans + explicit
+  `elided:true` flag make this structurally simpler and more authoritative than gbt/'s addressing
+  scheme; see bsb_align.py docstring). Provided out-of-band; gitignored (data/bsb/).
+
+occurrence_align/ (resources/, gitignored) — gbt_align.py + bsb_align.py write per-source
+  <source>_<lang>.jsonl (gbt_eng.jsonl, gbt_fra.jsonl, bsb_eng.jsonl); occurrence_union.py
+  concatenates same-language files into <lang>.jsonl, the additive union (docs/publishing-
+  principles.md §3/§5 — each source's rows kept + `source`-tagged, never merged/picked-a-winner,
+  same pattern as lexeme-alignments' `method`/`base_text` columns). Cross-validated 2026-07-17:
+  gbt's `suffix_pending` category confirmed (via BSB's authoritative `elided` marker, independently
+  of the earlier eflomal/gloss/merge cross-check) as ~94% gloss-project incompleteness, not genuine
+  elision — do not treat as an authoritative "no content" signal.

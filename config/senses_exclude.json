@@ -1,0 +1,9 @@
+{
+  "_doc": "senses_attested exclusion / takedown record. A row is DROPPED from the published parquet (and its content_sha256) if it matches ANY rule below; a rule matches when ALL of its stated fields equal the row's. Fields: lexeme, stem, sense, surface (compared lowercase), base_text. Omit a field to wildcard it. Read automatically by `python -m lexeme_aligner.senses_attested` (default --exclude data/senses_exclude.json). Removed rows are dropped and survivor shares renormalise — never re-emitted with provenance stripped. This file is committed so the removal history is auditable.",
+  "_examples": [
+    {"base_text": "swe_fol"},
+    {"base_text": "swe_fol", "surface": "herren"},
+    {"lexeme": "hbo:3068", "stem": "", "sense": "1", "base_text": "swe_svk"}
+  ],
+  "exclude": []
+}

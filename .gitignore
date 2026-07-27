@@ -1,0 +1,64 @@
+# --- local / secrets / editor cruft ---
+__pycache__/
+*.egg-info/
+*.pyc
+.DS_Store
+.claude/
+# local secrets (HF token, DBT API key, ...) — never committed
+.env
+# private working notes / handover — not official (Claude auto-loads it)
+CLAUDE.local.md
+# safety snapshot of tracked content taken before the 2026-07 git-history reset — local only
+bak/
+
+# --- pipeline/work/ — PURELY TRANSIENT (2026-07 reorg): alignment output (out/), ingested target
+# text cache (ingest-cache/usj-*), CDN download cache (ingest-cache/pkf-pool), and derived
+# intermediate extraction (occurrence_align/, karnbibeln/). Nothing here is a source of truth —
+# everything is regenerable from pipeline/vendor/ + published data + a fresh alignment run.
+pipeline/work/
+
+# --- pipeline/vendor/ — pinned external snapshots (bulk; manifest/README stay tracked as the pin) ---
+# globalbibletools/data seeded copy — pinned commit in config/PROVENANCE.txt
+pipeline/vendor/gbt/
+# BSB-publishing/bsb-data-output fetched copy — pinned commit in config/PROVENANCE.txt
+pipeline/vendor/bsb/
+# copied-in bcv-commons/strongs datasets (gold attestations, gloss priors)
+pipeline/vendor/resources/
+# prior-pack pulled from bcv-commons/prior-pack (HF, CC-BY) — bulk parquet + HF cache git-ignored;
+# manifest.json + README.md stay tracked as the version pin (see config/PROVENANCE.txt)
+pipeline/vendor/prior-pack/*.parquet
+pipeline/vendor/prior-pack/.cache/
+pipeline/vendor/prior-pack/.gitattributes
+# copied-in spine.db / hbo.db — provided out-of-band, never committed
+pipeline/*.db
+
+# --- pipeline/pkf2usfm/ (Node PKF→USFM edge converter) ---
+pipeline/pkf2usfm/node_modules/
+
+# --- pipeline/scripts/ — one-off debug/ablation/probe scripts never committed; scripts/ itself
+# holds only durable recipes (+ scripts/archive/ for superseded historical batch runs, kept as
+# provenance) ---
+pipeline/scripts/adhoc/
+
+# --- publish/ — every dataset's bulk data is git-ignored; only manifest.json + README.md (+ small
+# committed companions) stay tracked, matching each dataset's own README for exactly what ships ---
+publish/lexeme-alignments/iso=*/
+publish/senses_attested/iso=*/
+publish/aligned_mwe/iso=*/
+# compact-alignments: the `[a-z]` bucket dirs are the per-edition data (<iso[0]>/<iso>/<edition>/);
+# `_index/` (shared verse-ref indices, small, worth committing) starts with `_` so it's unaffected.
+publish/compact-alignments/[a-z]/
+# target-morphology: ignore all *.json EXCEPT manifest.json (which also ends in .json)
+publish/target-morphology/*.json
+!publish/target-morphology/manifest.json
+# target-stopwords: manifest.json isn't a .txt file, so it's naturally kept without a negation
+publish/target-stopwords/*.txt
+# cross-lingual-span-profile: same pattern, just the two data files
+publish/cross-lingual-span-profile/profile.json
+publish/cross-lingual-span-profile/light_lexemes.json
+# local cache of sha256s last successfully pushed per (repo, path) — avoids re-uploading unchanged
+# shared files (manifest/README/companions) on every language in a publish batch (export_lex.py).
+.publish_state.json
+
+# --- misc ---
+internal-docs/

@@ -261,6 +261,12 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="whole Bible (OT then NT — 66 books)")
     ap.add_argument("--usj-dir", type=Path, required=True)
     ap.add_argument("--iso", default="ind")
+    ap.add_argument("--publish-iso", default=None,
+                    help="the bare published iso, when --iso is an edition TAG that differs from it "
+                         "(e.g. --iso arb_vdv --publish-iso arb) — gloss's bootstrap priors and the #3 "
+                         "stopword filter read/cache against THIS iso's published lexeme-alignments/"
+                         "target-stopwords, not the tag's (which was never published under that key). "
+                         "Defaults to --iso, so single-edition/grandfathered calls are unaffected.")
     ap.add_argument("--lang-name", default="Indonesian")
     ap.add_argument("--stat-iters", type=int, default=6)
     ap.add_argument("--gloss-signals", default="morph,scatter",
@@ -283,6 +289,7 @@ def main() -> int:
                     help="eflomal source-side key: strong (rollup) or lexeme (finer, separates homonyms)")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
+    publish_iso = args.publish_iso or args.iso
     books = (OT_BOOKS + NT_BOOKS if args.all else OT_BOOKS if args.ot else NT_BOOKS if args.nt
              else [b.upper() for b in (args.book or ["RUT"])])
     args.out.mkdir(parents=True, exist_ok=True)
@@ -316,7 +323,7 @@ def main() -> int:
         gloss_sw = None
         if "stopwords" in signals:                       # #3: target function-word filter
             from lexeme_aligner.target_stopwords import StopwordFilter
-            gloss_sw = StopwordFilter(args.iso, str(args.usj_dir))
+            gloss_sw = StopwordFilter(publish_iso, str(args.usj_dir))
             print(f"[pilot] gloss #3 stopwords: {len(gloss_sw.words)} target function-words", file=sys.stderr)
         gloss_xl = None
         if "cross" in signals and args.cross_lang.exists():  # #1: cross-lingual span profile
@@ -329,7 +336,7 @@ def main() -> int:
                   file=sys.stderr)
         else:                                            # none → bootstrap from own lexeme-alignments + prior-pack (R1/LXX)
             from lexeme_aligner.bootstrap_priors import BootstrapPriors
-            priors = BootstrapPriors(args.iso)
+            priors = BootstrapPriors(publish_iso)
             if priors.missing:
                 print(f"[pilot] gloss: no lexeme-alignments ({priors.missing}) — run eflomal + export_lex "
                       f"first; gloss will be sparse", file=sys.stderr)

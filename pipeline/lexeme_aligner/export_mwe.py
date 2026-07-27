@@ -10,7 +10,13 @@ positions now carried in the jsonl (`run_pilot`): a pair is an MWE only when its
 Needs jsonl produced AFTER the t_idx change (re-align to populate). Same partitioned-Parquet + committed
 manifest layout as lexeme-alignments; CC0 (phrases + counts + ids, no MACULA analysis).
 
-    python3 -m lexeme_aligner.export_mwe --iso ind --method eflomal --lang-name Indonesian
+`--method all` (the default) UNIONS every method present for this tag (eflomal/gloss/gapfill) — a phrase
+either method found contributes to the same (lexeme, phrase) count, same "additive coverage, not a
+single winner" spirit as lexeme-alignments' method union (though here counts blend rather than staying
+split per method — this dataset doesn't track per-row provenance). Pass an explicit method name (or a
+comma-separated list) to restrict to just that.
+
+    python3 -m lexeme_aligner.export_mwe --iso ind --lang-name Indonesian
 """
 from __future__ import annotations
 
@@ -21,25 +27,47 @@ import json
 import sys
 from pathlib import Path
 
-from lexeme_aligner.align_files import tag_files
+from lexeme_aligner.align_files import methods_present, tag_files, tag_files_any_method
 from lexeme_aligner.config import OUT
 from lexeme_aligner.export_lex import publish_to_hf
 
 SCHEMA = ["lexeme", "strong", "phrase", "n_words", "count", "share", "contig"]
+_CANDIDATE_METHODS = ["eflomal", "gloss", "gapfill"]
+
+
+def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 500) -> None:
+    """Bulk-publish EVERY already-exported language partition + manifest/README in one chunked batch —
+    same pattern as export_lex.publish_all_to_hf. Assumes every partition already exists locally."""
+    from lexeme_aligner.hf_bulk_publish import publish_chunked
+    partitions = sorted(str(fp.relative_to(root)) for fp in root.glob("iso=*/data.parquet"))
+    shared = [f for f in ["manifest.json", "README.md"] if (root / f).exists()]
+    publish_chunked(root, repo_id, partitions + shared, create, dry_run, chunk_size, label="aligned_mwe")
 
 
 def _contiguous(t_idx: list[int]) -> bool:
     return len(t_idx) >= 2 and (max(t_idx) - min(t_idx) + 1 == len(t_idx))
 
 
-def aggregate(out_dir: Path, iso: str, method: str):
-    """Fold contiguous multi-token content spans into (lexeme, phrase) counts. Returns also how many
-    multi-word pairs were dropped as scattered (non-contiguous) — reported, never silently ignored."""
+def _resolve_files(out_dir: Path, iso: str, method: str) -> tuple[list[Path], str]:
+    """method="all" -> every method present for this tag (union); otherwise a comma-separated list of
+    specific method names. Returns (files, methods-label-for-the-manifest)."""
+    if method == "all":
+        found = methods_present(out_dir, iso, _CANDIDATE_METHODS)
+        return tag_files_any_method(out_dir, iso), ("+".join(found) if found else "all")
+    names = [m.strip() for m in method.split(",") if m.strip()]
+    files = [fp for m in names for fp in tag_files(out_dir, m, iso)]
+    return sorted(files), "+".join(names)
+
+
+def aggregate(out_dir: Path, iso: str, method: str = "all"):
+    """Fold contiguous multi-token content spans into (lexeme, phrase) counts, across every method
+    present for this tag by default (method="all"). Returns also how many multi-word pairs were
+    dropped as scattered (non-contiguous) — reported, never silently ignored."""
     counts: collections.Counter = collections.Counter()      # (lexeme, strong, phrase, n_words) -> count
     lex_strong: dict[str, str] = {}
-    files = tag_files(out_dir, method, iso)
+    files, methods_label = _resolve_files(out_dir, iso, method)
     if not files:
-        raise SystemExit(f"no align_{method}_{iso}_*.jsonl under {out_dir} — run the aligner first")
+        raise SystemExit(f"no align_*_{iso}_*.jsonl under {out_dir} — run the aligner first")
     seen_tidx = scattered = 0
     for fp in files:
         with fp.open(encoding="utf-8") as fh:
@@ -64,7 +92,7 @@ def aggregate(out_dir: Path, iso: str, method: str):
     per_lex: collections.Counter = collections.Counter()
     for (lexeme, _st, _ph, _n), n in counts.items():
         per_lex[lexeme] += n
-    return counts, per_lex, len(files), seen_tidx, scattered
+    return counts, per_lex, len(files), seen_tidx, scattered, methods_label
 
 
 def build_rows(counts, per_lex, min_count: int) -> list[tuple]:
@@ -113,8 +141,18 @@ def update_manifest(path: Path, iso: str, entry: dict) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--iso", default="ind")
-    ap.add_argument("--method", default="eflomal")
+    ap.add_argument("--publish-all", metavar="REPO_ID", default=None,
+                    help="bulk-publish EVERY already-exported iso=*/data.parquet in one chunked batch, "
+                         "instead of exporting one language")
+    ap.add_argument("--chunk-size", type=int, default=500, help="files per HF commit, with --publish-all")
+    ap.add_argument("--iso", default="ind", help="the alignment TAG to read align_*.jsonl from")
+    ap.add_argument("--publish-iso", default=None,
+                    help="the bare published iso, when --iso is an edition TAG that differs from it "
+                         "(e.g. --iso arb_vdv --publish-iso arb) — the output partition lands at "
+                         "iso=arb/ (not iso=arb_vdv/), consistent with lexeme-alignments/"
+                         "senses_attested. Defaults to --iso.")
+    ap.add_argument("--method", default="all", help="'all' (default) unions every method present; "
+                    "or a specific name / comma-separated list to restrict to")
     ap.add_argument("--min-count", type=int, default=1)
     ap.add_argument("--lang-name", default=None)
     ap.add_argument("--out", type=Path, default=OUT)
@@ -125,25 +163,30 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    counts, per_lex, n_files, seen, scattered = aggregate(args.out, args.iso, args.method)
+    if args.publish_all:
+        publish_all_to_hf(args.root, args.publish_all, args.create, args.dry_run, args.chunk_size)
+        return 0
+
+    publish_iso = args.publish_iso or args.iso
+    counts, per_lex, n_files, seen, scattered, methods_label = aggregate(args.out, args.iso, args.method)
     if seen == 0:
         print(f"[aligned_mwe] {args.iso}: no t_idx in jsonl — re-align (run_pilot) to carry positions",
               file=sys.stderr)
         return 0
     rows = build_rows(counts, per_lex, args.min_count)
-    part = args.root / f"iso={args.iso}"
+    part = args.root / f"iso={publish_iso}"
     part.mkdir(parents=True, exist_ok=True)
-    rel_file = f"iso={args.iso}/data.parquet"
+    rel_file = f"iso={publish_iso}/data.parquet"
     write_parquet(rows, args.root / rel_file)
 
     source = json.loads(args.sources.read_text(encoding="utf-8")).get(args.iso) if args.sources.exists() else None
-    entry = build_entry(rows, args.method, args.min_count, n_files, args.lang_name, rel_file, scattered, source)
-    update_manifest(args.root / "manifest.json", args.iso, entry)
+    entry = build_entry(rows, methods_label, args.min_count, n_files, args.lang_name, rel_file, scattered, source)
+    update_manifest(args.root / "manifest.json", publish_iso, entry)
     print(f"[aligned_mwe] {n_files} file(s) · {len(rows)} contiguous MWEs · {entry['lexemes']} lexemes · "
           f"{entry['phrases']} phrases  ({scattered} scattered spans dropped)  → {args.root / rel_file}",
           file=sys.stderr)
     if args.publish:
-        publish_to_hf(args.root, args.iso, rel_file, entry, args.publish, args.create, args.dry_run)
+        publish_to_hf(args.root, publish_iso, rel_file, entry, args.publish, args.create, args.dry_run)
     return 0
 
 

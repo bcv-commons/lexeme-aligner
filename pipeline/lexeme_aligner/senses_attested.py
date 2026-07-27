@@ -38,12 +38,36 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from lexeme_aligner.align_files import tag_files
+from lexeme_aligner.align_files import tag_files, tag_files_any_method
 from lexeme_aligner.config import OUT, SPINE_DB
 from lexeme_aligner.export_lex import publish_to_hf   # reuse the HF uploader (generic)
 
 SCHEMA = ["lexeme", "stem", "sense", "surface", "count", "share", "method", "source_corpus", "base_text"]
 Row = tuple[str, str, str, str, int, float, str, str, str]
+
+
+def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 500) -> None:
+    """Bulk-publish EVERY already-exported language partition + manifest/README in one chunked batch —
+    same pattern as export_lex.publish_all_to_hf. Assumes every partition already exists locally."""
+    from lexeme_aligner.hf_bulk_publish import publish_chunked
+    partitions = sorted(str(fp.relative_to(root)) for fp in root.glob("iso=*/data.parquet"))
+    shared = [f for f in ["manifest.json", "README.md"] if (root / f).exists()]
+    publish_chunked(root, repo_id, partitions + shared, create, dry_run, chunk_size, label="senses_attested")
+
+
+def _method_of(fp: Path) -> str:
+    """align_<method>_<tag>_<BOOK>.jsonl -> <method>."""
+    return fp.name.split("_", 2)[1]
+
+
+def _resolve_files(out_dir: Path, align_iso: str, method: str) -> list[tuple[Path, str]]:
+    """method="all" -> every method present for this tag, each file tagged with its own actual method
+    (additive union, same spirit as lexeme-alignments — a pair attested by two methods is two rows,
+    nothing silently merged). Otherwise a comma-separated list restricts to just those methods."""
+    if method == "all":
+        return [(fp, _method_of(fp)) for fp in tag_files_any_method(out_dir, align_iso)]
+    names = [m.strip() for m in method.split(",") if m.strip()]
+    return [(fp, m) for m in names for fp in tag_files(out_dir, m, align_iso)]
 
 
 def hebrew_corpus() -> str:
@@ -58,38 +82,45 @@ def hebrew_corpus() -> str:
         return "WLC"
 
 
-def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str):
+def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all"):
     """Fold OT content pairs (lexeme, stem, sense) into attested target renderings, per edition.
 
     `editions` is a list of (align_iso, base_text). Pooling several editions of ONE language into a
     single partition keeps every row tagged by its `base_text`, with `share` computed WITHIN that
     edition — so cross-edition agreement (a sense→surface attested by >1 base_text) stays derivable
-    from the rows, without laundering provenance. A takedown is then a clean `base_text` row-drop."""
-    counts: collections.Counter = collections.Counter()      # (lexeme, stem, sense, surface, base_text) -> count
+    from the rows, without laundering provenance. A takedown is then a clean `base_text` row-drop.
+
+    method="all" (the default) UNIONS every method present for each tag (eflomal/gloss/gapfill) —
+    each row also carries its own `method`, so a sense→surface attested by two methods is two rows,
+    same additive-union spirit as lexeme-alignments (nothing silently merged across methods)."""
+    counts: collections.Counter = collections.Counter()  # (lexeme, stem, sense, surface, base_text, method) -> count
     n_files = 0
     for align_iso, base_text in editions:
-        files = tag_files(out_dir, method, align_iso)
+        files = _resolve_files(out_dir, align_iso, method)
         if not files:
-            raise SystemExit(f"no align_{method}_{align_iso}_*.jsonl under {out_dir} — run the aligner first")
+            raise SystemExit(f"no align_*_{align_iso}_*.jsonl under {out_dir} — run the aligner first")
         n_files += len(files)
-        for fp in files:
+        for fp, file_method in files:
             with fp.open(encoding="utf-8") as fh:
                 for line in fh:
                     for p in json.loads(line)["pairs"]:
                         lexeme, se, tgt = p.get("lexeme"), p.get("sense"), p.get("target")
                         if not (p.get("content") and lexeme and se and tgt):  # sense ⇒ OT/Hebrew only
                             continue
-                        counts[(lexeme, p.get("stem") or "", str(se), tgt.strip().lower(), base_text)] += 1
+                        counts[(lexeme, p.get("stem") or "", str(se), tgt.strip().lower(),
+                               base_text, file_method)] += 1
 
     return counts, n_files
 
 
 def _totals(counts) -> collections.Counter:
-    """Σ count per (lexeme, stem, sense, base_text) — the `share` denominator (WITHIN edition).
+    """Σ count per (lexeme, stem, sense, base_text, method) — the `share` denominator (WITHIN edition
+    AND method, mirroring lexeme-alignments' "share is P(x|surface) within a (method, base_text)
+    group" convention).
     Computed AFTER any exclusion so survivor shares renormalise and a removed row leaves no trace."""
     per_key: collections.Counter = collections.Counter()
-    for (lexeme, stem, se, _su, bt), n in counts.items():
-        per_key[(lexeme, stem, se, bt)] += n
+    for (lexeme, stem, se, _su, bt, m), n in counts.items():
+        per_key[(lexeme, stem, se, bt, m)] += n
     return per_key
 
 
@@ -123,18 +154,18 @@ def apply_excludes(counts, rules: list[dict]):
         return counts, 0
     kept: collections.Counter = collections.Counter()
     dropped = 0
-    for (lx, stem, se, su, bt), n in counts.items():
+    for (lx, stem, se, su, bt, m), n in counts.items():
         row = {"lexeme": lx, "stem": stem, "sense": se, "surface": su, "base_text": bt}
         if any(all(row[k] == v for k, v in rule.items()) for rule in rules):
             dropped += 1
             continue
-        kept[(lx, stem, se, su, bt)] = n
+        kept[(lx, stem, se, su, bt, m)] = n
     return kept, dropped
 
 
-def build_rows(counts, per_key, method: str, source_corpus: str, min_count: int) -> list[Row]:
-    rows: list[Row] = [(lx, stem, se, su, n, n / per_key[(lx, stem, se, bt)], method, source_corpus, bt)
-                       for (lx, stem, se, su, bt), n in counts.items() if n >= min_count]
+def build_rows(counts, per_key, source_corpus: str, min_count: int) -> list[Row]:
+    rows: list[Row] = [(lx, stem, se, su, n, n / per_key[(lx, stem, se, bt, m)], m, source_corpus, bt)
+                       for (lx, stem, se, su, bt, m), n in counts.items() if n >= min_count]
     rows.sort(key=lambda r: (r[0], r[1], r[2], r[8], -r[4]))  # group by (lex, stem, sense, base_text); top first
     return rows
 
@@ -162,10 +193,11 @@ def write_tsv(rows: list[Row], dest: Path) -> None:
     dest.write_text("\t".join(SCHEMA) + "\n" + "\n".join(_render(rows)) + "\n", encoding="utf-8")
 
 
-def build_entry(rows: list[Row], method: str, min_count: int, books: int, lang_name: str | None,
+def build_entry(rows: list[Row], min_count: int, books: int, lang_name: str | None,
                 rel_file: str, sources: dict | None) -> dict:
+    methods_label = "+".join(sorted({r[6] for r in rows})) if rows else None
     entry = {
-        "language": lang_name, "method": method, "min_count": min_count, "testament": "OT",
+        "language": lang_name, "method": methods_label, "min_count": min_count, "testament": "OT",
         "books": books, "rows": len(rows), "source_corpus": rows[0][7] if rows else None,
         "base_texts": sorted({r[8] for r in rows}),          # the edition(s) attested (multi-version)
         "lexemes": len({r[0] for r in rows}), "lexeme_stem_senses": len({(r[0], r[1], r[2]) for r in rows}),
@@ -186,12 +218,22 @@ def update_manifest(path: Path, iso: str, entry: dict) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--publish-all", metavar="REPO_ID", default=None,
+                    help="bulk-publish EVERY already-exported iso=*/data.parquet in one chunked batch, "
+                         "instead of exporting one language")
+    ap.add_argument("--chunk-size", type=int, default=500, help="files per HF commit, with --publish-all")
     ap.add_argument("--iso", default="ind", help="language partition (ISO 639-3); also the primary edition")
     ap.add_argument("--pool", default=None, help="comma-sep additional align isos to POOL into this one "
                     "language partition (e.g. --iso swe --pool swk → base_texts swe_fol+swe_svk, each row "
                     "tagged; cross-edition agreement derivable). Their base_text comes from data/sources.json.")
-    ap.add_argument("--method", default="eflomal")
+    ap.add_argument("--method", default="all", help="'all' (default) unions every method present; "
+                    "or a specific name / comma-separated list to restrict to")
     ap.add_argument("--min-count", type=int, default=1)
+    ap.add_argument("--publish-iso", default=None,
+                    help="true published language code for the output partition (default: same as "
+                         "--iso) — set when --iso is an edition TAG that differs from the bare iso, "
+                         "e.g. --iso arb_vdv --publish-iso arb, so the partition lands at iso=arb/ "
+                         "(not iso=arb_vdv/) and stays discoverable by an already-published check.")
     ap.add_argument("--lang-name", default=None)
     ap.add_argument("--base-text", default=None, help="override the PRIMARY iso's edition tag (default: source.edition)")
     ap.add_argument("--format", choices=["parquet", "tsv"], default="parquet")
@@ -206,6 +248,11 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    if args.publish_all:
+        publish_all_to_hf(args.root, args.publish_all, args.create, args.dry_run, args.chunk_size)
+        return 0
+
+    publish_iso = args.publish_iso or args.iso
     all_sources = json.loads(args.sources.read_text(encoding="utf-8")) if args.sources.exists() else {}
     pool_isos = [args.iso] + [s.strip() for s in (args.pool.split(",") if args.pool else []) if s.strip()]
     editions: list[tuple[str, str]] = []     # (align_iso, base_text) — one per edition pooled here
@@ -223,27 +270,27 @@ def main() -> int:
         print(f"[senses_attested] exclude: {len(rules)} rule(s) from {args.exclude} → dropped {n_excl} "
               f"(lexeme,stem,sense,surface,base_text) row(s)", file=sys.stderr)
     per_key = _totals(counts)                                 # share denominator AFTER exclusion
-    rows = build_rows(counts, per_key, args.method, hebrew_corpus(), args.min_count)
+    rows = build_rows(counts, per_key, hebrew_corpus(), args.min_count)
     if not rows:
         print(f"[senses_attested] {args.iso}: no sensed OT pairs (needs the enriched spine + OT books)",
               file=sys.stderr)
         return 0
-    part = args.root / f"iso={args.iso}"
+    part = args.root / f"iso={publish_iso}"
     part.mkdir(parents=True, exist_ok=True)
-    rel_file = f"iso={args.iso}/data.{'parquet' if args.format == 'parquet' else 'tsv'}"
+    rel_file = f"iso={publish_iso}/data.{'parquet' if args.format == 'parquet' else 'tsv'}"
     dest = args.root / rel_file
     (write_parquet if args.format == "parquet" else write_tsv)(rows, dest)
 
-    entry = build_entry(rows, args.method, args.min_count, n_files, args.lang_name, rel_file, sources)
+    entry = build_entry(rows, args.min_count, n_files, args.lang_name, rel_file, sources)
     if rules:                                                # record the takedown application (auditable)
         entry["excluded"] = {"rules": len(rules), "rows_dropped": n_excl}
-    update_manifest(args.root / "manifest.json", args.iso, entry)
+    update_manifest(args.root / "manifest.json", publish_iso, entry)
     print(f"[senses_attested] {n_files} file(s) · {entry['rows']} rows · {entry['lexemes']} lexemes · "
           f"{entry['lexeme_stem_senses']} (lexeme,stem,sense) · base_texts={entry['base_texts']}  → {dest}",
           file=sys.stderr)
 
     if args.publish:
-        publish_to_hf(args.root, args.iso, rel_file, entry, args.publish, args.create, args.dry_run)
+        publish_to_hf(args.root, publish_iso, rel_file, entry, args.publish, args.create, args.dry_run)
     return 0
 
 

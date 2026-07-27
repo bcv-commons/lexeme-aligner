@@ -67,6 +67,9 @@ def main() -> int:
                     help="include languages needing a DBT-sourced edition (run #3); default excludes "
                          "them entirely (run #2)")
     ap.add_argument("--dry-run", action="store_true", help="show the plan, don't run anything")
+    ap.add_argument("--full", action="store_true",
+                    help="run full_chain.py (ingest+eflomal+gloss+gapfill+export+aligned_mwe+"
+                         "senses_attested+compact-alignments) instead of onboard.py's ingest+eflomal-only")
     args = ap.parse_args()
 
     plan = build_plan(args.include_dbt)
@@ -80,7 +83,7 @@ def main() -> int:
 
     results: dict[str, tuple[bool, str]] = {}
     for lang in plan:
-        ok, msg = run_one(lang)
+        ok, msg = run_one(lang, full=args.full)
         results[lang["iso"]] = (ok, msg)
         print(f"  {'✓' if ok else '✗'} {lang['iso']:8} {msg}", file=sys.stderr)
 

@@ -2,7 +2,8 @@
 /**
  * PKF -> USFM edge converter (the one Node dependency; see docs/bibles-recipe-layer.md).
  * Vendored verbatim from the bcv-query monorepo (example/scripts/export_usfm.mjs) — the working
- * reference. Reads data/_pool/<iso>/*.pkf (a Proskomma succinct docSet) and writes one USFM file
+ * reference. Reads pipeline/work/ingest-cache/pkf-pool/<iso>/*.pkf (a Proskomma succinct docSet) and
+ * writes one USFM file
  * per book. proskomma-core's native `usfm` document field does the export — no external tool.
  *
  * Run once at the ingestion edge (never at runtime). lexeme_aligner.cdn_source invokes it via
@@ -95,12 +96,12 @@ function main() {
     console.error('usage: node pkf2usfm/export_usfm.mjs <iso> [--out <dir>] [--collection <base>]');
     process.exit(2);
   }
-  const poolDir = join('data', '_pool', iso);
+  const poolDir = join('pipeline', 'work', 'ingest-cache', 'pkf-pool', iso);
   let pkfs;
   try {
     pkfs = readdirSync(poolDir).filter((f) => f.endsWith('.pkf'));
   } catch {
-    console.error(`[usfm] no pool dir data/_pool/${iso}/`);
+    console.error(`[usfm] no pool dir ${poolDir}/`);
     process.exit(1);
   }
   if (collection) pkfs = pkfs.filter((f) => f.startsWith(`${collection}.`));

@@ -70,12 +70,19 @@ def dry_run_plan(lang: dict, skip_existing: bool = True) -> dict:
              "edition_codes": [e["edition_code"] for e in eds]}
 
 
-def run_one(lang: dict) -> tuple[bool, str]:
+def run_one(lang: dict, full: bool = False) -> tuple[bool, str]:
+    """full=True calls full_chain.py (the 9-step ingest->eflomal->gloss->gapfill->export->aligned_mwe->
+    senses_attested->compact-alignments chain) instead of onboard.py's ingest+eflomal-only chain. The
+    `method` spec override is onboard.py-only (full_chain.py always runs the full method set), so it's
+    silently dropped in full mode rather than passed to a script that doesn't accept it."""
     iso = lang["iso"]
-    cmd = [sys.executable, "-m", "lexeme_aligner.onboard", "--iso", iso]
-    flag_map = {"lang_name": "--lang-name", "method": "--method", "spine_db": "--spine-db",
+    module = "full_chain" if full else "onboard"
+    cmd = [sys.executable, "-m", f"lexeme_aligner.{module}", "--iso", iso]
+    flag_map = {"lang_name": "--lang-name", "spine_db": "--spine-db",
                 "editions_config": "--editions-config", "exclusions": "--exclusions",
                 "skip_ingest": "--skip-ingest"}
+    if not full:
+        flag_map["method"] = "--method"
     for key, flag in flag_map.items():
         if key not in lang:
             continue
@@ -103,6 +110,9 @@ def main() -> int:
     ap.add_argument("--force-iso", default=None,
                     help="comma-separated isos to re-run even if already exported, leaving skip-existing "
                          "on for everyone else in the spec — e.g. --force-iso amu,gor")
+    ap.add_argument("--full", action="store_true",
+                    help="run full_chain.py (ingest+eflomal+gloss+gapfill+export+aligned_mwe+"
+                         "senses_attested+compact-alignments) instead of onboard.py's ingest+eflomal-only")
     args = ap.parse_args()
     skip_existing = not args.force
     force_isos = set(args.force_iso.split(",")) if args.force_iso else set()
@@ -134,7 +144,7 @@ def main() -> int:
             print(f"[onboard_batch] ⏭ {iso:<8} already exported — skipping", file=sys.stderr)
             results.append((iso, True, "skipped (already done)"))
             continue
-        ok, note = run_one(lang)
+        ok, note = run_one(lang, full=args.full)
         results.append((iso, ok, note))
 
     print(f"\n{'=' * 70}\n[onboard_batch] SUMMARY\n{'=' * 70}", file=sys.stderr)

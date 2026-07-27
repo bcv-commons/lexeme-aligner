@@ -14,20 +14,21 @@
 # separate, deliberate step (the `publish`/`publish-all`/`publish-span-profile` targets below),
 # decoupled on purpose so HF's 128-commits/hour/repo limit is never a per-language concern.
 #
-# `out/`'s raw per-verse jsonl is transient — safe to delete once a language's chain finishes
-# (CLEAN_OUT=1), but off by default: it's what a re-run of aligned_mwe/senses_attested/
-# compact-alignments (e.g. with an improved algorithm later) would need without a full re-align.
+# `out/`'s raw per-verse jsonl is transient (regenerable, safe to delete) — every chain target below
+# cleans a language's own out/ jsonl automatically once ITS OWN chain finishes (steps 7/8/9 — aligned_mwe/
+# senses_attested/compact-alignments — always run first, so nothing is lost). No flag needed.
 #
 # Usage:
 #   make new-language ISO=ceb LANG_NAME=Cebuano
-#   make update-language ISO=ceb CLEAN_OUT=1
+#   make update-language ISO=ceb
 #   make new-edition ISO=fra          # after adding the edition to config/language_editions.json
 #   make update-batch SPEC=config/onboard_batch_id.json
 #   make update-all
 #   make new-catalog                  # non-DBT sweep of the full cross-source catalog
 #   make new-catalog-dbt              # DBT-inclusive follow-up sweep
 #   make status
-#   make clean-out ISO=ceb            # or CLEAN_OUT_ALL=1 for every already-exported language
+#   make clean-out ISO=ceb            # catch-up cleanup for out/ jsonl that predates auto-clean-out
+#                                      # (or CLEAN_OUT_ALL=1 — multi-dataset-safety-checked, not blind rm)
 #   make publish ISO=ceb
 #   make publish-span-profile
 #   make publish-all
@@ -56,15 +57,18 @@ _require-spec:
 
 new-language: _require-iso
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" \
+	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" --clean-out \
 	  $(if $(LANG_NAME),--lang-name "$(LANG_NAME)") \
-	  $(if $(filter 1,$(CLEAN_OUT)),--clean-out)
+	  $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
 
+# SKIP_INGEST=1 re-runs the chain against already-cached text (pipeline/work/ingest-cache/usj-<tag>)
+# with NO network fetch at all — the normal way to re-process a language after an algorithm fix
+# (e.g. the gloss bootstrap-iso bug) without re-downloading anything.
 update-language: _require-iso
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" \
+	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" --clean-out \
 	  $(if $(LANG_NAME),--lang-name "$(LANG_NAME)") \
-	  $(if $(filter 1,$(CLEAN_OUT)),--clean-out)
+	  $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
 
 # new-edition/update-edition are the SAME mechanism as new-language/update-language: editions_for()
 # always re-derives the pool from config/language_editions.json (or catalog auto-discovery) on every
@@ -76,23 +80,26 @@ new-edition: _require-iso
 	@echo "  config/language_editions.json for '$(ISO)' first — then this re-runs the full chain," >&2
 	@echo "  which re-derives the pool from current config and ingests whatever's new." >&2
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" $(if $(LANG_NAME),--lang-name "$(LANG_NAME)")
+	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" --clean-out $(if $(LANG_NAME),--lang-name "$(LANG_NAME)")
 
 update-edition: new-edition
 
 # --- batch: many languages at once ---
 
+# SKIP_INGEST=1 re-runs against already-cached text only — no network fetch at all. out/ cleanup is
+# always on (each language cleans its own raw jsonl right after ITS OWN chain finishes).
 update-batch: _require-spec
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.onboard_batch --spec "$(SPEC)" --force --full
+	$(PY) -m lexeme_aligner.onboard_batch --spec "$(SPEC)" --force --full --clean-out \
+	  $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
 
 update-all:
 	$(LOAD_ENV)
-	$(PY) pipeline/scripts/update_all.py
+	$(PY) pipeline/scripts/update_all.py --clean-out $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
 
 new-batch: _require-spec
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.onboard_batch --spec "$(SPEC)" --full
+	$(PY) -m lexeme_aligner.onboard_batch --spec "$(SPEC)" --full --clean-out
 
 new-catalog:
 	$(LOAD_ENV)
@@ -111,10 +118,7 @@ status:
 
 clean-out:
 	@if [ "$${CLEAN_OUT_ALL:-0}" = "1" ]; then \
-	  echo "[clean-out] removing ALL raw jsonl under pipeline/work/out/ — make sure every dataset that" >&2; \
-	  echo "  needs it (lexeme-alignments, aligned_mwe, senses_attested, compact-alignments) has" >&2; \
-	  echo "  already been exported for every language you care about." >&2; \
-	  rm -f pipeline/work/out/align_*.jsonl; \
+	  $(PY) pipeline/scripts/clean_out_safe.py --delete; \
 	elif [ -n "$${ISO:-}" ]; then \
 	  $(PY) pipeline/scripts/clean_out.py --iso "$(ISO)"; \
 	else \

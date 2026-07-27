@@ -1,31 +1,4417 @@
 {
   "languages": {
     "aai": {
-      "books": 60,
-      "content_sha256": "ba81133111d5d27ec75e7763d26a97b920e45d3f6a19eece0722546262a35b88",
+      "books": 57,
+      "content_sha256": "ac45f23140f3c26565e15a3a5e7113f6651729a558aac5078020d65d720a99ac",
       "file": "iso=aai/data.parquet",
       "language": "Arifama-Miniafia",
-      "lexemes": 1677,
+      "lexemes": 1635,
       "method": "eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 4796,
-      "rows": 5278,
-      "scattered_dropped": 2705
+      "phrases": 4672,
+      "rows": 5154,
+      "scattered_dropped": 2616
+    },
+    "aak": {
+      "books": 61,
+      "content_sha256": "ad424d2288a0573940f99316d38a2f926e1b8ee31292bbbf2916a4327242ac1c",
+      "file": "iso=aak/data.parquet",
+      "language": "Angave",
+      "lexemes": 1998,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 9260,
+      "rows": 9750,
+      "scattered_dropped": 2488
+    },
+    "aau": {
+      "books": 51,
+      "content_sha256": "491a5f4d89e37e931468f63422406b2d855f542bea2b2af83e122d82e5559b88",
+      "file": "iso=aau/data.parquet",
+      "language": "Abau",
+      "lexemes": 1894,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5540,
+      "rows": 6834,
+      "scattered_dropped": 3543,
+      "source": {
+        "edition": "aau_C01",
+        "license_url": "https://cdn.bibel.wiki/pkf/aau/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "aaz": {
+      "books": 55,
+      "content_sha256": "a927b68bb632e7ff52352e726f7212b9041a6d2d14a7da91b13bcd3f395ff63f",
+      "file": "iso=aaz/data.parquet",
+      "language": "Amarasi",
+      "lexemes": 2087,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 7323,
+      "rows": 8279,
+      "scattered_dropped": 3010,
+      "source": {
+        "edition": "aaz_C01",
+        "license_url": "https://cdn.bibel.wiki/pkf/aaz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "abc": {
+      "books": 12,
+      "content_sha256": "cb9a46a3b4aa1501465459263628b2e88610fa409a89fa1d97b922f8d0625be5",
+      "file": "iso=abc/data.parquet",
+      "language": "Ambala Ayta",
+      "lexemes": 360,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 471,
+      "rows": 482,
+      "scattered_dropped": 344,
+      "source": {
+        "edition": "abc_wbt",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=abc",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "abn": {
+      "books": 120,
+      "content_sha256": "c7d6006a55b76c1b008cffd96e585f6514ca167a426b76f238ff73ba2d3ce962",
+      "file": "iso=abn/data.parquet",
+      "language": "Abua",
+      "lexemes": 3810,
+      "method": "eflomal+gloss",
+      "min_count": 1,
+      "phrases": 11217,
+      "rows": 12880,
+      "scattered_dropped": 8287
+    },
+    "ace": {
+      "books": 191,
+      "content_sha256": "5fff7447e200edd4b06edd891e3b5126028b5f29cfda4e3d144deeb02e9b966e",
+      "file": "iso=ace/data.parquet",
+      "language": "Aceh",
+      "lexemes": 4323,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 13227,
+      "rows": 16800,
+      "scattered_dropped": 9054,
+      "source": {
+        "edition": "ACEIBS",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "akb": {
+      "books": 50,
+      "content_sha256": "0659809125c70b8effb34f27445d9622ba87e76c7486dd8ffe50a1d3808b7ee5",
+      "file": "iso=akb/data.parquet",
+      "language": "Batak, Angkola",
+      "lexemes": 1278,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2441,
+      "rows": 2713,
+      "scattered_dropped": 3456,
+      "source": {
+        "edition": "AKBLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "amu": {
+      "books": 52,
+      "content_sha256": "664bc543cbc7bea49cb7e2cb292b3a6e750cceae3c44c2bc261407aa9977056b",
+      "file": "iso=amu/data.parquet",
+      "language": "Amuzgo de Guerrero",
+      "lexemes": 1433,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3999,
+      "rows": 4225,
+      "scattered_dropped": 3696,
+      "source": {
+        "edition": "amu_amu",
+        "license_url": "https://cdn.bibel.wiki/pkf/amu/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "aoz": {
+      "books": 2,
+      "content_sha256": "073e1e1b3060a205cf9c4383a6dbc618c57829e6b07e155778519f1be3230f3b",
+      "file": "iso=aoz/data.parquet",
+      "language": "Amanatun",
+      "lexemes": 319,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 600,
+      "rows": 621,
+      "scattered_dropped": 189,
+      "source": {
+        "edition": "AO1UBB",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "atq": {
+      "books": 52,
+      "content_sha256": "41153c6f1317da1c64966c86b3a8412c897789f83171630b782a68764dc26f93",
+      "file": "iso=atq/data.parquet",
+      "language": "Aralle-Tabulahan",
+      "lexemes": 1767,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4865,
+      "rows": 5318,
+      "scattered_dropped": 3209,
+      "source": {
+        "edition": "ATQLAI",
+        "license_url": "https://www.wycliffe.org/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "auu": {
+      "books": 53,
+      "content_sha256": "e4255ba54cc7a35016d31d21c4c62b4b0075f089bad996ac4b4333dd15ab4270",
+      "file": "iso=auu/data.parquet",
+      "language": "Auye",
+      "lexemes": 1787,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6479,
+      "rows": 7510,
+      "scattered_dropped": 2442,
+      "source": {
+        "edition": "AUUWBT",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "awu": {
+      "books": 54,
+      "content_sha256": "80cf203ba90b543575a0015ec30335b8d327dcdab0390108ab788d9c71fd287f",
+      "file": "iso=awu/data.parquet",
+      "language": "Central Auyu",
+      "lexemes": 1809,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 7560,
+      "rows": 8534,
+      "scattered_dropped": 2723,
+      "source": {
+        "edition": "AWUGPK",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "ayz": {
+      "books": 1,
+      "content_sha256": "8dd32d991e20ff2dcd319cb5ee2dec1f0ebbdaa59cdf73f8d76da4bd5f91b28c",
+      "file": "iso=ayz/data.parquet",
+      "language": "Mai Brat",
+      "lexemes": 280,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 395,
+      "rows": 411,
+      "scattered_dropped": 287,
+      "source": {
+        "edition": "AYZYSS",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "azd": {
+      "books": 12,
+      "content_sha256": "9437209076c42de1cc91c15f1b91a5fbbb1b3c915af215be221e0a59344c56c9",
+      "file": "iso=azd/data.parquet",
+      "language": "Eastern Durango Nahuatl",
+      "lexemes": 992,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 1552,
+      "rows": 1631,
+      "scattered_dropped": 1180,
+      "source": {
+        "edition": "azd_azd",
+        "license_url": "https://cdn.bibel.wiki/pkf/azd/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "azg": {
+      "books": 52,
+      "content_sha256": "d22f285ec97f44a11a848036bee6ee45941c9b561cc5c5c319644d4480a7ddf6",
+      "file": "iso=azg/data.parquet",
+      "language": "San Pedro Amuzgo",
+      "lexemes": 1507,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4795,
+      "rows": 5265,
+      "scattered_dropped": 4497,
+      "source": {
+        "edition": "azg_azg",
+        "license_url": "https://cdn.bibel.wiki/pkf/azg/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "azz": {
+      "books": 53,
+      "content_sha256": "eac82bcb7ce042f5f9de718b8ce15156c5b3c2fbe0f0a15f71cddf92617ec089",
+      "file": "iso=azz/data.parquet",
+      "language": "Highland Puebla Nahuatl",
+      "lexemes": 1106,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3416,
+      "rows": 3626,
+      "scattered_dropped": 4870,
+      "source": {
+        "edition": "azz_azz",
+        "license_url": "https://cdn.bibel.wiki/pkf/azz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ban": {
+      "books": 196,
+      "content_sha256": "0c747a1a1be443d6ebd6a06964d3aaef32d9a3fea3e47d570f24f2f93819f14b",
+      "file": "iso=ban/data.parquet",
+      "language": "Balinese",
+      "lexemes": 5083,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 19861,
+      "rows": 23612,
+      "scattered_dropped": 10686,
+      "source": {
+        "edition": "BANDPI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bbc": {
+      "books": 66,
+      "content_sha256": "a1ea7c016aadc3a3ce836ddf2e22315a5b1b88eac016a1102c2e14f4be6b09a0",
+      "file": "iso=bbc/data.parquet",
+      "language": "Batak, Toba",
+      "lexemes": 2535,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5856,
+      "rows": 6454,
+      "scattered_dropped": 5085,
+      "source": {
+        "edition": "BBCLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bep": {
+      "books": 51,
+      "content_sha256": "3d10d3ef5cf92fe25cd6f5838dc49ee72cc52d0a41ad0e0151b0e74b8fc6a8d3",
+      "file": "iso=bep/data.parquet",
+      "language": "Behoa",
+      "lexemes": 1684,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3908,
+      "rows": 4323,
+      "scattered_dropped": 2839,
+      "source": {
+        "edition": "BEPLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bgz": {
+      "books": 53,
+      "content_sha256": "8e84261356dd6d42075bbd786b0fd151c06cd2205c70db025bb252d0331a8a0f",
+      "file": "iso=bgz/data.parquet",
+      "language": "Banggai",
+      "lexemes": 1623,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3798,
+      "rows": 4100,
+      "scattered_dropped": 2826,
+      "source": {
+        "edition": "BGZLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bhw": {
+      "books": 53,
+      "content_sha256": "621d4577762e0b284e3768b94330b7b7d00b3fdf7b03a93672fd1e77118def4b",
+      "file": "iso=bhw/data.parquet",
+      "language": "Biak",
+      "lexemes": 1505,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3139,
+      "rows": 3314,
+      "scattered_dropped": 2457,
+      "source": {
+        "edition": "BHWLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bhz": {
+      "books": 51,
+      "content_sha256": "20c6f1b20053866aca4817b6f4ba9b8d79708dd7a1402da9e2c00f76b09a361c",
+      "file": "iso=bhz/data.parquet",
+      "language": "Bada",
+      "lexemes": 1704,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3778,
+      "rows": 4106,
+      "scattered_dropped": 2641,
+      "source": {
+        "edition": "BHZLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bkl": {
+      "books": 54,
+      "content_sha256": "e182bb2a016b0291b01873aa98bc7fdf7f7e79dfc2d481aaa38e7f2d681488a1",
+      "file": "iso=bkl/data.parquet",
+      "language": "Berik",
+      "lexemes": 1597,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5617,
+      "rows": 6213,
+      "scattered_dropped": 3124,
+      "source": {
+        "edition": "BKLLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "btd": {
+      "books": 50,
+      "content_sha256": "65b85b33f362df062936e774a811f4ad2c37a29bf6e168819fd090eb1d2b5904",
+      "file": "iso=btd/data.parquet",
+      "language": "Pakpak Dairi",
+      "lexemes": 1638,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3567,
+      "rows": 3919,
+      "scattered_dropped": 2584,
+      "source": {
+        "edition": "BTDLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bts": {
+      "books": 53,
+      "content_sha256": "4f75201d0d9494e02af7fe4f7755b7134316f75c390ac7d3b5b2e3be9461df0a",
+      "file": "iso=bts/data.parquet",
+      "language": "Batak, Simalungun",
+      "lexemes": 1313,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 1944,
+      "rows": 2199,
+      "scattered_dropped": 1811,
+      "source": {
+        "edition": "BTSLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "btx": {
+      "books": 54,
+      "content_sha256": "8484ec4c99f8202bfe177a840a832de3082033ed567a81aab494d37ac33ec25d",
+      "file": "iso=btx/data.parquet",
+      "language": "Batak, Karo",
+      "lexemes": 1759,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3491,
+      "rows": 3997,
+      "scattered_dropped": 2887,
+      "source": {
+        "edition": "BTXLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bug": {
+      "books": 53,
+      "content_sha256": "fe17d120997b000e0957a36f96110e73b4cb4aafecdb82b47bdf7d8eaa672c3d",
+      "file": "iso=bug/data.parquet",
+      "language": "Bugis",
+      "lexemes": 1751,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4124,
+      "rows": 4454,
+      "scattered_dropped": 2844,
+      "source": {
+        "edition": "BUGLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "bvz": {
+      "books": 53,
+      "content_sha256": "eed36873363bba8e52ee1fdd64ccabb6209d2f2162955881a37734011d566c40",
+      "file": "iso=bvz/data.parquet",
+      "language": "Bauzi",
+      "lexemes": 1679,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 7427,
+      "rows": 8138,
+      "scattered_dropped": 2290,
+      "source": {
+        "edition": "BVZYSS",
+        "license_url": "https://www.yasuma.org/about",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "cco": {
+      "books": 53,
+      "content_sha256": "a5b78afcaaa83c2b99ba06d801b5826d5a223e8b3496cbb2f0d0e9123e810132",
+      "file": "iso=cco/data.parquet",
+      "language": "Chinantec, Comaltepec",
+      "lexemes": 1631,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 7224,
+      "rows": 8074,
+      "scattered_dropped": 4073,
+      "source": {
+        "edition": "cco_cco",
+        "license_url": "https://cdn.bibel.wiki/pkf/cco/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "chd": {
+      "books": 54,
+      "content_sha256": "65e1e4783c0ace52940c269d6d10ed320d43420299a28286f29a9525deb50315",
+      "file": "iso=chd/data.parquet",
+      "language": "Highland Oaxaca Chontal",
+      "lexemes": 1862,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5559,
+      "rows": 5766,
+      "scattered_dropped": 2357,
+      "source": {
+        "edition": "chd_chd",
+        "license_url": "https://cdn.bibel.wiki/pkf/chd/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "chf": {
+      "books": 52,
+      "content_sha256": "ee5c2f2afc89df41179d9576f5092119dd21b6e3ebaf9cfe832346558fabbc35",
+      "file": "iso=chf/data.parquet",
+      "language": "Chontal, Tabasco",
+      "lexemes": 1330,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3659,
+      "rows": 4114,
+      "scattered_dropped": 3961,
+      "source": {
+        "edition": "chf_chf",
+        "license_url": "https://cdn.bibel.wiki/pkf/chf/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "chq": {
+      "books": 51,
+      "content_sha256": "e96ed6af53d084d036086ca703f0aea5bfe58e7e7b34e6c0b1c4f002b887d872",
+      "file": "iso=chq/data.parquet",
+      "language": "Quiotepec Chinantec",
+      "lexemes": 1379,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3967,
+      "rows": 4751,
+      "scattered_dropped": 3127,
+      "source": {
+        "edition": "chq_chq",
+        "license_url": "https://cdn.bibel.wiki/pkf/chq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "chz": {
+      "books": 54,
+      "content_sha256": "e4a8a2ef8d550e97f2e7d29b385c86fc5811ea1bd957f4fd105e5dc5136c5606",
+      "file": "iso=chz/data.parquet",
+      "language": "Chinantec de Ozumacin",
+      "lexemes": 1926,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4088,
+      "rows": 4733,
+      "scattered_dropped": 3388,
+      "source": {
+        "edition": "chz_chz",
+        "license_url": "https://cdn.bibel.wiki/pkf/chz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cle": {
+      "books": 53,
+      "content_sha256": "63a79394bf0b00383adc7611420e1219788c0c46b727f0fae59d30008ba156d4",
+      "file": "iso=cle/data.parquet",
+      "language": "Chinanteco de San Juan Lealao",
+      "lexemes": 2411,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6757,
+      "rows": 8819,
+      "scattered_dropped": 4031,
+      "source": {
+        "edition": "cle_cle",
+        "license_url": "https://cdn.bibel.wiki/pkf/cle/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cmn": {
+      "books": 196,
+      "content_sha256": "d65c27254ec1d2979ab89cbc229c2d91a537b35a3a499de74a9a3dbc07bc89c7",
+      "file": "iso=cmn/data.parquet",
+      "language": "Chinese",
+      "lexemes": 2721,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 4417,
+      "rows": 4427,
+      "scattered_dropped": 491,
+      "source": {
+        "edition": "CHNCNV",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "cnl": {
+      "books": 53,
+      "content_sha256": "59947e0256f2e9fb851180c07457b744b551a63617d78f47ce745980c44961d1",
+      "file": "iso=cnl/data.parquet",
+      "language": "Chinanteco de San Juan Lalana",
+      "lexemes": 1864,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5101,
+      "rows": 6342,
+      "scattered_dropped": 3228,
+      "source": {
+        "edition": "cnl_cnl",
+        "license_url": "https://cdn.bibel.wiki/pkf/cnl/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cnt": {
+      "books": 50,
+      "content_sha256": "158a79a9dcf3a6be0c808be898715388a7eb649a82a3a314e941208472ed8095",
+      "file": "iso=cnt/data.parquet",
+      "language": "Chinanteco de Tepetotutla",
+      "lexemes": 1720,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4649,
+      "rows": 5671,
+      "scattered_dropped": 3346,
+      "source": {
+        "edition": "cnt_cnt",
+        "license_url": "https://cdn.bibel.wiki/pkf/cnt/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cok": {
+      "books": 56,
+      "content_sha256": "4a17c437e29528e256c312ed9ecf50dfa3028bd1c140ddaab211848e2913a767",
+      "file": "iso=cok/data.parquet",
+      "language": "Cora, Santa Teresa",
+      "lexemes": 1458,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3873,
+      "rows": 4378,
+      "scattered_dropped": 4984,
+      "source": {
+        "edition": "cok_cok",
+        "license_url": "https://cdn.bibel.wiki/pkf/cok/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cpa": {
+      "books": 50,
+      "content_sha256": "4925026d9e55d86d8d007bc167c4b10db0159754ce15b74a89985622926572c1",
+      "file": "iso=cpa/data.parquet",
+      "language": "Chinanteco de Palantla",
+      "lexemes": 1579,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3915,
+      "rows": 4892,
+      "scattered_dropped": 3469,
+      "source": {
+        "edition": "cpa_cpa",
+        "license_url": "https://cdn.bibel.wiki/pkf/cpa/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cso": {
+      "books": 51,
+      "content_sha256": "77e54e67fdc931fdf3a60e51f0dae94ce94a0fb31d2a137a14ef061a23229536",
+      "file": "iso=cso/data.parquet",
+      "language": "Chinanteco de Sochiapan",
+      "lexemes": 1805,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5577,
+      "rows": 6818,
+      "scattered_dropped": 4453,
+      "source": {
+        "edition": "cso_cso",
+        "license_url": "https://cdn.bibel.wiki/pkf/cso/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cta": {
+      "books": 52,
+      "content_sha256": "2b3439b839cc9960b8e48941446e5c31130406357b934fc3c688efaa799e3436",
+      "file": "iso=cta/data.parquet",
+      "language": "Tataltepec Chatino",
+      "lexemes": 1578,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4749,
+      "rows": 5808,
+      "scattered_dropped": 4376,
+      "source": {
+        "edition": "cta_cta",
+        "license_url": "https://cdn.bibel.wiki/pkf/cta/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ctp": {
+      "books": 53,
+      "content_sha256": "1c207b596706c5e6f290779b12cb80ea60a2b49ea69bbd5cc39a4becdb694af0",
+      "file": "iso=ctp/data.parquet",
+      "language": "Chatino Zona Alta (Occidental)",
+      "lexemes": 1590,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5243,
+      "rows": 6391,
+      "scattered_dropped": 3956,
+      "source": {
+        "edition": "ctp_ctp",
+        "license_url": "https://cdn.bibel.wiki/pkf/ctp/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ctu": {
+      "books": 54,
+      "content_sha256": "f13a4388da9ad44e12ae63a9fd90908eccde576f7f5a751ad86f1564b8a7ca64",
+      "file": "iso=ctu/data.parquet",
+      "language": "Chol Tumbala",
+      "lexemes": 1686,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5635,
+      "rows": 6774,
+      "scattered_dropped": 3422,
+      "source": {
+        "edition": "ctu_ctu",
+        "license_url": "https://cdn.bibel.wiki/pkf/ctu/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cuc": {
+      "books": 48,
+      "content_sha256": "e1e5e9aa7eb277f6eb5f5777515df35e447012000fc35ba0b9963e93b3ccbcb0",
+      "file": "iso=cuc/data.parquet",
+      "language": "Chinanteco de Usila",
+      "lexemes": 1597,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3219,
+      "rows": 4393,
+      "scattered_dropped": 3984,
+      "source": {
+        "edition": "cuc_cuc",
+        "license_url": "https://cdn.bibel.wiki/pkf/cuc/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cut": {
+      "books": 53,
+      "content_sha256": "6dd8eb56a18f719c26e8ac8823d224a1f171cd99753e4d8bd2234fc05d786a5e",
+      "file": "iso=cut/data.parquet",
+      "language": "Teutila Cuicatec",
+      "lexemes": 1298,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2667,
+      "rows": 3242,
+      "scattered_dropped": 4219,
+      "source": {
+        "edition": "cut_cut",
+        "license_url": "https://cdn.bibel.wiki/pkf/cut/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "cux": {
+      "books": 54,
+      "content_sha256": "f8d83dcc96979296ded75400fcfe6b3d8dddd533fd7c8b03e2e3a8d3e70fab24",
+      "file": "iso=cux/data.parquet",
+      "language": "Cuicatec, Tepeuxila: Papalo",
+      "lexemes": 1517,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3852,
+      "rows": 4392,
+      "scattered_dropped": 4656,
+      "source": {
+        "edition": "cux_cux",
+        "license_url": "https://cdn.bibel.wiki/pkf/cux/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "dna": {
+      "books": 53,
+      "content_sha256": "7554708f4998f4d292b7b81a1c1ad82c0dd3c4f0be7f22da72e886fbf3073c8d",
+      "file": "iso=dna/data.parquet",
+      "language": "Dani, Upper Grand Valley",
+      "lexemes": 2011,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 8552,
+      "rows": 9364,
+      "scattered_dropped": 2090,
+      "source": {
+        "edition": "DNALAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "dnt": {
+      "books": 54,
+      "content_sha256": "66d9dbc0ff75b3cc9ccd474d43def7061eb7f6bdf35de38c9b44d52cbd323cad",
+      "file": "iso=dnt/data.parquet",
+      "language": "Dani, Central Grand Valley",
+      "lexemes": 1946,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 8280,
+      "rows": 8977,
+      "scattered_dropped": 2095,
+      "source": {
+        "edition": "DNTLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "dnw": {
+      "books": 53,
+      "content_sha256": "12ddc61058ca1f568439cc26f877cb1a1a9308d0f00443b68964464cfa5a9a9e",
+      "file": "iso=dnw/data.parquet",
+      "language": "Lani",
+      "lexemes": 1929,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 7527,
+      "rows": 8278,
+      "scattered_dropped": 1861,
+      "source": {
+        "edition": "DNWOWM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "eip": {
+      "books": 195,
+      "content_sha256": "4bcb9a1cda691d15169bf759edb03bfb1cdd757a9f1f368c7fcbe28f2aa74d9f",
+      "file": "iso=eip/data.parquet",
+      "language": "Eipomek",
+      "lexemes": 3734,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 27047,
+      "rows": 31079,
+      "scattered_dropped": 10032,
+      "source": {
+        "edition": "eip_C01",
+        "license_url": "https://cdn.bibel.wiki/pkf/eip/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ekg": {
+      "books": 54,
+      "content_sha256": "c128a78f8c3ef92d712d15ae7691ddc2db9e940ee7f8a82d1054253a7005ae21",
+      "file": "iso=ekg/data.parquet",
+      "language": "Ekari",
+      "lexemes": 1702,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3844,
+      "rows": 4363,
+      "scattered_dropped": 2423,
+      "source": {
+        "edition": "EKGLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "eng": {
+      "books": 264,
+      "content_sha256": "bb2f2ed330081040dcd7a59e3b1d6081cb9557dcb8c1a15806c66257cc9220d1",
+      "file": "iso=eng/data.parquet",
+      "language": "English",
+      "lexemes": 2911,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 5279,
+      "rows": 5938,
+      "scattered_dropped": 9658,
+      "source": {
+        "edition": "BSB",
+        "license_url": "https://berean.bible/",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "flh": {
+      "books": 2,
+      "content_sha256": "a0138e01bb937db0497db31772de033c712a6ed1f8fa05545f890c0d736e097a",
+      "file": "iso=flh/data.parquet",
+      "language": "Abawiri",
+      "lexemes": 322,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 504,
+      "rows": 528,
+      "scattered_dropped": 194,
+      "source": {
+        "edition": "FLHGID",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "frd": {
+      "books": 53,
+      "content_sha256": "a2c93c9693a39af49bbe108c7701d03d9077043c89bad22aaea38ce30290f363",
+      "file": "iso=frd/data.parquet",
+      "language": "Fordata",
+      "lexemes": 1599,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4015,
+      "rows": 4821,
+      "scattered_dropped": 3886,
+      "source": {
+        "edition": "FRDWBT",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "gbi": {
+      "books": 53,
+      "content_sha256": "94901e8672155759e1d25d0c41d3e1712a7563d7f5066aadda7a1bd2bb65a799",
+      "file": "iso=gbi/data.parquet",
+      "language": "Galela",
+      "lexemes": 1212,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3552,
+      "rows": 3904,
+      "scattered_dropped": 4386,
+      "source": {
+        "edition": "GBILAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "gef": {
+      "books": 29,
+      "content_sha256": "0f7478efe256e933c8f9ff5797e9b74162c325d50cb9fda2c525520737d556f1",
+      "file": "iso=gef/data.parquet",
+      "language": "Gerai",
+      "lexemes": 1959,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5767,
+      "rows": 6530,
+      "scattered_dropped": 3738,
+      "source": {
+        "edition": "GEFSGV",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "gor": {
+      "books": 197,
+      "content_sha256": "f98edada0ff00d59c0a32d24180033d5d49c209822f95ff691d2e0221dce75eb",
+      "file": "iso=gor/data.parquet",
+      "language": "Gorontalo",
+      "lexemes": 4176,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 14740,
+      "rows": 16950,
+      "scattered_dropped": 9939,
+      "source": {
+        "edition": "GORLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "had": {
+      "books": 54,
+      "content_sha256": "22c249d0ac6ff674d0a5db4d6ce43be0cf39aa5f207d57a15242f54534378eaa",
+      "file": "iso=had/data.parquet",
+      "language": "Hatam",
+      "lexemes": 2024,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6522,
+      "rows": 7629,
+      "scattered_dropped": 3113,
+      "source": {
+        "edition": "HADLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "hap": {
+      "books": 52,
+      "content_sha256": "4aed9910a66d900b67e85143754a05c4c47f55293315bc0ddf350c3ec15963dc",
+      "file": "iso=hap/data.parquet",
+      "language": "Hupla",
+      "lexemes": 1952,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 8671,
+      "rows": 9411,
+      "scattered_dropped": 2202,
+      "source": {
+        "edition": "HAPLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "hau": {
+      "books": 309,
+      "content_sha256": "b1824466fc2a844b5925fff59aa40ff1ac69fd6e5d29f262da486034e4423577",
+      "file": "iso=hau/data.parquet",
+      "language": "Hausa",
+      "lexemes": 3878,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 8463,
+      "rows": 10221,
+      "scattered_dropped": 10281,
+      "source": {
+        "edition": "HAUBIB (Hausa Contemporary Bible / OHCB)",
+        "license_url": "https://ebible.org/hausa/",
+        "provider": "eBible.org"
+      }
+    },
+    "hbo": {
+      "books": 39,
+      "content_sha256": "b8121410417a7389ca33917133cdeee1d152d3302d1bda2df83b189e2b981d73",
+      "file": "iso=hbo/data.parquet",
+      "language": "Ancient Hebrew",
+      "lexemes": 906,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 1275,
+      "rows": 1279,
+      "scattered_dropped": 128,
+      "source": {
+        "edition": "HBOMAS",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=hbo",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "hch": {
+      "books": 195,
+      "content_sha256": "764eadd7db650a1c30b2dc6ca4b11b66198038dbf6bbf17cd7f121a4191b6505",
+      "file": "iso=hch/data.parquet",
+      "language": "Huichol",
+      "lexemes": 4875,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 18675,
+      "rows": 19812,
+      "scattered_dropped": 9029,
+      "source": {
+        "edition": "hch_hch",
+        "license_url": "https://cdn.bibel.wiki/pkf/hch/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "hin": {
+      "books": 316,
+      "content_sha256": "f20d77f804c9f12ee829aff1699a9d722b37810df190dc2065fbbe191fd7ae3c",
+      "file": "iso=hin/data.parquet",
+      "language": "Hindi",
+      "lexemes": 3479,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 7835,
+      "rows": 9009,
+      "scattered_dropped": 21038,
+      "source": {
+        "edition": "HINIRV",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=hin2017",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "huv": {
+      "books": 53,
+      "content_sha256": "5f07f34dbee5e135fdcf05066ffb1e438913376429e0650f87c2fd0e93a10f14",
+      "file": "iso=huv/data.parquet",
+      "language": "Huave de San Mateo del Mar",
+      "lexemes": 1658,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4283,
+      "rows": 4732,
+      "scattered_dropped": 3185,
+      "source": {
+        "edition": "huv_huv",
+        "license_url": "https://cdn.bibel.wiki/pkf/huv/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "hvn": {
+      "books": 53,
+      "content_sha256": "ec1bc4eaeabae39210e9ec60c6bdec3a8ee9cb941ec283232bd8b099fff5e8f4",
+      "file": "iso=hvn/data.parquet",
+      "language": "Sabu",
+      "lexemes": 1732,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4806,
+      "rows": 6004,
+      "scattered_dropped": 4391,
+      "source": {
+        "edition": "HVNLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "iba": {
+      "books": 51,
+      "content_sha256": "8ab25d41081032409f3aca192a5402a523f82abd6c30ffcca1251e125125ace5",
+      "file": "iso=iba/data.parquet",
+      "language": "Iban",
+      "lexemes": 1455,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2271,
+      "rows": 2620,
+      "scattered_dropped": 2513,
+      "source": {
+        "edition": "IBATIV",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
     },
     "ind": {
-      "books": 2,
-      "content_sha256": "7a11bd8db47329831194d685b0aed5fd6a55a4779a4cf59781b236f6be8c3a90",
+      "books": 317,
+      "content_sha256": "91afd0fb77d50f7a8c1307ea4de2114e3469a922498d93f47c4495e0f19bfa87",
       "file": "iso=ind/data.parquet",
       "language": "Indonesian",
-      "lexemes": 7,
-      "method": "gloss",
+      "lexemes": 5554,
+      "method": "eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 8,
-      "rows": 8,
-      "scattered_dropped": 0,
+      "phrases": 17038,
+      "rows": 20876,
+      "scattered_dropped": 16655,
       "source": {
         "edition": "ind_C01",
         "license_url": "https://cdn.bibel.wiki/pkf/ind/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "jav": {
+      "books": 53,
+      "content_sha256": "e17aa6495976182312afaeb6536db96cf1ad0e7b052ed3ffc13f99fe39facc1a",
+      "file": "iso=jav/data.parquet",
+      "language": "Javanese",
+      "lexemes": 1732,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3602,
+      "rows": 3865,
+      "scattered_dropped": 2123,
+      "source": {
+        "edition": "JAVNRF",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "jmd": {
+      "books": 52,
+      "content_sha256": "61cbb9f7bbf1d9aec0266e2130c5dddbce14d9d3ca0bec2d9d1e8ee20c7573de",
+      "file": "iso=jmd/data.parquet",
+      "language": "Yamdena",
+      "lexemes": 1508,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3362,
+      "rows": 3881,
+      "scattered_dropped": 3177,
+      "source": {
+        "edition": "JMDYPM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "jmx": {
+      "books": 2,
+      "content_sha256": "1d930878691b3d0fc953a562572eb911480df5980a39132ea7cf271b3266c422",
+      "file": "iso=jmx/data.parquet",
+      "language": "Western Juxtlahuaca Mixtec",
+      "lexemes": 228,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 267,
+      "rows": 277,
+      "scattered_dropped": 387,
+      "source": {
+        "edition": "jmx_jmx",
+        "license_url": "https://cdn.bibel.wiki/pkf/jmx/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "kgr": {
+      "books": 54,
+      "content_sha256": "dd239bc6c4f5532ec855f72710912e7daf6aeb0283f108ec0ef671d593b1734a",
+      "file": "iso=kgr/data.parquet",
+      "language": "Abun",
+      "lexemes": 1742,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4649,
+      "rows": 5724,
+      "scattered_dropped": 3745,
+      "source": {
+        "edition": "KGRLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "khe": {
+      "books": 2,
+      "content_sha256": "5a8d51b0534ab6b8136eaee1efd041db076c6f2d69c6d2d7584effbf9a7df0de",
+      "file": "iso=khe/data.parquet",
+      "language": "Korowai",
+      "lexemes": 357,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 633,
+      "rows": 654,
+      "scattered_dropped": 183,
+      "source": {
+        "edition": "KHEYBI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kjc": {
+      "books": 50,
+      "content_sha256": "acd270e1e945fb08bca19f6e9e3296e50b299aac247b46549f5767a0a53a84b1",
+      "file": "iso=kjc/data.parquet",
+      "language": "Konjo (Bulukumba)",
+      "lexemes": 1877,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4124,
+      "rows": 4321,
+      "scattered_dropped": 1971,
+      "source": {
+        "edition": "KJCACC",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kkl": {
+      "books": 54,
+      "content_sha256": "fad13c97b83513c4664b49df657f5a9eaeb16f9853d450e26a0b8b54ceaea747",
+      "file": "iso=kkl/data.parquet",
+      "language": "Kosarek Yale",
+      "lexemes": 1967,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 9773,
+      "rows": 10412,
+      "scattered_dropped": 2400,
+      "source": {
+        "edition": "KKLYPM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "klw": {
+      "books": 51,
+      "content_sha256": "856194031791c05a69b16fd746f555adc34bdb4256a521895ef8c01479db38ea",
+      "file": "iso=klw/data.parquet",
+      "language": "Tado (Lindu)",
+      "lexemes": 1594,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3721,
+      "rows": 4221,
+      "scattered_dropped": 3802,
+      "source": {
+        "edition": "KLWLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "knj": {
+      "books": 191,
+      "content_sha256": "2c9fc232defd96d3a789dc2a81a2ad12fa4132c4c9a5f977ecfc079650b79cd0",
+      "file": "iso=knj/data.parquet",
+      "language": "Akateco",
+      "lexemes": 4118,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 16368,
+      "rows": 21599,
+      "scattered_dropped": 14558,
+      "source": {
+        "edition": "knj_C01",
+        "license_url": "https://cdn.bibel.wiki/pkf/knj/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "kpq": {
+      "books": 53,
+      "content_sha256": "bd0bd16bb4fd07f2eab110bc8a9a69b5d8525943e00227a1a47f51f02984ce83",
+      "file": "iso=kpq/data.parquet",
+      "language": "Kimyal of Korupun",
+      "lexemes": 1613,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4410,
+      "rows": 4904,
+      "scattered_dropped": 3377,
+      "source": {
+        "edition": "KPQBSI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kps": {
+      "books": 2,
+      "content_sha256": "6f97b7fa8588228d5fab30ee63e12038a4245c1055c6d7b888fa2ee85b9df5f8",
+      "file": "iso=kps/data.parquet",
+      "language": "Tehit, Imian",
+      "lexemes": 372,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 596,
+      "rows": 618,
+      "scattered_dropped": 326,
+      "source": {
+        "edition": "KPSYBI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kvo": {
+      "books": 54,
+      "content_sha256": "e13b1a471515733bbfb2cae47cb3f48ab2fd291eef2e21b00f80976ed74f4652",
+      "file": "iso=kvo/data.parquet",
+      "language": "Dobel",
+      "lexemes": 1770,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6229,
+      "rows": 7100,
+      "scattered_dropped": 2293,
+      "source": {
+        "edition": "KVOYPS",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kvw": {
+      "books": 2,
+      "content_sha256": "2710aae0971e40833e899425a272b21e569841ccd69cb6770d62adc24cc181d3",
+      "file": "iso=kvw/data.parquet",
+      "language": "Wersing",
+      "lexemes": 341,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 662,
+      "rows": 694,
+      "scattered_dropped": 100,
+      "source": {
+        "edition": "KVWUBB",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kyo": {
+      "books": 2,
+      "content_sha256": "023ca5839390802cb4699e653199ed8b3cbc42c1359112ceb3c67ef6f9ffc52b",
+      "file": "iso=kyo/data.parquet",
+      "language": "Klon",
+      "lexemes": 291,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 490,
+      "rows": 515,
+      "scattered_dropped": 174,
+      "source": {
+        "edition": "KYOUBB",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "kzf": {
+      "books": 50,
+      "content_sha256": "04cd8178ebc87aff9745733c14aa61b41508e5b7e618e5a15aec4f2d5d84d31e",
+      "file": "iso=kzf/data.parquet",
+      "language": "Kaili, Da’a",
+      "lexemes": 1957,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5520,
+      "rows": 6283,
+      "scattered_dropped": 3395,
+      "source": {
+        "edition": "KZFLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "lac": {
+      "books": 56,
+      "content_sha256": "a1a741e11991fb12a690afe143e50a0764586ed4fc470321c9b826333a585411",
+      "file": "iso=lac/data.parquet",
+      "language": "Lacandón",
+      "lexemes": 1334,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5052,
+      "rows": 5731,
+      "scattered_dropped": 3018,
+      "source": {
+        "edition": "lac_lac",
+        "license_url": "https://cdn.bibel.wiki/pkf/lac/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "law": {
+      "books": 27,
+      "content_sha256": "ef6f892c876332ff3f0d999f59e04b005923082d43f8075e5d06a368a7fea3dc",
+      "file": "iso=law/data.parquet",
+      "language": "Lauje",
+      "lexemes": 1558,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6113,
+      "rows": 6621,
+      "scattered_dropped": 2776,
+      "source": {
+        "edition": "LAWNTM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "lbw": {
+      "books": 27,
+      "content_sha256": "e731a6da594d683b674bd1fee3ae6b5c3811f483390d194e62974f0bec230437",
+      "file": "iso=lbw/data.parquet",
+      "language": "Tolaki",
+      "lexemes": 2099,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6501,
+      "rows": 7258,
+      "scattered_dropped": 2934,
+      "source": {
+        "edition": "LBWLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "lew": {
+      "books": 1,
+      "content_sha256": "c1bd0303a7ec7400bd38e58ce502743f67971f5e8fdde30956bc203664240501",
+      "file": "iso=lew/data.parquet",
+      "language": "Ledo, Taa",
+      "lexemes": 437,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 600,
+      "rows": 628,
+      "scattered_dropped": 431,
+      "source": {
+        "edition": "LEWKDV",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "lje": {
+      "books": 27,
+      "content_sha256": "a046fa481bad41cd727dbea432c4779227d3b05dd9b3bec1be5f32a368548ddb",
+      "file": "iso=lje/data.parquet",
+      "language": "Rampi",
+      "lexemes": 1611,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4105,
+      "rows": 4464,
+      "scattered_dropped": 2843,
+      "source": {
+        "edition": "LJELAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "ljp": {
+      "books": 27,
+      "content_sha256": "b18b47fd7dc6b236fbde2879df913dac29be3abae4250fe35c53ed552c33cd64",
+      "file": "iso=ljp/data.parquet",
+      "language": "Lampung",
+      "lexemes": 1716,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3434,
+      "rows": 3884,
+      "scattered_dropped": 2767,
+      "source": {
+        "edition": "LJPLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "lnd": {
+      "books": 66,
+      "content_sha256": "af1c1f307e8599a722e84b2f4664b71803f7eeeea1cce393c27c1f000752f533",
+      "file": "iso=lnd/data.parquet",
+      "language": "Lun Bawang - Lun Dayah",
+      "lexemes": 2984,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5499,
+      "rows": 7061,
+      "scattered_dropped": 5564,
+      "source": {
+        "edition": "LNDBSM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mad": {
+      "books": 66,
+      "content_sha256": "b460f12411761e550b5eae1cbec7f185e533e506c535ec3cc2537dd008c3d601",
+      "file": "iso=mad/data.parquet",
+      "language": "Madurese",
+      "lexemes": 4313,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 11949,
+      "rows": 14309,
+      "scattered_dropped": 9048,
+      "source": {
+        "edition": "MADIBS",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "maj": {
+      "books": 51,
+      "content_sha256": "a7a194f3dc9a77fe7f1f79b3bd46956a55c30107bd0816ea763b98177488b15c",
+      "file": "iso=maj/data.parquet",
+      "language": "Jalapa De Díaz Mazatec",
+      "lexemes": 1668,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4430,
+      "rows": 4815,
+      "scattered_dropped": 2702,
+      "source": {
+        "edition": "maj_maj",
+        "license_url": "https://cdn.bibel.wiki/pkf/maj/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mak": {
+      "books": 27,
+      "content_sha256": "2679e95e8bce0413a2c59a5c0600b2eae7d502c42ed4ea88fb9f32fae441d3c6",
+      "file": "iso=mak/data.parquet",
+      "language": "Makassar",
+      "lexemes": 2087,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6063,
+      "rows": 6725,
+      "scattered_dropped": 3125,
+      "source": {
+        "edition": "MAKLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mal": {
+      "books": 58,
+      "content_sha256": "e146f621e773fd72c0af84db3d177173c411eaf9d36a5828eb1c6d12cc5472ce",
+      "file": "iso=mal/data.parquet",
+      "language": "Malayalam",
+      "lexemes": 2005,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3865,
+      "rows": 3906,
+      "scattered_dropped": 3163,
+      "source": {
+        "edition": "MALNIB",
+        "license_url": "http://www.biblica.com",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "maq": {
+      "books": 51,
+      "content_sha256": "bda62e5041b29e000239ef8ba74fbb677c6d128ace95385cfe4102a206fbca81",
+      "file": "iso=maq/data.parquet",
+      "language": "Chiquihuitlán Mazatec",
+      "lexemes": 1367,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3335,
+      "rows": 3745,
+      "scattered_dropped": 4635,
+      "source": {
+        "edition": "maq_maq",
+        "license_url": "https://cdn.bibel.wiki/pkf/maq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mau": {
+      "books": 47,
+      "content_sha256": "0ee6754bd8919ef568f4d774436e375b62980c78ab0550382ac08af71a25e586",
+      "file": "iso=mau/data.parquet",
+      "language": "Huautla Mazatec",
+      "lexemes": 1917,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4120,
+      "rows": 5808,
+      "scattered_dropped": 3209,
+      "source": {
+        "edition": "mau_mau",
+        "license_url": "https://cdn.bibel.wiki/pkf/mau/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "max": {
+      "books": 27,
+      "content_sha256": "5be5f2ab3d22e711e711aca08313bc64dc1265fa474ee0e15396a02dc44789b4",
+      "file": "iso=max/data.parquet",
+      "language": "Malay, North Maluku",
+      "lexemes": 1877,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4301,
+      "rows": 5290,
+      "scattered_dropped": 3826,
+      "source": {
+        "edition": "MAXLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "maz": {
+      "books": 54,
+      "content_sha256": "4a687392089484ace643032ff261ed50bd9ed73732494540842ae518d6eed887",
+      "file": "iso=maz/data.parquet",
+      "language": "Central Mazahua",
+      "lexemes": 1040,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3633,
+      "rows": 4120,
+      "scattered_dropped": 4367,
+      "source": {
+        "edition": "maz_maz",
+        "license_url": "https://cdn.bibel.wiki/pkf/maz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mbz": {
+      "books": 2,
+      "content_sha256": "999f3b5daf0db3d5bc637bc3c223ed1c0e2c638221c359ce5627280588efb386",
+      "file": "iso=mbz/data.parquet",
+      "language": "Amoltepec Mixtec",
+      "lexemes": 192,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 228,
+      "rows": 237,
+      "scattered_dropped": 193,
+      "source": {
+        "edition": "mbz_mbz",
+        "license_url": "https://cdn.bibel.wiki/pkf/mbz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mco": {
+      "books": 53,
+      "content_sha256": "60d224d34de9cfac3174d18bf311cc1186cc85505b63bb8e1bc0c6a05621e454",
+      "file": "iso=mco/data.parquet",
+      "language": "Mixe de Coatlan",
+      "lexemes": 1444,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3788,
+      "rows": 4038,
+      "scattered_dropped": 3068,
+      "source": {
+        "edition": "mco_mco",
+        "license_url": "https://cdn.bibel.wiki/pkf/mco/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mdv": {
+      "books": 6,
+      "content_sha256": "28b5f5287f1103732e0b27a0597a06ec508cdeb2edd415fdd6df74388daba360",
+      "file": "iso=mdv/data.parquet",
+      "language": "Santa Lucía Monteverde Mixtec",
+      "lexemes": 287,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 388,
+      "rows": 417,
+      "scattered_dropped": 480,
+      "source": {
+        "edition": "mdv_mdv",
+        "license_url": "https://cdn.bibel.wiki/pkf/mdv/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mej": {
+      "books": 27,
+      "content_sha256": "982ffad86e7e247cc7f315f973cc49bec609681edb616cdf6966a38223b27e12",
+      "file": "iso=mej/data.parquet",
+      "language": "Meyah",
+      "lexemes": 1663,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6082,
+      "rows": 7244,
+      "scattered_dropped": 2762,
+      "source": {
+        "edition": "MEJTBL",
+        "license_url": "https://www.wycliffe.org/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mfy": {
+      "books": 101,
+      "content_sha256": "9d01e732e50bcd6c16a751bcea09f03bb86c9f0632f7c3d54ddc4953a05f4d39",
+      "file": "iso=mfy/data.parquet",
+      "language": "Mayo",
+      "lexemes": 2402,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 6284,
+      "rows": 6676,
+      "scattered_dropped": 5804,
+      "source": {
+        "edition": "mfy_mfy",
+        "license_url": "https://cdn.bibel.wiki/pkf/mfy/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mhy": {
+      "books": 27,
+      "content_sha256": "98577ff82738377783489b9b59631c01dcec1cb80988ecf0d3189afcd1f8f797",
+      "file": "iso=mhy/data.parquet",
+      "language": "Dayak Ma’anyan",
+      "lexemes": 1513,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3067,
+      "rows": 3445,
+      "scattered_dropped": 2833,
+      "source": {
+        "edition": "MHYLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mie": {
+      "books": 49,
+      "content_sha256": "b4538d327843aad18ee934fa39ab10fc46ec7c95df96c9b35b8eec124931a0f9",
+      "file": "iso=mie/data.parquet",
+      "language": "Mixteco de Ocotepec",
+      "lexemes": 1662,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3807,
+      "rows": 4720,
+      "scattered_dropped": 4615,
+      "source": {
+        "edition": "mie_mie",
+        "license_url": "https://cdn.bibel.wiki/pkf/mie/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mig": {
+      "books": 50,
+      "content_sha256": "7a11cfd2ecef0b47c322fea9d0b4e7e89fb025fd45a0e07e2e67dbed567c8a42",
+      "file": "iso=mig/data.parquet",
+      "language": "Mixtec San Miguel El Grande",
+      "lexemes": 1585,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3234,
+      "rows": 3933,
+      "scattered_dropped": 3799,
+      "source": {
+        "edition": "mig_mig",
+        "license_url": "https://cdn.bibel.wiki/pkf/mig/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mih": {
+      "books": 51,
+      "content_sha256": "7dc9aa9803d676320375883fcb055967d397a3c3817e1fdae4b3b2aaf74a25c7",
+      "file": "iso=mih/data.parquet",
+      "language": "Mixteco de Mechoacán",
+      "lexemes": 1565,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3920,
+      "rows": 4856,
+      "scattered_dropped": 4437,
+      "source": {
+        "edition": "mih_mih",
+        "license_url": "https://cdn.bibel.wiki/pkf/mih/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mil": {
+      "books": 54,
+      "content_sha256": "dfbaab1578dc364c0021f69209aa41bab3fa021ca629edafd73c741168715fbd",
+      "file": "iso=mil/data.parquet",
+      "language": "Mixteco de Penoles",
+      "lexemes": 1847,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6866,
+      "rows": 8081,
+      "scattered_dropped": 2792,
+      "source": {
+        "edition": "mil_mil",
+        "license_url": "https://cdn.bibel.wiki/pkf/mil/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mim": {
+      "books": 54,
+      "content_sha256": "7fcbbb4b6eb876a044f1e7521dda1bce6a43cc349fbbf479c2a0bc135ff4d43c",
+      "file": "iso=mim/data.parquet",
+      "language": "Alacatlatzala Mixtec",
+      "lexemes": 2092,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5779,
+      "rows": 7148,
+      "scattered_dropped": 5971,
+      "source": {
+        "edition": "mim_mim",
+        "license_url": "https://cdn.bibel.wiki/pkf/mim/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "min": {
+      "books": 66,
+      "content_sha256": "c14c0e12e88f0259a7a56bd92e9f077fa42c4c92d4fb0285a9c15f8056c84cc2",
+      "file": "iso=min/data.parquet",
+      "language": "Minangkabau",
+      "lexemes": 4556,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 12292,
+      "rows": 15665,
+      "scattered_dropped": 9393,
+      "source": {
+        "edition": "MINLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mio": {
+      "books": 113,
+      "content_sha256": "37aca49f2c524ab7d38ee139edded9692998f004cdddfa51d4a2705f05405e8a",
+      "file": "iso=mio/data.parquet",
+      "language": "Mixteco, Pinotepa Nacional",
+      "lexemes": 3356,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 6944,
+      "rows": 10345,
+      "scattered_dropped": 7953,
+      "source": {
+        "edition": "mio_mio",
+        "license_url": "https://cdn.bibel.wiki/pkf/mio/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mir": {
+      "books": 53,
+      "content_sha256": "242d4a909946b8835c996b40b093fd970f05cb8e9a46e43453ea6af687f7f860",
+      "file": "iso=mir/data.parquet",
+      "language": "Mixe, Guichicovi",
+      "lexemes": 1021,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2286,
+      "rows": 2393,
+      "scattered_dropped": 2278,
+      "source": {
+        "edition": "mir_mir",
+        "license_url": "https://cdn.bibel.wiki/pkf/mir/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mit": {
+      "books": 53,
+      "content_sha256": "44fa778c9128a36fd7c97c916cb7f673ea5db63f1f45a88bfbb5ef624ce6a724",
+      "file": "iso=mit/data.parquet",
+      "language": "Mixteco del Sur de Puebla",
+      "lexemes": 1637,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5053,
+      "rows": 5718,
+      "scattered_dropped": 4173,
+      "source": {
+        "edition": "mit_mit",
+        "license_url": "https://cdn.bibel.wiki/pkf/mit/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mix": {
+      "books": 8,
+      "content_sha256": "fb3eca5a266bb9250daa2743b2f821dca68bb1ed424a2c501ffcc26d11bc31d5",
+      "file": "iso=mix/data.parquet",
+      "language": "Mixtepec Mixtec",
+      "lexemes": 841,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 1623,
+      "rows": 1819,
+      "scattered_dropped": 1684,
+      "source": {
+        "edition": "mix_mix",
+        "license_url": "https://cdn.bibel.wiki/pkf/mix/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "miy": {
+      "books": 112,
+      "content_sha256": "38bfc2387ae6564c23fe618ac345460fd13b21e14b4f876b379d86507ef8be09",
+      "file": "iso=miy/data.parquet",
+      "language": "Ayutla Mixtec",
+      "lexemes": 3602,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 9188,
+      "rows": 12853,
+      "scattered_dropped": 11003,
+      "source": {
+        "edition": "miy_miy",
+        "license_url": "https://cdn.bibel.wiki/pkf/miy/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "miz": {
+      "books": 53,
+      "content_sha256": "e299e5f4fd4f4d69901c6d41be0ec362aa5dd62ff2990ba89960232ee13ddaa6",
+      "file": "iso=miz/data.parquet",
+      "language": "Coatzospan Mixtec",
+      "lexemes": 1710,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5904,
+      "rows": 6946,
+      "scattered_dropped": 3267,
+      "source": {
+        "edition": "miz_miz",
+        "license_url": "https://cdn.bibel.wiki/pkf/miz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mjc": {
+      "books": 50,
+      "content_sha256": "2eb864e3ec6c4c09d7e5096e601e8e55cd204ec67fca22bd295fab6e8d6c511c",
+      "file": "iso=mjc/data.parquet",
+      "language": "Mixteco, San Juan Colorado",
+      "lexemes": 1538,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3625,
+      "rows": 4574,
+      "scattered_dropped": 4529,
+      "source": {
+        "edition": "mjc_mjc",
+        "license_url": "https://cdn.bibel.wiki/pkf/mjc/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mkn": {
+      "books": 1,
+      "content_sha256": "a90c12a6b7338c8b60e00fd831a2463c32705bb711029be49be8f056e66a4d9d",
+      "file": "iso=mkn/data.parquet",
+      "language": "Kupang Malay",
+      "lexemes": 276,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 418,
+      "rows": 440,
+      "scattered_dropped": 214,
+      "source": {
+        "edition": "MKNUBB",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mks": {
+      "books": 53,
+      "content_sha256": "67abc0c9089202f22fa337e971bb52166f1e70305ee875010d6ded0d8122c8d8",
+      "file": "iso=mks/data.parquet",
+      "language": "Mixteco, Silacayoapan",
+      "lexemes": 1801,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5631,
+      "rows": 6730,
+      "scattered_dropped": 4727,
+      "source": {
+        "edition": "mks_mks",
+        "license_url": "https://cdn.bibel.wiki/pkf/mks/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mnb": {
+      "books": 27,
+      "content_sha256": "d38e35da182c338c097afe32538e7e831f125afa39d45404d9f4d4af4b23f47e",
+      "file": "iso=mnb/data.parquet",
+      "language": "Muna",
+      "lexemes": 2106,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5800,
+      "rows": 6306,
+      "scattered_dropped": 2746,
+      "source": {
+        "edition": "MNBTBL",
+        "license_url": "https://www.yasuma.org/about",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mnx": {
+      "books": 27,
+      "content_sha256": "6f8327f7c259dccde1b6841dfd71dcdb33f8786703fc66e0d356b679a88c2e8f",
+      "file": "iso=mnx/data.parquet",
+      "language": "Sougb",
+      "lexemes": 1655,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 7054,
+      "rows": 7978,
+      "scattered_dropped": 2673,
+      "source": {
+        "edition": "MNXLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mog": {
+      "books": 27,
+      "content_sha256": "7a956aaec7dc1aa515ce45251b81cae16f488bce8aabe49ce90177edb516a64b",
+      "file": "iso=mog/data.parquet",
+      "language": "Mongondow",
+      "lexemes": 1424,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4078,
+      "rows": 4657,
+      "scattered_dropped": 4004,
+      "source": {
+        "edition": "MOGLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mpm": {
+      "books": 50,
+      "content_sha256": "28c91aac04a5083ef961a0bf0d38e8dfcc5643938e60786f82c6b618da480f86",
+      "file": "iso=mpm/data.parquet",
+      "language": "Mixteco de Santiago Yosundúa",
+      "lexemes": 1465,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4000,
+      "rows": 4921,
+      "scattered_dropped": 4884,
+      "source": {
+        "edition": "mpm_mpm",
+        "license_url": "https://cdn.bibel.wiki/pkf/mpm/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mqf": {
+      "books": 27,
+      "content_sha256": "d8f5a0a0a15bccb8931da71ef55b00031101139070dc7ceb41c3aff374237feb",
+      "file": "iso=mqf/data.parquet",
+      "language": "Momuna",
+      "lexemes": 1536,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6570,
+      "rows": 7648,
+      "scattered_dropped": 2213,
+      "source": {
+        "edition": "MQFLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mqn": {
+      "books": 27,
+      "content_sha256": "f91faec16444ebb0495f7e98a93ced0aa1e8466fd679c82f11ca2374421c0fef",
+      "file": "iso=mqn/data.parquet",
+      "language": "Moronene",
+      "lexemes": 1790,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4246,
+      "rows": 4671,
+      "scattered_dropped": 2544,
+      "source": {
+        "edition": "MQNLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mtd": {
+      "books": 1,
+      "content_sha256": "58ec2fadb4985d9ccdb34b5e0e8e3e1fea16736ce03040e0b84d20cd73271f81",
+      "file": "iso=mtd/data.parquet",
+      "language": "Mualang",
+      "lexemes": 428,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 577,
+      "rows": 606,
+      "scattered_dropped": 468,
+      "source": {
+        "edition": "MTDYKV",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mtg": {
+      "books": 27,
+      "content_sha256": "de25f83d0d4424815323324bdb5579e74c20207318df845a70558eb4e70b9d30",
+      "file": "iso=mtg/data.parquet",
+      "language": "Una",
+      "lexemes": 1607,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 7770,
+      "rows": 8625,
+      "scattered_dropped": 2464,
+      "source": {
+        "edition": "MTGLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mtj": {
+      "books": 27,
+      "content_sha256": "ac532091346091ddf9cf32a6047090e98faf0f2419385615ecc952c234b9faf2",
+      "file": "iso=mtj/data.parquet",
+      "language": "Moskona",
+      "lexemes": 1617,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5782,
+      "rows": 6997,
+      "scattered_dropped": 3100,
+      "source": {
+        "edition": "MTJTBL",
+        "license_url": "https://www.yasuma.org/about",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mto": {
+      "books": 52,
+      "content_sha256": "f715ee0d6f7c8967995a12ab84b5019a6aa5c67f054f8b4640a4e8802b036368",
+      "file": "iso=mto/data.parquet",
+      "language": "Mixe Totontepec",
+      "lexemes": 1459,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3929,
+      "rows": 4299,
+      "scattered_dropped": 3953,
+      "source": {
+        "edition": "mto_mto",
+        "license_url": "https://cdn.bibel.wiki/pkf/mto/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mvp": {
+      "books": 27,
+      "content_sha256": "ee6a15591c5f0f6cd631db4a0e6dcecdb325e39d2ef67ab7bbcc688023bc7b35",
+      "file": "iso=mvp/data.parquet",
+      "language": "Duri",
+      "lexemes": 1865,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4801,
+      "rows": 5243,
+      "scattered_dropped": 2483,
+      "source": {
+        "edition": "MVPLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mwv": {
+      "books": 27,
+      "content_sha256": "1dd620892992ca4e970c6a9bea0dce7f31dbe5463a35b2924f8c33e97f8e6631",
+      "file": "iso=mwv/data.parquet",
+      "language": "Mentawai",
+      "lexemes": 1206,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 2007,
+      "rows": 2107,
+      "scattered_dropped": 1357,
+      "source": {
+        "edition": "MWVLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mxb": {
+      "books": 55,
+      "content_sha256": "30639ec858c37a29e301df809407b8b485a59756d96fd3cfa81f65f84c127772",
+      "file": "iso=mxb/data.parquet",
+      "language": "Mixteco de Tezoatlan",
+      "lexemes": 2013,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5262,
+      "rows": 6301,
+      "scattered_dropped": 5191,
+      "source": {
+        "edition": "mxb_mxb",
+        "license_url": "https://cdn.bibel.wiki/pkf/mxb/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mxq": {
+      "books": 54,
+      "content_sha256": "7f7d2f472d2d5287be953af46c9fc1a18e22ec6bf8d5331f697f20c2308afb38",
+      "file": "iso=mxq/data.parquet",
+      "language": "Juquila Mixe",
+      "lexemes": 1254,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2731,
+      "rows": 2882,
+      "scattered_dropped": 2442,
+      "source": {
+        "edition": "mxq_mxq",
+        "license_url": "https://cdn.bibel.wiki/pkf/mxq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mxt": {
+      "books": 51,
+      "content_sha256": "3f456fe89d03b3f07643be40acf1335d4f07d8d69b60493d97a759bffc13fddc",
+      "file": "iso=mxt/data.parquet",
+      "language": "Jamiltepec Mixtec",
+      "lexemes": 1463,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3634,
+      "rows": 4399,
+      "scattered_dropped": 3922,
+      "source": {
+        "edition": "mxt_mxt",
+        "license_url": "https://cdn.bibel.wiki/pkf/mxt/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mxv": {
+      "books": 47,
+      "content_sha256": "04489ed6ca5c8e89635acf521f56cafcc3cbd70d5d914570fda5810181533c43",
+      "file": "iso=mxv/data.parquet",
+      "language": "Mixteco, Metlatónoc",
+      "lexemes": 1522,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4370,
+      "rows": 5340,
+      "scattered_dropped": 6043,
+      "source": {
+        "edition": "mxv_mxv",
+        "license_url": "https://cdn.bibel.wiki/pkf/mxv/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "myl": {
+      "books": 27,
+      "content_sha256": "0d3651ebbf8fb7e56d6820f2f35cf163949f27e61ecfc94249b168eb8733c860",
+      "file": "iso=myl/data.parquet",
+      "language": "Moma",
+      "lexemes": 1630,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3537,
+      "rows": 3831,
+      "scattered_dropped": 3219,
+      "source": {
+        "edition": "MYLLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "mza": {
+      "books": 52,
+      "content_sha256": "58cdb2e218ee9de0cb1c5d030f9160c58337a03e801f95dce36a5b039832475c",
+      "file": "iso=mza/data.parquet",
+      "language": "Mixteco, Zacatepeco",
+      "lexemes": 1514,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4861,
+      "rows": 5700,
+      "scattered_dropped": 5153,
+      "source": {
+        "edition": "mza_mza",
+        "license_url": "https://cdn.bibel.wiki/pkf/mza/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "mzq": {
+      "books": 1,
+      "content_sha256": "3cd49b1030a19dd1867700f285a4611f7e9f8fe7b73133dc6f658347e69230ed",
+      "file": "iso=mzq/data.parquet",
+      "language": "Mori Atas",
+      "lexemes": 501,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 723,
+      "rows": 752,
+      "scattered_dropped": 395,
+      "source": {
+        "edition": "MZQKTD",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "nch": {
+      "books": 192,
+      "content_sha256": "f2bac5fe9eb4f3e3969c4dadbb9752cb3468cc0838fffce4b8b6e74ad1410da6",
+      "file": "iso=nch/data.parquet",
+      "language": "Central Huasteca Nahuatl",
+      "lexemes": 3042,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 9212,
+      "rows": 10134,
+      "scattered_dropped": 9776,
+      "source": {
+        "edition": "nch_nch",
+        "license_url": "https://cdn.bibel.wiki/pkf/nch/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ncj": {
+      "books": 53,
+      "content_sha256": "b744963ca23fcc130e960bba5b93cc7e388403ba79772fa513d8b02ca508e365",
+      "file": "iso=ncj/data.parquet",
+      "language": "Nahuatl Norte Puebla",
+      "lexemes": 856,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 1708,
+      "rows": 1770,
+      "scattered_dropped": 2070,
+      "source": {
+        "edition": "ncj_ncj",
+        "license_url": "https://cdn.bibel.wiki/pkf/ncj/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ncl": {
+      "books": 53,
+      "content_sha256": "4c2ce64ab88145d7194da3f8e5dd3abcda4bb033ee9b62d862d3ef1294568cef",
+      "file": "iso=ncl/data.parquet",
+      "language": "Michoacán Nahuatl",
+      "lexemes": 1271,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3116,
+      "rows": 3313,
+      "scattered_dropped": 3739,
+      "source": {
+        "edition": "ncl_ncl",
+        "license_url": "https://cdn.bibel.wiki/pkf/ncl/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ndx": {
+      "books": 27,
+      "content_sha256": "b3fbc17b2c29b3b0b017f30fd8a738173d62da274282581326239e600b96c955",
+      "file": "iso=ndx/data.parquet",
+      "language": "Nduga",
+      "lexemes": 2046,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 7722,
+      "rows": 8810,
+      "scattered_dropped": 2614,
+      "source": {
+        "edition": "NDXLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "ngu": {
+      "books": 51,
+      "content_sha256": "b24d8e7b5ee678d537c5965ac365725fbb0d8fa9b60803ec71d7dfdfe8f8bcf4",
+      "file": "iso=ngu/data.parquet",
+      "language": "Guerrero Nahuatl",
+      "lexemes": 1076,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2256,
+      "rows": 2345,
+      "scattered_dropped": 2737,
+      "source": {
+        "edition": "ngu_ngu",
+        "license_url": "https://cdn.bibel.wiki/pkf/ngu/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nhe": {
+      "books": 197,
+      "content_sha256": "61f15099618d5fc48e69ba88d3c73c914f1e12e3659dbee6c6c4dd9d59d66273",
+      "file": "iso=nhe/data.parquet",
+      "language": "Eastern Huasteca Nahuatl",
+      "lexemes": 3395,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 10359,
+      "rows": 11544,
+      "scattered_dropped": 10202,
+      "source": {
+        "edition": "nhe_nhe",
+        "license_url": "https://cdn.bibel.wiki/pkf/nhe/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nhg": {
+      "books": 53,
+      "content_sha256": "45852e638314838b0dc2627d7a6f82458e28a78a5d915aea7ec0090ea84eeed6",
+      "file": "iso=nhg/data.parquet",
+      "language": "Tetelcingo Nahuatl",
+      "lexemes": 1087,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2068,
+      "rows": 2127,
+      "scattered_dropped": 2702,
+      "source": {
+        "edition": "nhg_nhg",
+        "license_url": "https://cdn.bibel.wiki/pkf/nhg/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nhi": {
+      "books": 53,
+      "content_sha256": "bc77399adf32e2fe2cf164350f14d9a4f02a7dfdd5dda1b9becbb550da223326",
+      "file": "iso=nhi/data.parquet",
+      "language": "Nahuatl Tenango",
+      "lexemes": 1199,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2331,
+      "rows": 2400,
+      "scattered_dropped": 2301,
+      "source": {
+        "edition": "nhi_nhi",
+        "license_url": "https://cdn.bibel.wiki/pkf/nhi/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nhw": {
+      "books": 191,
+      "content_sha256": "405ba40e043f41be9b2649a5ce4d4f29e26c43315aa9fe5015ee9f7ea81125aa",
+      "file": "iso=nhw/data.parquet",
+      "language": "Nahuatl Huasteca, Western",
+      "lexemes": 3123,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 9337,
+      "rows": 10233,
+      "scattered_dropped": 10065,
+      "source": {
+        "edition": "nhw_nhw",
+        "license_url": "https://cdn.bibel.wiki/pkf/nhw/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nhy": {
+      "books": 51,
+      "content_sha256": "2c6e464769bd3510ab1022c49d6fc0bba0ea978904ecc9efa967cd6164254ce1",
+      "file": "iso=nhy/data.parquet",
+      "language": "Náhuatl, Norte de Oaxaca",
+      "lexemes": 1127,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2391,
+      "rows": 2550,
+      "scattered_dropped": 3189,
+      "source": {
+        "edition": "nhy_nhy",
+        "license_url": "https://cdn.bibel.wiki/pkf/nhy/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nia": {
+      "books": 27,
+      "content_sha256": "b182fdade6ec412e156f4ae5eddf8d1033a19ad328d965778bdbe7583fa664b8",
+      "file": "iso=nia/data.parquet",
+      "language": "Nias",
+      "lexemes": 1679,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4014,
+      "rows": 4605,
+      "scattered_dropped": 2601,
+      "source": {
+        "edition": "NIAIBS",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "nij": {
+      "books": 27,
+      "content_sha256": "3bf4e34dee3d8353d05301cd9d326b452f79bf1e172976dcc1c86f49aa63083c",
+      "file": "iso=nij/data.parquet",
+      "language": "Ngaju",
+      "lexemes": 1437,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 2784,
+      "rows": 3097,
+      "scattered_dropped": 2754,
+      "source": {
+        "edition": "NIJLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "nlc": {
+      "books": 27,
+      "content_sha256": "bc128d3286e8efdafe63c926e8f4b12b97ee7caac10948853691cbc5736fbcea",
+      "file": "iso=nlc/data.parquet",
+      "language": "Nalca",
+      "lexemes": 1680,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6780,
+      "rows": 7312,
+      "scattered_dropped": 2929,
+      "source": {
+        "edition": "NLCLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "nlk": {
+      "books": 27,
+      "content_sha256": "f7e1ce362d6377afbbca3f9dafa1d377b5b783baeb74a2384b78abd3d2e0177c",
+      "file": "iso=nlk/data.parquet",
+      "language": "Yali, Selatan",
+      "lexemes": 1999,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 8149,
+      "rows": 9039,
+      "scattered_dropped": 1900,
+      "source": {
+        "edition": "NLKLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "npl": {
+      "books": 53,
+      "content_sha256": "3ea64c67dea1b43696cb6230e54fa7c712df8848ab7fcec76ef15cd3d7777f95",
+      "file": "iso=npl/data.parquet",
+      "language": "Nahuatl, Southeastern Puebla",
+      "lexemes": 1024,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 1946,
+      "rows": 2011,
+      "scattered_dropped": 2093,
+      "source": {
+        "edition": "npl_npl",
+        "license_url": "https://cdn.bibel.wiki/pkf/npl/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "npy": {
+      "books": 27,
+      "content_sha256": "7da4cee115a27a1be9f2bf7e4f6130a06f250e1a415ab8f4e5df3c569f573ffe",
+      "file": "iso=npy/data.parquet",
+      "language": "Napu",
+      "lexemes": 1725,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4157,
+      "rows": 4561,
+      "scattered_dropped": 2780,
+      "source": {
+        "edition": "NPYLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "nsu": {
+      "books": 51,
+      "content_sha256": "3df82b8637fb8126c9adb5fe179608b68ecc122a0ba83203a5e3986d398dbc51",
+      "file": "iso=nsu/data.parquet",
+      "language": "Nahuatl, Sierra Negra",
+      "lexemes": 1101,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2149,
+      "rows": 2268,
+      "scattered_dropped": 2697,
+      "source": {
+        "edition": "nsu_nsu",
+        "license_url": "https://cdn.bibel.wiki/pkf/nsu/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ntp": {
+      "books": 54,
+      "content_sha256": "26588ab524ebdc55bf4ba2b27e84f60c2453a56849b6300bf299fee56255cb87",
+      "file": "iso=ntp/data.parquet",
+      "language": "Northern Tepehuan",
+      "lexemes": 1406,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4936,
+      "rows": 5401,
+      "scattered_dropped": 3491,
+      "source": {
+        "edition": "ntp_ntp",
+        "license_url": "https://cdn.bibel.wiki/pkf/ntp/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nuz": {
+      "books": 4,
+      "content_sha256": "0fb71cb0618c69721303cdac875efe8883fccb7f000f7bc7ff1bc4df45faefec",
+      "file": "iso=nuz/data.parquet",
+      "language": "Tlamacazapa Nahuatl",
+      "lexemes": 307,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 409,
+      "rows": 415,
+      "scattered_dropped": 557,
+      "source": {
+        "edition": "nuz_nuz",
+        "license_url": "https://cdn.bibel.wiki/pkf/nuz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "nxl": {
+      "books": 1,
+      "content_sha256": "fe254719cdc4104a0413f6efb40bd7297a6d77a6880821750747601f59692d06",
+      "file": "iso=nxl/data.parquet",
+      "language": "Nuaulu, South",
+      "lexemes": 344,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 527,
+      "rows": 551,
+      "scattered_dropped": 240,
+      "source": {
+        "edition": "NXLWYI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "ood": {
+      "books": 54,
+      "content_sha256": "e58e91943f2bbdd80e986c8266734eb989d6051b8b66f612a0503acdf18d5943",
+      "file": "iso=ood/data.parquet",
+      "language": "O’othham",
+      "lexemes": 1132,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3548,
+      "rows": 4108,
+      "scattered_dropped": 3501,
+      "source": {
+        "edition": "ood_ood",
+        "license_url": "https://cdn.bibel.wiki/pkf/ood/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "osi": {
+      "books": 27,
+      "content_sha256": "7505424884cd7cdb8df6e9d78d811c8063d9cd34f9b9b54064db23183328d9e0",
+      "file": "iso=osi/data.parquet",
+      "language": "Osing",
+      "lexemes": 1901,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4835,
+      "rows": 5343,
+      "scattered_dropped": 3231,
+      "source": {
+        "edition": "OSILAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "otm": {
+      "books": 52,
+      "content_sha256": "c108dfccdf8590d654202ed319e15d9223830e79c0543da6470f69ce5c2e0a39",
+      "file": "iso=otm/data.parquet",
+      "language": "Otomí de la Sierra",
+      "lexemes": 1190,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3749,
+      "rows": 4230,
+      "scattered_dropped": 3332,
+      "source": {
+        "edition": "otm_otm",
+        "license_url": "https://cdn.bibel.wiki/pkf/otm/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "otn": {
+      "books": 52,
+      "content_sha256": "6c7c1b0a3ef90aa025558815bc132f339e9968d9808406637cb6f479245dfc67",
+      "file": "iso=otn/data.parquet",
+      "language": "Otomi, Tenango",
+      "lexemes": 1515,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5828,
+      "rows": 6700,
+      "scattered_dropped": 2574,
+      "source": {
+        "edition": "otn_otn",
+        "license_url": "https://cdn.bibel.wiki/pkf/otn/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "otq": {
+      "books": 52,
+      "content_sha256": "aea89f7b356ad686817409e9d136bac183bec47acb132f8697f030946ad88fd7",
+      "file": "iso=otq/data.parquet",
+      "language": "Otomí de Querétaro",
+      "lexemes": 850,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 1792,
+      "rows": 1975,
+      "scattered_dropped": 3312,
+      "source": {
+        "edition": "otq_otq",
+        "license_url": "https://cdn.bibel.wiki/pkf/otq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ots": {
+      "books": 52,
+      "content_sha256": "b5297ce9d8ad0ce3f1d6a77bdbd020ee5f4d30775d5faaa2c92af411f660cf74",
+      "file": "iso=ots/data.parquet",
+      "language": "Estado de México Otomi",
+      "lexemes": 1335,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6447,
+      "rows": 7160,
+      "scattered_dropped": 3464,
+      "source": {
+        "edition": "ots_ots",
+        "license_url": "https://cdn.bibel.wiki/pkf/ots/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "pls": {
+      "books": 51,
+      "content_sha256": "9369ece1acf3e82c05ebe8924733cab0c54492abae4d8db4574e6eeccefaa045",
+      "file": "iso=pls/data.parquet",
+      "language": "Ngigua, San Marcos Tlacoyalco",
+      "lexemes": 1438,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3407,
+      "rows": 3838,
+      "scattered_dropped": 3228,
+      "source": {
+        "edition": "pls_pls",
+        "license_url": "https://cdn.bibel.wiki/pkf/pls/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "pmf": {
+      "books": 27,
+      "content_sha256": "33cbef3770ed2fd18115bd89bd3be020b0b536d05149e5cd76b12fece471d9b5",
+      "file": "iso=pmf/data.parquet",
+      "language": "Taa",
+      "lexemes": 1795,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6023,
+      "rows": 6966,
+      "scattered_dropped": 3418,
+      "source": {
+        "edition": "PMFNTM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "pmq": {
+      "books": 9,
+      "content_sha256": "f892b61e43174a2ec0348e7ec86f454c2bdaabba00a29369c96fade1e5f2ac04",
+      "file": "iso=pmq/data.parquet",
+      "language": "Northern Pame",
+      "lexemes": 313,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 509,
+      "rows": 527,
+      "scattered_dropped": 332,
+      "source": {
+        "edition": "pmq_pmq",
+        "license_url": "https://cdn.bibel.wiki/pkf/pmq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "poe": {
+      "books": 58,
+      "content_sha256": "49df370673df47331737a11b8bba3fea0b3f3019ac766767d081463e9e168e92",
+      "file": "iso=poe/data.parquet",
+      "language": "Ngiva, San Juan Atzingo",
+      "lexemes": 1590,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3208,
+      "rows": 3644,
+      "scattered_dropped": 3140,
+      "source": {
+        "edition": "poe_poe",
+        "license_url": "https://cdn.bibel.wiki/pkf/poe/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "poi": {
+      "books": 56,
+      "content_sha256": "90bf0dd126158a8d5cdcb25aa63196fd3cafabf43f2b36631276117f729f46ba",
+      "file": "iso=poi/data.parquet",
+      "language": "Highland Popoluca",
+      "lexemes": 1167,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2422,
+      "rows": 2583,
+      "scattered_dropped": 3284,
+      "source": {
+        "edition": "poi_poi",
+        "license_url": "https://cdn.bibel.wiki/pkf/poi/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "por": {
+      "books": 197,
+      "content_sha256": "ce2d9ae61b2e44dd75d3caa15efb28e7efe49e0f9714bd5ba0f297474a7c7385",
+      "file": "iso=por/data.parquet",
+      "language": "Portuguese",
+      "lexemes": 1664,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 3729,
+      "rows": 3888,
+      "scattered_dropped": 5291,
+      "source": {
+        "edition": "PORJFA",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "ppk": {
+      "books": 27,
+      "content_sha256": "103fcc9dfd8c097789e44416675eb618692989dd4f2dc2c0bca8cb53881ab0d6",
+      "file": "iso=ppk/data.parquet",
+      "language": "Uma",
+      "lexemes": 1558,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3292,
+      "rows": 3616,
+      "scattered_dropped": 3418,
+      "source": {
+        "edition": "PPKLAI",
+        "license_url": "http://www.fcbh.org",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "pps": {
+      "books": 53,
+      "content_sha256": "3e65b1737cace12bd29e9ba6ef7e034832bda5b53f3c31a04a66ccb15468bd31",
+      "file": "iso=pps/data.parquet",
+      "language": "Ngigua, San Luis Temalacayuca",
+      "lexemes": 1305,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3220,
+      "rows": 3587,
+      "scattered_dropped": 3047,
+      "source": {
+        "edition": "pps_pps",
+        "license_url": "https://cdn.bibel.wiki/pkf/pps/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "pse": {
+      "books": 27,
+      "content_sha256": "f8b86b2184467abddad1fccb85efa16f3e04882db5f99266827680f9d4f68780",
+      "file": "iso=pse/data.parquet",
+      "language": "Serawai",
+      "lexemes": 1459,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 2684,
+      "rows": 3083,
+      "scattered_dropped": 1970,
+      "source": {
+        "edition": "PSELAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "quc": {
+      "books": 54,
+      "content_sha256": "67e0df15970e3f624f177641adaebccf3e2211332d4afe18dbd7efd67715580e",
+      "file": "iso=quc/data.parquet",
+      "language": "Kʼicheʼ",
+      "lexemes": 1917,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5837,
+      "rows": 7086,
+      "scattered_dropped": 3217,
+      "source": {
+        "edition": "QUCBLA",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "rej": {
+      "books": 27,
+      "content_sha256": "842e4a44dd19ce7ce65a8c49ae3b4d6262055dbd166437ef46a1de9bd0d37f20",
+      "file": "iso=rej/data.parquet",
+      "language": "Rejang Lebong",
+      "lexemes": 1568,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3031,
+      "rows": 3432,
+      "scattered_dropped": 2108,
+      "source": {
+        "edition": "REJNEW",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "saj": {
+      "books": 27,
+      "content_sha256": "8beb3a6bffc64cae3611cf7127286e2579b79997fdb9075866d43013d085d0d9",
+      "file": "iso=saj/data.parquet",
+      "language": "Sahu",
+      "lexemes": 1918,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6023,
+      "rows": 7226,
+      "scattered_dropped": 3148,
+      "source": {
+        "edition": "SAJBSI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "sas": {
+      "books": 27,
+      "content_sha256": "6e5df79ed64ede7ebe90d7e79880e5893b1325dcb3a072393ebb62f7d67b92d8",
+      "file": "iso=sas/data.parquet",
+      "language": "Sasak",
+      "lexemes": 1800,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3410,
+      "rows": 3919,
+      "scattered_dropped": 2873,
+      "source": {
+        "edition": "SASLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "sda": {
+      "books": 27,
+      "content_sha256": "344d89f3310ae9923bfd3dcc99a8078226f0609d9c38922ceba0f17812412f63",
+      "file": "iso=sda/data.parquet",
+      "language": "...",
+      "lexemes": 1768,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3829,
+      "rows": 4138,
+      "scattered_dropped": 2191,
+      "source": {
+        "edition": "SDALAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "skx": {
+      "books": 27,
+      "content_sha256": "0bda8e383a9ae92509f8238f101c15cbbab573bb3add59f0bebb130499f5d2ad",
+      "file": "iso=skx/data.parquet",
+      "lexemes": 1588,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3188,
+      "rows": 3592,
+      "scattered_dropped": 3007,
+      "source": {
+        "edition": "SKXLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "slu": {
+      "books": 1,
+      "content_sha256": "54e0ce1042bf662c9034487c04dc773773bbee44534d9a7959a1e21cfa07d276",
+      "file": "iso=slu/data.parquet",
+      "lexemes": 334,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 491,
+      "rows": 506,
+      "scattered_dropped": 328,
+      "source": {
+        "edition": "SLUYPM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "sly": {
+      "books": 27,
+      "content_sha256": "98acd58c8bed8c59df290a35f684a5365a93bcf753154c2383f763d2f9e48f4e",
+      "file": "iso=sly/data.parquet",
+      "lexemes": 1873,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4289,
+      "rows": 4883,
+      "scattered_dropped": 2229,
+      "source": {
+        "edition": "SLYLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "stp": {
+      "books": 54,
+      "content_sha256": "6f546077ac25e4c8c3972e47aef5d4195aa0c4460266fa4eee43eeb87d697707",
+      "file": "iso=stp/data.parquet",
+      "language": "Southeastern Tepehuan",
+      "lexemes": 1391,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6437,
+      "rows": 7266,
+      "scattered_dropped": 2384,
+      "source": {
+        "edition": "stp_stp",
+        "license_url": "https://cdn.bibel.wiki/pkf/stp/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "sun": {
+      "books": 27,
+      "content_sha256": "40ab4c2ed1bc81677bcdb7250e219d3f75666caa1eeedc25dcd6412e3397cf38",
+      "file": "iso=sun/data.parquet",
+      "lexemes": 1787,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4354,
+      "rows": 4618,
+      "scattered_dropped": 2456,
+      "source": {
+        "edition": "SUNIBS",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "sxn": {
+      "books": 27,
+      "content_sha256": "79aca4773d722404672ae48ded2dc9c25432f188a653c77ae85298e226427f7b",
+      "file": "iso=sxn/data.parquet",
+      "lexemes": 1593,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4174,
+      "rows": 4397,
+      "scattered_dropped": 3324,
+      "source": {
+        "edition": "SXNLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "tac": {
+      "books": 53,
+      "content_sha256": "2102692067e7041626714384278124b0a8f376438ba1dbf43a0c981717331a60",
+      "file": "iso=tac/data.parquet",
+      "language": "Lowland Tarahumara",
+      "lexemes": 1519,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5518,
+      "rows": 5993,
+      "scattered_dropped": 3150,
+      "source": {
+        "edition": "tac_tac",
+        "license_url": "https://cdn.bibel.wiki/pkf/tac/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tby": {
+      "books": 27,
+      "content_sha256": "f9773bb16397d278770cd9fb231781927859ab1dcd56eb51baa81824d9eb9c43",
+      "file": "iso=tby/data.parquet",
+      "lexemes": 1790,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5663,
+      "rows": 6429,
+      "scattered_dropped": 3384,
+      "source": {
+        "edition": "TBYLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "tdj": {
+      "books": 1,
+      "content_sha256": "1ce2535f40f42097367f79d33f2a686a37761049ba7147fc5dc21637a98a8174",
+      "file": "iso=tdj/data.parquet",
+      "lexemes": 301,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 383,
+      "rows": 391,
+      "scattered_dropped": 189,
+      "source": {
+        "edition": "TDJYSI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "tee": {
+      "books": 50,
+      "content_sha256": "f6e49b6f579f1955c022ff25927c39889462681545b987cc402b3fb586dad63e",
+      "file": "iso=tee/data.parquet",
+      "language": "Huehuetla Tepehua",
+      "lexemes": 1145,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3195,
+      "rows": 3408,
+      "scattered_dropped": 3947,
+      "source": {
+        "edition": "tee_tee",
+        "license_url": "https://cdn.bibel.wiki/pkf/tee/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ter": {
+      "books": 27,
+      "content_sha256": "60391f303683ee96d8bc33f33eeb1a13603260a5f94440bb8f1f1141e8334514",
+      "file": "iso=ter/data.parquet",
+      "language": "Terena",
+      "lexemes": 2092,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 7724,
+      "rows": 8308,
+      "scattered_dropped": 3041
+    },
+    "tgj": {
+      "books": 27,
+      "content_sha256": "dab9a49940bc4f9bf39f41abf5db557e12d488e134c4228917f3e9ab72b02186",
+      "file": "iso=tgj/data.parquet",
+      "language": "Tagin",
+      "lexemes": 1220,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 2424,
+      "rows": 2487,
+      "scattered_dropped": 3202,
+      "source": {
+        "edition": "tgj_twf",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=tgj",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "tgo": {
+      "books": 34,
+      "content_sha256": "5a48ec01b8226937d6463980424832abd0fbe61f0e9cfcb040ce28582096b739",
+      "file": "iso=tgo/data.parquet",
+      "language": "Sudest",
+      "lexemes": 1729,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3611,
+      "rows": 3949,
+      "scattered_dropped": 3712,
+      "source": {
+        "edition": "tgo_wbt",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=tgo",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "tgp": {
+      "books": 27,
+      "content_sha256": "c02f1733a2ae97c847f87435721b781ce9e449c852dbf9979c827477bd65d393",
+      "file": "iso=tgp/data.parquet",
+      "language": "Tangoa",
+      "lexemes": 1154,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 1961,
+      "rows": 2271,
+      "scattered_dropped": 3545,
+      "source": {
+        "edition": "tgp_wbt",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=tgp",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "thd": {
+      "books": 4,
+      "content_sha256": "868fb5e9a105b820a83169579dd57e5ee4eb188d84d48201581fe0026ae52522",
+      "file": "iso=thd/data.parquet",
+      "language": "Kuuk Thaayorre",
+      "lexemes": 61,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 74,
+      "rows": 76,
+      "scattered_dropped": 26,
+      "source": {
+        "edition": "thd_ahh",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=thd",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "tif": {
+      "books": 27,
+      "content_sha256": "07f8c324137213328bc2334d20e664789618f75305bcb77a7aabd2bca6b61bc6",
+      "file": "iso=tif/data.parquet",
+      "language": "Tifal",
+      "lexemes": 1665,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 8042,
+      "rows": 8976,
+      "scattered_dropped": 2283
+    },
+    "tim": {
+      "books": 27,
+      "content_sha256": "19cfc866d88b68bb71f8666968b4f23fcffdd639d609b1d4fa62d94588aead6f",
+      "file": "iso=tim/data.parquet",
+      "language": "Timbe",
+      "lexemes": 1643,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5484,
+      "rows": 5999,
+      "scattered_dropped": 2111
+    },
+    "tio": {
+      "books": 9,
+      "content_sha256": "8ec5902532db99aff64cf11aef90b14b61d509dbd461614890e577ed1e2bdecf",
+      "file": "iso=tio/data.parquet",
+      "language": "Teop",
+      "lexemes": 450,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 743,
+      "rows": 796,
+      "scattered_dropped": 673
+    },
+    "tiw": {
+      "books": 5,
+      "content_sha256": "d9aa556ab81eefbae369dd820d312aebef24a760bac64e8939c676c499d51e3b",
+      "file": "iso=tiw/data.parquet",
+      "language": "Tiwi",
+      "lexemes": 2,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 2,
+      "rows": 2,
+      "scattered_dropped": 0,
+      "source": {
+        "edition": "tiw_mwb",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=tiwm",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "tke": {
+      "books": 1,
+      "content_sha256": "499de2f1f0f21f0752293568ea632809323b02cc8146de1e5c3cfa9f7d06efef",
+      "file": "iso=tke/data.parquet",
+      "language": "Takwane",
+      "lexemes": 445,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 578,
+      "rows": 580,
+      "scattered_dropped": 276,
+      "source": {
+        "edition": "tke_wbt",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=tke",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "tku": {
+      "books": 50,
+      "content_sha256": "9bf517a1cb49fa0101e99f0cb1ceaec2e506de5e40e1e00c6dcdac8473f756ba",
+      "file": "iso=tku/data.parquet",
+      "language": "Upper Necaxa Totonac",
+      "lexemes": 1080,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2187,
+      "rows": 2265,
+      "scattered_dropped": 1901,
+      "source": {
+        "edition": "tku_tku",
+        "license_url": "https://cdn.bibel.wiki/pkf/tku/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tlb": {
+      "books": 27,
+      "content_sha256": "70626a31df656761a07ba7e5e2af13e4cb6c3da8a168905761810843f6025bc3",
+      "file": "iso=tlb/data.parquet",
+      "lexemes": 1730,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4709,
+      "rows": 5058,
+      "scattered_dropped": 3955,
+      "source": {
+        "edition": "TLBLAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "tld": {
+      "books": 27,
+      "content_sha256": "c5820b575a7d49467c2d5f2479a87ffeafb9c0aafb8edbb9a69e624872561e3d",
+      "file": "iso=tld/data.parquet",
+      "lexemes": 1566,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3778,
+      "rows": 4083,
+      "scattered_dropped": 2695,
+      "source": {
+        "edition": "TLDLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "tlf": {
+      "books": 27,
+      "content_sha256": "01d4ee0ba45519486a8818e401b9a254b7a5a5ca2c1d629666ff210b0fdb308e",
+      "file": "iso=tlf/data.parquet",
+      "language": "Telefol",
+      "lexemes": 1739,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 7596,
+      "rows": 8666,
+      "scattered_dropped": 2118,
+      "source": {
+        "edition": "tlf_tbl",
+        "license_url": "https://ebible.org/Scriptures/details.php?id=tlf",
+        "provider": "bible.helloao.org"
+      }
+    },
+    "tnt": {
+      "books": 27,
+      "content_sha256": "68b9cc2b298dd0016defa282186882565cbec3bd9839a599e29d1997ed663e01",
+      "file": "iso=tnt/data.parquet",
+      "lexemes": 1768,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4723,
+      "rows": 5598,
+      "scattered_dropped": 4234,
+      "source": {
+        "edition": "TNTLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "toc": {
+      "books": 54,
+      "content_sha256": "f17b03c2a351894a3f7d35179ac0b204d5e82c3def0170f0af7b622f2654be53",
+      "file": "iso=toc/data.parquet",
+      "language": "Coyutla Totonac",
+      "lexemes": 1970,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 8422,
+      "rows": 9503,
+      "scattered_dropped": 2277,
+      "source": {
+        "edition": "toc_toc",
+        "license_url": "https://cdn.bibel.wiki/pkf/toc/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "toj": {
+      "books": 52,
+      "content_sha256": "6003faec16962061fe278f4ab950b4b81b186c7bc58b164ada43502ef414c3a2",
+      "file": "iso=toj/data.parquet",
+      "language": "Tojolabal",
+      "lexemes": 1233,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3819,
+      "rows": 4303,
+      "scattered_dropped": 3451,
+      "source": {
+        "edition": "toj_toj",
+        "license_url": "https://cdn.bibel.wiki/pkf/toj/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tom": {
+      "books": 27,
+      "content_sha256": "e7c6dc0490db78f1793dbf54b9a4cebf3647fc05d81b94fc69a40ad5eba5f380",
+      "file": "iso=tom/data.parquet",
+      "lexemes": 1580,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4389,
+      "rows": 5236,
+      "scattered_dropped": 3566,
+      "source": {
+        "edition": "TOMLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "too": {
+      "books": 51,
+      "content_sha256": "70752c95491415a1d911f27f43c923346763776ba37853de1e3cc60d0bbc8196",
+      "file": "iso=too/data.parquet",
+      "language": "Xicotepec De Juárez Totonac",
+      "lexemes": 1028,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2238,
+      "rows": 2316,
+      "scattered_dropped": 2350,
+      "source": {
+        "edition": "too_too",
+        "license_url": "https://cdn.bibel.wiki/pkf/too/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tos": {
+      "books": 52,
+      "content_sha256": "19feeaa064ee5bbdcf098cb33c1480ed1efd1cc2d0f4597259c4b6c53629533a",
+      "file": "iso=tos/data.parquet",
+      "language": "Highland Totonac",
+      "lexemes": 1318,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4179,
+      "rows": 4358,
+      "scattered_dropped": 3894,
+      "source": {
+        "edition": "tos_tos",
+        "license_url": "https://cdn.bibel.wiki/pkf/tos/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tpp": {
+      "books": 54,
+      "content_sha256": "b746e022d0dbe67b4a830021a0c373f2ffd86596ff803583a8e13c302d579f3e",
+      "file": "iso=tpp/data.parquet",
+      "language": "Pisaflores Tepehua",
+      "lexemes": 1924,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6879,
+      "rows": 7732,
+      "scattered_dropped": 3324,
+      "source": {
+        "edition": "tpp_tpp",
+        "license_url": "https://cdn.bibel.wiki/pkf/tpp/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tpt": {
+      "books": 53,
+      "content_sha256": "4b1b2800ec27d0281cc76681af7541aa22aee52cb8ee368168d91a29d6d56412",
+      "file": "iso=tpt/data.parquet",
+      "language": "Tepehua Tlachichilco",
+      "lexemes": 1217,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2915,
+      "rows": 3069,
+      "scattered_dropped": 2753,
+      "source": {
+        "edition": "tpt_tpt",
+        "license_url": "https://cdn.bibel.wiki/pkf/tpt/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tqt": {
+      "books": 2,
+      "content_sha256": "e79de1d47ff9f9f8f30cc6812bb0e52bd2b27439fc708d884bc457b7c0123881",
+      "file": "iso=tqt/data.parquet",
+      "language": "Western Totonac",
+      "lexemes": 413,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 567,
+      "rows": 573,
+      "scattered_dropped": 376,
+      "source": {
+        "edition": "tqt_tqt",
+        "license_url": "https://cdn.bibel.wiki/pkf/tqt/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "trc": {
+      "books": 53,
+      "content_sha256": "eec7d632be6f93333a93fa177ee10d77782290a03f68e3591e1c0fbf6c25e12e",
+      "file": "iso=trc/data.parquet",
+      "language": "Copala Triqui",
+      "lexemes": 1929,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5702,
+      "rows": 7046,
+      "scattered_dropped": 4750,
+      "source": {
+        "edition": "trc_trc",
+        "license_url": "https://cdn.bibel.wiki/pkf/trc/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "trq": {
+      "books": 53,
+      "content_sha256": "a380c4999beb7b8c722e54b00e3d58cc2c5cf4adc5206eb6c1bd194451af9c2c",
+      "file": "iso=trq/data.parquet",
+      "language": "Triqui Itunyoso",
+      "lexemes": 1721,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4389,
+      "rows": 5389,
+      "scattered_dropped": 4219,
+      "source": {
+        "edition": "trq_trq",
+        "license_url": "https://cdn.bibel.wiki/pkf/trq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "trs": {
+      "books": 51,
+      "content_sha256": "459b9baee73ff68f5adc6fcc5c960526e2be76492fe63e711f36e54a24cf9336",
+      "file": "iso=trs/data.parquet",
+      "language": "Chicahuaxtla Triqui",
+      "lexemes": 1929,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5628,
+      "rows": 6797,
+      "scattered_dropped": 3983,
+      "source": {
+        "edition": "trs_trs",
+        "license_url": "https://cdn.bibel.wiki/pkf/trs/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "tuj": {
+      "books": 27,
+      "content_sha256": "e4f0f33111c986a90bb1cf5de47c32cd3364b52651f937973bcd92c2e01e0360",
+      "file": "iso=tuj/data.parquet",
+      "lexemes": 1166,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5199,
+      "rows": 5727,
+      "scattered_dropped": 4135,
+      "source": {
+        "edition": "TUJNTM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "tvw": {
+      "books": 27,
+      "content_sha256": "ed4b9f7e48741e664c60918ba0bc122c1eac479a9e8ef082bcbeb936beaa5c1b",
+      "file": "iso=tvw/data.parquet",
+      "lexemes": 1543,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 3543,
+      "rows": 3902,
+      "scattered_dropped": 3449,
+      "source": {
+        "edition": "TVWLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "twe": {
+      "books": 1,
+      "content_sha256": "1e7428695f4269cf9957ff308aadfe62c73ac4d9087e53de28e6c7d817ccd2fb",
+      "file": "iso=twe/data.parquet",
+      "lexemes": 272,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 480,
+      "rows": 504,
+      "scattered_dropped": 140,
+      "source": {
+        "edition": "TWEUBB",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "twu": {
+      "books": 27,
+      "content_sha256": "c7401392d9ac44839c2c70318317ff9f98ab6ac49c4d557f43b84ba14d3dd388",
+      "file": "iso=twu/data.parquet",
+      "lexemes": 1916,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 5672,
+      "rows": 6792,
+      "scattered_dropped": 3572,
+      "source": {
+        "edition": "TWULAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "uhn": {
+      "books": 27,
+      "content_sha256": "f3a5e07174291895231c9a01278d8b71532a2319d6b6f9b3db28a115e7022ef1",
+      "file": "iso=uhn/data.parquet",
+      "lexemes": 2010,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 8037,
+      "rows": 9090,
+      "scattered_dropped": 2512,
+      "source": {
+        "edition": "UHNLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "ury": {
+      "books": 27,
+      "content_sha256": "9ee97bf9305bc05c0cd17b43c3062ab66bb3d6374c85a8e448daf664ef5e3bd1",
+      "file": "iso=ury/data.parquet",
+      "lexemes": 1970,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 8033,
+      "rows": 8948,
+      "scattered_dropped": 2248,
+      "source": {
+        "edition": "URYAOV",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "var": {
+      "books": 51,
+      "content_sha256": "778eff3768de8dc59d5f88fb5aed79fe54426c6909fb9bdb94b5bfb99f103873",
+      "file": "iso=var/data.parquet",
+      "language": "Huarijio",
+      "lexemes": 1596,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4885,
+      "rows": 4983,
+      "scattered_dropped": 2677,
+      "source": {
+        "edition": "var_var",
+        "license_url": "https://cdn.bibel.wiki/pkf/var/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "vmj": {
+      "books": 8,
+      "content_sha256": "98585055385166ba361a457a0fb20291ec8a8c0d424a9bba624d32c4d5cf2465",
+      "file": "iso=vmj/data.parquet",
+      "language": "Ixtayutla Mixtec",
+      "lexemes": 563,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 838,
+      "rows": 912,
+      "scattered_dropped": 942,
+      "source": {
+        "edition": "vmj_vmj",
+        "license_url": "https://cdn.bibel.wiki/pkf/vmj/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "vmy": {
+      "books": 50,
+      "content_sha256": "0850f16aabf6887b070e306730c3d6b5865840cacf2fef7119ee61c833dcc8e8",
+      "file": "iso=vmy/data.parquet",
+      "language": "Ayautla Mazatec",
+      "lexemes": 1397,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3174,
+      "rows": 3416,
+      "scattered_dropped": 2687,
+      "source": {
+        "edition": "vmy_vmy",
+        "license_url": "https://cdn.bibel.wiki/pkf/vmy/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "vmz": {
+      "books": 2,
+      "content_sha256": "217df9832e30ea18abd0d9f8862044fd2f28f14107f21d97c0577afdfd00050f",
+      "file": "iso=vmz/data.parquet",
+      "language": "Mazatlán Mazatec",
+      "lexemes": 428,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 599,
+      "rows": 612,
+      "scattered_dropped": 401,
+      "source": {
+        "edition": "vmz_vmz",
+        "license_url": "https://cdn.bibel.wiki/pkf/vmz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "wms": {
+      "books": 27,
+      "content_sha256": "36c6bd54f1609b5186fc1e4b42706ed858f55c88cc0aac7e6db958d65fae5a55",
+      "file": "iso=wms/data.parquet",
+      "lexemes": 1814,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 6008,
+      "rows": 6319,
+      "scattered_dropped": 2544,
+      "source": {
+        "edition": "WMSWBT",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "xkl": {
+      "books": 27,
+      "content_sha256": "c5111145f5b32fc6854df0af1bfd6d1a4212137128deedbc3ccfee107907d2c3",
+      "file": "iso=xkl/data.parquet",
+      "lexemes": 1693,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4401,
+      "rows": 5131,
+      "scattered_dropped": 3821,
+      "source": {
+        "edition": "XKLBSM",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "xmm": {
+      "books": 27,
+      "content_sha256": "82e114db240ead53ac3a055ec0911c9da9f724023cee0a4a287bded90a1f4f5d",
+      "file": "iso=xmm/data.parquet",
+      "lexemes": 1803,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 4108,
+      "rows": 5013,
+      "scattered_dropped": 4097,
+      "source": {
+        "edition": "XMMLAI",
+        "license_url": null,
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "xtd": {
+      "books": 52,
+      "content_sha256": "29c8661ddb32a04e6531bbb1e41360ceab1d9650e726e4e88cf1c4f14144cc5c",
+      "file": "iso=xtd/data.parquet",
+      "language": "Diuxi-Tilantongo Mixtec",
+      "lexemes": 1475,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3321,
+      "rows": 3964,
+      "scattered_dropped": 3762,
+      "source": {
+        "edition": "xtd_xtd",
+        "license_url": "https://cdn.bibel.wiki/pkf/xtd/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "xtj": {
+      "books": 2,
+      "content_sha256": "ba6ea11c47688d5e0f64b3b5f3c7fe61205d9c71a12a6e42945ea86cd80a27b1",
+      "file": "iso=xtj/data.parquet",
+      "language": "San Juan Teita Mixtec",
+      "lexemes": 472,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 834,
+      "rows": 954,
+      "scattered_dropped": 475,
+      "source": {
+        "edition": "xtj_xtj",
+        "license_url": "https://cdn.bibel.wiki/pkf/xtj/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "xtn": {
+      "books": 102,
+      "content_sha256": "6f22fcb884418aa94dee5998f092b27ce109566ffe9da82dd8e43e9dc8ecb7c3",
+      "file": "iso=xtn/data.parquet",
+      "language": "Mixteco del Norte de Tlaxiaco",
+      "lexemes": 2769,
+      "method": "eflomal+gloss+gapfill",
+      "min_count": 1,
+      "phrases": 5520,
+      "rows": 7769,
+      "scattered_dropped": 6645,
+      "source": {
+        "edition": "xtn_xtn",
+        "license_url": "https://cdn.bibel.wiki/pkf/xtn/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "yaq": {
+      "books": 53,
+      "content_sha256": "05a01689c62fbb286fbf4f568476493775023848934515cea33cd538751d846a",
+      "file": "iso=yaq/data.parquet",
+      "language": "Yaqui",
+      "lexemes": 1564,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5623,
+      "rows": 6082,
+      "scattered_dropped": 3680,
+      "source": {
+        "edition": "yaq_yaq",
+        "license_url": "https://cdn.bibel.wiki/pkf/yaq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "yli": {
+      "books": 27,
+      "content_sha256": "008ab2bcdfd1b5074dd104c724778280766ce3c2f03dcc2fcf28ab915cce4458",
+      "file": "iso=yli/data.parquet",
+      "lexemes": 2038,
+      "method": "eflomal",
+      "min_count": 1,
+      "phrases": 7469,
+      "rows": 8334,
+      "scattered_dropped": 2492,
+      "source": {
+        "edition": "YLILAI",
+        "license_url": "http://www.alkitab.or.id/",
+        "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+      }
+    },
+    "zaa": {
+      "books": 52,
+      "content_sha256": "55cbad12fa0164c32141b423240af659fc1fd545cfc4f4d1470520c8997fa223",
+      "file": "iso=zaa/data.parquet",
+      "language": "Sierra de Juárez Zapotec",
+      "lexemes": 1614,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4873,
+      "rows": 5286,
+      "scattered_dropped": 4312,
+      "source": {
+        "edition": "zaa_zaa",
+        "license_url": "https://cdn.bibel.wiki/pkf/zaa/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zab": {
+      "books": 52,
+      "content_sha256": "85fec39f123becb6ea8b7e5324a5c53f470e1f129e91644d0def0c265bbd5a61",
+      "file": "iso=zab/data.parquet",
+      "language": "Western Tlacolula Valley Zapotec",
+      "lexemes": 1447,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3282,
+      "rows": 3483,
+      "scattered_dropped": 3079,
+      "source": {
+        "edition": "zab_zab",
+        "license_url": "https://cdn.bibel.wiki/pkf/zab/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zac": {
+      "books": 53,
+      "content_sha256": "d2b10bccd344a9bc3b18b34a87d3984bf00f19a1cceeec433ec6cd094709fc8f",
+      "file": "iso=zac/data.parquet",
+      "language": "Ocotlán Zapotec",
+      "lexemes": 1757,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5561,
+      "rows": 6315,
+      "scattered_dropped": 3720,
+      "source": {
+        "edition": "zac_zac",
+        "license_url": "https://cdn.bibel.wiki/pkf/zac/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zad": {
+      "books": 58,
+      "content_sha256": "721d1efa3816da766b2478b5408d419af3ba5091ad226dae5eac2a5b1be5f52f",
+      "file": "iso=zad/data.parquet",
+      "language": "Zapotec de Yaganiza",
+      "lexemes": 2376,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5957,
+      "rows": 6650,
+      "scattered_dropped": 3843,
+      "source": {
+        "edition": "zad_zad",
+        "license_url": "https://cdn.bibel.wiki/pkf/zad/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zai": {
+      "books": 57,
+      "content_sha256": "d482e915506fb0660fa5de28343bfd57a10fc31c79ae6971920aa0341af5bdbb",
+      "file": "iso=zai/data.parquet",
+      "language": "Zapoteco del Istmo",
+      "lexemes": 1699,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3288,
+      "rows": 3643,
+      "scattered_dropped": 3058,
+      "source": {
+        "edition": "zai_zai",
+        "license_url": "https://cdn.bibel.wiki/pkf/zai/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zam": {
+      "books": 54,
+      "content_sha256": "e517ca833053380e5883647f5c743b7f2dcd06cd81b7d759509aea84359d5faa",
+      "file": "iso=zam/data.parquet",
+      "language": "Miahuatlán Zapotec",
+      "lexemes": 1856,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 7325,
+      "rows": 8209,
+      "scattered_dropped": 4538,
+      "source": {
+        "edition": "zam_zam",
+        "license_url": "https://cdn.bibel.wiki/pkf/zam/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zao": {
+      "books": 51,
+      "content_sha256": "9ca6bddef06d8e5667c37d4be6a1768320c16a1b7f8cf2e5aa573f9c229e45a9",
+      "file": "iso=zao/data.parquet",
+      "language": "Ozolotepec Zapotec",
+      "lexemes": 1444,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3256,
+      "rows": 3668,
+      "scattered_dropped": 3897,
+      "source": {
+        "edition": "zao_zao",
+        "license_url": "https://cdn.bibel.wiki/pkf/zao/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zaq": {
+      "books": 2,
+      "content_sha256": "5aeb6925c3a45ccf184127c4e5e69518c1b2c1b329b11b51dd75421342e316ca",
+      "file": "iso=zaq/data.parquet",
+      "language": "Aloápam Zapotec",
+      "lexemes": 350,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 697,
+      "rows": 717,
+      "scattered_dropped": 356,
+      "source": {
+        "edition": "zaq_zaq",
+        "license_url": "https://cdn.bibel.wiki/pkf/zaq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zar": {
+      "books": 55,
+      "content_sha256": "f382af7fbbbc4f55d3c6dd4c8201612e44e3c48848c309b703b5d7b151c59e43",
+      "file": "iso=zar/data.parquet",
+      "language": "Rincón Zapotec",
+      "lexemes": 2344,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6866,
+      "rows": 7744,
+      "scattered_dropped": 4335,
+      "source": {
+        "edition": "zar_zar",
+        "license_url": "https://cdn.bibel.wiki/pkf/zar/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zas": {
+      "books": 53,
+      "content_sha256": "e1cab7f12a0923b2616b3ea94182f7a7699fadd44479c9a8272817f7e2ab4069",
+      "file": "iso=zas/data.parquet",
+      "language": "Santo Domingo Albarradas Zapotec",
+      "lexemes": 1343,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2826,
+      "rows": 3049,
+      "scattered_dropped": 2779,
+      "source": {
+        "edition": "zas_zas",
+        "license_url": "https://cdn.bibel.wiki/pkf/zas/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zat": {
+      "books": 55,
+      "content_sha256": "c28b498fd12afb4bddbe51d344e277ccc4d35c026e234a7448ab7e596a9cd585",
+      "file": "iso=zat/data.parquet",
+      "language": "Zapotec, Tabaa",
+      "lexemes": 2036,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4883,
+      "rows": 5698,
+      "scattered_dropped": 3334,
+      "source": {
+        "edition": "zat_zat",
+        "license_url": "https://cdn.bibel.wiki/pkf/zat/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zav": {
+      "books": 54,
+      "content_sha256": "10e9d00371d8e00c367153b4e1614677668cbdf233630db509fde505634b7b58",
+      "file": "iso=zav/data.parquet",
+      "language": "Yatzachi Zapotec",
+      "lexemes": 1755,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5846,
+      "rows": 6303,
+      "scattered_dropped": 3227,
+      "source": {
+        "edition": "zav_zav",
+        "license_url": "https://cdn.bibel.wiki/pkf/zav/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zaw": {
+      "books": 52,
+      "content_sha256": "e28040c3f6f403290f2c6808ac37583b11f34b0b5edb2a9187a35320e0601264",
+      "file": "iso=zaw/data.parquet",
+      "language": "Mitla Zapotec",
+      "lexemes": 1448,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3052,
+      "rows": 3180,
+      "scattered_dropped": 2698,
+      "source": {
+        "edition": "zaw_zaw",
+        "license_url": "https://cdn.bibel.wiki/pkf/zaw/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zca": {
+      "books": 53,
+      "content_sha256": "8da2ce0e77a6a50cf245003e7f460779ccff3892a3e5889413313132a3100911",
+      "file": "iso=zca/data.parquet",
+      "language": "Coatecas Altas Zapotec",
+      "lexemes": 1426,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3332,
+      "rows": 3781,
+      "scattered_dropped": 3601,
+      "source": {
+        "edition": "zca_zca",
+        "license_url": "https://cdn.bibel.wiki/pkf/zca/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zos": {
+      "books": 52,
+      "content_sha256": "0ac963764428ce1cf430f63282e8db3452072ecf16d98b2d04750cc0f457740e",
+      "file": "iso=zos/data.parquet",
+      "language": "Francisco León Zoque",
+      "lexemes": 1459,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3765,
+      "rows": 3915,
+      "scattered_dropped": 3218,
+      "source": {
+        "edition": "zos_zos",
+        "license_url": "https://cdn.bibel.wiki/pkf/zos/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpc": {
+      "books": 54,
+      "content_sha256": "e1cc0d05bb23be6f4a9f6f3cf2e9cff6945dbf898d72e3593bbecabf2aa2eada",
+      "file": "iso=zpc/data.parquet",
+      "language": "Choapan Zapotec",
+      "lexemes": 1794,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 6162,
+      "rows": 6596,
+      "scattered_dropped": 3170,
+      "source": {
+        "edition": "zpc_zpc",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpc/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpg": {
+      "books": 50,
+      "content_sha256": "2f729df5a7d96f059af9c44a683abc4c1678b791981419ad9cf3f422dc869cc8",
+      "file": "iso=zpg/data.parquet",
+      "language": "Guevea De Humboldt Zapotec",
+      "lexemes": 1422,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2931,
+      "rows": 3228,
+      "scattered_dropped": 3761,
+      "source": {
+        "edition": "zpg_zpg",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpg/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpi": {
+      "books": 52,
+      "content_sha256": "c57db2e30f968c5af5c19af21736203cb781a0ff4a871646e16e350076e4305a",
+      "file": "iso=zpi/data.parquet",
+      "language": "Santa María Quiegolani Zapotec",
+      "lexemes": 1367,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2764,
+      "rows": 3078,
+      "scattered_dropped": 4173,
+      "source": {
+        "edition": "zpi_zpi",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpi/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpl": {
+      "books": 52,
+      "content_sha256": "9d39906d349532acf1f312cb49a6a3fc91d5f8eaba02507d4eb0c97e7441e835",
+      "file": "iso=zpl/data.parquet",
+      "language": "Lachixío Zapotec",
+      "lexemes": 1451,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3799,
+      "rows": 4219,
+      "scattered_dropped": 3420,
+      "source": {
+        "edition": "zpl_zpl",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpl/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpm": {
+      "books": 54,
+      "content_sha256": "fa99077d87079418165517b723f29cb915edad68d97cf3f14611feb81ff2a711",
+      "file": "iso=zpm/data.parquet",
+      "language": "Mixtepec Zapotec",
+      "lexemes": 1284,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3411,
+      "rows": 3708,
+      "scattered_dropped": 3592,
+      "source": {
+        "edition": "zpm_zpm",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpm/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpo": {
+      "books": 67,
+      "content_sha256": "b86e47ed12d358421a409c82b2364177992da3d80fe4bc223d59031829e4e928",
+      "file": "iso=zpo/data.parquet",
+      "language": "Amatlán Zapotec",
+      "lexemes": 2289,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4544,
+      "rows": 5489,
+      "scattered_dropped": 5496,
+      "source": {
+        "edition": "zpo_zpo",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpo/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpq": {
+      "books": 53,
+      "content_sha256": "125d3b0ac261dbe1d3dc7ff379dcb10baaada62106e5d093a8517809d1ef8720",
+      "file": "iso=zpq/data.parquet",
+      "language": "Zapoteco de Zoogocho",
+      "lexemes": 1649,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5013,
+      "rows": 5411,
+      "scattered_dropped": 3265,
+      "source": {
+        "edition": "zpq_zpq",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpt": {
+      "books": 49,
+      "content_sha256": "dac15be0eb6fc0cb55c2b5963cd54f82a8bb4f28e939c70a0c404ccdae3048c7",
+      "file": "iso=zpt/data.parquet",
+      "language": "San Vicente Coatlán Zapotec",
+      "lexemes": 1463,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3342,
+      "rows": 3880,
+      "scattered_dropped": 3606,
+      "source": {
+        "edition": "zpt_zpt",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpt/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpu": {
+      "books": 53,
+      "content_sha256": "63e820d2a0c579b45646c52cf9dca5b36a431173135ef0cdb9f5100c82bdcd68",
+      "file": "iso=zpu/data.parquet",
+      "language": "Yalálag Zapotec",
+      "lexemes": 1552,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 4253,
+      "rows": 4598,
+      "scattered_dropped": 2959,
+      "source": {
+        "edition": "zpu_zpu",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpu/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zpz": {
+      "books": 55,
+      "content_sha256": "728ed7f97b74fdc824cb0b595f3a1affda107cf3824d8511a29a10aedfadb3a2",
+      "file": "iso=zpz/data.parquet",
+      "language": "Texmelucan Zapotec",
+      "lexemes": 2167,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5246,
+      "rows": 6574,
+      "scattered_dropped": 5235,
+      "source": {
+        "edition": "zpz_zpz",
+        "license_url": "https://cdn.bibel.wiki/pkf/zpz/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zsr": {
+      "books": 52,
+      "content_sha256": "18a74f070446039576e58c0b5c1cd752d73605ecdbc1500a9400c48daff42512",
+      "file": "iso=zsr/data.parquet",
+      "language": "Zapotec, Rincon Sur",
+      "lexemes": 1922,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5630,
+      "rows": 6347,
+      "scattered_dropped": 3243,
+      "source": {
+        "edition": "zsr_zsr",
+        "license_url": "https://cdn.bibel.wiki/pkf/zsr/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ztl": {
+      "books": 2,
+      "content_sha256": "99fd654a11aa9d9a8b36775df042e8efe99a7101d140d2fe0e0cf790e3b43687",
+      "file": "iso=ztl/data.parquet",
+      "language": "Lapaguía-Guivini Zapotec",
+      "lexemes": 273,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 374,
+      "rows": 387,
+      "scattered_dropped": 313,
+      "source": {
+        "edition": "ztl_ztl",
+        "license_url": "https://cdn.bibel.wiki/pkf/ztl/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ztp": {
+      "books": 54,
+      "content_sha256": "3be2d0f15d4a0c4a6ab846256ac1a8fb995e0c3232910d9fd0ee8fc50b20d347",
+      "file": "iso=ztp/data.parquet",
+      "language": "Loxicha Zapotec",
+      "lexemes": 1407,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 3213,
+      "rows": 3511,
+      "scattered_dropped": 3259,
+      "source": {
+        "edition": "ztp_ztp",
+        "license_url": "https://cdn.bibel.wiki/pkf/ztp/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "ztq": {
+      "books": 52,
+      "content_sha256": "1b0748945cdfb591c8bfe34a97198fbbe09d4d9e36f7ce47b486c1bd5f524d1d",
+      "file": "iso=ztq/data.parquet",
+      "language": "Quioquitani-Quierí Zapotec",
+      "lexemes": 1249,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 2460,
+      "rows": 2711,
+      "scattered_dropped": 2899,
+      "source": {
+        "edition": "ztq_ztq",
+        "license_url": "https://cdn.bibel.wiki/pkf/ztq/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zts": {
+      "books": 4,
+      "content_sha256": "9bd1badac8ce877f7ee4216d2acd9ba1aab68ec520d5d885f8ae01a2d645775f",
+      "file": "iso=zts/data.parquet",
+      "language": "Tilquiapan Zapotec",
+      "lexemes": 490,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 696,
+      "rows": 712,
+      "scattered_dropped": 667,
+      "source": {
+        "edition": "zts_zts",
+        "license_url": "https://cdn.bibel.wiki/pkf/zts/app-config.json",
+        "provider": "cdn.bibel.wiki"
+      }
+    },
+    "zty": {
+      "books": 53,
+      "content_sha256": "de9ef80064e5dacb54ad73ceb63ee157ea82ee11b9a0774e8865310def5eee5d",
+      "file": "iso=zty/data.parquet",
+      "language": "Yatee Zapotec",
+      "lexemes": 1755,
+      "method": "eflomal+gapfill",
+      "min_count": 1,
+      "phrases": 5006,
+      "rows": 5724,
+      "scattered_dropped": 3336,
+      "source": {
+        "edition": "zty_zty",
+        "license_url": "https://cdn.bibel.wiki/pkf/zty/app-config.json",
         "provider": "cdn.bibel.wiki"
       }
     }

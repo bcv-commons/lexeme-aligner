@@ -284,6 +284,21 @@ def main() -> int:
                 skipped.append(ed["edition_code"])
                 continue
 
+        # the ingest command can exit 0 while producing NO usable books at all — e.g. a fully-dead
+        # DBT fileset that 404s on chapter 1 of every book (the circuit breaker correctly bails out
+        # fast, but that's a "no data" outcome, not a command failure, so it never raised). Catch that
+        # here explicitly rather than silently carrying an empty tag forward into alignment, where it
+        # would fail even more confusingly at the eflomal/gloss/export stage.
+        if not any(usj.glob("*.json")):
+            if is_primary:
+                raise SystemExit(f"[onboard] '{args.iso}': primary edition '{ed['edition_code']}' "
+                                  f"ingested with no error but produced ZERO usable books at {usj} — "
+                                  f"aborting (no sensible anchor fallback)")
+            print(f"[onboard] '{ed['edition_code']}': ingested with no error but produced ZERO "
+                  f"usable books at {usj} — skipping this pooled edition", file=sys.stderr)
+            skipped.append(ed["edition_code"])
+            continue
+
         tags.append(tag)
         sources_by_tag[tag] = ed["source"]
         pins[tag] = pin

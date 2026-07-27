@@ -87,6 +87,7 @@ def main() -> int:
     scope_flag = "--all" if testaments == {"nt", "ot"} else f"--{next(iter(testaments))}"
     editions = editions_for(args.iso, testaments, args.editions_config)
     tags = [_tag(args.iso, ed["edition_code"], is_primary=(i == 0)) for i, ed in enumerate(editions)]
+    tag_source = {tag: ed["source"] for tag, ed in zip(tags, editions)}   # for --clean-out's DBT exception
     usj_dirs = {tag: Path(f"pipeline/work/ingest-cache/usj-{tag}") for tag in tags}
     tags = [t for t in tags if usj_dirs[t].exists()]   # a pooled edition onboard.py skipped has no usj dir
     if not tags:
@@ -142,6 +143,7 @@ def main() -> int:
           f"({len(tags)} edition(s): {', '.join(tags)})", file=sys.stderr)
 
     if args.clean_out:
+        import shutil
         from lexeme_aligner.config import OUT
         removed = 0
         for tag in tags:
@@ -150,6 +152,25 @@ def main() -> int:
                 removed += 1
         print(f"[full_chain] --clean-out: removed {removed} raw jsonl file(s) for {', '.join(tags)}",
               file=sys.stderr)
+
+        # the ingested target text (usj-<tag>) is ALSO transient — EXCEPT for DBT-sourced editions,
+        # whose fetch is slow/rate-limited (Faith Comes By Hearing's API), so re-fetching on a future
+        # re-run would be genuinely costly. PKF/helloAO re-fetch is cheap, so their usj cache is safe
+        # to drop once this language's chain (which is the only thing that still reads it) is done.
+        kept_dbt = [t for t in tags if tag_source.get(t) == "dbt"]
+        cleaned_usj = []
+        for tag in tags:
+            if tag_source.get(tag) == "dbt":
+                continue
+            if usj_dirs[tag].exists():
+                shutil.rmtree(usj_dirs[tag], ignore_errors=True)
+                cleaned_usj.append(tag)
+        if cleaned_usj:
+            print(f"[full_chain] --clean-out: removed usj cache for non-DBT tag(s): "
+                  f"{', '.join(cleaned_usj)}", file=sys.stderr)
+        if kept_dbt:
+            print(f"[full_chain] --clean-out: KEPT usj cache for DBT-sourced tag(s) (slow to "
+                  f"re-fetch): {', '.join(kept_dbt)}", file=sys.stderr)
     return 0
 
 

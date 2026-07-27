@@ -81,6 +81,10 @@ def main() -> int:
             print(f"  {lang['iso']}", file=sys.stderr)
         return 0
 
+    if args.full:
+        for lang in plan:
+            lang["clean_out"] = True
+
     results: dict[str, tuple[bool, str]] = {}
     for lang in plan:
         ok, msg = run_one(lang, full=args.full)

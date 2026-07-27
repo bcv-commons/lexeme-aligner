@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -184,6 +185,11 @@ def main() -> int:
     ap.add_argument("--converter", type=Path, default=Path("pipeline/pkf2usfm/export_usfm.mjs"),
                     help="Proskomma PKF→USFM Node script (default: vendored pkf2usfm/export_usfm.mjs)")
     ap.add_argument("--usfm-tmp", type=Path, default=None, help="scratch dir for intermediate USFM")
+    ap.add_argument("--keep-scratch", action="store_true",
+                    help="keep the PKF cache + USFM scratch dir after a successful --to-usj decode "
+                         "(default: both are deleted immediately — they're pure ingest-time "
+                         "intermediates, never read again once USJ exists; the CDN re-fetch is cheap "
+                         "so there's no reason to keep them, unlike the DBT-sourced ingest cache)")
     args = ap.parse_args()
 
     manifest, col = resolve(args.iso, args.collection)
@@ -198,8 +204,12 @@ def main() -> int:
           f"codex={pin['codex']}) · license={pin['license']!r} · sha256={sha[:12]}…", file=sys.stderr)
 
     if args.to_usj:
-        decode_to_usj(args.iso, args.converter,
-                      args.usfm_tmp or Path("pipeline/work/out") / f"usfm-{args.iso}", args.to_usj)
+        usfm_tmp = args.usfm_tmp or Path("pipeline/work/out") / f"usfm-{args.iso}"
+        decode_to_usj(args.iso, args.converter, usfm_tmp, args.to_usj)
+        if not args.keep_scratch:
+            shutil.rmtree(usfm_tmp, ignore_errors=True)
+            shutil.rmtree(args.pool / args.iso, ignore_errors=True)
+            print(f"[cdn] cleaned up scratch: {usfm_tmp} + {args.pool / args.iso}", file=sys.stderr)
     return 0
 
 

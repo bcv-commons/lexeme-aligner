@@ -83,10 +83,13 @@ def run_one(lang: dict, full: bool = False) -> tuple[bool, str]:
                 "skip_ingest": "--skip-ingest"}
     if not full:
         flag_map["method"] = "--method"
+    else:
+        flag_map["clean_out"] = "--clean-out"   # full_chain-only: clean THIS language's out/ once done
+    bool_flags = {"skip_ingest", "clean_out"}
     for key, flag in flag_map.items():
         if key not in lang:
             continue
-        if key == "skip_ingest":
+        if key in bool_flags:
             if lang[key]:
                 cmd.append(flag)
         else:
@@ -113,11 +116,24 @@ def main() -> int:
     ap.add_argument("--full", action="store_true",
                     help="run full_chain.py (ingest+eflomal+gloss+gapfill+export+aligned_mwe+"
                          "senses_attested+compact-alignments) instead of onboard.py's ingest+eflomal-only")
+    ap.add_argument("--skip-ingest", action="store_true",
+                    help="force --skip-ingest for EVERY language in the spec, regardless of any "
+                         "per-entry setting — no network fetch at all, re-process already-cached text "
+                         "(e.g. re-running the chain after an algorithm fix)")
+    ap.add_argument("--clean-out", action="store_true",
+                    help="(--full only) clean each language's out/ raw jsonl right after ITS OWN chain "
+                         "finishes — keeps out/ from growing across the whole run")
     args = ap.parse_args()
     skip_existing = not args.force
     force_isos = set(args.force_iso.split(",")) if args.force_iso else set()
 
     langs = load_spec(args.spec)
+    if args.skip_ingest:
+        for lang in langs:
+            lang["skip_ingest"] = True
+    if args.clean_out:
+        for lang in langs:
+            lang["clean_out"] = True
     print(f"[onboard_batch] {len(langs)} language(s) in {args.spec}"
           + ("" if args.force else " (skip-existing: on — already-exported languages are skipped)")
           + (f" (forcing: {', '.join(sorted(force_isos))})" if force_isos else ""),

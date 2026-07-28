@@ -63,7 +63,7 @@ def _entry(model: dict) -> dict:
 def build_manifest(morph_dir: Path = _MORPH_DIR) -> dict:
     langs = {}
     for fp in sorted(morph_dir.glob("*.json")):
-        if fp.name == "manifest.json":
+        if fp.name == "manifest.json" or fp.name.startswith("."):
             continue
         langs[fp.stem] = _entry(json.loads(fp.read_text(encoding="utf-8")))
     return {"schema": {"suffixes": "productive suffixes (longest-first)",

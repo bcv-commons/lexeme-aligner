@@ -11,17 +11,35 @@ captures what genuinely transfers across unrelated languages: SPAN LENGTH / mult
 lexeme rendered by a fixed phrase — an idiom, a construct-state relation, a compound concept — tends to
 need multiple target words in EVERY language, not just this one).
 
-Edition grouping: every language in `lexeme-alignments/manifest.json` may have several EDITIONS (e.g.
-`ind`+`ind_ags`+`ind_ayt`+`indala`+`indshv`+`indtsi`) — counting them separately would double-weight a
-language just for having more editions ingested. Every statistic is computed PER LANGUAGE GROUP first
-(pooling its editions), then averaged EQUALLY across language groups — so confidence genuinely means
-"N independent languages agree", not "N aligned files". Group membership is derived from the SAME
-onboard.editions_for()/_tag() discovery gapfill_batch.py uses (via `align_files`), NOT string-shape
-guessing — an earlier version regex-truncated any tag at its first internal underscore, which
-accidentally (and inconsistently) folded ind_ags/ind_ayt into "ind" while leaving indala/indshv/indtsi
-as three phantom extra "languages", since only the former happen to contain an underscore.
+Edition grouping: every language in `lexeme-alignments/manifest.json` already POOLS its own editions
+into one partition (the `base_text` column) — so, unlike the pre-2026-07 implementation (which had to
+re-derive per-tag groups from raw alignment jsonl to avoid double-weighting a multi-edition language),
+each published ISO here already IS one deduplicated language group, no extra grouping step needed. The
+one thing this simplification drops: near-duplicate DIALECT variants published as separate bare isos
+(e.g. `ind` vs `indala`/`indshv`/`indtsi`) are no longer collapsed into one group — a minor precision
+loss, acceptable against the much bigger win below.
 
-    python3 -m lexeme_aligner.cross_lang_prior --out resources/cross_lang_prior/profile.json
+SOURCED FROM `lexeme-alignments` + `aligned_mwe` (both small, persisted, always-available published
+datasets), NOT raw `out/` alignment jsonl (2026-07 rework). The original implementation needed every
+language's raw per-verse jsonl simultaneously to compute this — but `out/` is deliberately transient
+(cleaned per-language once a language's own chain finishes), so a language's contribution to this
+profile would silently vanish the moment its jsonl was cleaned, even though its published data still
+exists. Re-sourcing decouples the recompute from `out/`'s lifecycle entirely — it can now run any time,
+not just in the narrow window before a cleanup sweep:
+  - `lexeme-alignments/iso=<iso>/data.parquet` gives (surface, lexeme, count) — summed per lexeme, this
+    is the occurrence TOTAL (denominator) and, via `surface.split()`'s word count, the raw span-length
+    signal (though `lexeme-alignments`' multi-word surfaces are NOT guaranteed contiguous — see its own
+    docs — so the union alone would inherit that noise).
+  - `aligned_mwe/iso=<iso>/data.parquet` gives (lexeme, phrase, n_words, count) for CONFIRMED CONTIGUOUS
+    multi-word spans only (`t_idx` contiguity already verified when that dataset was built) — the exact
+    noise filter the original implementation never had (it counted `len(t_idx)` directly, contiguous or
+    not). So `multiword_rate` = aligned_mwe's confirmed count ÷ lexeme-alignments' total count per
+    lexeme — arguably MORE accurate than before, not just a workaround.
+Caveat: `aligned_mwe` currently only covers each language's PRIMARY edition (no pooling), while
+`lexeme-alignments`' denominator pools every edition — for a multi-edition language this can slightly
+UNDER-estimate multiword_rate (the numerator doesn't see every edition the denominator does).
+
+    python3 -m lexeme_aligner.cross_lang_prior --out publish/cross-lingual-span-profile/profile.json
 """
 from __future__ import annotations
 
@@ -32,130 +50,136 @@ import json
 import sys
 from pathlib import Path
 
-from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import LEX_ROOT
-from lexeme_aligner.gapfill_batch import discover_tags
-from lexeme_aligner.run_pilot import _HI_METHODS
 
-_OUT_DIR = Path("pipeline/work/out")
+_MWE_ROOT = Path("publish/aligned_mwe")
 _DEFAULT_OUT = Path("publish/cross-lingual-span-profile/profile.json")
-_METHODS = ("eflomal", "gloss")
 _MIN_LANGS = 2                            # a profile entry needs ≥2 independent languages to be usable
+_MIN_DOM_OCC = 5                          # min occurrences before a language's dominance counts (light lexemes)
 
 
-def _hi(method: str, score: float) -> bool:
-    return (method in _HI_METHODS
-            or (method == "stat" and score >= 0.3)
-            or (method == "eflomal" and score >= 0.9)
-            or (method == "gapfill" and score >= 0.9))
-
-
-def _tags_by_group(out_dir: Path) -> dict[str, list[str]]:
-    """{primary_iso: [tag, ...]} for every published language with align output on disk."""
-    manifest_fp = LEX_ROOT / "manifest.json"
-    if not manifest_fp.exists():
+def _load_lex_counts(iso: str, lex_root: Path) -> dict[str, dict[str, int]]:
+    """lexeme -> {surface: total_count}, summed across every method/base_text already unioned into
+    this iso's published partition."""
+    fp = lex_root / f"iso={iso}" / "data.parquet"
+    if not fp.exists():
         return {}
-    manifest = json.loads(manifest_fp.read_text(encoding="utf-8"))
-    groups: dict[str, list[str]] = {}
-    for iso in sorted(manifest["languages"]):
-        tags = [t for t, _ in discover_tags(iso) if any(tag_files(out_dir, m, t) for m in _METHODS)]
-        if tags:
-            groups[iso] = tags
-    return groups
+    import pyarrow.parquet as pq
+    counts: dict[str, dict[str, int]] = collections.defaultdict(lambda: collections.defaultdict(int))
+    for r in pq.read_table(fp, columns=["surface", "lexeme", "count"]).to_pylist():
+        counts[r["lexeme"]][r["surface"]] += r["count"]
+    return counts
 
 
-def _scan_alignments(out_dir: Path):
-    """Single pass over all eflomal+gloss jsonl: collect per-lexeme, per-language-group data
-    for both the span profile (#1) and the source-scatter profile (lexeme filter for gloss)."""
-    groups = _tags_by_group(out_dir)
-    per_lex_lang_spans: dict[str, dict[str, list]] = collections.defaultdict(lambda: collections.defaultdict(list))
-    per_lex_lang_surfs: dict[str, dict[str, collections.Counter]] = collections.defaultdict(
-        lambda: collections.defaultdict(collections.Counter))
-    for grp, tags in groups.items():
-        for tag in tags:
-            for m in _METHODS:
-                for fp in tag_files(out_dir, m, tag):
-                    with fp.open(encoding="utf-8") as fh:
-                        for line in fh:
-                            rec = json.loads(line)
-                            for p in rec["pairs"]:
-                                if not (p.get("content") and p.get("lexeme") and p.get("t_idx")
-                                        and _hi(p.get("method", ""), p.get("score") or 0)):
-                                    continue
-                                lex = p["lexeme"]
-                                per_lex_lang_spans[lex][grp].append(len(p["t_idx"]))
-                                surface = (p.get("target") or "").lower().strip()
-                                if surface:
-                                    per_lex_lang_surfs[lex][grp][surface] += 1
-    return per_lex_lang_spans, per_lex_lang_surfs
+def _load_mwe_counts(iso: str, mwe_root: Path) -> dict[str, list[tuple[int, int]]]:
+    """lexeme -> [(n_words, count), ...] for this iso's confirmed-contiguous multi-word phrases."""
+    fp = mwe_root / f"iso={iso}" / "data.parquet"
+    if not fp.exists():
+        return {}
+    import pyarrow.parquet as pq
+    out: dict[str, list[tuple[int, int]]] = collections.defaultdict(list)
+    for r in pq.read_table(fp, columns=["lexeme", "n_words", "count"]).to_pylist():
+        out[r["lexeme"]].append((r["n_words"], r["count"]))
+    return out
 
 
-def _build_profile_from(per_lex_lang_spans: dict, min_langs: int = _MIN_LANGS) -> dict:
-    profile = {}
-    for lexeme, by_lang in per_lex_lang_spans.items():
-        langs = [g for g, spans in by_lang.items() if spans]
-        if len(langs) < min_langs:
+def _lang_stats(lex_counts: dict, mwe_counts: dict) -> dict[str, dict]:
+    """One language's per-lexeme stats: total occurrences, span_mean, multiword_rate, and target
+    dominance (for the light-lexeme filter) — everything both profiles need, in one pass."""
+    stats = {}
+    for lexeme, surf_counts in lex_counts.items():
+        total = sum(surf_counts.values())
+        if total <= 0:
             continue
-        lang_means = []
-        lang_multi = []
-        n_occ = 0
-        for g in langs:
-            spans = by_lang[g]
-            n_occ += len(spans)
-            lang_means.append(sum(spans) / len(spans))
-            lang_multi.append(sum(1 for s in spans if s > 1) / len(spans))
+        mwe = mwe_counts.get(lexeme, [])
+        mwe_total = min(sum(c for _, c in mwe), total)   # clip — different provenance basis can drift
+        span_weighted = sum(n * c for n, c in mwe) + (total - mwe_total) * 1
+        stats[lexeme] = {
+            "total": total,
+            "span_mean": span_weighted / total,
+            "multiword_rate": mwe_total / total,
+            "dominance": max(surf_counts.values()) / total,
+        }
+    return stats
+
+
+def _scan_published(lex_root: Path = LEX_ROOT, mwe_root: Path = _MWE_ROOT):
+    """Single pass over every published language's local parquet: per-lexeme, per-language stats
+    for both the span profile (#1) and the source-scatter/light-lexeme profile.
+
+    A language with NO aligned_mwe file contributes to `per_lex_lang_dom` (dominance needs only
+    lexeme-alignments) but is EXCLUDED from `per_lex_lang_span` entirely — absence of aligned_mwe data
+    means "unknown whether this lexeme is multi-word here", not "confirmed always single-word". Silently
+    defaulting it to 0 would systematically drag multiword_rate down for every lexeme by counting every
+    aligned_mwe-less language (736 of 999, as of 2026-07) as false negative evidence."""
+    manifest_fp = lex_root / "manifest.json"
+    isos = sorted(json.loads(manifest_fp.read_text(encoding="utf-8"))["languages"]) if manifest_fp.exists() else []
+    per_lex_lang_span: dict[str, dict[str, tuple]] = collections.defaultdict(dict)
+    per_lex_lang_dom: dict[str, dict[str, float]] = collections.defaultdict(dict)
+    for iso in isos:
+        lex_counts = _load_lex_counts(iso, lex_root)
+        if not lex_counts:
+            continue
+        has_mwe = (mwe_root / f"iso={iso}" / "data.parquet").exists()
+        mwe_counts = _load_mwe_counts(iso, mwe_root) if has_mwe else {}
+        for lexeme, s in _lang_stats(lex_counts, mwe_counts).items():
+            if has_mwe:
+                per_lex_lang_span[lexeme][iso] = (s["span_mean"], s["multiword_rate"])
+            if s["total"] >= _MIN_DOM_OCC:
+                per_lex_lang_dom[lexeme][iso] = s["dominance"]
+    return per_lex_lang_span, per_lex_lang_dom
+
+
+def _build_profile_from(per_lex_lang_span: dict, min_langs: int = _MIN_LANGS) -> dict:
+    profile = {}
+    for lexeme, by_lang in per_lex_lang_span.items():
+        if len(by_lang) < min_langs:
+            continue
+        means = [v[0] for v in by_lang.values()]
+        multi = [v[1] for v in by_lang.values()]
         profile[lexeme] = {
-            "n_langs": len(langs),
-            "n_occ": n_occ,
-            "span_mean": round(sum(lang_means) / len(lang_means), 3),
-            "multiword_rate": round(sum(lang_multi) / len(lang_multi), 3),
+            "n_langs": len(by_lang),
+            "span_mean": round(sum(means) / len(means), 3),
+            "multiword_rate": round(sum(multi) / len(multi), 3),
         }
     return profile
 
 
-def build_profile(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS) -> dict:
-    """{lexeme: {n_langs, n_occ, span_mean, multiword_rate}} — per-language stats averaged EQUALLY
-    across language groups (so a 2-edition language doesn't out-vote a 1-edition one)."""
-    per_lex_lang_spans, _ = _scan_alignments(out_dir)
-    return _build_profile_from(per_lex_lang_spans, min_langs)
+def build_profile(lex_root: Path = LEX_ROOT, mwe_root: Path = _MWE_ROOT, min_langs: int = _MIN_LANGS) -> dict:
+    """{lexeme: {n_langs, span_mean, multiword_rate}} — per-language stats averaged EQUALLY across
+    languages (so a language with more published editions doesn't out-vote one with fewer)."""
+    per_lex_lang_span, _ = _scan_published(lex_root, mwe_root)
+    return _build_profile_from(per_lex_lang_span, min_langs)
 
 
 _DEFAULT_LIGHT_FLOOR = 0.30       # avg target dominance below this → "light" (semantically general)
 
 
-def _build_light_lexemes_from(per_lex_lang_surfs: dict, min_langs: int = _MIN_LANGS,
+def _build_light_lexemes_from(per_lex_lang_dom: dict, min_langs: int = _MIN_LANGS,
                               dominance_floor: float = _DEFAULT_LIGHT_FLOOR) -> dict:
     light = {}
-    for lexeme, by_lang in per_lex_lang_surfs.items():
-        langs = [g for g, counts in by_lang.items() if sum(counts.values()) >= 5]
-        if len(langs) < min_langs:
+    for lexeme, by_lang in per_lex_lang_dom.items():
+        if len(by_lang) < min_langs:
             continue
-        lang_doms = []
-        for g in langs:
-            counts = by_lang[g]
-            total = sum(counts.values())
-            top_n = counts.most_common(1)[0][1]
-            lang_doms.append(top_n / total)
-        avg_dom = sum(lang_doms) / len(lang_doms)
+        avg_dom = sum(by_lang.values()) / len(by_lang)
         if avg_dom < dominance_floor:
             light[lexeme] = round(avg_dom, 4)
     return light
 
 
-def build_light_lexemes(out_dir: Path = _OUT_DIR, min_langs: int = _MIN_LANGS,
+def build_light_lexemes(lex_root: Path = LEX_ROOT, mwe_root: Path = _MWE_ROOT, min_langs: int = _MIN_LANGS,
                         dominance_floor: float = _DEFAULT_LIGHT_FLOOR) -> dict:
     """Light-lexeme profile: {lexeme: avg_target_dominance} for semantically general source
-    lexemes whose average target-side dominance (across language groups) is BELOW `dominance_floor`.
+    lexemes whose average target-side dominance (across languages) is BELOW `dominance_floor`.
     These are light verbs (בּוֹא/come, ποιέω/do, δίδωμι/give), generic nouns (אִישׁ/man), and
     similar lexemes where no target language has a stable one-to-one rendering — a type-level
     dictionary entry is fundamentally wrong, so gloss tags them (kept but excluded from merge
     votes) and gap-fill gets a chance to attempt them with contextual priors.
 
-    Computed from the same multi-language eflomal+gloss data as the span profile (#1), with
-    the same edition-deduplication (per language group, then averaged equally). Gets more
-    reliable as more languages are aligned — the signal is source-anchored and universal."""
-    _, per_lex_lang_surfs = _scan_alignments(out_dir)
-    return _build_light_lexemes_from(per_lex_lang_surfs, min_langs, dominance_floor)
+    Sourced from the same published lexeme-alignments data as the span profile (#1). Gets more
+    reliable as more languages are published — the signal is source-anchored and universal."""
+    _, per_lex_lang_dom = _scan_published(lex_root, mwe_root)
+    return _build_light_lexemes_from(per_lex_lang_dom, min_langs, dominance_floor)
 
 
 _CARD = """---
@@ -187,7 +211,8 @@ aligned (see the lexeme-aligner's `cross_lang_prior.py`).
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out-dir", type=Path, default=_OUT_DIR, help="dir with align_<method>_<iso>_*.jsonl")
+    ap.add_argument("--lex-root", type=Path, default=LEX_ROOT, help="published lexeme-alignments root")
+    ap.add_argument("--mwe-root", type=Path, default=_MWE_ROOT, help="published aligned_mwe root")
     ap.add_argument("--min-langs", type=int, default=_MIN_LANGS)
     ap.add_argument("--out", type=Path, default=_DEFAULT_OUT)
     ap.add_argument("--publish", metavar="REPO_ID", default=None, help="HF dataset repo to push to")
@@ -195,9 +220,9 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    per_lex_lang_spans, per_lex_lang_surfs = _scan_alignments(args.out_dir)
+    per_lex_lang_span, per_lex_lang_dom = _scan_published(args.lex_root, args.mwe_root)
 
-    profile = _build_profile_from(per_lex_lang_spans, args.min_langs)
+    profile = _build_profile_from(per_lex_lang_span, args.min_langs)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(profile, sort_keys=True, ensure_ascii=False, indent=1) + "\n",
                         encoding="utf-8")
@@ -206,7 +231,7 @@ def main() -> int:
           f"  most multi-word across languages: "
           f"{[(lx, r['multiword_rate'], r['n_langs']) for lx, r in multiword]}", file=sys.stderr)
 
-    light = _build_light_lexemes_from(per_lex_lang_surfs, args.min_langs)
+    light = _build_light_lexemes_from(per_lex_lang_dom, args.min_langs)
     light_path = args.out.parent / "light_lexemes.json"
     light_path.write_text(json.dumps(light, sort_keys=True, ensure_ascii=False, indent=1) + "\n",
                           encoding="utf-8")

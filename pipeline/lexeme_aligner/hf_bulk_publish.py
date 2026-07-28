@@ -50,19 +50,26 @@ def _retry_transient(fn, what: str, attempts: int = 3, base_delay: float = 3.0):
 
 
 def publish_chunked(root: Path, repo_id: str, files: list[str], create: bool, dry_run: bool,
-                    chunk_size: int = 500, label: str = "dataset") -> None:
+                    chunk_size: int = 500, label: str = "dataset", detect_deletions: bool = True) -> None:
     """Push `files` (paths relative to `root`) to a HF dataset repo, in `chunk_size`-op commits.
     `.publish_state.json` (local, git-ignored, one per dataset root) caches the sha256 last successfully
     pushed per (repo, path) — a re-run only pushes what actually changed, and resumes after an
     interruption instead of re-uploading everything (state is saved after EVERY chunk succeeds, not just
     at the end, so a crash mid-run loses at most one chunk's progress).
 
-    ALSO deletes: any path this function has previously pushed (per `.publish_state.json`) that is no
-    longer in `files` gets a `CommitOperationDelete` — otherwise a locally-removed file (e.g. a format
-    redesign that drops a file kind) stays live on HF forever, since `CommitOperationAdd` alone only
-    ever adds/updates, never removes. Only paths THIS function put there are ever candidates for
-    deletion — anything HF added itself (`.gitattributes`) or that was never in the state cache is left
-    alone, so this can't accidentally delete something outside its own bookkeeping."""
+    ALSO deletes (when `detect_deletions=True`, the default): any path this function has previously
+    pushed (per `.publish_state.json`) that is no longer in `files` gets a `CommitOperationDelete` —
+    otherwise a locally-removed file (e.g. a format redesign that drops a file kind) stays live on HF
+    forever, since `CommitOperationAdd` alone only ever adds/updates, never removes. Only paths THIS
+    function put there are ever candidates for deletion — anything HF added itself (`.gitattributes`)
+    or that was never in the state cache is left alone, so this can't accidentally delete something
+    outside its own bookkeeping.
+
+    Pass `detect_deletions=False` when `files` is a DELIBERATE PARTIAL SCOPE (e.g. one language out of
+    a whole catalog) rather than the full current state of `root` — otherwise every other language's
+    already-published files (present in `.publish_state.json` but absent from this call's `files`,
+    simply because they weren't part of this scoped call) would be misread as locally-removed and
+    queued for deletion on HF."""
     print(f"[publish] {len(files)} file(s) under {root} → dataset '{repo_id}'", file=sys.stderr)
     if dry_run:
         print("[publish] dry-run — nothing pushed", file=sys.stderr)
@@ -90,7 +97,7 @@ def publish_chunked(root: Path, repo_id: str, files: list[str], create: bool, dr
     current = set(files)
     digests = {rel: _sha256_file(root / rel) for rel in files}
     changed = [rel for rel in files if repo_state.get(rel) != digests[rel]]
-    stale = sorted(rel for rel in repo_state if rel not in current)
+    stale = sorted(rel for rel in repo_state if rel not in current) if detect_deletions else []
     skipped = len(files) - len(changed)
     if not changed and not stale:
         print(f"[publish] 0 file(s) changed, 0 removed ({skipped} unchanged, cache-skipped) — no commit "

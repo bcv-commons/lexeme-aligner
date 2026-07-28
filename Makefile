@@ -135,6 +135,8 @@ publish-span-profile:
 	$(LOAD_ENV)
 	$(PY) -m lexeme_aligner.cross_lang_prior --publish bcv-commons/cross-lingual-span-profile --create
 
+# cross-lingual-span-profile is now sourced from lexeme-alignments+aligned_mwe (both persisted local
+# datasets, not transient out/), so it's no longer timing-sensitive — safe to fold in as the last step.
 publish-all:
 	$(LOAD_ENV)
 	$(PY) -m lexeme_aligner.export_lex --publish-all bcv-commons/lexeme-alignments --create
@@ -143,3 +145,4 @@ publish-all:
 	$(PY) -m lexeme_aligner.compact_align_batch --skip-generate --publish-hf bcv-commons/compact-alignments --create
 	$(PY) -m lexeme_aligner.export_stopwords --publish bcv-commons/target-stopwords --create
 	$(PY) -m lexeme_aligner.export_morph --publish bcv-commons/target-morphology --create
+	$(MAKE) publish-span-profile

@@ -15,6 +15,14 @@ editions per language, so this driver just needs to call it once per data-bearin
 a SEPARATE, deliberate step, same as every other dataset here. Uses `hf_bulk_publish.publish_chunked`
 (shared with any other dataset here that needs a many-file bulk push, not just export_lex.py's smaller
 one-language-at-a-time case).
+
+`--iso` ALSO scopes the publish step (not just generation): `--iso dan --publish-hf ...` pushes only
+Danish's own files (+ the small shared manifest/README/_index), never the whole accumulated local tree
+— safe even if `root` already holds a large backlog of other languages' locally-generated-but-not-yet-
+published content. Omit `--iso` for a full-catalog publish (and note deletion-detection only runs in
+that full-catalog case — a scoped push can never accidentally queue unrelated languages for removal).
+`--skip-generate --iso dan --publish-hf ...` pushes only what's already on disk for Danish, with no
+regeneration at all.
 """
 from __future__ import annotations
 
@@ -35,14 +43,35 @@ def _run(cmd: list, label: str) -> bool:
     return result.returncode == 0
 
 
-def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 500) -> None:
+def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 100,
+                  isos: list[str] | None = None) -> None:
     """Every publishable file under `root` (README.md, manifest.json, _index/*.json, and every
     <iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json — everything except the local `.publish_state.json`
-    cache itself)."""
-    all_files = sorted(
-        str(fp.relative_to(root)) for fp in root.rglob("*.json")
-    ) + (["README.md"] if (root / "README.md").exists() else [])
-    publish_chunked(root, repo_id, all_files, create, dry_run, chunk_size, label="compact-alignments")
+    cache itself). With `isos` given, restricts to those languages' own <iso[0]>/<iso>/ subtrees plus
+    the shared/global files (manifest.json, README.md, _index/*.json — always included since they're
+    small and the sha-diff in publish_chunked skips them if unchanged anyway) — this is what makes
+    e.g. `--iso dan --publish-hf ...` push ONLY Danish instead of the entire accumulated local
+    backlog for every other language that happens to already be sitting under `root`."""
+    global_files = sorted(
+        str(fp.relative_to(root)) for fp in root.glob("_index/*.json")
+    ) + (["manifest.json"] if (root / "manifest.json").exists() else []) \
+      + (["README.md"] if (root / "README.md").exists() else [])
+    if isos is None:
+        lang_files = sorted(
+            str(fp.relative_to(root)) for fp in root.rglob("*.json")
+            if fp.relative_to(root).parts[0] != "_index" and fp.name != "manifest.json"
+        )
+    else:
+        lang_files = sorted(
+            str(fp.relative_to(root)) for iso in isos
+            for fp in (root / iso[0] / iso).rglob("*.json")
+        )
+    all_files = sorted(set(global_files) | set(lang_files))
+    # a scoped --iso push is a DELIBERATE PARTIAL view of root, not "this is now the whole catalog" —
+    # detect_deletions=False so the rest of the catalog's already-published files (correctly absent
+    # from this call's all_files) never get misread as locally-removed and queued for HF deletion.
+    publish_chunked(root, repo_id, all_files, create, dry_run, chunk_size, label="compact-alignments",
+                    detect_deletions=(isos is None))
 
 
 def main() -> int:
@@ -61,9 +90,16 @@ def main() -> int:
                     help="HF dataset repo to push the local tree to, e.g. bcv-commons/compact-alignments "
                          "— a separate, deliberate step; omit to generate locally only")
     ap.add_argument("--create", action="store_true", help="create the HF dataset repo if missing")
-    ap.add_argument("--chunk-size", type=int, default=500,
-                    help="files per HF commit (HF's 128/hour commit-rate limit is PER COMMIT, not per file)")
+    ap.add_argument("--chunk-size", type=int, default=100,
+                    help="files per HF commit (HF's 128/hour commit-rate limit is PER COMMIT, not per "
+                         "file — 100 chosen empirically; 500 was observed to time out more often on "
+                         "this dataset's larger per-file payloads)")
     args = ap.parse_args()
+
+    # for the PUBLISH step's scoping: None = full catalog (no --iso given), else the exact requested
+    # subset — independent of --skip-generate, so `--iso dan --skip-generate --publish-hf ...` (push
+    # only what's already generated for one language) still works without re-running generation
+    pub_isos = [i.strip() for i in args.iso.split(",")] if args.iso else None
 
     failed = []
     if not args.skip_generate:
@@ -104,7 +140,7 @@ def main() -> int:
             print(f"[compact_align_batch] FAILED: {failed}", file=sys.stderr)
 
     if args.publish_hf and not args.local_only:
-        publish_to_hf(args.publish, args.publish_hf, args.create, args.dry_run, args.chunk_size)
+        publish_to_hf(args.publish, args.publish_hf, args.create, args.dry_run, args.chunk_size, pub_isos)
     elif not args.publish_hf:
         print("[compact_align_batch] nothing published to HF (no --publish-hf) — "
               "that's still a separate, deliberate step.", file=sys.stderr)

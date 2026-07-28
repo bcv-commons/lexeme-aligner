@@ -98,8 +98,10 @@ def _usj_dir_overrides() -> dict[str, str]:
     if _LEGACY_TAGS_PATH.exists():
         legacy = json.loads(_LEGACY_TAGS_PATH.read_text(encoding="utf-8"))["isos"]
         for iso, edition_code in legacy.items():
-            # same slugify _tag() uses for non-primary editions — NOT a call to _tag() itself, which
-            # (as of writing) still grandfathers these isos back to the bare iso for is_primary=True.
+            # same slugify _tag() itself now does unconditionally (is_primary stopped affecting its
+            # output on 2026-07-25 — see _tag()'s docstring). Inlined rather than calling _tag()
+            # anyway, since this loop is slugifying a RECORDED historical edition_code from the
+            # legacy table, not a live catalog lookup — no _tag() call to make either way.
             new_tag = "".join(c if c.isalnum() else "_" for c in edition_code.lower())
             if new_tag not in overrides:            # manual overrides win (hau's real dir isn't usj-hau_bib)
                 overrides[new_tag] = f"usj-{iso}"

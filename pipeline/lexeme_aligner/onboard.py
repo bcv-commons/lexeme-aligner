@@ -120,33 +120,57 @@ def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_C
         if v.get("same_text_as") is not None:
             points_at.setdefault(own_key, v["same_text_as"])
 
-    # Second pass: a grouped record's `same_text_as` points at another SOURCE's id — only the
-    # canonical record itself carries a source/param pair that's actually consistent with its own
-    # key. Inserting a non-canonical record first would wrongly pair its OWN param (a helloAO
-    # translation id) with the CANONICAL key's source (pkf) — e.g. calling cdn_source --iso ind_obo,
-    # which doesn't exist on PKF. So: canonical records populate `seen` first; non-canonical ones
-    # only fill a gap if the group's canonical record never showed up in either testament.
-    seen: dict[str, dict] = {}
-    deferred: dict[str, dict] = {}
-    # key -> every (likely, closest_key) seen across BOTH testaments — NT and OT can disagree (e.g.
-    # NT says distinct_translation, OT says dialect_variant, for the very same edition pair; live-
-    # verified on ind's ind_ayt/INDASV) — _drop_near_duplicates() treats a pair as redundant if
-    # EITHER testament flagged it (caution: a real similarity showed up somewhere, even if not
-    # corroborated on both sides).
+    # Second pass: every record's own_key is grouped into its catalog "same text" family — the family
+    # id is whichever own_key it `points_at` (the group's designated-default id), or itself if it
+    # doesn't point anywhere. `classification` (for _drop_near_duplicates, a SEPARATE mechanism for
+    # near-duplicate REVISIONS rather than literally-the-same-text groups) is collected per own_key
+    # across BOTH testaments — NT and OT can disagree (e.g. NT says distinct_translation, OT says
+    # dialect_variant, for the very same edition pair; live-verified on ind's ind_ayt/INDASV) —
+    # _drop_near_duplicates() treats a pair as redundant if EITHER testament flagged it (caution: a
+    # real similarity showed up somewhere, even if not corroborated on both sides).
+    all_own_keys: dict[str, dict] = {}
     classification: dict[str, list[tuple[str, str]]] = {}
     for v in records:
         own_key = f"{v['source']}:{v['edition_code']}"
-        if own_key not in points_at:
-            seen.setdefault(own_key, {"source": v["source"], "param": v["param"],
-                                      "edition_code": v["edition_code"]})
-        else:
-            deferred.setdefault(points_at[own_key], v)
+        all_own_keys.setdefault(own_key, v)
         if v.get("likely"):
             classification.setdefault(own_key, []).append((v["likely"], v.get("closest")))
-    for key, v in deferred.items():
-        if key not in seen:
-            src, code = key.split(":", 1)
-            seen[key] = {"source": src, "param": v["param"] or code, "edition_code": code}
+
+    def _family_root(own_key: str) -> str:
+        # follow the points_at chain to its ultimate root — NOT always a single hop: live case, hch's
+        # dbt:HCHWYI -> helloao:hch_wb2 -> pkf:HCHPKF (hch_wb2 is itself a non-canonical member of a
+        # SEPARATE, further group headed by the PKF edition). `seen` guards against a malformed/
+        # circular catalog entry looping forever.
+        visited = set()
+        cur = own_key
+        while cur in points_at and cur not in visited:
+            visited.add(cur)
+            cur = points_at[cur]
+        return cur
+
+    families: dict[str, list[str]] = {}
+    for own_key in all_own_keys:
+        families.setdefault(_family_root(own_key), []).append(own_key)
+
+    # Pick the CANONICAL member of each family by OUR source priority (PKF > helloAO > DBT — see
+    # catalog_source.PRIORITY), not by blindly trusting the catalog's own designated-default id: the
+    # catalog's classification tells us WHICH records are the same text, not which one we should treat
+    # as authoritative to align against. This also subsumes the old "deferred" fallback (a family whose
+    # designated-default id was never independently observed in either testament still resolves fine —
+    # _priority_pick just runs over whichever members WERE observed) and improves on it: the old
+    # fallback took the first-encountered member arbitrarily; this takes the highest-priority one.
+    def _priority_pick(members: list[str]) -> str:
+        for src in PRIORITY:
+            for ok in members:
+                if all_own_keys[ok]["source"] == src:
+                    return ok
+        return members[0]
+
+    seen: dict[str, dict] = {}
+    for family_id, members in families.items():
+        canonical = _priority_pick(members)
+        rec = all_own_keys[canonical]
+        seen[canonical] = {"source": rec["source"], "param": rec["param"], "edition_code": rec["edition_code"]}
     return _drop_near_duplicates(seen, classification)
 
 
@@ -164,12 +188,15 @@ def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[
     ends are present in `seen` (an edition classified against something we don't have, e.g. a dead
     edition removed from the catalog, is never dropped on that basis alone).
 
-    When a pair spans sources, prefer keeping the NON-dbt side. DBT has repeatedly shown data-quality
+    When a pair spans sources, keep the higher-PRIORITY side (PKF > helloAO > DBT — see
+    catalog_source.PRIORITY), not just "prefer non-dbt": DBT has repeatedly shown data-quality
     issues this session that pkf/helloAO haven't (dead bible_ids — FRALSG, BENBIB; video-only
     editions masquerading as text bibles — PTGLPF, MALBIB; wrong fileset types). Live case that
     proved this matters: mal's `MALBIB` (video-only, dead) is the catalog's own designated "closest"
     reference for `helloao:mal_bib` (genuinely fetchable) — blindly keeping whichever side the
-    classification data happened to point at would keep the dead one and drop the working one."""
+    classification data happened to point at would keep the dead one and drop the working one.
+    Within the same priority tier (e.g. pkf vs pkf, or two DBT filesets), the pick is an arbitrary
+    but deterministic tiebreak (sorted key order) — there's no source-based signal left to use."""
     dropped: set[str] = set()
     for key in sorted(classification):
         if key in dropped or key not in seen:
@@ -181,13 +208,13 @@ def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[
         if verdict is None:
             continue
         _, closest = verdict
-        key_is_dbt, closest_is_dbt = seen[key]["source"] == "dbt", seen[closest]["source"] == "dbt"
-        if key_is_dbt and not closest_is_dbt:
-            dropped.add(key)
-        elif closest_is_dbt and not key_is_dbt:
+        key_rank = PRIORITY.index(seen[key]["source"]) if seen[key]["source"] in PRIORITY else len(PRIORITY)
+        closest_rank = (PRIORITY.index(seen[closest]["source"]) if seen[closest]["source"] in PRIORITY
+                        else len(PRIORITY))
+        if key_rank < closest_rank:
             dropped.add(closest)
         else:
-            dropped.add(key)   # same source class either way — deterministic default: drop `key`
+            dropped.add(key)   # key_rank >= closest_rank — including the same-tier tiebreak
     return [v for k, v in seen.items() if k not in dropped]
 
 
@@ -260,12 +287,18 @@ def main() -> int:
 
     # pass 1: ingest every edition first (writes each pin) — the derived language name (below) needs
     # ALL pins read back before any alignment runs, since --lang-name feeds gloss's GlossPriors lookup.
-    # The PRIMARY edition failing aborts the language (no sensible anchor fallback); a POOLED
-    # edition failing is logged and skipped — the rest of the language still onboards.
+    # No edition is treated as a mandatory anchor — the catalog's list order carries no quality signal
+    # (it's just discovery/scan order), so a language onboards fine as long as AT LEAST ONE edition
+    # produces usable data; every edition failing/ingesting-empty is logged and skipped individually,
+    # and only aborts the whole language if NONE of them came through (see the `if not tags` check
+    # after the loop). This used to hard-abort on edition #0 specifically ("the primary edition") —
+    # that was a real bug: the catalog can reorder which edition it lists first between runs (e.g. a
+    # newly-added candidate edition with no local cache yet), which would abort an otherwise-healthy
+    # multi-edition language purely because of list position, even while a perfectly good already-
+    # cached edition sat right there as a "pooled" (non-first) entry.
     tags, pins, sources_by_tag, usj_dirs, skipped = [], {}, {}, {}, []
-    for i, ed in enumerate(editions):
-        is_primary = (i == 0)
-        tag = _tag(args.iso, ed["edition_code"], is_primary=is_primary)
+    for ed in editions:
+        tag = _tag(args.iso, ed["edition_code"], is_primary=False)
         usj = Path(f"pipeline/work/ingest-cache/usj-{tag}")
         pin = _pin_path(tag)
 
@@ -278,9 +311,7 @@ def main() -> int:
                              "--to-usj", usj, "--pin", pin] if ed["source"] == "dbt" else None)
             if ingest_args is None:
                 raise SystemExit(f"[onboard] unknown source '{ed['source']}' for edition {ed}")
-            if is_primary:
-                _run(*ingest_args, env=env)   # raises + aborts on failure
-            elif not _run_soft(*ingest_args, env=env):
+            if not _run_soft(*ingest_args, env=env):
                 skipped.append(ed["edition_code"])
                 continue
 
@@ -290,10 +321,6 @@ def main() -> int:
         # here explicitly rather than silently carrying an empty tag forward into alignment, where it
         # would fail even more confusingly at the eflomal/gloss/export stage.
         if not any(usj.glob("*.json")):
-            if is_primary:
-                raise SystemExit(f"[onboard] '{args.iso}': primary edition '{ed['edition_code']}' "
-                                  f"ingested with no error but produced ZERO usable books at {usj} — "
-                                  f"aborting (no sensible anchor fallback)")
             print(f"[onboard] '{ed['edition_code']}': ingested with no error but produced ZERO "
                   f"usable books at {usj} — skipping this pooled edition", file=sys.stderr)
             skipped.append(ed["edition_code"])
@@ -307,6 +334,9 @@ def main() -> int:
     if skipped:
         print(f"[onboard] skipped {len(skipped)} pooled edition(s) that failed to ingest: "
               f"{', '.join(skipped)}", file=sys.stderr)
+    if not tags:
+        raise SystemExit(f"[onboard] '{args.iso}': ALL {len(editions)} edition(s) failed to ingest or "
+                          f"produced zero usable books — nothing to align (no sensible anchor fallback)")
 
     lang_name = derive_lang_name(sources_by_tag, pins)
     if lang_name and args.lang_name and lang_name.strip().lower() != args.lang_name.strip().lower():

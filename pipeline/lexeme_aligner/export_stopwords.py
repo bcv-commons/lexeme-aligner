@@ -18,6 +18,7 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner.config import HF_CHUNK_SIZE
 from lexeme_aligner.hf_bulk_publish import publish_chunked
 
 _SW_DIR = Path("publish/target-stopwords")
@@ -68,7 +69,8 @@ def main() -> int:
     ap.add_argument("--sw-dir", type=Path, default=_SW_DIR)
     ap.add_argument("--publish", metavar="REPO_ID", default=None, help="HF dataset repo to push to")
     ap.add_argument("--create", action="store_true", help="create the HF dataset repo if missing")
-    ap.add_argument("--chunk-size", type=int, default=100, help="files per HF commit, with --publish")
+    ap.add_argument("--chunk-size", type=int, default=HF_CHUNK_SIZE,
+                    help="files per HF commit, with --publish (default from ALIGNER_HF_CHUNK_SIZE)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 

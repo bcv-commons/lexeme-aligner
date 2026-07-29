@@ -40,7 +40,7 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
-from lexeme_aligner.config import LEX_ROOT, OUT, SPINE_DB
+from lexeme_aligner.config import HF_CHUNK_SIZE, LEX_ROOT, OUT, SPINE_DB
 
 SCHEMA = ["surface", "lexeme", "method", "base_text", "count", "hi_conf"]   # the PUBLISHED columns
 _HI_SCORE = 0.9   # eflomal intersection-backed link (both directions agree) — the reliable core
@@ -310,7 +310,8 @@ def update_manifest(path: Path, iso: str, entry: dict) -> None:
                     encoding="utf-8")
 
 
-def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 500) -> None:
+def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool,
+                      chunk_size: int = HF_CHUNK_SIZE) -> None:
     """Bulk-publish EVERY already-exported language partition + the shared manifest/README/companions in
     one chunked batch, instead of `publish_to_hf`'s one-commit-per-language loop — at full-catalog scale
     (199 languages) that loop alone would need up to 199 commits to ONE repo, comfortably over HF's
@@ -329,7 +330,8 @@ def main() -> int:
                     help="bulk-publish EVERY already-exported iso=*/data.parquet (+ shared manifest/"
                          "README/companions) to REPO_ID in chunked commits, instead of exporting one "
                          "language (ignores --iso and every other single-language flag below)")
-    ap.add_argument("--chunk-size", type=int, default=500, help="files per HF commit, with --publish-all")
+    ap.add_argument("--chunk-size", type=int, default=HF_CHUNK_SIZE,
+                    help="files per HF commit, with --publish-all (default from ALIGNER_HF_CHUNK_SIZE)")
     ap.add_argument("--iso", default="ind", help="primary edition TAG to read align_*.jsonl from — "
                     "the language's actual identity for a rename-tolerant publish is --publish-iso, below")
     ap.add_argument("--publish-iso", default=None,

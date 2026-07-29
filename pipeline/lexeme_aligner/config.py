@@ -10,6 +10,11 @@ config/pins), `pipeline/` (this package + vendor snapshots + transient `work/`).
   ALIGNER_HBO_DB     per-occurrence sense sidecar (occurrence: ref,lex,stem,sp,strong,gloss,sense,sense_conf) — optional
   ALIGNER_RESOURCES  dir holding gloss priors (word_glosses/, llm_strongs_glosses/, strongs_tw.tsv, tw_articles/) — optional
   ALIGNER_OUT        experiment output dir (gitignored)
+  ALIGNER_HF_CHUNK_SIZE  files per HF commit for every publish_chunked() call project-wide (default
+                     200 — HF's 128/hour-per-repo commit-rate limit means fewer, bigger commits go
+                     further, but very large chunks have been observed to time out on this
+                     connection; lower it, e.g. 100, if a publish run starts hitting a ReadTimeout/
+                     WriteTimeout — no code change needed, just re-run with the env var set)
 """
 from __future__ import annotations
 
@@ -35,3 +40,4 @@ LEX_ROOT = _p("ALIGNER_LEX_ROOT", _REPO_ROOT / "publish" / "lexeme-alignments") 
 # language-independent prior pack pulled from bcv-commons/prior-pack (HF, CC-BY) — feeds the recipes
 # (R1 keyness-filter, R2 sense-surface, R3 gap-map, LXX NT-gap). See internal-docs/aligner-handover.md.
 PRIOR_PACK = _p("ALIGNER_PRIOR_PACK", _PIPELINE / "vendor" / "prior-pack" / "prior_pack.parquet")
+HF_CHUNK_SIZE = int(os.environ.get("ALIGNER_HF_CHUNK_SIZE", "200"))  # files per HF commit, project-wide

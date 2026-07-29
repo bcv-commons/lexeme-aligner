@@ -9,7 +9,7 @@ recommends ("upload entire folders at once"). Different repos have INDEPENDENT r
 publishing several datasets to their own repos in the same session never competes for the same 128.
 
     from lexeme_aligner.hf_bulk_publish import publish_chunked
-    publish_chunked(root, repo_id, files, create=True, dry_run=False, chunk_size=500, label="my-dataset")
+    publish_chunked(root, repo_id, files, create=True, dry_run=False, label="my-dataset")
 """
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ import json
 import sys
 import time
 from pathlib import Path
+
+from lexeme_aligner.config import HF_CHUNK_SIZE
 
 
 def _sha256_file(fp: Path) -> str:
@@ -50,7 +52,8 @@ def _retry_transient(fn, what: str, attempts: int = 3, base_delay: float = 3.0):
 
 
 def publish_chunked(root: Path, repo_id: str, files: list[str], create: bool, dry_run: bool,
-                    chunk_size: int = 500, label: str = "dataset", detect_deletions: bool = True) -> None:
+                    chunk_size: int = HF_CHUNK_SIZE, label: str = "dataset",
+                    detect_deletions: bool = True) -> None:
     """Push `files` (paths relative to `root`) to a HF dataset repo, in `chunk_size`-op commits.
     `.publish_state.json` (local, git-ignored, one per dataset root) caches the sha256 last successfully
     pushed per (repo, path) — a re-run only pushes what actually changed, and resumes after an

@@ -28,14 +28,15 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import methods_present, tag_files, tag_files_any_method
-from lexeme_aligner.config import OUT
+from lexeme_aligner.config import HF_CHUNK_SIZE, OUT
 from lexeme_aligner.export_lex import publish_to_hf
 
 SCHEMA = ["lexeme", "strong", "phrase", "n_words", "count", "share", "contig"]
 _CANDIDATE_METHODS = ["eflomal", "gloss", "gapfill"]
 
 
-def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 500) -> None:
+def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool,
+                      chunk_size: int = HF_CHUNK_SIZE) -> None:
     """Bulk-publish EVERY already-exported language partition + manifest/README in one chunked batch —
     same pattern as export_lex.publish_all_to_hf. Assumes every partition already exists locally."""
     from lexeme_aligner.hf_bulk_publish import publish_chunked
@@ -144,7 +145,8 @@ def main() -> int:
     ap.add_argument("--publish-all", metavar="REPO_ID", default=None,
                     help="bulk-publish EVERY already-exported iso=*/data.parquet in one chunked batch, "
                          "instead of exporting one language")
-    ap.add_argument("--chunk-size", type=int, default=500, help="files per HF commit, with --publish-all")
+    ap.add_argument("--chunk-size", type=int, default=HF_CHUNK_SIZE,
+                    help="files per HF commit, with --publish-all (default from ALIGNER_HF_CHUNK_SIZE)")
     ap.add_argument("--iso", default="ind", help="the alignment TAG to read align_*.jsonl from")
     ap.add_argument("--publish-iso", default=None,
                     help="the bare published iso, when --iso is an edition TAG that differs from it "

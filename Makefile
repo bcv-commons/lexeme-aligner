@@ -18,6 +18,11 @@
 # cleans a language's own out/ jsonl automatically once ITS OWN chain finishes (steps 7/8/9 — aligned_mwe/
 # senses_attested/compact-alignments — always run first, so nothing is lost). No flag needed.
 #
+# HF publish chunk size (files per commit) is ONE global setting, config.HF_CHUNK_SIZE, used by every
+# publish/publish-all target — no per-script flag to remember. Override via ALIGNER_HF_CHUNK_SIZE (env
+# or .env, picked up by $(LOAD_ENV) below) if a publish run starts hitting ReadTimeout/WriteTimeout;
+# lower it (e.g. 100) rather than editing any script.
+#
 # Usage:
 #   make new-language ISO=ceb LANG_NAME=Cebuano
 #   make update-language ISO=ceb

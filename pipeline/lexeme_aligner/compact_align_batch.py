@@ -32,7 +32,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from lexeme_aligner.config import LEX_ROOT
+from lexeme_aligner.config import HF_CHUNK_SIZE, LEX_ROOT
 from lexeme_aligner.gapfill_batch import USJ_DIR_OVERRIDES, discover_tags, has_eflomal
 from lexeme_aligner.hf_bulk_publish import publish_chunked
 
@@ -43,7 +43,7 @@ def _run(cmd: list, label: str) -> bool:
     return result.returncode == 0
 
 
-def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = 100,
+def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_size: int = HF_CHUNK_SIZE,
                   isos: list[str] | None = None) -> None:
     """Every publishable file under `root` (README.md, manifest.json, _index/*.json, and every
     <iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json — everything except the local `.publish_state.json`
@@ -90,10 +90,10 @@ def main() -> int:
                     help="HF dataset repo to push the local tree to, e.g. bcv-commons/compact-alignments "
                          "— a separate, deliberate step; omit to generate locally only")
     ap.add_argument("--create", action="store_true", help="create the HF dataset repo if missing")
-    ap.add_argument("--chunk-size", type=int, default=100,
+    ap.add_argument("--chunk-size", type=int, default=HF_CHUNK_SIZE,
                     help="files per HF commit (HF's 128/hour commit-rate limit is PER COMMIT, not per "
-                         "file — 100 chosen empirically; 500 was observed to time out more often on "
-                         "this dataset's larger per-file payloads)")
+                         "file; default from ALIGNER_HF_CHUNK_SIZE — lower it if this dataset's larger "
+                         "per-file payloads start timing out)")
     args = ap.parse_args()
 
     # for the PUBLISH step's scoping: None = full catalog (no --iso given), else the exact requested

@@ -87,7 +87,6 @@ def main() -> int:
     scope_flag = "--all" if testaments == {"nt", "ot"} else f"--{next(iter(testaments))}"
     editions = editions_for(args.iso, testaments, args.editions_config)
     tags = [_tag(args.iso, ed["edition_code"], is_primary=(i == 0)) for i, ed in enumerate(editions)]
-    tag_source = {tag: ed["source"] for tag, ed in zip(tags, editions)}   # for --clean-out's DBT exception
     usj_dirs = {tag: Path(f"pipeline/work/ingest-cache/usj-{tag}") for tag in tags}
     tags = [t for t in tags if usj_dirs[t].exists()]   # a pooled edition onboard.py skipped has no usj dir
     if not tags:
@@ -110,9 +109,11 @@ def main() -> int:
              "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
 
-    # step 5: gapfill (needs eflomal+gloss jsonl; fills coverage gaps)
+    # step 5: gapfill (needs eflomal+gloss jsonl; fills coverage gaps) — --publish-iso is essential
+    # here too, same reason as step 4's gloss call: the #3 stopword filter + #4 cross-edition vocab
+    # must read/cache against the BARE iso's published data, not this tag's own key
     for tag in tags:
-        _run("gapfill", "--iso", tag, "--usj-dir", usj_dirs[tag], scope_flag,
+        _run("gapfill", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
              "--methods", "eflomal,gloss", env=env, soft=True)
 
     # step 6: final export — union of all three methods, same pooling onboard.py used for step 3
@@ -143,7 +144,6 @@ def main() -> int:
           f"({len(tags)} edition(s): {', '.join(tags)})", file=sys.stderr)
 
     if args.clean_out:
-        import shutil
         from lexeme_aligner.config import OUT
         removed = 0
         for tag in tags:
@@ -153,24 +153,17 @@ def main() -> int:
         print(f"[full_chain] --clean-out: removed {removed} raw jsonl file(s) for {', '.join(tags)}",
               file=sys.stderr)
 
-        # the ingested target text (usj-<tag>) is ALSO transient — EXCEPT for DBT-sourced editions,
-        # whose fetch is slow/rate-limited (Faith Comes By Hearing's API), so re-fetching on a future
-        # re-run would be genuinely costly. PKF/helloAO re-fetch is cheap, so their usj cache is safe
-        # to drop once this language's chain (which is the only thing that still reads it) is done.
-        kept_dbt = [t for t in tags if tag_source.get(t) == "dbt"]
-        cleaned_usj = []
-        for tag in tags:
-            if tag_source.get(tag) == "dbt":
-                continue
-            if usj_dirs[tag].exists():
-                shutil.rmtree(usj_dirs[tag], ignore_errors=True)
-                cleaned_usj.append(tag)
-        if cleaned_usj:
-            print(f"[full_chain] --clean-out: removed usj cache for non-DBT tag(s): "
-                  f"{', '.join(cleaned_usj)}", file=sys.stderr)
-        if kept_dbt:
-            print(f"[full_chain] --clean-out: KEPT usj cache for DBT-sourced tag(s) (slow to "
-                  f"re-fetch): {', '.join(kept_dbt)}", file=sys.stderr)
+        # the ingested target text (usj-<tag>) is intentionally KEPT for every source, not just DBT —
+        # was previously deleted for PKF/helloAO on the theory that they're "cheap to refetch," but that
+        # theory doesn't hold up at the scale this project actually operates at: a single retroactive
+        # fix that needs to touch a few hundred already-processed languages turns "cheap per language"
+        # into a genuinely costly bulk re-fetch (live case, 2026-07: fixing a stopword/morphology
+        # caching bug needed re-fetching several languages' text purely because the cache was gone).
+        # config/pins/<tag>.json already records a content sha256 for every fetch, which is exactly
+        # what's needed to detect upstream drift on a deliberate future refresh pass WITHOUT needing to
+        # keep blindly re-fetching in the meantime — see docs/refresh workflow (once built). Nothing
+        # about this line is source-specific anymore; kept for a future eviction policy to hook into
+        # (e.g. LRU by mtime) if disk pressure ever makes "keep everything forever" impractical.
     return 0
 
 

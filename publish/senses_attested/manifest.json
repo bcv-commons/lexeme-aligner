@@ -238,26 +238,43 @@
     },
     "arb": {
       "base_texts": [
+        "ARBNAV",
+        "ARBWTC",
         "arb_vdv"
       ],
-      "books": 39,
-      "content_sha256": "2f6fdb492cfbfb1883c600a06d246661581a5570fb9ffc6c8bc0082e0dfe11a2",
+      "books": 577,
+      "content_sha256": "f0fb63bdb5290d8e8b740e7d043bb52fe568766a174d144a11366190060f8fc8",
       "file": "iso=arb/data.parquet",
       "language": "Arabic",
-      "lexeme_stem_senses": 10124,
-      "lexemes": 6623,
-      "method": "eflomal",
+      "lexeme_stem_senses": 12204,
+      "lexemes": 6696,
+      "method": "eflomal+gapfill+gloss",
       "min_count": 1,
-      "rows": 52557,
+      "rows": 261379,
       "source_corpus": "WLC",
       "sources": {
+        "ARBASV": {
+          "edition": "ARBASV",
+          "license_url": "http://www.sharifbible.com/",
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "ARBNAV": {
+          "edition": "ARBNAV",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=arbnav",
+          "provider": "bible.helloao.org"
+        },
+        "ARBWTC": {
+          "edition": "ARBWTC",
+          "license_url": null,
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
         "arb_vdv": {
           "edition": "arb_vdv",
           "license_url": "https://ebible.org/Scriptures/details.php?id=arb-vd",
           "provider": "bible.helloao.org"
         }
       },
-      "surfaces": 37532,
+      "surfaces": 90720,
       "testament": "OT"
     },
     "arl": {
@@ -6298,6 +6315,30 @@
         }
       },
       "surfaces": 833,
+      "testament": "OT"
+    },
+    "wlo": {
+      "base_texts": [
+        "wlo_wbt"
+      ],
+      "books": 62,
+      "content_sha256": "30d4cbeb39fed80e888c47a290e481e2541d8b3c8da03ae04ce6bcf5122c5668",
+      "file": "iso=wlo/data.parquet",
+      "language": "Wolio",
+      "lexeme_stem_senses": 4116,
+      "lexemes": 2866,
+      "method": "eflomal+gapfill+gloss",
+      "min_count": 1,
+      "rows": 23839,
+      "source_corpus": "WLC",
+      "sources": {
+        "wlo_wbt": {
+          "edition": "wlo_wbt",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=wlo",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 9280,
       "testament": "OT"
     },
     "wrs": {

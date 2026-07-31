@@ -1812,33 +1812,59 @@
     },
     "arb": {
       "base_texts": [
+        "ARBASV",
+        "ARBNAV",
+        "ARBWTC",
         "arb_vdv"
       ],
       "books": 66,
       "by_base_text": {
-        "arb_vdv": 86194
+        "ARBASV": 39894,
+        "ARBNAV": 151280,
+        "ARBWTC": 150102,
+        "arb_vdv": 126609
       },
       "by_method": {
-        "eflomal": 86194
+        "eflomal": 321854,
+        "gapfill": 17062,
+        "gloss": 128969
       },
-      "content_sha256": "7ec9c5c32a6d77e1bab988399715e5247256370ca6f8badfbbfe05d14501023b",
+      "content_sha256": "44aa26fdd67105a41002574b8f9e97beb5fb227ebbca38fb565978c71991eeeb",
       "file": "iso=arb/data.parquet",
-      "hi_conf_ge_0.9": 66238,
-      "lexemes": 13778,
+      "hi_conf_ge_0.9": 314735,
+      "language": "Arabic",
+      "lexemes": 14000,
       "methods": [
-        "eflomal"
+        "eflomal",
+        "gloss",
+        "gapfill"
       ],
       "min_count": 1,
-      "rows": 86194,
+      "rows": 467885,
       "sources": {
+        "ARBASV": {
+          "edition": "ARBASV",
+          "license_url": "http://www.sharifbible.com/",
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "ARBNAV": {
+          "edition": "ARBNAV",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=arbnav",
+          "provider": "bible.helloao.org"
+        },
+        "ARBWTC": {
+          "edition": "ARBWTC",
+          "license_url": null,
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
         "arb_vdv": {
           "edition": "arb_vdv",
           "license_url": "https://ebible.org/Scriptures/details.php?id=arb-vd",
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12924,
-      "surfaces": 54706,
+      "strongs": 13124,
+      "surfaces": 135219,
       "testament": "NT+OT"
     },
     "are": {
@@ -28009,25 +28035,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "SUNIBS": 38257
+        "SUNIBS": 37513
       },
       "by_method": {
-        "eflomal": 25521,
-        "gapfill": 307,
-        "gloss": 12429
+        "eflomal": 25582,
+        "gapfill": 196,
+        "gloss": 11735
       },
-      "content_sha256": "919991d7b00e596648bf7486695945e1dc73022ec31b37d41137a3da94490c11",
+      "content_sha256": "25a5475e388ae1d368404eb1ac80af87626671288a7f429ca502ae14be08ac78",
       "file": "iso=sun/data.parquet",
-      "hi_conf_ge_0.9": 24974,
+      "hi_conf_ge_0.9": 23907,
       "language": "Sundanese",
-      "lexemes": 4830,
+      "lexemes": 4829,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 38257,
+      "rows": 37513,
       "sources": {
         "SUNIBS": {
           "edition": "SUNIBS",
@@ -28040,8 +28066,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 4829,
-      "surfaces": 15480,
+      "strongs": 4828,
+      "surfaces": 15447,
       "testament": "NT"
     },
     "sus": {
@@ -30399,21 +30425,25 @@
       ],
       "books": 28,
       "by_base_text": {
-        "wlo_wbt": 37012
+        "wlo_wbt": 59765
       },
       "by_method": {
-        "eflomal": 37012
+        "eflomal": 37120,
+        "gapfill": 697,
+        "gloss": 21948
       },
-      "content_sha256": "d197cfff451dd43d431214bd3aba27a21b13f31c2a1b1ba66678395be3699eb5",
+      "content_sha256": "f504fc73c816f5ce6c4b7227e3e3b440eb34ce680e613996bc6f5403fd987091",
       "file": "iso=wlo/data.parquet",
-      "hi_conf_ge_0.9": 20405,
+      "hi_conf_ge_0.9": 40647,
       "language": "Wolio",
-      "lexemes": 7834,
+      "lexemes": 7855,
       "methods": [
-        "eflomal"
+        "eflomal",
+        "gloss",
+        "gapfill"
       ],
       "min_count": 1,
-      "rows": 37012,
+      "rows": 59765,
       "sources": {
         "wlo_wbt": {
           "edition": "wlo_wbt",
@@ -30421,8 +30451,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 7668,
-      "surfaces": 18735,
+      "strongs": 7679,
+      "surfaces": 19699,
       "testament": "NT+OT"
     },
     "wms": {

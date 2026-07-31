@@ -14,7 +14,8 @@ download, works on any language with a Bible):
   • #1 cross-lingual span profile (cross_lang_prior) → extends compound-lexeme fills to their neighbor
   • #4 cross-edition vocab (lexeme-alignments/iso=<iso>) → a known surface of the gap's LEXEME from
     ANOTHER pooled edition of the SAME language (not just this translation's own eflomal+gloss run) —
-    see gapfill_align.py's docstring. Defaults to this same --iso's own published pool; --cross-edition-iso
+    see gapfill_align.py's docstring. Defaults to --publish-iso's own published pool (NOT --iso — the
+    tag is never what lexeme-alignments is keyed on when it differs from the bare iso); --cross-edition-iso
     to point elsewhere; --no-cross-edition to disable. Silently skipped if nothing's been exported yet.
 
     python3 -m lexeme_aligner.gapfill --iso fra --all --usj-dir pipeline/work/ingest-cache/usj-fra-lsg
@@ -109,6 +110,13 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
+    ap.add_argument("--publish-iso", default=None,
+                    help="the bare published iso, when --iso is an edition TAG that differs from it "
+                         "(e.g. --iso arb_vdv --publish-iso arb) — the #3 stopword filter and the #4 "
+                         "cross-edition vocab default both read/cache against THIS iso's published "
+                         "lexeme-alignments/target-stopwords, not the tag's (which is never published "
+                         "under that key). Defaults to --iso, so single-edition/grandfathered calls "
+                         "are unaffected.")
     ap.add_argument("--usj-dir", type=Path, required=True)
     ap.add_argument("--ot", action="store_true"); ap.add_argument("--nt", action="store_true")
     ap.add_argument("--all", action="store_true", help="OT+NT")
@@ -122,7 +130,8 @@ def main() -> int:
                     help="extend a hi-conf single-token fill to its neighbor when the OTHER languages we've "
                          "aligned render this lexeme as a phrase at least this often")
     ap.add_argument("--cross-edition-iso", default=None,
-                    help="#4: iso to load the cross-edition vocab from (default: --iso's own published pool)")
+                    help="#4: iso to load the cross-edition vocab from (default: --publish-iso's own "
+                         "published pool)")
     ap.add_argument("--no-cross-edition", action="store_true", help="disable prior #4")
     ap.add_argument("--no-phrase", action="store_true",
                     help="disable the BHSA phrase-syntax prior (placement + last-resort fills) — ablation switch")
@@ -132,13 +141,14 @@ def main() -> int:
                     help="disable the number/gender morphology-agreement tie-break — ablation switch")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
+    publish_iso = args.publish_iso or args.iso
 
     books = (OT_BOOKS + NT_BOOKS if args.all else OT_BOOKS if args.ot else NT_BOOKS if args.nt
              else [b.upper() for b in (args.book or ["RUT"])])
     methods = tuple(m.strip() for m in args.methods.split(","))
     heb = HebrewSource()
     recs = build_corpus(books, args.usj_dir, heb, remap=remapper(args.iso, str(args.usj_dir)))  # auto-detected scheme, match eflomal/gloss numbering
-    stopwords = StopwordFilter(args.iso, str(args.usj_dir))   # #3: target function-word gate (cached)
+    stopwords = StopwordFilter(publish_iso, str(args.usj_dir))   # #3: target function-word gate (cached)
     lex_pos, lex_translit = load_priors(args.prior_pack)
     covered_h, taken_t, anchors, strong_surf, target_pos = load_covered(
         args.iso, args.out, methods, args.min_score, lex_pos)
@@ -147,7 +157,7 @@ def main() -> int:
     cross_edition_vocab = {}
     if not args.no_cross_edition:
         try:
-            cross_edition_vocab = load_lexeme_vocab(args.cross_edition_iso or args.iso, hi_conf_only=True)
+            cross_edition_vocab = load_lexeme_vocab(args.cross_edition_iso or publish_iso, hi_conf_only=True)
         except SystemExit as e:
             print(f"[gapfill] #4 cross-edition vocab unavailable ({e}) — skipping that prior", file=sys.stderr)
     filler = GapFiller()
@@ -252,7 +262,7 @@ def main() -> int:
           f"{len(stopwords.words)} target function-words (#3, gated out) · "
           f"{len(cross_lang)} cross-lingual span profiles (#1, floor={args.multiword_floor}) · "
           f"{len(cross_edition_vocab)} cross-edition lexeme-vocab entries (#4, hi_conf-only, "
-          f"from iso={args.cross_edition_iso or args.iso}) · "
+          f"from iso={args.cross_edition_iso or publish_iso}) · "
           f"construct-order: {rec_after}/{rec_total} dep-after-head "
           f"(rate={'%.2f' % rec_after_rate if rec_after_rate is not None else 'sparse, default'}) · "
           f"phrase prior: {'enabled' if phrase_enabled else 'DISABLED (below confidence gate)' if not phrase_confident and not args.no_phrase else 'disabled (--no-phrase)'} · "

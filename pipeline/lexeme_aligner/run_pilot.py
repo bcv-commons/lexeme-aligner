@@ -311,13 +311,13 @@ def main() -> int:
     # #2 learned morphology — ONE stemmer, TWO consumers: gloss's Normalizer AND eflomal's stemmed input.
     # Registered up front so eflomal can reach it too; forms()[0] is the original token, so eflomal in its
     # default (surface) mode is untouched — only --eflomal-stem switches it to the stem.
-    if (args.eflomal_stem or (want["gloss"] and "morph" in signals)) and args.iso not in NORMALIZERS:
+    if (args.eflomal_stem or (want["gloss"] and "morph" in signals)) and publish_iso not in NORMALIZERS:
         from lexeme_aligner.target_morph import LearnedNormalizer
-        lm = LearnedNormalizer(args.iso, str(args.usj_dir))
-        NORMALIZERS[args.iso] = lm
+        lm = LearnedNormalizer(publish_iso, str(args.usj_dir))
+        NORMALIZERS[publish_iso] = lm
         print(f"[pilot] #2 morphology (learned): {len(lm.suffixes)} suffixes, {len(lm.prefixes)} prefixes",
               file=sys.stderr)
-    norm: Normalizer = NORMALIZERS.get(args.iso, Normalizer())
+    norm: Normalizer = NORMALIZERS.get(publish_iso, Normalizer())
     runs = {}
     if want["gloss"]:
         gloss_sw = None

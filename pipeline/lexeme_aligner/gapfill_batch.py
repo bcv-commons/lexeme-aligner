@@ -164,8 +164,8 @@ def main() -> int:
             if not do_run:
                 continue
             usj_dir = args.usj_root / USJ_DIR_OVERRIDES.get(tag, f"usj-{tag}")
-            _run([sys.executable, "-m", "lexeme_aligner.gapfill", "--iso", tag, "--all",
-                 "--usj-dir", str(usj_dir), "--methods", "eflomal,gloss",
+            _run([sys.executable, "-m", "lexeme_aligner.gapfill", "--iso", tag, "--publish-iso", iso,
+                 "--all", "--usj-dir", str(usj_dir), "--methods", "eflomal,gloss",
                  "--cross-edition-iso", iso], f"{iso}/{tag}")
 
     # Decide who needs (re-)export from disk state, NOT from "did gapfill run in this invocation" —

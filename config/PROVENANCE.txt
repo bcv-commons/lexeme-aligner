@@ -99,18 +99,26 @@ lexeme-spine.db — LEXEME-ANCHORED backbone (MACULA) — data-contract §1
 
 gbt/ — globalbibletools/data per-occurrence gloss JSON (hbo+grc source + per-language target renderings)
   seeded 2026-07-17 from bcv-query monorepo's already-fetched pin (shoresh/interlinear/fetch.py's
-  discipline: tarball, not git clone; commit pinned deliberately)
-  PIN — GBT_DATA_COMMIT = f5af0eb89e4b845b2b30beb9f4360b50ddb08f6a (2026-07-12)
+  discipline: tarball, not git clone; commit pinned deliberately); RE-PINNED 2026-08-03 to today's
+  main + switched to a committed, repeatable fetch (lexeme_aligner/gbt_fetch.py — pinned git-tree API
+  + raw per-file download, stdlib only, same discipline as bsb_fetch.py) after direct outreach to
+  Global Bible Tools confirmed licensing is being formalized (see internal-docs/gbt-outreach.md);
+  ALL 40 language dirs now kept (2,640 files), not just the original 6 — needed as input to
+  gbt_source.py (new 2026-08-03: aggregates gbt glosses into llm_strongs_glosses/<iso>.tsv, the
+  gloss_priors.GlossPriors input, a DIFFERENT consumer than gbt_align.py's occurrence-alignment/
+  benchmark-corroboration use below — both now read this one shared pinned snapshot).
+  PIN — GBT_DATA_COMMIT = 5b6a5d89917d04b59cf58fa0eed6c8731eceaa16 (2026-08-03; was f5af0eb8, 2026-07-12)
   license: CC0-1.0 (org-wide default; confirmed no per-repo override, verified via study-app sibling repo)
-  subdirs kept: hbo+grc/ (Hebrew/Greek interlinear source, 448k words), fra/ (72.6% glossed), eng/
-  (99.7% glossed, kept for cross-check), hin/ (33.6%), spa/ (71.3%), por/ (68.9%), rus/ (8.7% — kept
-  despite rus being gold-quarantined; still usable for the gbt-fallback benchmark tier). ben/ and hau/
-  checked and found 0.0% glossed (genuinely empty gloss project, not sparse) — NOT copied in, no
-  content to extract. Remaining ~36 languages not copied (available at the same pin if needed later:
-  github.com/globalbibletools/data/archive/<commit>.tar.gz)
-  use: gbt_align.py extracts many-to-many occurrence alignment (source id(s) <-> target gloss slot(s))
-  from the id-suffix addressing scheme; see gbt_align.py docstring for the validated classification.
-  Provided out-of-band; gitignored (data/gbt/).
+  glossed coverage at this pin (of the languages we actively use): eng ~99.7%, fra ~72.6%, spa ~71.3%,
+  are ~68.9%, por ~68.6%, hin ~33.6%, urd, ind, jpn, deu, mal, rus (rus 8.7% — kept despite rus being
+  gold-quarantined; still usable for the gbt-fallback benchmark tier). ben/hau/nag = 0.0% glossed
+  (genuinely empty gloss project, not sparse) — dirs present (id/verse structure only) but no gloss
+  content to extract; gbt_source.py writes an empty tsv for these, harmless no-op.
+  use: (1) gbt_align.py extracts many-to-many occurrence alignment (source id(s) <-> target gloss
+  slot(s)) from the id-suffix addressing scheme, for benchmark corroboration/citation — see gbt_align.py
+  docstring for the validated classification. (2) gbt_source.py aggregates (augmented-strong -> target
+  gloss variants) into gloss_priors.GlossPriors' TSV input, feeding the aligner's --method gloss pass.
+  Provided out-of-band; gitignored (pipeline/vendor/gbt/).
 
 bsb/ — BSB-publishing/bsb-data-output's base/display/ (heb/grc + eng Strong's-tagged word spans,
   the Berean Standard Bible publisher's own native span-tagging — a second, independent occurrence-

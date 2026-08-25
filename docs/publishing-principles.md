@@ -49,21 +49,28 @@ add, don't pick and drop.**
 
 ## What this means for the schema
 
-Canonical dataset (renamed to foreground the anchor — e.g. `publish/lexeme-alignments`):
+Canonical dataset — `publish/lexeme-alignments` (implemented; live on HF as `bcv-commons/lexeme-alignments`):
 
 | column | meaning | principle |
 |---|---|---|
 | `lexeme` | **the anchor** — MACULA `lang:augmented-strong` | 1 |
 | `surface` | target rendering, lowercased (content; may be multi-word) | 4 |
-| `strong` | Strong's **rollup** of `lexeme` (bridge key) | 2 |
 | `method` | **which method attested this pair** (eflomal / gloss / gapfill) | 3, 5 |
-| `count` | times this (surface → lexeme) was aligned **by that method** | 3, 4 |
-| `share` | P(lexeme \| surface) — the sense distribution | 4 |
+| `base_text` | which edition attested this pair (pooled multi-edition languages) | 4 |
+| `count` | times this (surface → lexeme) was aligned **by that method + edition** | 3, 4 |
 | `hi_conf` | alignment reliability (intersection-backed share) | 3 |
 
-Key change vs today: rows are **partitioned by `method`** (additive union, principle 5) instead of one
-pre-merged winner. A surface→lexeme attested by both eflomal and gapfill is **two rows** (eflomal ×N,
-gapfill ×M) — nothing merged away, full provenance. Consumers:
+`strong` (bridge key, principle 2) and `share` (sense distribution, principle 4) are **deliberately not
+stored** — both are exact, lossless derivations from the columns above (`strong` from `lexeme` by
+stripping the augment letter + zero-padding + H/G prefix; `share` = `count` normalized within a
+`(surface, method, base_text)` group), so storing them would be pure duplication — measured ~32%
+smaller Parquet with them dropped, zero information lost. `scripts/strongs_view.py` computes both on
+demand for consumers who want them. (Superseded the earlier plan, once sketched here, to store `strong`
++ `share` as columns.)
+
+Rows are **partitioned by `method`** (additive union, principle 5) instead of one pre-merged winner. A
+surface→lexeme attested by both eflomal and gapfill is **two rows** (eflomal ×N, gapfill ×M) — nothing
+merged away, full provenance. Consumers:
 - **everything / max recall** → all rows;
 - **exclude gapfill** → `method != gapfill`;
 - **high precision** → `hi_conf ≥ x`, `count ≥ 2`;
@@ -82,15 +89,20 @@ gapfill ×M) — nothing merged away, full provenance. Consumers:
 - ✅ lexeme-anchored schema exists (`export_lex` is lexeme-primary).
 - ✅ per-row confidence (`hi_conf`, `share`, `count`) exists.
 - ✅ MWE (added-word) channel exists (`publish/aligned_mwe`), honoring principle 4.
-- ⚠️ **method-provenance column not yet emitted** — today `export_lex` takes a single `--method`; the
-  additive union with a `method` column (principles 3+5) is the main new work.
-- ⚠️ **naming** — dataset/card still "Strong's-aligned"; rename to lexeme-anchored (do it with the v2
-  publish, before more consumers pin the old name).
-- ⚠️ **Strong's on-ramp script** — not yet written (principle 2).
+- ✅ **method-provenance column emitted** — `export_lex.SCHEMA` includes `method` (and `base_text`) per
+  row; the additive union across methods/editions (principles 3+5) is live, not single-`--method`.
+- ✅ **naming** — dataset is `bcv-commons/lexeme-alignments`, card `pretty_name: Lexeme-anchored
+  alignments (surface → lexeme, Strong's-bridged)`. `aligned_mwe`'s card still said "Strong's-aligned"
+  as of 2026-08-25 (fixed locally in `publish/aligned_mwe/README.md`; needs a card re-push to take
+  effect on HF — not yet done).
+- ✅ **Strong's on-ramp script** — `pipeline/scripts/strongs_view.py` (principle 2), rolls
+  `lexeme`→`strong` from a chosen base method, documented as a derived, non-authoritative reshape.
 
-## Open decisions for the replan
-- Dataset name (`publish/lexeme-alignments` proposed).
-- `share` semantics on the union: within-method vs pooled-across-methods (recommend: within-method, so
-  each method's distribution is honest; pooled is derivable).
-- Whether the merged best-pick view is published at all, or left as a consumer-side recipe.
-- Headline benchmark grain → **lexeme** (matches the anchor; ~3–5pt stricter than Strong's grain).
+## Status of the former "open decisions"
+- ✅ Dataset name: `publish/lexeme-alignments` / `bcv-commons/lexeme-alignments`.
+- ✅ `share` semantics: within-`(method, base_text)`, computed on demand (not stored) — the "recommend"
+  option above was adopted.
+- Merged best-pick view: still a consumer-side recipe (`merge_align.py` + `--contest-rule`), not a
+  separate published dataset — matches the "left as a recipe" option.
+- ✅ Headline benchmark grain: `benchmark.py --grain lexeme` implemented; tool default left at `strong`
+  for continuity with older gold comparisons (see 2026-07 session log in `CLAUDE.local.md`).

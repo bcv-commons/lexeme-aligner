@@ -1,5 +1,12 @@
 # lexeme-aligner — roadmap
 
+**This doc mostly describes early-extraction status** (single-language pilots, "next: create the HF
+repo and push `ind`") from the 2026-07 standalone bring-up. The repo has since moved to a
+Makefile-driven onboarding-at-scale workflow and published ~924 languages across 6 dataset trees —
+see `docs/architecture.md` for the current "how it runs" picture. Kept below for design rationale
+(the projection channels, the ensemble design) and for `roadmap.md`'s own already-marked-done items;
+read the numbers as history, not current state.
+
 Align **any** Bible translation to the **Strong's-tagged original** (Hebrew/Greek). Out comes a
 word-level interlinear + `publish/lexeme-alignments` (`surface → lexeme`, Strong's-bridged), and — because everything keys on
 Strong's — mined multilingual glosses/senses/domains + a name-bridge for free. An **offline producer
@@ -58,10 +65,12 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    ~87% swk / ~79% swe). `docs/benchmark.md`. **Only the statistical (eflomal) mode is scored so far;**
    gloss (needs priors), IBM-1, gapfill, and the merged ensemble are runnable through the same tool once
    produced — a natural companion to the multi-version work below.
-4. **Publish `publish/lexeme-alignments` to a data channel** — `export_lex --publish <hf-repo> --create` is wired
-   (uploads the partition + manifest + card via `huggingface_hub`, credential-gated, `--dry-run`
-   verified). Remaining: create the HF dataset repo + `huggingface-cli login`, then run the push for
-   `ind`. Free public tier fits thousands of langs.
+4. ~~Publish `publish/lexeme-alignments` to a data channel.~~ **Done, at scale** — live at
+   `bcv-commons/lexeme-alignments` (as of 2026-08-11: **924 language partitions**), plus
+   `senses_attested` (284), `aligned_mwe` (923), `compact-alignments` (923), `target-stopwords` (924),
+   `target-morphology` (923), and `cross-lingual-span-profile` (published 2026-07-31). Published via
+   `pipeline/scripts/publish_lang.py`/`publish_all.py` (`make publish`/`publish-all`), chunked through
+   `config.HF_CHUNK_SIZE` to respect HF's 128-commits/hour/repo limit.
 5. **Multi-source ingest + end-to-end driver** — **working**. Two text sources behind the USJ seam:
    `cdn_source` (cdn.bibel.wiki **PKF**, 589 langs, Node edge `pipeline/pkf2usfm/`) and `helloao_source`
    (bible.helloao.org **JSON**, ~1,256 translations, pure Python — reaches beyond PKF, e.g. Swedish).
@@ -69,14 +78,14 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    --source pkf|helloao [--all]` chains ingest → align → export [→ publish] per language; `--all` does
    the whole Bible (OT then NT — separate spines — aggregated into one lexicon). Verified end-to-end:
    `ind` via PKF (~50s); `swe` whole Bible via helloAO in ~47s → 67.5k rows / 12,999 Strong's (H + G).
-   DBT (`/dbt/`) is audio, not text. *Reproducibility (decided — content-addressed, see below):* eflomal
+   *Reproducibility (decided — content-addressed, see below):* eflomal
    seeds from `/dev/urandom` (`random.c`), so it's non-deterministic by design — the pinned **inputs** are
    reproducible, and each published Parquet's `content_sha256` is the immutable release record (~1%
-   regeneration drift is expected, not a bug). Next: a source **resolver** — the CDN is now fully live, so discovery
-   is a two-index union (no more waiting on `availability.json`, which is superseded): `pkf/manifest.json`
-   (589 text langs + `codex`) ∪ helloAO `available_translations` (~1,256 text translations, per-iso).
-   `dbt/_app/media-index.json` (1,950 langs) is audio+**names** only — use it to auto-fill `--lang-name`.
-   Resolver: prefer helloAO (no-Node) → else PKF; it also enumerates a language's versions (multi-version).
+   regeneration drift is expected, not a bug). ~~Next: a source resolver.~~ **Done** — `catalog_source.py`
+   reads `cdn.bibel.wiki`'s `catalog-index.json`/`catalog-overlap.json` for cross-source (PKF/helloAO/DBT)
+   discovery + same-text dedup clustering (edition pooling priority: PKF > helloAO > DBT). **DBT is now
+   also a text source** (superseding the "audio, not text" note here): `dbt_source.py` hits the Digital
+   Bible Platform / Bible Brain v4 API (needs `BIBLE_API_KEY`), unlocking ~750 DBT-only catalog languages.
 6. **bcv-commons dataset contract** — the *consume* side is still open: pin the exact published
    names/schemas this repo reads from `bcv-commons/strongs` (glosses/senses). The *produce* side
    (`publish/lexeme-alignments`) is pinned by DATA.md + `export_lex`; the gold-consume side is pinned by `benchmark`.
@@ -109,8 +118,12 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    Lemma match gold↔spine ~93% after niqqud-strip (a residual noise floor, equal for both → comparison
    holds). (Also fixed: the tokenizer shattered diacritized scripts at combining marks — `فِي`→`ف,ي`;
    now strips harakat/niqqud, so Arabic tokenizes by word.)
-9. **Multi-version pooling** — align a language's several translations together for a richer lexicon
-   (design below).
+9. ~~Multi-version pooling.~~ **Done** — `export_lex --pool <isos>` implements approach (b) below
+   (align each edition separately, union into one `iso=<lang>` partition, each row tagged by
+   `base_text`); `senses_attested --pool` does the same for sense attestation. Shipped pooled: e.g.
+   `eng` = BSB+YLT, `arb` = Van Dyck+NAV, `swe` = Folkbibeln+Kärnbibeln. Cross-edition agreement
+   (a surface→lexeme attested by >1 `base_text`) is the confidence signal described below. Design
+   notes below are still accurate for *why*/*how*; the "recommended first step" was taken.
 10. ~~Neural method~~ **Done, then retired** — SimAlign+LaBSE was built, measured (~7.5% contribution on
     its best-case language, zero on languages without encoder coverage), and replaced by **gapfill**
     (model-free: strong-rollup back-off, name transliteration, #1 cross-lingual span, #3 stopword gate).

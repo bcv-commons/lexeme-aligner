@@ -1,5 +1,5 @@
 ---
-pretty_name: Strong's-aligned multi-word expressions (lexeme → phrase)
+pretty_name: Lexeme-anchored multi-word expressions (lexeme → phrase, Strong's-bridged)
 tags:
   - bible
   - word-alignment

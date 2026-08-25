@@ -34,23 +34,35 @@ git clone https://github.com/robertostling/eflomal && cd eflomal
 pip install Cython && pip install --no-build-isolation .
 ```
 
-**One command per language**, ingest through publish:
+**The `Makefile` is the primary entry point** (`make help` lists every target); it fronts a 9-step
+per-language chain, `full_chain.py`, ingest through the local exports — publish to Hugging Face is
+always a separate, deliberate step, never automatic:
 ```bash
-python3 -m lexeme_aligner.pipeline --iso ind --lang-name Indonesian --source pkf --all
-python3 -m lexeme_aligner.pipeline --iso swe --lang-name Swedish --source auto --all   # auto-resolve the source
+make new-language ISO=ceb LANG_NAME=Cebuano   # or update-language for an already-onboarded language
+make new-batch SPEC=<hand-curated JSON list>  # onboard_batch.py — new-batch skips already-done langs
+make new-catalog                              # onboard_catalog.py --full — sweep the ~1,876-lang catalog
+make status                                   # pipeline/scripts/status.py
+make publish ISO=ceb                          # publish_lang.py — push one language to HF
+make publish-all                              # sweep every already-exported language + companion datasets
 ```
-`--source pkf|helloao|auto` (`auto` resolves via `catalog_source.py`'s cross-source index — see below);
-`--all` = whole Bible (OT then NT, separate spines, aggregated); `--ot`/`--nt`/`--book X` to scope
-narrower. Add `--publish bcv-commons/lexeme-alignments --create` to push straight to Hugging Face
-(needs `huggingface-cli login` or `HF_TOKEN` first).
+`full_chain.py`'s 9 steps: ingest → eflomal align → export eflomal-only (local) → gloss align
+(bootstraps priors from that export) → gapfill → export final union (local) → aligned_mwe (local) →
+senses_attested (local) → compact-alignments (local). Steps 1-3 delegate to `onboard.py`; steps 4-9 are
+individually best-effort (a failure warns and the chain continues) except step 6's final export, which
+is load-bearing for everything published downstream.
 
-Or run each stage yourself — useful for iterating on one stage without re-running the others:
+The older direct CLI still exists underneath and is useful for iterating on one stage without re-running
+the others, or for a single edition/book:
 ```bash
 python3 -m lexeme_aligner.run_pilot --method eflomal --ot --usj-dir <dir> --iso ind --lang-name Indonesian
 # methods: gloss | stat | eflomal | gapfill | all
 python3 -m lexeme_aligner.export_lex --iso ind --lang-name Indonesian
 python3 -m lexeme_aligner.benchmark --gold clear --iso ind --method eflomal
 ```
+`lexeme_aligner.pipeline` (the old "one command per language, ingest through publish" driver this doc
+used to lead with) still exists too, but current Makefile targets bypass it in favor of `full_chain.py`
+— don't use it as the reference entry point.
+
 Alignment output goes to `$ALIGNER_OUT` (default `pipeline/work/out/`, gitignored):
 `align_<method>_<iso>_<BOOK>.jsonl` + `report_<method>_<iso>.md`.
 
@@ -66,24 +78,25 @@ Alignment output goes to `$ALIGNER_OUT` (default `pipeline/work/out/`, gitignore
 The **eflomal** method needs only the spine + target USJ — no glosses, no senses — the cleanest
 decoupling check that the standalone core has minimal inputs. Full schemas: `DATA.md`.
 
-## The pipeline — one command per language
-`lexeme_aligner.pipeline` chains four stages; `benchmark` is the QA gate.
+## The pipeline — `full_chain.py`'s 9 steps, fronted by the Makefile
+`benchmark` is the separate QA gate, run on demand, not part of the chain.
 
 ```
   backbone (spine) ─┐
-                    ├─►  ALIGN  ─►  EXPORT  ─►  PUBLISH
-  target text (USJ)─┘  eflomal/gloss/  Parquet+     HF dataset
-        ▲              gapfill        manifest
-        │ INGEST (pin)                    │
-  cdn.bibel.wiki PKF / helloAO JSON       └─►  BENCHMARK  (vs clear | lexicon gold)
+                    ├─►  ALIGN (eflomal→gloss→gapfill)  ─►  EXPORT (local)  ─►  PUBLISH (deliberate, separate)
+  target text (USJ)─┘                                        Parquet+manifest        HF dataset
+        ▲                                                          │
+        │ INGEST (pin)                                             └─►  BENCHMARK  (vs clear | lexicon gold)
+  cdn.bibel.wiki PKF / helloAO JSON / DBT
 ```
 
 | stage | module | in → out |
 |---|---|---|
-| **ingest** | `cdn_source` (PKF, Node edge) · `helloao_source` (JSON, pure Python) · `catalog_source` (cross-source discovery/routing) | source text → pin + USJ |
+| **ingest** | `cdn_source` (PKF, Node edge) · `helloao_source` (JSON, pure Python) · `dbt_source` (Bible Brain API) · `catalog_source` (cross-source discovery/routing) | source text → pin + USJ |
 | **align** | `run_pilot` + `eflomal_align` / `stat_align` / `gloss_align` / `gapfill` | spine + USJ → per-verse `align_<method>_<iso>_<BOOK>.jsonl` |
-| **export** | `export_lex` | jsonl → `publish/lexeme-alignments/iso=<iso>/data.parquet` + `manifest.json` |
-| **publish** | `export_lex --publish` | partition + manifest + companion resources + card → Hugging Face dataset |
+| **export** | `export_lex` | jsonl → `publish/lexeme-alignments/iso=<iso>/data.parquet` + `manifest.json` (LOCAL only — chain runs this twice: eflomal-only, then the final union) |
+| **companion exports** | `export_mwe` · `senses_attested` · `compact_align` | jsonl/prior partitions → their own `publish/*` trees (LOCAL only) |
+| **publish** | `publish_lang.py` (`make publish ISO=...`) / `publish_all.py` (`make publish-all`) | partition + manifest + companion resources + card → Hugging Face dataset — always a separate, deliberate step |
 | **benchmark** | `benchmark` (`--gold clear\|lexicon`, `--method <mode>`) | scored vs a manual gold |
 
 ## The alignment methods (the ensemble)
@@ -182,8 +195,15 @@ yields a new, equally-valid partition with a new hash (~1% drift). See `publish/
 `gloss_align` · `stat_align` · `eflomal_align` · `gapfill_align` · `gapfill` · `merge_align` ·
 `run_pilot` (runner + report) · `export_lex` (→ Parquet + manifest).
 
-**Ingest:** `cdn_source` (PKF) · `helloao_source` (JSON) · `catalog_source` (cross-source discovery)
-· `pipeline` (end-to-end driver) · `pipeline/pkf2usfm/` (the one Node edge, Proskomma PKF→USFM).
+**Ingest:** `cdn_source` (PKF) · `helloao_source` (JSON) · `dbt_source` (Bible Brain API, needs
+`BIBLE_API_KEY`) · `catalog_source` (cross-source discovery) · `pipeline/pkf2usfm/` (the one Node edge,
+Proskomma PKF→USFM).
+
+**Onboarding-at-scale (the current entry point, fronted by the `Makefile`):** `onboard.py` (single
+language: ingest every edition, align, export one pooled partition, stops before publish) ·
+`onboard_batch.py` (hand-curated spec list, resumable) · `onboard_catalog.py` (full ~1,876-language
+catalog walk) · `full_chain.py` (the 9-step orchestrator both `new-language` and the batch paths call)
+· `pipeline/scripts/{status,publish_lang,publish_all,update_all,clean_out*}.py` (ops scripts).
 
 **Benchmark & correctness:** `benchmark` (clear|lexicon golds) · `greek_morph_strong` ·
 `hebrew_lexeme_strong` · `cross_lang_prior` (span profile + light-lexeme detection) ·

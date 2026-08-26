@@ -39,7 +39,7 @@ from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS, _BOOK_FILE_NUM, pooled_verse_groups
-from lexeme_aligner.usj_source import read_verse_ranges
+from lexeme_aligner.usj_source import read_verse_ranges, remap_clean_to_raw
 from lexeme_aligner.versification import remapper
 
 ALL_BOOKS = OT_BOOKS + NT_BOOKS
@@ -139,22 +139,46 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=("eflomal", "gloss
 
 def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
                   books: list[str] = ALL_BOOKS, methods=("eflomal", "gloss", "gapfill")) -> list[str]:
-    """Per-language compact array, position-parallel to build_index()'s canonical ordinal index."""
+    """Per-language compact array, position-parallel to build_index()'s canonical ordinal index.
+
+    Target-token positions (`span` in "srcOrd:span") are published in RAW-TEXT coordinates — indices
+    into `tokenize()` of the edition's UNMODIFIED verse text — even though the alignment itself ran
+    against opt-in-cleaned text (config/text_strip_rules.json; see usj_source.py). `_merged_pairs`'s
+    `t_idx` values are clean-text indices (that's what the aligner actually tokenized); `remap_clean_to_raw`
+    converts each one using a diff between this same verse block's raw and clean text. This matters for
+    two reasons: (1) `book_content_hash` (below) hashes raw text, and a client always tokenizes ITS OWN
+    untouched copy of the verse — clean-basis positions would silently resolve to the wrong word on any
+    edition with an active strip rule; (2) it gives "word inside a stripped span" the correct semantics
+    for free — such a word exists in the raw token stream but was never part of what the aligner saw, so
+    it never gets a mapped position and is simply absent from the compact string, which already means
+    "unaligned" under this format's existing convention. No special-casing needed for stripped content;
+    it just never appears as a source of a valid raw_idx."""
     remap = remapper(iso, str(usj_dir))
     by_ref: dict[str, str] = {}                        # "BOOK C:V" -> compact string, filled as we go
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         ranges = read_verse_ranges(usj_path) if usj_path.exists() else {}
+        raw_ranges = read_verse_ranges(usj_path, rules={}) if usj_path.exists() else {}
         pairs_by_verse = _merged_pairs(iso, book, out_dir, methods)
         for ch in heb.chapters(book):
             for anchor_v, vs, ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
                 pairs = pairs_by_verse.get((ch, anchor_v), {})
                 anchor_content = [tok for orig_v, tok in members if orig_v == vs and tok.strong and tok.is_content]
+                # Same (tc, vs) key pooled_verse_groups used internally to fetch `text` (see its
+                # docstring/source) — re-derived here to fetch the RAW counterpart of the exact same
+                # target block, so the two texts being diffed are guaranteed to correspond.
+                tc, _tv = (remap(book, ch, anchor_v)[1:] if remap else (ch, anchor_v))
+                raw_info = raw_ranges.get((tc, vs))
+                raw_text = raw_info["text"] if raw_info else ""
+                raw_idx_of = remap_clean_to_raw(raw_text, text) if raw_text else []
                 parts = []
                 for ordinal, tok in enumerate(anchor_content):
                     ti = pairs.get(tok.idx)
-                    if ti:
-                        parts.append(f"{ordinal}:{_encode_span(ti)}")
+                    if not ti:
+                        continue
+                    mapped = [raw_idx_of[i] for i in ti if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
+                    if mapped:
+                        parts.append(f"{ordinal}:{_encode_span(mapped)}")
                 by_ref[f"{book} {ch}:{anchor_v}"] = " ".join(parts)
                 for orig_v, _tok in members:
                     if orig_v != vs:
@@ -170,8 +194,14 @@ def book_content_hash(usj_path: Path) -> str:
     verse (own-verse `\\n`-joined, ascending chapter/verse) — so a wording change, a re-versification
     (verse split/merge), OR a chapter/verse renumbering all change the hash, per the "extremely sensitive
     to any word difference" requirement. Caller truncates to the last N hex chars for the filename; the
-    full digest is returned here so a client wanting stronger collision resistance always has it."""
-    ranges = read_verse_ranges(usj_path)
+    full digest is returned here so a client wanting stronger collision resistance always has it.
+
+    Hashed over RAW text (`rules={}`, bypassing config/text_strip_rules.json), never the aligner's
+    internal cleaned text — a client verifying "is this the same edition I have" only ever has the
+    unmodified source file, and this promise predates and is independent of that internal cleaning
+    step (see build_compact's docstring for how alignment positions, which DO need the clean/raw
+    distinction, are handled separately)."""
+    ranges = read_verse_ranges(usj_path, rules={})
     parts = [f"{ch}:{v}:{info['text']}" for (ch, v), info in sorted(ranges.items())]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 

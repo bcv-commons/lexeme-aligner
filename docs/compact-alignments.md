@@ -71,6 +71,21 @@ not its own token. Live case (client feedback, `ACT 1:3`/`ind_ags`): a naive re-
 `"40"` as a token is off-by-one from that point on, compounding for every later number in the verse —
 8 apparent mismatches collapsed to 2 genuine ones once re-decoded with the correct rule.
 
+**"That verse's own tokenized text" means the edition's RAW, UNMODIFIED text — never the aligner's
+internal cleaned copy.** A small number of editions have editorial asides or citations inline in the
+verse text (e.g. Svenska Kärnbibeln wraps long commentary in `[...]`) that would otherwise flood
+eflomal/gloss with non-scripture prose; for those, `config/text_strip_rules.json` opts the edition into
+stripping before alignment (`usj_source.py`, see that file's `_doc`). Every other edition's raw and
+clean text are identical, so this distinction is invisible for the vast majority of the catalog. But for
+an opted-in edition, the alignment runs on the CLEANED text while target positions in this format are
+published in RAW-text coordinates (`compact_align.py`'s `remap_clean_to_raw`) — because a real consumer
+only ever has the edition's actual, unmodified source file, and would tokenize THAT. This also gives a
+word inside a stripped span the right semantics for free: it exists in the raw token stream (so it has a
+position) but was never part of what the aligner saw, so no `srcOrd` entry's span ever points at it —
+it's simply **unaligned**, using this format's existing absence-means-unaligned convention, no separate
+marker needed. Net effect: **decode against whatever text is actually in your copy of the file, exactly
+as it reads — never re-derive or guess at any internal cleaning.**
+
 **Range-pooled verses** (PKF-style `"3-4"` target verse markers — see `run_pilot.pooled_verse_groups()`):
 the ANCHOR verse's string covers every content lexeme across the WHOLE pooled range (ordinals span
 multiple original verses); non-anchor member verses are `""` — their translation lives in the anchor's
@@ -105,9 +120,11 @@ def _decode_span(span: str) -> list[int]:
     return [int(span)]
 
 def decode(book, ch, v, iso="ind", usj_dir=Path("pipeline/work/ingest-cache/usj-ind")):
-    """Yields (HebToken, target_words_or_None) for every content lexeme in the verse."""
+    """Yields (HebToken, target_words_or_None) for every content lexeme in the verse. `rules={}` reads
+    the RAW text — positions are published in raw-text coordinates (see above), so this must NOT be the
+    aligner's own opt-in-cleaned copy, even for an edition that has a strip rule on file."""
     compact = by_ref[f"{book} {ch}:{v}"]
-    ranges = read_verse_ranges(usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json")
+    ranges = read_verse_ranges(usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json", rules={})
     remap = remapper(iso, str(usj_dir))
     heb = HebrewSource()
     for anchor_v, vs, ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
@@ -127,7 +144,9 @@ def decode(book, ch, v, iso="ind", usj_dir=Path("pipeline/work/ingest-cache/usj-
 
 The `decode()` above assumes you have this pipeline's own spine (`HebrewSource`) installed. An external
 client with only the PUBLISHED files doesn't need that at all — `_index/<BOOK>_lexemes.json` already
-resolves `srcOrd` to a lexeme id directly, no `is_content` re-derivation required:
+resolves `srcOrd` to a lexeme id directly, no `is_content` re-derivation required, and no `rules={}` call
+either: an external client reading a plain USJ/USFM/verse-dump copy of the edition already HAS the raw
+text — there's no cleaning step to opt out of unless you're running this pipeline's own `usj_source.py`:
 
 ```python
 lexemes = json.loads(Path("publish/compact-alignments/_index/RUT_lexemes.json").read_text())["RUT 1:1"]
@@ -210,8 +229,10 @@ the JSON container, so it's reproducible from ANY source format (USJ, USFM, a pl
 doesn't spuriously change on irrelevant re-serialization (verified: re-saving the identical USJ with
 different formatting keeps the hash identical; changing one word anywhere in the book changes it):
 
-1. Extract each verse's translatable text exactly as the aligner does (`usj_source.read_verse_ranges` —
-   footnotes/headings/titles excluded, same rule as alignment itself).
+1. Extract each verse's translatable text (`usj_source.read_verse_ranges(usj_path, rules={})` —
+   footnotes/headings/titles excluded like alignment itself, but always RAW: bypasses
+   `config/text_strip_rules.json` even for an edition that opts into cleaning before alignment, since a
+   client verifying "is this the same edition I have" only ever has the unmodified source file).
 2. For each `(chapter, verse)` in ascending order, form the string `"{chapter}:{verse}:{text}"`.
 3. Join all of a book's verse-strings with `"\n"`.
 4. UTF-8 encode, SHA-256, hex digest.

@@ -41,3 +41,5 @@ LEX_ROOT = _p("ALIGNER_LEX_ROOT", _REPO_ROOT / "publish" / "lexeme-alignments") 
 # (R1 keyness-filter, R2 sense-surface, R3 gap-map, LXX NT-gap). See internal-docs/aligner-handover.md.
 PRIOR_PACK = _p("ALIGNER_PRIOR_PACK", _PIPELINE / "vendor" / "prior-pack" / "prior_pack.parquet")
 HF_CHUNK_SIZE = int(os.environ.get("ALIGNER_HF_CHUNK_SIZE", "200"))  # files per HF commit, project-wide
+# per-edition opt-in bracket/paren text-strip decisions (usj_source.py) — see config/text_strip_rules.json
+TEXT_STRIP_RULES = _p("ALIGNER_TEXT_STRIP_RULES", _REPO_ROOT / "config" / "text_strip_rules.json")

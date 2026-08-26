@@ -32,6 +32,7 @@
 #   make new-catalog                  # non-DBT sweep of the full cross-source catalog
 #   make new-catalog-dbt              # DBT-inclusive follow-up sweep
 #   make status
+#   make text-strip-report            # bracket/paren clues -> config/text_strip_report.md (see it + config/text_strip_rules.json)
 #   make clean-out ISO=ceb            # catch-up cleanup for out/ jsonl that predates auto-clean-out
 #                                      # (or CLEAN_OUT_ALL=1 — multi-dataset-safety-checked, not blind rm)
 #   make publish ISO=ceb
@@ -46,11 +47,11 @@ PY := python3
 LOAD_ENV = if [ -f .env ]; then export $$(grep -v '^\#' .env | xargs); fi
 
 .PHONY: help new-language update-language new-edition update-edition update-batch update-all \
-        new-batch new-catalog new-catalog-dbt status clean-out publish publish-span-profile publish-all \
-        _require-iso _require-spec
+        new-batch new-catalog new-catalog-dbt status text-strip-report clean-out publish \
+        publish-span-profile publish-all _require-iso _require-spec
 
 help:
-	@sed -n '2,33p' Makefile
+	@sed -n '2,40p' Makefile
 
 _require-iso:
 	@if [ -z "$${ISO:-}" ]; then echo "ISO is required, e.g. make $(MAKECMDGOALS) ISO=ceb" >&2; exit 1; fi
@@ -118,6 +119,11 @@ new-catalog-dbt:
 
 status:
 	$(PY) pipeline/scripts/status.py
+
+# Clues (not decisions) for config/text_strip_rules.json — see that file's _doc. Writes
+# config/text_strip_report.md; pass MIN_PCT=0.05 etc. to override the inclusion threshold.
+text-strip-report:
+	$(PY) pipeline/scripts/text_strip_candidates.py $(if $(MIN_PCT),--min-pct $(MIN_PCT))
 
 # --- out/ cleanup (opt-in, per-language or --all) ---
 

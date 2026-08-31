@@ -1,0 +1,29 @@
+{
+  "_doc": "SOURCE-SIDE (axis C) veto list for target_stopwords' content-word rescue: Hebrew/Greek lexemes that are semantically LIGHT — a target word rendering one of these is NOT thereby proven to be a content word, so it must not be rescued out of the stopword list. Computed once, applies to every target language forever (the source inventory is fixed). Without this, LXX-bridge share-pooling wrongly rescues target copulas/quantifiers: spa 'ser' pools to 0.407 across hayah/eimi/ginomai, fra 'tous'/'tout' to 0.966/0.974 across kol/pas. WHY A CURATED LIST: no existing prior-pack column identifies these — measured 2026-08-31, keyness does NOT separate them (hbo:8034 shem 'name' = 0.18 is LOWER than hbo:1961 hayah 'be' = 0.47), word_class tags hayah/eimi as 'content', and pos gives only 'verb'/'noun'. Additive and conservative: adding an entry can only KEEP a word in the stopword list, never remove one. Cross-testament pairs are listed together since the LXX bridge pools them anyway.",
+  "_validated": "2026-08-31 against stopwords-iso via evaluate_stopwords' mapping, 36 languages: aggregate precision +0.0135 over the bridge-pooling rule alone; ind +0.079, ben +0.073, hin +0.034, spa -> 1.000. fra/eng/deu held steady, i.e. est/sont/tous/a correctly stayed stopwords.",
+  "_narrowed": "2026-08-31: cut from 12 to 7. DROPPED the do/make pair (hbo:6213 asah, grc:4160 poieo) and the say trio (hbo:0559 amar, grc:3004 lego, grc:2036 epo) — those are genuine CONTENT verbs in most targets, and vetoing them wrongly pinned real content words into the stopword list (swe 'göra' to-do/make, fra 'dit' said). The seven kept are unambiguous: copulas, have/there-is, and quantifiers, which are function words in essentially every target. Cases that only LOOKED like the dropped entries working (eng 'what' via amar) were quotation-frame artifacts — right answer, wrong reason.",
+  "_extended": "2026-08-31: 7 -> 19. Found systematically, not by eye: for every lexeme the rule rescues on, measure how often the rescued target word is an external (stopwords-iso) stopword across 37 languages; a consistently-high rate means the LEXEME is itself function-class. Verified by inspecting every word each addition newly pins as a stopword — 100% were function words, and no 'face'/'hand'/'one' CONTENT word was affected (those are not frequent-and-dispersed enough to be candidates). Measured +71 true function words at flat-to-better precision (function-class group alone: +0.0012). Deliberately NOT added despite scoring high: hbo:0559 amar 'say', hbo:6213 asah 'do', hbo:5414 natan 'give', hbo:1697 dabar 'word', hbo:3117 yom 'day', hbo:0376 ish 'man', hbo:0935 bo 'come' — these are genuine CONTENT verbs/nouns whose score is inflated by stopwords-iso over-including their target renderings (eng 'say'/'give'/'do', fra 'parole').",
+  "lexemes": {
+    "hbo:1961": "hayah — to be / become (copula)",
+    "grc:1510": "eimi — to be (copula)",
+    "grc:1096": "ginomai — to become / come to pass",
+    "grc:2192": "echo — to have",
+    "hbo:3426": "yesh — there is / existence",
+    "hbo:3605": "kol — all / every (quantifier)",
+    "grc:3956": "pas — all / every (quantifier)",
+
+    "grc:3762": "oudeis — no one / none (negative quantifier) -> dan ingen, ell δεν, eng no",
+    "grc:3367": "medeis — no one (prohibitive) -> ell μη, ind jangan, hau kada",
+    "grc:1699": "emos — my (possessive) -> dan/nob min, ell μου, ita mio",
+    "grc:4674": "sos — your sg (possessive; same class as emos)",
+    "grc:2251": "hemeteros — our (possessive; same class as emos)",
+    "grc:5212": "hymeteros — your pl (possessive) -> ell σας, hin तुम्हारी",
+    "grc:1410": "dynamai — to be able (modal) -> dan/nob/swe kan, fin voi, ind dapat",
+    "grc:1520": "heis — one (numeral, doubles as indefinite article) -> bul един, ell ένας, eng one",
+    "hbo:0259": "echad — one (numeral/indefinite article; Hebrew counterpart of heis)",
+
+    "hbo:6440": "panim — face, GRAMMATICALISED to 'before/in front of' -> deu vor, ces před, bul пред",
+    "hbo:8432": "tavek — midst, GRAMMATICALISED to 'among/between' -> deu unter, spa entre, ces mezi",
+    "hbo:3027": "yad — hand, GRAMMATICALISED to instrumental 'by/through' -> deu durch, fra par, hin द्वारा"
+  }
+}

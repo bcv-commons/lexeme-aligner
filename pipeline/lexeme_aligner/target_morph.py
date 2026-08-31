@@ -23,6 +23,7 @@ import argparse
 import collections
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
 from lexeme_aligner.gloss_align import Normalizer
@@ -35,6 +36,21 @@ _MIN_PREFIX = 2         # single-char prefixes are almost always orthographic no
 _MAX_AFFIX = 5          # affixes longer than this are not considered
 _MIN_STEMS = 12         # an affix must attach to ≥ this many distinct real stems to count as productive
 _TOP_AFFIX = 40         # keep at most this many productive affixes per side (guards against a long noise tail)
+
+
+def _has_letter(affix: str) -> bool:
+    """A real affix carries at least one LETTER. An affix made purely of combining marks is an artifact of
+    the split-at-every-point search, not a morpheme — in scripts whose vowels are written as trailing marks
+    the search reads consonant|vowel-sign as stem|suffix, and since each such mark attaches to hundreds of
+    stems it sails past the `_MIN_STEMS` productivity test. Measured on Myanmar: 39 of kht's 40 "productive
+    suffixes" were bare vowel signs and tone marks (ူ ု း ႈ ွ) plus a variation selector, so `stem()` was
+    stripping PHONEMIC vowels; priors and target tokens then normalised differently and gloss collapsed to
+    4.9% while eflomal held 84.9%. Chinese was unaffected only because it learns no affixes at all (0) and
+    the normaliser degrades to identity — which is exactly the behaviour this restores for Myanmar.
+
+    Same spirit as `_MIN_PREFIX` ("single-char prefixes are orthographic noise"), and a no-op for the
+    alphabetic-script languages whose affixes (fra s/e/es/nt, ind nya/an/lah) all contain letters."""
+    return any(unicodedata.category(c)[0] == "L" for c in affix)
 
 
 def _learn(usj_dir: Path, books) -> dict:
@@ -76,8 +92,8 @@ def _learn(usj_dir: Path, books) -> dict:
             if pre:
                 pre_prod[pre] += 1
 
-    suffixes = [a for a, n in suf_prod.most_common(_TOP_AFFIX) if n >= _MIN_STEMS]
-    prefixes = [a for a, n in pre_prod.most_common(_TOP_AFFIX) if n >= _MIN_STEMS]
+    suffixes = [a for a, n in suf_prod.most_common(_TOP_AFFIX) if n >= _MIN_STEMS and _has_letter(a)]
+    prefixes = [a for a, n in pre_prod.most_common(_TOP_AFFIX) if n >= _MIN_STEMS and _has_letter(a)]
     # Stem lexicon for the "remainder must be a real word/stem" guard: suffix-side paradigm stems + attested
     # words ONLY. pre_stems is deliberately excluded — it's the orthographically-noisy side (every common
     # letter-run looks like a prefix-stem), and letting it into the guard lets garbage prefix-strips through.

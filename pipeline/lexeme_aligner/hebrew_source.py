@@ -22,6 +22,33 @@ from lexeme_aligner.config import HBO_DB, SPINE_DB
 from lexeme_aligner.refs import BOOK_NUMBERS, encode  # vendored — no cross-package import
 
 
+def spine_corpus(spine_db: Path = SPINE_DB) -> str:
+    """Stable identifier for the ORIGINAL-LANGUAGE text this spine represents — the `source_corpus`
+    provenance value carried on every published alignment row.
+
+    Needed because alignments against different source editions are otherwise indistinguishable in the
+    output: a Byzantine-anchored row and a Nestle1904-anchored row for the same language both carry
+    `lexeme=grc:2316`, and `base_text` names the TARGET edition, not the source. Mirrors the column
+    `senses_attested` already publishes under the same name (see its `hebrew_corpus`).
+
+    Prefers spine_meta's explicit `edition` (the new NT spines set it: `grc-rp2018`, `grc-tr`), else
+    derives from the MACULA source_greek/source_hebrew strings."""
+    import re
+    try:
+        con = sqlite3.connect(f"file:{spine_db}?mode=ro", uri=True)
+        meta = dict(con.execute("SELECT key, value FROM spine_meta").fetchall())
+        con.close()
+    except sqlite3.Error:
+        return "unknown"
+    edition = (meta.get("edition") or "").strip()
+    if edition:
+        return edition.split()[0]                     # 'grc-tr (third, independent…)' -> 'grc-tr'
+    heb = re.search(r"\b(WLC|BHSA|BHS)\b", meta.get("source_hebrew", "") or "")
+    grk = re.search(r"\b(Nestle1904|NA\d+|SBLGNT|Tischendorf)\b", meta.get("source_greek", "") or "")
+    parts = [m.group(1).lower() for m in (heb, grk) if m]
+    return "macula-" + "+".join(parts) if parts else "unknown"
+
+
 def _derive_lexeme(padded_strong: str | None, lemma: str | None) -> str | None:
     """Stand-in lexeme until the lexeme-anchored spine lands: `<padded strong>|<lemma>`, which splits
     the homonyms a bare Strong's conflates (finer than strong, rolls up to it). Replaced verbatim by

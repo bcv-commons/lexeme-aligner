@@ -40,9 +40,16 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
+from lexeme_aligner.hebrew_source import spine_corpus
 from lexeme_aligner.config import HF_CHUNK_SIZE, LEX_ROOT, OUT, SPINE_DB
 
-SCHEMA = ["surface", "lexeme", "method", "base_text", "count", "hi_conf"]   # the PUBLISHED columns
+SCHEMA = ["surface", "lexeme", "method", "base_text", "source_corpus", "count", "hi_conf"]  # PUBLISHED
+# `source_corpus` = which ORIGINAL-language text the row was aligned against (hebrew_source.spine_corpus:
+# "macula-wlc+nestle1904", "grc-rp2018", "grc-tr"). Constant per export run, but carried per ROW so a
+# partition pooling alignments against more than one source spine stays self-describing — `base_text`
+# names the TARGET edition, and without this a Byzantine-anchored row and a Nestle1904-anchored row for
+# the same language are indistinguishable (both carry e.g. lexeme=grc:2316). Same column name and role
+# senses_attested already publishes. `share` is therefore within (method, base_text, source_corpus).
 _HI_SCORE = 0.9   # eflomal intersection-backed link (both directions agree) — the reliable core
 _METHODS = ("eflomal", "gloss", "gapfill")   # union order; a method absent for an iso is simply skipped
 
@@ -106,11 +113,12 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str]
     for (surface, _lexeme, method, base_text), n in counts.items():
         per_surface[(surface, method, base_text)] += n
 
-    rows: list[Row] = [(surface, lexeme, strong_of[lexeme], method, base_text, n,
+    corpus = spine_corpus()
+    rows: list[Row] = [(surface, lexeme, strong_of[lexeme], method, base_text, corpus, n,
                         n / per_surface[(surface, method, base_text)], hi[(surface, lexeme, method, base_text)] / n)
                        for (surface, lexeme, method, base_text), n in counts.items() if n >= min_count]
     # group each surface's candidates, strongest first, then by method + edition — deterministic
-    rows.sort(key=lambda r: (r[0], -r[5], r[1], r[3], r[4]))
+    rows.sort(key=lambda r: (r[0], -r[6], r[1], r[3], r[4]))
     return rows, len(books), present_ordered
 
 
@@ -118,20 +126,21 @@ def _render(rows: list[Row]) -> list[str]:
     """Canonical per-row text — the format-independent basis for the content hash and TSV body.
     `strong` + `share` (row indices 2, 6) are excluded — see the module docstring for their exact,
     lossless derivation from `lexeme`/`count`."""
-    return [f"{s}\t{lx}\t{m}\t{bt}\t{c}\t{hc:.4f}" for s, lx, _g, m, bt, c, _sh, hc in rows]
+    return [f"{s}\t{lx}\t{m}\t{bt}\t{sc}\t{c}\t{hc:.4f}" for s, lx, _g, m, bt, sc, c, _sh, hc in rows]
 
 
 def write_parquet(rows: list[Row], dest: Path) -> None:
     import pyarrow as pa                                         # optional dep — see [publish] extra
     import pyarrow.parquet as papq
-    cols = list(zip(*rows)) if rows else ([], [], [], [], [], [], [], [])
+    cols = list(zip(*rows)) if rows else ([], [], [], [], [], [], [], [], [])
     table = pa.table({
         "surface": pa.array(cols[0], pa.string()),
         "lexeme": pa.array(cols[1], pa.string()),
         "method": pa.array(cols[3], pa.string()),
         "base_text": pa.array(cols[4], pa.string()),
-        "count": pa.array(cols[5], pa.int32()),
-        "hi_conf": pa.array([round(x, 4) for x in cols[7]], pa.float32()),
+        "source_corpus": pa.array(cols[5], pa.string()),
+        "count": pa.array(cols[6], pa.int32()),
+        "hi_conf": pa.array([round(x, 4) for x in cols[8]], pa.float32()),
     })
     papq.write_table(table, dest, compression="zstd")
 

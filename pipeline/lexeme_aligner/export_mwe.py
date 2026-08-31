@@ -28,10 +28,17 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import methods_present, tag_files, tag_files_any_method
+from lexeme_aligner.hebrew_source import spine_corpus
 from lexeme_aligner.config import HF_CHUNK_SIZE, OUT
 from lexeme_aligner.export_lex import publish_to_hf
 
-SCHEMA = ["lexeme", "strong", "phrase", "n_words", "count", "share", "contig"]
+SCHEMA = ["lexeme", "strong", "phrase", "n_words", "source_corpus", "count", "share", "contig"]
+# `source_corpus` = which ORIGINAL-language text these spans were aligned against
+# (hebrew_source.spine_corpus). Same role and name as in lexeme-alignments/senses_attested: a phrase
+# attested against Nestle1904 and one attested against a Byzantine spine both key on the same bare
+# `grc:<strong>` lexeme, so without it they are indistinguishable once pooled. NOTE this dataset still
+# carries no `method`/`base_text` (it is built from the primary edition tag only — see full_chain step
+# 7), so this is the source half of the provenance, not the whole of it.
 _CANDIDATE_METHODS = ["eflomal", "gloss", "gapfill"]
 
 
@@ -97,26 +104,29 @@ def aggregate(out_dir: Path, iso: str, method: str = "all"):
 
 
 def build_rows(counts, per_lex, min_count: int) -> list[tuple]:
-    rows = [(lx, st, ph, n_w, n, n / per_lex[lx], True)
+    corpus = spine_corpus()                                   # source-side provenance — see SCHEMA
+    rows = [(lx, st, ph, n_w, corpus, n, n / per_lex[lx], True)
             for (lx, st, ph, n_w), n in counts.items() if n >= min_count]
-    rows.sort(key=lambda r: (r[0], -r[4]))                    # group by lexeme, most frequent phrase first
+    rows.sort(key=lambda r: (r[0], -r[5]))                    # group by lexeme, most frequent phrase first
     return rows
 
 
 def _render(rows) -> list[str]:
-    return [f"{lx}\t{st}\t{ph}\t{n_w}\t{c}\t{sh:.4f}\t{int(cg)}" for lx, st, ph, n_w, c, sh, cg in rows]
+    return [f"{lx}\t{st}\t{ph}\t{n_w}\t{sc}\t{c}\t{sh:.4f}\t{int(cg)}"
+            for lx, st, ph, n_w, sc, c, sh, cg in rows]
 
 
 def write_parquet(rows, dest: Path) -> None:
     import pyarrow as pa
     import pyarrow.parquet as papq
-    cols = list(zip(*rows)) if rows else ([],) * 7
+    cols = list(zip(*rows)) if rows else ([],) * 8
     papq.write_table(pa.table({
         "lexeme": pa.array(cols[0], pa.string()), "strong": pa.array(cols[1], pa.string()),
         "phrase": pa.array(cols[2], pa.string()), "n_words": pa.array(cols[3], pa.int32()),
-        "count": pa.array(cols[4], pa.int32()),
-        "share": pa.array([round(x, 4) for x in cols[5]], pa.float32()),
-        "contig": pa.array(cols[6], pa.bool_()),
+        "source_corpus": pa.array(cols[4], pa.string()),
+        "count": pa.array(cols[5], pa.int32()),
+        "share": pa.array([round(x, 4) for x in cols[6]], pa.float32()),
+        "contig": pa.array(cols[7], pa.bool_()),
     }), dest, compression="zstd")
 
 

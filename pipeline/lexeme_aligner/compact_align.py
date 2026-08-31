@@ -39,14 +39,21 @@ from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS, _BOOK_FILE_NUM, pooled_verse_groups
-from lexeme_aligner.usj_source import read_verse_ranges, remap_clean_to_raw
+from lexeme_aligner.usj_source import TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw
 from lexeme_aligner.versification import remapper
 
 ALL_BOOKS = OT_BOOKS + NT_BOOKS
 
 _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index, published once per book",
           "<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json = [\"srcOrd:span ...\", ...] — position-parallel "
-          "to that book's _index/<BOOK>.json; hash = last N hex chars of book_content_hash()"]
+          "to that book's _index/<BOOK>.json; hash = last N hex chars of book_content_hash()",
+          "tokenizer_version = the tokenization these target positions are indexed against. Target words "
+          "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
+          "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
+          "tokenizer versions, so it cannot detect a mismatch. Use the published tokenize.js (generated "
+          "from the producing side by scripts/gen_js_tokenizer.py) or match it exactly; if your "
+          "implementation declares a different version, REFUSE TO DECODE rather than silently resolve "
+          "positions to the wrong words."]
 
 
 def update_manifest(path: Path, iso: str, edition: str, entry: dict) -> None:
@@ -57,6 +64,7 @@ def update_manifest(path: Path, iso: str, edition: str, entry: dict) -> None:
     if path.exists():
         doc = json.loads(path.read_text(encoding="utf-8"))
     doc["schema"] = _SCHEMA
+    doc["tokenizer_version"] = TOKENIZER_VERSION
     doc.setdefault("languages", {}).setdefault(iso, {}).setdefault("editions", {})[edition] = entry
     path.write_text(json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
                     encoding="utf-8")

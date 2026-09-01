@@ -269,10 +269,16 @@ def main() -> int:
                          "Defaults to --iso, so single-edition/grandfathered calls are unaffected.")
     ap.add_argument("--lang-name", default="Indonesian")
     ap.add_argument("--stat-iters", type=int, default=6)
-    ap.add_argument("--gloss-signals", default="morph,scatter",
+    ap.add_argument("--gloss-signals", default="morph,scatter,swsrc",
                     help="language-independent signals folded into gloss (comma-sep subset of "
                          "morph=#2 unsupervised morphology, stopwords=#3 target function-word filter, "
-                         "cross=#1 cross-lingual span, scatter=#4 light-lexeme filter). "
+                         "cross=#1 cross-lingual span, scatter=#4 light-lexeme tagging, "
+                         "swsrc=#4 SOURCE-GATED stopword filter, lightlast=#4 light-lexemes-claim-leftovers). "
+                         "DEFAULT adds swsrc since 2026-09-01: the plain `stopwords` gate craters gloss "
+                         "because it also blocks legitimate function<->function matches, but gating it on "
+                         "the SOURCE being a content, non-light lexeme removes that failure mode and is a "
+                         "clear win — token precision vs Clear gold fra +1.6 / hin +3.1 / eng +1.4 with "
+                         "coverage flat. `lightlast` measured INERT on all three (see docs/pipeline-overview.md). "
                          "DEFAULT morph+scatter: #2 is a clean win (coverage +5pt, precision flat); "
                          "#4 tags semantically light source lexemes (avg cross-lingual target dominance "
                          "<30%%) — their gloss pairs stay in the output but don't vote in the merge "
@@ -281,10 +287,32 @@ def main() -> int:
                          "measurable effect (gloss already spans multi-word priors). Enable them to re-ablate.")
     ap.add_argument("--cross-lang", type=Path, default=Path("publish/cross-lingual-span-profile/profile.json"),
                     help="#1 cross-lingual span profile (cross_lang_prior.py)")
+    ap.add_argument("--light-lexemes", type=Path, default=Path("config/light_lexemes.json"),
+                    help="#4 semantically-light source lexemes (copulas, quantifiers, 'have'/'one'). "
+                         "Their pairs are tagged `light` so gap-fill can RELEASE the target slot they "
+                         "hold without trying to re-align them")
     ap.add_argument("--eflomal-stem", action="store_true",
                     help="#2 for eflomal: feed STEMMED target tokens (learned morphology) so inflected "
                          "variants pool into one co-occurrence type; output surfaces stay the raw tokens "
                          "(eflomal aligns by position). A/B this vs the surface default before adopting.")
+    ap.add_argument("--eflomal-content-only", action="store_true",
+                    help="protection #1 (blunt): drop non-content source tokens from eflomal's source "
+                         "line entirely. Also removes their co-occurrence evidence and leaves target "
+                         "function words with no partner — A/B before trusting")
+    ap.add_argument("--eflomal-content-priority", action="store_true",
+                    help="protection #1 (surgical): train on the full source line, then let a content "
+                         "source token that got NO link claim a target position held only by a "
+                         "non-content token. Model unchanged, allocation only")
+    ap.add_argument("--eflomal-displace-weak", action="store_true",
+                    help="protection #1 level 2 (RISKY): with --eflomal-content-priority, also let a "
+                         "content token whose links are all non-intersection TRADE them for a position "
+                         "the union proposed and only a non-content token holds. Displaces, never adds")
+    ap.add_argument("--eflomal-allow-scattered", action="store_true",
+                    help="turn OFF protection #2 (which is on by default): let a source token keep a "
+                         "non-contiguous set of target positions. Scattered spans measure ~20pt less "
+                         "precise than contiguous ones at the same span size (hin 64.0 vs 82.5, eng "
+                         "62.3 vs 84.5), so use this only for a language where discontinuity is real "
+                         "(Grambank GB026=1)")
     ap.add_argument("--anchor", choices=["strong", "lexeme"], default="strong",
                     help="eflomal source-side key: strong (rollup) or lexeme (finer, separates homonyms)")
     ap.add_argument("--out", type=Path, default=OUT)
@@ -345,16 +373,34 @@ def main() -> int:
                       f"{priors.stats['strongs']} strongs, {priors.stats['lxx']} LXX-bridged", file=sys.stderr)
         gloss_skip = None
         if "scatter" in signals:
-            scatter_path = args.cross_lang.parent / "light_lexemes.json"
+            # SOURCE CORRECTED 2026-09-01: this used to read the 691-lexeme file cross_lang_prior
+            # auto-builds beside the span profile. That set is barely light — measured share of a
+            # set's content pairs landing ENTIRELY on target stopwords (fra/hin/eng): auto-691
+            # 14.4/27.9/17.7% against an all-content base rate of 6.3/10.3/6.6%, i.e. only ~2.5x,
+            # over ~15% of all content pairs. The hand-curated config/light_lexemes.json scores
+            # 55.7/76.0/62.2% — ~9x the base rate — on a set small enough to act on. Same root cause
+            # as the retired span profile: the auto set is derived from OUR OWN alignments, so it
+            # measures our inconsistency rather than semantic lightness.
+            scatter_path = args.light_lexemes
             if scatter_path.exists():
-                scatter = json.loads(scatter_path.read_text(encoding="utf-8"))
-                gloss_skip = set(scatter.keys())
+                from lexeme_aligner.target_stopwords import _load_light_lexemes
+                gloss_skip = _load_light_lexemes(scatter_path)
                 print(f"[pilot] gloss #4 light-lexeme filter: {len(gloss_skip)} semantically light "
                       f"lexemes tagged (avg target dominance <30%%; kept in gloss, excluded from "
                       f"merge votes + opened to gap-fill)", file=sys.stderr)
+        if "swsrc" in signals and gloss_sw is None:   # #4 gate needs the stopword list loaded
+            from lexeme_aligner.target_stopwords import StopwordFilter
+            gloss_sw = StopwordFilter(publish_iso, str(args.usj_dir))
+            print(f"[pilot] gloss #4 source-gated stopwords: {len(gloss_sw.words)} target function-words "
+                  f"(blocked only for CONTENT, non-light source lexemes)", file=sys.stderr)
+        if "lightlast" in signals:
+            print(f"[pilot] gloss #4 light-last: light lexemes claim only positions no real match took",
+                  file=sys.stderr)
         runs["gloss"] = run_method(recs, lambda r: align_verse(r.heb, r.toks, priors, args.iso,
                                                                stopwords=gloss_sw, cross_lang=gloss_xl,
-                                                               skip_lexemes=gloss_skip),
+                                                               skip_lexemes=gloss_skip,
+                                                               light_last="lightlast" in signals,
+                                                               source_gated_stopwords="swsrc" in signals),
                                    args.iso, "gloss", args.out)
     if want["stat"]:
         ibm = IBM1(iters=args.stat_iters)
@@ -368,10 +414,17 @@ def main() -> int:
                        if args.eflomal_priors else None)
         if prior_pairs:
             print(f"[pilot] eflomal priors: {len(prior_pairs)} gloss anchors", file=sys.stderr)
-        eflo = EflomalAligner(anchor=args.anchor, stem=args.eflomal_stem)
+        eflo = EflomalAligner(anchor=args.anchor, stem=args.eflomal_stem,
+                              content_only=args.eflomal_content_only,
+                              content_priority=args.eflomal_content_priority,
+                              contiguous_only=not args.eflomal_allow_scattered,
+                              displace_weak=args.eflomal_displace_weak)
         if args.eflomal_stem:
             print(f"[pilot] #2 eflomal: aligning on STEMMED target tokens", file=sys.stderr)
         eflo.run(recs, norm, priors_pairs=prior_pairs)
+        if args.eflomal_content_priority:
+            print(f"[pilot] #1 content-priority: {eflo.n_reassigned} target position(s) reassigned "
+                  f"from a non-content to an otherwise-unaligned content source token", file=sys.stderr)
         runs["eflomal"] = run_method(recs, lambda r: eflo.decode(r), args.iso, "eflomal", args.out)
 
     for tag, results in runs.items():

@@ -20,6 +20,8 @@ pipeline/work/
 # --- pipeline/vendor/ — pinned external snapshots (bulk; manifest/README stay tracked as the pin) ---
 # globalbibletools/data seeded copy — pinned commit in config/PROVENANCE.txt
 pipeline/vendor/gbt/
+# Grambank + Glottolog CLDF snapshots (pinned by commit in grambank_fetch.py)
+pipeline/vendor/grambank/
 # BSB-publishing/bsb-data-output fetched copy — pinned commit in config/PROVENANCE.txt
 pipeline/vendor/bsb/
 # copied-in bcv-commons/strongs datasets (gold attestations, gloss priors)
@@ -39,6 +41,10 @@ pipeline/pkf2usfm/node_modules/
 # holds only durable recipes (+ scripts/archive/ for superseded historical batch runs, kept as
 # provenance) ---
 pipeline/scripts/adhoc/
+
+# Persistent venv for the catalog-sweep systemd service (survives reboots,
+# unlike the per-session /tmp scratchpad venv used interactively).
+.venv/
 
 # --- publish/ — every dataset's bulk data is git-ignored; only manifest.json + README.md (+ small
 # committed companions) stay tracked, matching each dataset's own README for exactly what ships ---

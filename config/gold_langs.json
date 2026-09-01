@@ -1,16 +1,65 @@
 {
-  "_doc": "Gold languages for the empirical trust/contest analysis (contest_rule / phase2 / trust_profile). Add a language by aligning it (eflomal + gloss) and adding one line here — no code edit. `clear` = positional Clear-Bible attestations (data/resources/strongs/attestations/<iso>.parquet); `lexicon` = karnbibeln Strong's→Swedish (stem-tolerant). Languages listed but not yet aligned are auto-skipped until their align_eflomal/align_gloss jsonl exist. We already HOLD Clear gold for asm/ben/hin/por/rus/spa — they just need ingest+align to join.",
-  "_quarantine": "rus is QUARANTINED for BAD GOLD, NOT a fixable alignment issue. Diagnosed (2026-07-10): the Clear RUSSYN gold is itself positionally mis-aligned — ~57% of its per-verse strong→word pairings are wrong (EXO 1:1: H3478/Israel→'вошли'/came, H4714/Egypt→'иаковом'/Jacob). Proof: verse boundaries agree 100% (gold ref R = our ref R word-bag, so NOT a versification offset), our aggregate strong→surface is correct (18/18 top strongs), yet positional match is only 40% vs 79% lexical — a 39pt gap (healthy langs 1-7pt). Every versification remap (identity/lxx/hebrew) stayed ~42-44% because the scramble is intra-verse, below where remapping has leverage. Auto-excluded by contest_rule --oracle-floor (0.5) and surfaced by the gold-health table (--gap-flag). Our rus lexeme-alignments (94.3% cov, aggregate-correct) is UNAFFECTED and fine to keep published; only Clear's rus reference is unusable. Re-check if Clear reships a corrected rus alignment.",
-  "fra": "clear",
-  "arb": "clear",
-  "eng": "clear",
-  "hau": "clear",
-  "asm": "clear",
-  "ben": "clear",
-  "hin": "clear",
-  "por": "clear",
-  "rus": "clear",
-  "spa": "clear",
-  "swk": "lexicon",
-  "swe": "lexicon"
+ "_doc": "Gold languages for the empirical trust/contest analysis (contest_rule / phase2 / trust_profile). Add a language by aligning it (eflomal + gloss) and adding one line here — no code edit. `clear` = positional Clear-Bible attestations (data/resources/strongs/attestations/<iso>.parquet); `lexicon` = karnbibeln Strong's→Swedish (stem-tolerant). Languages listed but not yet aligned are auto-skipped until their align_eflomal/align_gloss jsonl exist. We already HOLD Clear gold for asm/ben/hin/por/rus/spa — they just need ingest+align to join.",
+ "_edition_doc": "Each entry may be a bare backend string (legacy) or {gold, edition, base_text}. `edition` is the ingest-cache tag (pipeline/work/ingest-cache/usj-<edition>) that IS the translation the gold was built against, and `base_text` is Clear's own name for it. THIS MATTERS: scoring requires the SAME translation the gold describes, and most of these languages have many ingested editions — picking by book-count or alphabetically silently scores one Bible against another Bible's gold. Live case (2026-08-31): spa was scored on spa_bes instead of spa_r09 and gap-fill precision read 10.9%; against the right edition it is 54.8%. Resolve with contest_rule.gold_edition(iso), never by globbing.",
+ "_quarantine": "rus is QUARANTINED for BAD GOLD, NOT a fixable alignment issue. Diagnosed (2026-07-10): the Clear RUSSYN gold is itself positionally mis-aligned — ~57% of its per-verse strong→word pairings are wrong (EXO 1:1: H3478/Israel→'вошли'/came, H4714/Egypt→'иаковом'/Jacob). Proof: verse boundaries agree 100% (gold ref R = our ref R word-bag, so NOT a versification offset), our aggregate strong→surface is correct (18/18 top strongs), yet positional match is only 40% vs 79% lexical — a 39pt gap (healthy langs 1-7pt). Every versification remap (identity/lxx/hebrew) stayed ~42-44% because the scramble is intra-verse, below where remapping has leverage. Auto-excluded by contest_rule --oracle-floor (0.5) and surfaced by the gold-health table (--gap-flag). Our rus lexeme-alignments (94.3% cov, aggregate-correct) is UNAFFECTED and fine to keep published; only Clear's rus reference is unusable. Re-check if Clear reships a corrected rus alignment.",
+ "arb": {
+  "base_text": "AVD",
+  "edition": "arb_vdv",
+  "gold": "clear"
+ },
+ "asm": {
+  "base_text": "IRV",
+  "edition": "asm_irv",
+  "gold": "clear"
+ },
+ "ben": {
+  "base_text": "IRV",
+  "edition": "ben_irv",
+  "gold": "clear"
+ },
+ "eng": {
+  "base_text": "BSB",
+  "edition": "engbsb",
+  "gold": "clear"
+ },
+ "fra": {
+  "base_text": "LSG",
+  "edition": "fra-lsg",
+  "gold": "clear"
+ },
+ "hau": {
+  "base_text": "OHCB",
+  "edition": "hau_bib",
+  "gold": "clear"
+ },
+ "hin": {
+  "base_text": "IRVHin",
+  "edition": "hinirv",
+  "gold": "clear"
+ },
+ "por": {
+  "base_text": "JFA11",
+  "edition": "porjfa",
+  "gold": "clear"
+ },
+ "rus": {
+  "base_text": "RUSSYN",
+  "edition": "rus_syn",
+  "gold": "clear"
+ },
+ "spa": {
+  "base_text": "RV09",
+  "edition": "spa_r09",
+  "gold": "clear"
+ },
+ "swe": {
+  "base_text": "folkbibeln",
+  "edition": "swe_fol",
+  "gold": "lexicon"
+ },
+ "swk": {
+  "base_text": "karnbibeln",
+  "edition": "swk",
+  "gold": "lexicon"
+ }
 }

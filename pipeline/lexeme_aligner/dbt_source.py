@@ -21,6 +21,19 @@ Verified live (2026-07-22) against the actual DBP v4 routes (`github.com/faithco
 
     python3 -m lexeme_aligner.dbt_source --bible-id SPARVC --iso spa --to-usj pipeline/work/ingest-cache/usj-spa-rvc
     python3 -m lexeme_aligner.dbt_source --bible-id SPARVC --iso spa --to-usj pipeline/work/ingest-cache/usj-spa-rvc --book RUT
+
+Read-only fast path: the sibling `audio-sync` repo independently downloads DBT/helloAO chapter text
+for its own audio-timing work into `downloads/BB/{ot,nt}/{iso}/{bible_id}/{book}/
+{BOOK}_{chapter:03d}_{fileset_id}.raw.json` (a `{source, fileset_id, verses:[{verse_start, verse_end,
+verse_text}]}` sidecar it added at our request — see internal-docs handover, 2026-08-28). When a
+matching file exists there for the (bible_id, book, chapter) we're about to fetch, we use it instead
+of hitting the live DBP API — same verse-level shape `chapter_verses()` would have returned, just
+pre-fetched. Matched on bible_id alone (globbing across audio-sync's iso path segment), NOT our own
+`--iso` — onboard.py actually passes our per-edition tag there (a slug of the bible_id), not the bare
+ISO audio-sync's directories are keyed by, so bible_id is the only reliably shared key between the
+two repos' independent naming. Falls back to the live call whenever the sibling repo, that edition,
+or that specific chapter isn't cached there (most of the catalog won't be — audio-sync's coverage is
+a curated subset, not the ~1,876-language catalog this repo sweeps). Never writes into that tree.
 """
 from __future__ import annotations
 
@@ -43,6 +56,11 @@ _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 # across several onboarding batches — no official rate-limit is documented). Default matches that
 # empirical finding; override via BIBLE_API_DELAY_MS (e.g. "0" to disable).
 _REQUEST_DELAY = float(os.environ.get("BIBLE_API_DELAY_MS", "500")) / 1000.0
+# audio-sync's pre-fetched chapter cache (see module docstring). Overridable for other machines/
+# layouts; absent entirely is the common case for anyone without that sibling repo checked out —
+# every lookup against it just no-ops back to the live API.
+AUDIO_SYNC_BB = Path(os.environ.get("AUDIO_SYNC_BB_DIR",
+                                     "/home/lgunnars/dev/bcv-commons/audio-sync/downloads/BB"))
 # Preference order — text_plain/text_format are VERIFIED to work with the chapter-verse endpoint
 # (live-tested); text_json/text_usx/text_html are untested there and, for at least one real bible
 # (PORNLH), text_usx silently 404s on that endpoint even though the fileset exists. Only fall back
@@ -136,6 +154,98 @@ def chapter_verses(fileset_id: str, book: str, chapter: int) -> list[dict]:
     return d.get("data", [])
 
 
+def _cached_book_dirs(bible_id: str, testament: str, book: str) -> list[Path]:
+    """Resolve which audio-sync downloads/BB director(y/ies) hold this bible_id's cached text for
+    this book, if any. Matched on bible_id alone (a globally-unique DBP identifier), globbing across
+    the iso path segment — deliberately NOT matched against our own `--iso`, which onboard.py
+    actually populates with our per-edition TAG (a slug of the bible_id, e.g. 'khkntp'), not the bare
+    ISO audio-sync keys its directories by (e.g. 'khk'); bible_id alone is sufficient to identify the
+    edition and sidesteps that mismatch entirely. Called once per book, not once per chapter — the
+    per-chapter lookup below reuses the result."""
+    canon = {"OT": "ot", "NT": "nt"}.get(testament)
+    if canon is None or not AUDIO_SYNC_BB.is_dir():
+        return []
+    return list(AUDIO_SYNC_BB.glob(f"{canon}/*/{bible_id}/{book}"))
+
+
+def _cached_chapter_verses(book_dirs: list[Path], book: str, chapter: str) -> list[dict] | None:
+    """Look up one chapter's pre-fetched verses across the book dirs `_cached_book_dirs` resolved.
+    Returns None on ANY miss or doubt (no match, no file, unparseable JSON) — callers fall back to
+    the live API, so a bad/absent cache entry never blocks real work, just skips the shortcut."""
+    if not book_dirs:
+        return None
+    try:
+        chapter_str = f"{int(chapter):03d}"
+    except (TypeError, ValueError):
+        return None
+    for book_dir in book_dirs:
+        for f in book_dir.glob(f"{book}_{chapter_str}_*.raw.json"):
+            try:
+                doc = json.loads(f.read_text(encoding="utf-8"))
+                verses = doc.get("verses")
+                if verses:
+                    return verses
+            except (json.JSONDecodeError, OSError):
+                continue
+    return None
+
+
+def _atomic_write(path: Path, data: str) -> None:
+    """Write `data` to `path` without a reader ever observing a partial file — build in a temp file
+    in the SAME directory (so the final os.replace is on one filesystem, hence atomic), then rename
+    into place. Required here because audio-sync's own `audio-sync-batch.service` writes into this
+    same tree continuously — confirmed with them (2026-08-28) that they hardened their own writers to
+    match this exact pattern in response, so both sides are now atomic-write."""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _write_back_to_audio_sync(bare_iso: str, bible_id: str, testament: str, book: str, chapter: str,
+                               fileset_id: str, verses: list[dict]) -> None:
+    """Contribute a chapter we just fetched LIVE (a cache miss) back into audio-sync's downloads/BB
+    tree, in their own format, so their audio-timing work benefits from languages our full-catalog
+    sweep reaches that they haven't touched yet. Confirmed design with them (2026-08-28) — see
+    CLAUDE.local.md. Only ever called on a genuine cache miss (never overwrites/touches an existing
+    cache hit), and only if the destination doesn't already exist (a lost race against their own
+    concurrent downloader is harmless — both sides would be writing the same chapter fetched from the
+    same upstream API, so a redundant write is identical bytes, never divergent content)."""
+    canon = {"OT": "ot", "NT": "nt"}.get(testament)
+    if canon is None or not AUDIO_SYNC_BB.is_dir():
+        return
+    try:
+        chapter_str = f"{int(chapter):03d}"
+    except (TypeError, ValueError):
+        return
+    book_dir = AUDIO_SYNC_BB / canon / bare_iso / bible_id / book
+    stem = f"{book}_{chapter_str}_{fileset_id}"
+    txt_path = book_dir / f"{stem}.txt"
+    raw_path = book_dir / f"{stem}.raw.json"
+    if txt_path.exists() or raw_path.exists():
+        return
+    book_dir.mkdir(parents=True, exist_ok=True)
+    # Normalize to just the 3 agreed fields — the live DBP response carries several more
+    # (book_id, book_name, chapter, *_alt variants) that aren't part of the shared contract.
+    norm_verses = [{"verse_start": v.get("verse_start"), "verse_end": v.get("verse_end"),
+                     "verse_text": v.get("verse_text")} for v in verses]
+    txt = "\n".join((v.get("verse_text") or "") for v in verses) + "\n"
+    raw = json.dumps({"source": "dbt", "fileset_id": fileset_id, "verses": norm_verses},
+                      indent=2, ensure_ascii=False) + "\n"
+    try:
+        _atomic_write(txt_path, txt)
+        _atomic_write(raw_path, raw)
+    except OSError as e:
+        print(f"[dbt_source] write-back to audio-sync failed for {stem}: {e}", file=sys.stderr)
+
+
 def _book_usfm(book: str, chapters: dict[int, list[dict]]) -> str:
     out = [f"\\id {book}"]
     for ch, verses in sorted(chapters.items()):
@@ -147,7 +257,8 @@ def _book_usfm(book: str, chapters: dict[int, list[dict]]) -> str:
     return "\n".join(out) + "\n"
 
 
-def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None) -> int:
+def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
+           bare_iso: str | None = None) -> int:
     """Fetch every book/chapter for a bible and convert to USJ <NN>-<BOOK>.json. Each book is routed
     to its OWN testament's fileset (falling back to 'ALL') — see text_filesets()."""
     try:
@@ -160,6 +271,8 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None) ->
     books_meta = book_chapters(bible_id)
     wanted = [b for b in books_meta if not only or b in only]
     n = 0
+    cache_hits = 0
+    cache_misses = 0
     # Circuit breaker for a fileset that's entirely 404 (verified live: AYZYSS returned 404 for
     # EVERY chapter of the first book tried) — without this, the per-chapter 404-skip above would
     # dutifully grind through every chapter of every remaining book one at a time (each paced
@@ -193,6 +306,7 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None) ->
             ordered = book_chapter_list
             if "1" in book_chapter_list:
                 ordered = ["1"] + [c for c in book_chapter_list if c != "1"]
+            cached_dirs = _cached_book_dirs(bible_id, meta["testament"], book)
             chapters = {}
             for i, ch in enumerate(ordered):
                 # A single chapter 404ing later in the book is real and NOT rare — book_chapters()'s
@@ -203,16 +317,24 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None) ->
                 # there", not a transient blip. But chapter 1 (tried first, see above) is different:
                 # if it 404s, the book has nothing yet — bail out of the whole book instead of
                 # dutifully probing every remaining chapter one at a time.
-                try:
-                    verses = chapter_verses(fileset_id, book, ch)
-                except urllib.error.HTTPError as e:
-                    if e.code != 404:
-                        raise
-                    print(f"[dbt_source] skip {book} {ch}: 404 (chapter listed but not fetchable)",
-                          file=sys.stderr)
-                    if i == 0:
-                        break
-                    continue
+                verses = _cached_chapter_verses(cached_dirs, book, ch)
+                if verses is not None:
+                    cache_hits += 1
+                else:
+                    cache_misses += 1
+                    try:
+                        verses = chapter_verses(fileset_id, book, ch)
+                    except urllib.error.HTTPError as e:
+                        if e.code != 404:
+                            raise
+                        print(f"[dbt_source] skip {book} {ch}: 404 (chapter listed but not fetchable)",
+                              file=sys.stderr)
+                        if i == 0:
+                            break
+                        continue
+                    if verses and bare_iso:
+                        _write_back_to_audio_sync(bare_iso, bible_id, meta["testament"], book, ch,
+                                                   fileset_id, verses)
                 if verses:
                     chapters[ch] = verses
             if not chapters:
@@ -227,7 +349,8 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None) ->
             uf.write_text(_book_usfm(book, chapters), encoding="utf-8")
             usfmtc.readFile(str(uf)).outUsj(str(usj_dir / f"{nn}-{book}.json"))
             n += 1
-    print(f"[dbt_source] {n} book(s) → {usj_dir}", file=sys.stderr)
+    cache_note = f", {cache_hits} chapter(s) from audio-sync cache" if cache_hits else ""
+    print(f"[dbt_source] {n} book(s) → {usj_dir}{cache_note}", file=sys.stderr)
     return n
 
 
@@ -257,6 +380,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bible-id", required=True, help="DBP bible_id, e.g. SPARVC")
     ap.add_argument("--iso", required=True)
+    ap.add_argument("--bare-iso", default=None,
+                     help="Bare ISO (e.g. 'khk'), distinct from --iso which is actually our "
+                          "per-edition tag. Enables both the audio-sync cache read AND write-back — "
+                          "omit to disable write-back (read-side caching works via --bible-id alone "
+                          "regardless of this flag).")
     ap.add_argument("--to-usj", type=Path, required=True, metavar="DIR")
     ap.add_argument("--book", action="append", help="limit to book(s); repeatable")
     ap.add_argument("--pin", type=Path, default=None)
@@ -274,7 +402,7 @@ def main() -> int:
     print(f"[dbt_source] {args.iso}: {pin['bible_id']} (filesets={picks}, {pin['name']}) · "
           f"license→{pin['license_url']}", file=sys.stderr)
 
-    to_usj(args.bible_id, picks, args.to_usj, args.book)
+    to_usj(args.bible_id, picks, args.to_usj, args.book, bare_iso=args.bare_iso)
     return 0
 
 

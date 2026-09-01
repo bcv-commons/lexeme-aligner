@@ -308,6 +308,7 @@ def main() -> int:
                             ["helloao_source", "--translation", ed["param"], "--iso", tag,
                              "--to-usj", usj, "--pin", pin] if ed["source"] == "helloao" else
                             ["dbt_source", "--bible-id", ed["param"], "--iso", tag,
+                             "--bare-iso", args.iso,
                              "--to-usj", usj, "--pin", pin] if ed["source"] == "dbt" else None)
             if ingest_args is None:
                 raise SystemExit(f"[onboard] unknown source '{ed['source']}' for edition {ed}")

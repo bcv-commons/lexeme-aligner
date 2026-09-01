@@ -53,13 +53,40 @@ def load_priors(prior_pack: Path):
 
 
 def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: dict,
-                 topk_strong: int = 5, min_surface_share: float = 0.1):
+                 topk_strong: int = 5, min_surface_share: float = 0.1,
+                 release_light: bool = True, reserve_function_slots: bool = False):
     """From the other modes' jsonl (the 'taken pool'), extract the gap-fill support signals:
       covered_h[ref]  = source h_idx already aligned      (→ what still needs a signal)
       taken_t[ref]    = target positions already consumed (→ untaken-only constraint)
       anchors[ref]    = {covered h_idx: target pos}        (→ positional/diagonal prior)
       strong_surf     = {strong: {top target words}}       (→ strong-rollup back-off)
       target_pos      = {target word: majority source POS} (→ BOOTSTRAPPED target POS, grammatical prior)
+
+    `release_light` (#3, docs/pipeline-overview.md): a pair whose source lexeme is semantically LIGHT
+    (config/light_lexemes.json — copulas, `all`, `have`, `one`) stays in `covered_h`, so gap-fill never
+    wastes a fill trying to re-align it, but its target positions are NOT added to `taken_t` — so a real
+    content gap may claim the slot it is sitting on. This is the asymmetry the project actually wants:
+    we do not care about getting light words right, only about them not holding a slot a real match
+    needed. Light pairs are also kept out of `anchors` and out of `strong_surf`/`target_pos`, since a
+    slot that may move is a bad positional anchor and a light lexeme's rendering is a bad vocabulary
+    exemplar. Measured: these lexemes land ENTIRELY on target stopwords 55.7/76.0/62.2% of the time
+    (fra/hin/eng) against a 6.3/10.3/6.6% all-content base rate.
+
+    `reserve_function_slots` (#5, docs/pipeline-overview.md): a NON-CONTENT source pair (waw, article,
+    ὁ, καί, prepositions) is dropped at export, so this used to skip it entirely — leaving the target
+    position it consumed looking FREE to gap-fill, which could then claim it while eflomal still held it.
+    Two source tokens then claimed one target position with nothing recording the conflict. Reserving the
+    position looked like the better direction: gap-fill fills landing on a function-word-held slot score
+    WORSE than fills onto a genuinely free one in all three gold languages (fra 46.2% vs 47.8%, hin 51.9%
+    vs 65.3%, eng 43.9% vs 44.8%).
+
+    DEFAULT OFF ANYWAY — the ablation says the signal is real but far too small to act on. Reserving cuts
+    gap fills by 29-42% (fra 286->204, hin 717->459, eng 174->101) for a token-precision change of
+    +0.0/+0.1/+0.0: gap fills are only ~0.2-0.7% of all claimed target tokens, so removing even their
+    worst tier cannot move the aggregate. And the double-claim it prevents is INTERNAL only — non-content
+    rows are dropped at export and compact-alignments indexes content lexemes exclusively, so no consumer
+    ever sees the conflict. Losing a third of gap-fill's coverage to tidy an invisible wart is a bad
+    trade. Enable with `--reserve-function-slots` if a future consumer needs the guarantee.
 
     `min_surface_share`: a word only counts as a Strong's "known surface" if it represents ≥ this share of
     that Strong's OWN aligned occurrences — not just raw top-5 count. Verified necessary: a high-frequency
@@ -73,6 +100,7 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
     anchors: dict[int, dict] = collections.defaultdict(dict)
     strong_words: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     tpos: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    n_light_released = [0]
     for m in methods:
         for fp in _tag_files(out_dir, m, iso):
             with fp.open(encoding="utf-8") as fh:
@@ -80,11 +108,19 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
                     rec = json.loads(line)
                     ref = rec["ref"]
                     for p in rec["pairs"]:
-                        if not (p.get("content") and (p.get("target") or "").strip()
+                        if not ((p.get("target") or "").strip()
                                 and (p.get("score") or 0) >= min_score):
+                            continue
+                        if not p.get("content"):
+                            # never a gap and never a vocabulary exemplar — but it IS holding a slot
+                            if reserve_function_slots:
+                                taken_t[ref].update(p.get("t_idx") or [])
                             continue
                         covered_h[ref].add(p["h_idx"])
                         ti = p.get("t_idx") or []
+                        if release_light and p.get("light"):
+                            n_light_released[0] += len(ti)
+                            continue          # covered (never re-filled), but its slot is released
                         for j in ti:
                             taken_t[ref].add(j)
                         if ti:
@@ -104,6 +140,9 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
         if kept:
             strong_surf[s] = kept
     target_pos = {w: c.most_common(1)[0][0] for w, c in tpos.items()}
+    if n_light_released[0]:
+        print(f"[gapfill] #3 light-lexeme slot release: {n_light_released[0]} target position(s) "
+              f"freed from semantically-light source tokens", file=sys.stderr)
     return covered_h, taken_t, anchors, strong_surf, target_pos
 
 
@@ -124,8 +163,33 @@ def main() -> int:
     ap.add_argument("--methods", default="eflomal,gloss", help="modes that define 'covered'")
     ap.add_argument("--min-score", type=float, default=0.0)
     ap.add_argument("--prior-pack", type=Path, default=PRIOR_PACK, help="for pos + translit priors")
-    ap.add_argument("--cross-lang", type=Path, default=Path("publish/cross-lingual-span-profile/profile.json"),
-                    help="#1 cross-lingual span-length profile (cross_lang_prior.py); '' to disable")
+    # DEFAULT OFF since 2026-08-31 — the shipped profile cannot fire and carries no signal:
+    #   * only 7 of 14,040 lexemes (0.05%) clear `multiword_floor` 0.6; the profile's MAXIMUM rate is
+    #     0.683, so the extension is unreachable for ~everything.
+    #   * validated against Clear gold spans for the first time (1,912 lexemes, >=20 gold occurrences):
+    #     our mean rate 0.081 vs gold 0.756, correlation r=0.075 — no per-lexeme signal, not merely a
+    #     scale offset. Cause: it is learned from OUR OWN alignments, which structurally under-fill
+    #     (one target + an optional rightward +1, blocked by the stopword gate), so it measures our own
+    #     limitation rather than the phenomenon.
+    #   * A/B on 9 gold languages, on vs off: byte-identical scorable/correct/precision in all 9.
+    # The MECHANISM is kept and still works, but DO NOT go looking for a better profile: controls
+    # (2026-08-31, 9 gold languages, 6,547 scorable fills) showed the per-lexeme rates are worth -3 fills
+    # and a profile's coverage a further -5. "Always extend by one" (every spine lexeme at rate 1.0, no
+    # external data) scored 3,132 correct vs 3,127 for the best real profile and 2,935 with no prior at
+    # all. The whole gain is that extension is too CONSERVATIVE — capped at +1, rightward-only, and with
+    # the stopword gate blocking 85.2% of legitimate span members — not that we lack a span predictor.
+    # See internal-docs/subject-fusion-span-prior.md §0d before building anything here.
+    ap.add_argument("--cross-lang", type=Path, default=None,
+                    help="span-length profile for the #1 extension prior; default OFF — the shipped "
+                         "cross-lingual-span-profile was measured to carry no signal (see code comment)")
+    ap.add_argument("--max-extend", type=int, default=1,
+                    help="how many target tokens a fill may absorb beyond its own (each step tries RIGHT "
+                         "then LEFT). Gold: a source content token takes 2.18 target words on average and "
+                         "is multi-word 76.6%% of the time, so 1 is likely too conservative")
+    ap.add_argument("--extend-over-stopwords", action="store_true",
+                    help="let an extension absorb a target STOPWORD. 85.2%% of gold targets our stopword "
+                         "lists flag are span MEMBERS (not sole targets), so the gate blocks legitimate "
+                         "span material — see internal-docs/subject-fusion-span-prior.md 0b/0c")
     ap.add_argument("--multiword-floor", type=float, default=0.6,
                     help="extend a hi-conf single-token fill to its neighbor when the OTHER languages we've "
                          "aligned render this lexeme as a phrase at least this often")
@@ -137,6 +201,13 @@ def main() -> int:
                     help="disable the BHSA phrase-syntax prior (placement + last-resort fills) — ablation switch")
     ap.add_argument("--no-func-order", action="store_true",
                     help="disable cross-phrase func-order fallback only (keep within-phrase 'phrase' prior) — ablation switch")
+    ap.add_argument("--reserve-function-slots", action="store_true",
+                    help="#5 (default OFF, measured not worth it): stop gap-fill claiming a target "
+                         "position a non-content source token already holds. Prevents an internal "
+                         "double-claim, but costs 29-42%% of gap fills for ~0 precision")
+    ap.add_argument("--no-release-light", action="store_true",
+                    help="disable #3: keep the target slots held by semantically-light source lexemes "
+                         "reserved, instead of releasing them to real content gaps — ablation switch")
     ap.add_argument("--no-morph", action="store_true",
                     help="disable the number/gender morphology-agreement tie-break — ablation switch")
     ap.add_argument("--out", type=Path, default=OUT)
@@ -151,9 +222,14 @@ def main() -> int:
     stopwords = StopwordFilter(publish_iso, str(args.usj_dir))   # #3: target function-word gate (cached)
     lex_pos, lex_translit = load_priors(args.prior_pack)
     covered_h, taken_t, anchors, strong_surf, target_pos = load_covered(
-        args.iso, args.out, methods, args.min_score, lex_pos)
+        args.iso, args.out, methods, args.min_score, lex_pos,
+        release_light=not args.no_release_light,
+        reserve_function_slots=args.reserve_function_slots)
+    # `.is_file()`, not `.exists()`: the documented "'' to disable" arrives as Path('') == Path('.'),
+    # which EXISTS as a directory, so the old check tried to read_text() the cwd and raised
+    # IsADirectoryError instead of disabling the prior.
     cross_lang = (json.loads(args.cross_lang.read_text(encoding="utf-8"))
-                 if args.cross_lang and args.cross_lang.exists() else {})
+                 if args.cross_lang and args.cross_lang.is_file() else {})
     cross_edition_vocab = {}
     if not args.no_cross_edition:
         try:
@@ -305,6 +381,8 @@ def main() -> int:
                                    lex_pos=lex_pos, lex_translit=lex_translit, target_pos=target_pos,
                                    stopwords=stopwords, cross_lang=cross_lang,
                                    multiword_floor=args.multiword_floor,
+                                   max_extend=args.max_extend,
+                                   extend_over_stopwords=args.extend_over_stopwords,
                                    cross_edition_vocab=cross_edition_vocab,
                                    rec_after_rate=rec_after_rate,
                                    phrase_enabled=phrase_enabled,

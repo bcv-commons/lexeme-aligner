@@ -124,7 +124,8 @@ def _gforms(word: str, norm: Normalizer, iso: str) -> list[str]:
 
 def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
                 stopwords=None, cross_lang: dict | None = None, multiword_floor: float = 0.6,
-                skip_lexemes: set | None = None) -> list[Match]:
+                skip_lexemes: set | None = None, light_last: bool = False,
+                source_gated_stopwords: bool = False) -> list[Match]:
     """Deterministic gloss alignment, enhanced with the three language-independent signals:
       • #2 morphology — via `norm` (LearnedNormalizer for langs without a hand-coded one): both the prior
         rendering and the verse token are affix-stripped, so an inflected form matches its dictionary stem.
@@ -134,20 +135,41 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
         spans are exempt (already tightly constrained to all-words-match-prior).
       • #1 `cross_lang` (cross_lang_prior profile) — a single-token match whose lexeme renders as a phrase in
         most OTHER aligned languages (compound place names, numbers) is extended to its untaken neighbor.
-        Additive: never steals a token already matched, so it only lifts recall on compound lexemes."""
+        Additive: never steals a token already matched, so it only lifts recall on compound lexemes.
+
+    Two protections against a semantically LIGHT source lexeme taking a slot a real match needed
+    (protection #4, docs/pipeline-overview.md) — both default OFF pending measurement:
+      • `light_last` — light lexemes (config/light_lexemes.json: copulas, `all`, `have`, `one`) are
+        sorted BEHIND every non-light candidate, so they can only claim positions no real content
+        lexeme wanted. Deliberately NOT a ban: εἰμί→'est' is a correct alignment (fra 'est' genuinely
+        renders grc:1510 at 77% share) and is kept whenever nothing contests the slot. Same
+        last-resort shape that fixed gap-fill's phrase tier, where firing greedily alongside the
+        vocabulary priors cost eng 404→327 correct fills.
+      • `source_gated_stopwords` — the target-side stopword gate, but applied ONLY when the SOURCE is
+        a content, non-light lexeme. The unconditional version craters gloss because it also blocks
+        legitimate function↔function alignments (ὁ→'le'); conditioning on the source removes exactly
+        that failure mode while keeping the case it was built for."""
     norm = NORMALIZERS.get(iso, Normalizer())
     tok_forms = [norm.forms(t) for t in tokens]
     blocked = {j for j in range(len(tokens)) if stopwords and stopwords.is_function(tokens[j])}  # #3
 
     light_h = {h.idx for h in heb if skip_lexemes and h.lexeme in skip_lexemes}
+    _none: set = set()
+
+    def blocked_for(h) -> set:
+        """Which target positions this SOURCE token may not be matched onto on its own."""
+        if source_gated_stopwords:
+            return blocked if (h.is_content and h.idx not in light_h) else _none
+        return blocked
     cands: list[Match] = []
     for h in heb:
         if not h.strong:
             continue
+        h_blocked = blocked_for(h)
         is_name = (h.sp == "nmpr") or (h.morph or "").endswith("Np")
         if is_name and h.gloss_en:
             for j, t in enumerate(tokens):
-                if j in blocked:
+                if j in h_blocked:
                     continue
                 s = _name_score(h.gloss_en, t)
                 if s:
@@ -156,7 +178,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
             if len(variant) == 1:
                 gf = _gforms(variant[0], norm, iso)
                 for j in range(len(tokens)):
-                    if j in blocked:                     # #3: don't let a content lexeme land on a stopword
+                    if j in h_blocked:                   # #3: don't let a content lexeme land on a stopword
                         continue
                     s = _word_score(gf, tok_forms[j])
                     if s:
@@ -174,7 +196,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
                 # head-word fallback: 'anak perempuan' matching just 'anak(ku)'
                 head = gfs[0]
                 for j in range(len(tokens)):
-                    if j in blocked:
+                    if j in h_blocked:
                         continue
                     s = _word_score(head, tok_forms[j])
                     if s >= 0.9:
@@ -184,7 +206,9 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
     n_h = max((h.idx for h in heb), default=0) + 1
     def pos_penalty(m: Match) -> float:
         return abs(m.h_idx / max(1, n_h) - m.t_idx[0] / max(1, len(tokens)))
-    cands.sort(key=lambda m: (-m.score, pos_penalty(m)))
+    # light_last: a light lexeme's candidates sort behind EVERY non-light candidate, at any score, so
+    # they claim only what no real match wanted (see the docstring).
+    cands.sort(key=lambda m: ((m.h_idx in light_h) if light_last else False, -m.score, pos_penalty(m)))
     used_h: set[int] = set()
     used_t: set[int] = set()
     out: list[Match] = []

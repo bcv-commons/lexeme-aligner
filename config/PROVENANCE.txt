@@ -6,6 +6,49 @@ lexeme-spine.db — LEXEME-anchored backbone (the current spine; spine_words tab
   pin: spine_meta.macula_spine_sha256 = a3dbc0bbe95e19e0b45b5dbc533ae4b82eb61d66f1f0e817c87bb8628ac5d0ac
   contract: docs/data-contracts.md §1. Provided out-of-band; gitignored (*.db).
 
+rp2018-spine.db — ALTERNATE NT spine, Robinson-Pierpont 2018 Byzantine Textform  [ALIGNER_SPINE_DB]
+  from bcv-commons/bcv-query (shoresh/macula/build_rp2018_spine.py), 2026-08-31. 140,143 words, NT only.
+  source: Berean Bible group interlinear, majoritybible.com/msb_nt_tables.tsv
+  pin: spine_meta.source_sha256 = f4f6d75c210b0df9af064e76133f11e334c7a3a47154fb0a9ac348c8a43c2710
+  build sha256 (this artifact): 774a408f76f6974b5e9d77934dfe6bf81766f125ab6cdf4a4146382408e4c706
+  license: Public domain — berean.bible/licensing.htm ("Berean Bible and Majority Bible texts placed
+    into the public domain", 2023-04-30). The interlinear TABLE specifically was CLEARED with the
+    publisher (operator-confirmed 2026-08-31) — an earlier note here flagged it as unresolved because
+    berean.bible/terms.htm scopes its wording to the running texts; that caveat no longer applies.
+  source_corpus value: grc-rp2018 (hebrew_source.spine_corpus, from spine_meta.edition)
+  NOT Textus Receptus — spine_meta.edition_note records the direct check: 1 John 5:7-8 carries the SHORT
+    reading. RP2018 also omits LUK 17:36 / ACT 8:37 / ACT 15:34 / ACT 24:7, which TR carries.
+  FIDELITY vs lexeme-spine.db, all flagged in spine_meta, none silent:
+    - lemma 0% populated (lexeme-spine.db: 100% on grc) -> breaks `benchmark --grain lexeme`
+    - structured person/number/gender/case_/tense columns EXIST but are entirely NULL; the raw
+      Robinson-Pierpont parsing code is kept verbatim in `morph` instead (which lexeme-spine.db leaves
+      empty for Greek, so `morph` is a gain). Disables gapfill's number/gender agreement prior.
+    - bare grc:<strong> anchors, homographs unsplit — NOT a regression: lexeme-spine.db already has
+      0 augmented Greek lexemes (augmentation is Hebrew-only).
+  use: --spine-db pipeline/rp2018-spine.db (full_chain/onboard) or ALIGNER_SPINE_DB.
+  Provided out-of-band; gitignored (pipeline/*.db).
+
+tr-textus-receptus-spine.db — ALTERNATE NT spine, Textus Receptus  [ALIGNER_SPINE_DB]
+  from bcv-commons/bcv-query (shoresh/macula/build_tr_spine.py), 2026-08-31. 140,856 words, NT only.
+  source: github.com/byztxt/greektext-textus-receptus — Robinson's TR with Strong's numbers
+  pin: spine_meta.source_sha256 = c70e5b14765e22e98cd27736289c993cfb968a600a192fdc1c910cd1084c8270
+  build sha256 (this artifact): 068a1730fbf0bd1cf9eab98292ed65f6eb3019fe108e09e35da0a46f3681c4cf
+  license: Public domain — that repo's README ("Public Domain. Copy freely."), verified.
+  source_corpus value: grc-tr (hebrew_source.spine_corpus, from spine_meta.edition)
+  Carries the Comma Johanneum — spine_meta.comma_johanneum records the direct check; 1 John 5:7 is 22
+    words here vs 5 in Nestle1904. This is the reason this spine exists: words present in TR but absent
+    from Nestle1904 have NO anchor under the default spine and can never be aligned.
+    CAVEAT proven in practice: a TR spine is necessary but NOT sufficient — aligning ind against it left
+    17 of those 22 words unaligned, correctly, because every ingested Indonesian edition carries the
+    SHORT reading. A TR-based TARGET edition is needed too (see config/textual_basis.json).
+  FIDELITY vs lexeme-spine.db — same three as rp2018-spine.db, plus:
+    - gloss always blank (rp2018 has 99.3% from the Berean source). No operational cost: spine `gloss`
+      has zero consumers in the aligner, it is carried for reference only.
+    - surface is unaccented/uncapitalized, transliterated from the source's ASCII form. Presentational
+      only — eflomal keys on the anchor, never the surface.
+  use: --spine-db pipeline/tr-textus-receptus-spine.db (full_chain/onboard) or ALIGNER_SPINE_DB.
+  Provided out-of-band; gitignored (pipeline/*.db).
+
 spine.db — legacy STEPBible bare-Strong's backbone (superseded by lexeme-spine.db; kept for parity checks)
   copied 2026-07 from bcv-query monorepo (shoresh/spine/spine.db)
   STEPBible-derived, CC-BY: uhb_tag v2.1.32 / ugnt_tag v0.34 ; 443,508 words

@@ -33,9 +33,41 @@ _DEFAULT = {"fra": "clear", "arb": "clear", "eng": "clear", "hau": "clear", "swk
 # NO code edit. Languages in the config but not yet aligned auto-skip until their jsonl exist.
 _cfg = {k: v for k, v in (json.loads(_CFG.read_text(encoding="utf-8")) if _CFG.exists() else _DEFAULT).items()
         if not k.startswith("_")}
-GOLD = {iso: gt for iso, gt in _cfg.items()
+# An entry is either a bare backend string (legacy) or {gold, edition, base_text} — see the config's
+# own _edition_doc. Both shapes stay valid; only the backend is needed for scoring itself.
+_backend = lambda v: v if isinstance(v, str) else v.get("gold")
+GOLD = {iso: _backend(v) for iso, v in _cfg.items()
         if tag_files(OUT, "eflomal", iso) and tag_files(OUT, "gloss", iso)}
 LANGS = list(GOLD)
+
+
+def gold_edition(iso: str) -> str | None:
+    """The ingest-cache tag whose text IS the translation this language's gold was built against, or
+    None if unrecorded.
+
+    ALWAYS resolve a benchmark/gap-fill run's edition through here, never by globbing usj-<iso>*:
+    scoring compares our alignment against gold built from ONE specific translation, and most gold
+    languages have several ingested (spa 8, por 9, hin 6). Picking by book count or alphabetically
+    scores one Bible against another Bible's gold and the result looks like a quality problem rather
+    than a setup error — measured 2026-08-31, spa read 10.9% gap-fill precision on spa_bes vs 54.8%
+    on the correct spa_r09."""
+    v = _cfg.get(iso)
+    return v.get("edition") if isinstance(v, dict) else None
+
+
+def gold_base_text(iso: str) -> str | None:
+    """Clear's own name for that edition (BSB, RV09, AVD …) — for reporting/provenance."""
+    v = _cfg.get(iso)
+    return v.get("base_text") if isinstance(v, dict) else None
+
+
+def gold_usj_dir(iso: str, ingest_cache: Path = Path("pipeline/work/ingest-cache")) -> Path | None:
+    """The USJ dir to align for a gold-scored run. None if the edition is unrecorded or not ingested."""
+    ed = gold_edition(iso)
+    if not ed:
+        return None
+    d = Path(ingest_cache) / f"usj-{ed}"
+    return d if d.is_dir() else None
 
 
 def _index(iso, method, out_dir):

@@ -88,6 +88,7 @@ class GapFiller:
                   lex_pos: dict | None = None, lex_translit: dict | None = None,
                   target_pos: dict | None = None, stopwords=None,
                   cross_lang: dict | None = None, multiword_floor: float = 0.6,
+                  max_extend: int = 1, extend_over_stopwords: bool = False,
                   cross_edition_vocab: dict | None = None,
                   rec_after_rate: float | None = None,
                   phrase_enabled: bool = True,
@@ -262,16 +263,37 @@ class GapFiller:
             done_src.add(i)
             used.add(j)
 
-        if cross_lang:                                       # #1: cross-lingual span extension (additive)
+        # Span extension (additive, post-hoc). Gold says a source content token takes 2.18 target words
+        # on average and is multi-word 76.6% of the time, while everything above emits ONE target — so
+        # this is where the under-filling is corrected.
+        #
+        # `cross_lang` is OPTIONAL and gates WHICH lexemes extend. Controls (2026-08-31, 9 gold
+        # languages) showed a profile's per-lexeme rates are worth -3 correct fills and its coverage a
+        # further -5, i.e. nothing: extending UNCONDITIONALLY scored best. So with no profile passed,
+        # every fill is eligible — see internal-docs/subject-fusion-span-prior.md §0d.
+        if max_extend > 0:
             by_idx = {h.idx: h for h in content}
             for m, prior in out:
-                h = by_idx.get(m.h_idx)
-                stats = cross_lang.get(h.lexeme) if h and h.lexeme else None
-                if not stats or stats.get("multiword_rate", 0) < multiword_floor:
-                    continue
-                nxt = m.t_idx[-1] + 1
-                if (nxt < len(tokens) and nxt not in used and nxt not in taken
-                        and not (stopwords and stopwords.is_function(tokens[nxt]))):
-                    m.t_idx.append(nxt)
-                    used.add(nxt)
+                if cross_lang:                           # a NON-EMPTY profile gates; {} means no gate
+                    # (gapfill.py passes {} when --cross-lang is absent, so `is not None` would wrongly
+                    # take the gate path with an empty profile and silently skip every extension)
+                    h = by_idx.get(m.h_idx)
+                    stats = cross_lang.get(h.lexeme) if h and h.lexeme else None
+                    if not stats or stats.get("multiword_rate", 0) < multiword_floor:
+                        continue
+                for _ in range(max_extend):
+                    # Try RIGHT then LEFT. Leftward matters because the words a source token pulls in
+                    # often PRECEDE it — an article ("the sons"), a preposition ("of Japheth"), or the
+                    # free subject pronoun a fused finite verb needs ("he said"); the pre-2026-08-31
+                    # code could only ever go right, so those were unreachable.
+                    for cand in (m.t_idx[-1] + 1, m.t_idx[0] - 1):
+                        if not (0 <= cand < len(tokens)) or cand in used or cand in taken:
+                            continue
+                        if stopwords and stopwords.is_function(tokens[cand]) and not extend_over_stopwords:
+                            continue
+                        m.t_idx.append(cand) if cand > m.t_idx[-1] else m.t_idx.insert(0, cand)
+                        used.add(cand)
+                        break
+                    else:
+                        break                            # neither side available — stop extending
         return sorted(out, key=lambda mp: mp[0].h_idx)

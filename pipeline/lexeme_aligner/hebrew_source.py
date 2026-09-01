@@ -137,23 +137,38 @@ class HebrewSource:
         # `lexeme` column when it lands; until then derive a lexeme from (strong, lemma) so the rest of
         # the pipeline is already lexeme-anchored.
         _spine_cols = {r[1] for r in self.spine.execute("PRAGMA table_info(spine_words)")}
-        self.has_lexeme = "lexeme" in _spine_cols
+
+        def _populated(col: str) -> bool:
+            """Column EXISTS and actually carries data. Presence alone is not enough: the alternate NT
+            spines (rp2018/tr, 2026-08-31) ship the full column set for schema compatibility but leave
+            gloss/stem/person/number/gender/case_/tense entirely NULL, so a bare `col in _spine_cols`
+            reported has_gloss/has_morph_features TRUE for them and the downstream consumers (gapfill's
+            number/gender agreement prior) then ran against empty values. They degrade safely — every
+            use is guarded by `if h.number` — but the flag was reporting a capability the spine does not
+            have. One LIMIT-1 probe per column, once per HebrewSource."""
+            if col not in _spine_cols:
+                return False
+            row = self.spine.execute(
+                f"SELECT 1 FROM spine_words WHERE {col} IS NOT NULL AND {col} != '' LIMIT 1").fetchone()
+            return row is not None
+
+        self.has_lexeme = _populated("lexeme")
         # Enriched lexeme-spine carries gloss/stem/sense inline (bridge-joined upstream); read each
         # independently — NOT one bundled flag. A 2026-07-24 spine update dropped `sense`/`sense_conf`/
         # `sense_source` while KEEPING `gloss`/`stem` (verified: both still carry real data) — a single
         # `has_sense` gate on all four would have silently blanked gloss/stem too, though only sense was
         # actually gone. `has_sense` still separately gates whether to skip the hbo.db sense sidecar join
         # (that join is specifically a sense fallback, not a gloss/stem one).
-        self.has_gloss = "gloss" in _spine_cols
-        self.has_stem = "stem" in _spine_cols
-        self.has_sense = "sense" in _spine_cols
+        self.has_gloss = _populated("gloss")
+        self.has_stem = _populated("stem")
+        self.has_sense = _populated("sense")
         # Same forward-compat pattern for Psalm superscription tagging (see HebToken.is_superscription):
         # use the spine's own column the moment it lands, heuristic only until then.
-        self.has_superscription_col = "is_superscription" in _spine_cols
+        self.has_superscription_col = "is_superscription" in _spine_cols  # 0/1 flag — presence is the signal
         # BHSA phrase syntax (phrase_id/function/rela land together — one flag): see HebToken.
-        self.has_phrase = "phrase_id" in _spine_cols
+        self.has_phrase = _populated("phrase_id")
         # Morphological agreement features (number/gender land together — same build as phrase syntax).
-        self.has_morph_features = "number" in _spine_cols
+        self.has_morph_features = _populated("number")
         # hbo.db is the optional per-occurrence sense sidecar (sense-mining only).
         # Statistical methods (eflomal/IBM-1) need only spine + target USJ, so a
         # missing hbo.db must not be fatal — connect only when the file is present.

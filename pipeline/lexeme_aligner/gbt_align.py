@@ -216,11 +216,35 @@ def extract_lang(lang: str, data_dir: Path = _DATA_DIR, book_filter: str | None 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--lang", required=True, help="target language code (gbt's own dir name, e.g. fra/spa/eng)")
+    ap.add_argument("--coverage", action="store_true",
+                    help="report USABLE gold rows per already-extracted language and exit. Do this "
+                         "before adding a language to config/gold_langs.json: the raw row count is "
+                         "SOURCE WORDS (~448k for every language, whether or not the gloss project has "
+                         "any target text), so it says nothing about gold value — measured 2026-09-01, "
+                         "amh/kan/mal/tgl/tpi have under 2k usable rows against eng's 444k")
+    ap.add_argument("--lang", help="target language code (gbt's own dir name, e.g. fra/spa/eng)")
     ap.add_argument("--book", default=None, help="restrict to one book (3-letter code, e.g. MAT) — for spot-checks")
     ap.add_argument("--data-dir", type=Path, default=_DATA_DIR)
     ap.add_argument("--out-dir", type=Path, default=_OUT_DIR)
     args = ap.parse_args()
+    if args.coverage:
+        print(f"{'iso':6s} {'rows':>9s} {'usable':>9s} {'OT(H)':>8s} {'NT(G)':>8s}")
+        for fp in sorted(args.out_dir.glob("gbt_*.jsonl")):
+            tot = usable = 0
+            pref: collections.Counter = collections.Counter()
+            for line in fp.open(encoding="utf-8"):
+                r = json.loads(line)
+                tot += 1
+                if r["kind"] != "1:1" or not r["target_gloss"] or not r["target_gloss"][0]:
+                    continue
+                usable += 1
+                for st in r["source_strong"]:
+                    if st:
+                        pref[st[0]] += 1
+            print(f"{fp.stem[4:]:6s} {tot:9d} {usable:9d} {pref['H']:8d} {pref['G']:8d}")
+        return 0
+    if not args.lang:
+        ap.error("--lang is required (or pass --coverage)")
 
     rows = extract_lang(args.lang, args.data_dir, args.book)
     kind_counts = collections.Counter(r["kind"] for r in rows)

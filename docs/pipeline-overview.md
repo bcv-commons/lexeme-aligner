@@ -463,9 +463,33 @@ positive in only 105 (6.2%) — so contiguity is the right global default and GB
 opt-out. `GB136` (is core-argument order fixed?) covers 670 of ours and is a plausible second signal.
 
 Values for our gold languages: fra 0, eng 0, arb 0, ind 0, por 0 — none licenses discontinuity. The one
-gold language flagged `GB026=1` (and `GB136=0`, free order) is **rus**, which is quarantined for bad gold.
-So the exception list is well-motivated typologically but **cannot currently be validated on any gold
-language** — it should ship as an opt-out that only ever *disables* a protection, never as a predictor.
+gold language flagged `GB026=1` (and `GB136=0`, free order) is **rus**.
+
+**VALIDATED 2026-09-01, once rus was rehabilitated onto gbt gold** (see config/gold_langs.json
+`_quarantine`). The prediction was made in advance: contiguity should confer no advantage in a language
+that licenses discontinuity. Size-controlled test — span-2 pairs only, so span length is held constant
+and contiguity is the only variable:
+
+| | span-2 contiguous | span-2 scattered | contiguity effect | GB026 |
+|---|---|---|---|---|
+| eng | 84.5% | 62.3% | **+22.2pt** | 0 |
+| hin | 82.5% | 64.0% | **+18.5pt** | (unc.) |
+| fra | 41.0% | 37.8% | +3.2pt | 0 |
+| **rus** | **26.0%** | **26.0%** | **+0.0pt** | **1** |
+
+rus is the only language of the four where contiguity buys nothing, and it is the only one Grambank
+codes as licensing discontinuity. The feature predicts exactly where the signal disappears.
+
+**But validation is NOT a reason to act on it.** End-to-end on rus, contiguity ON still scores
+marginally BETTER than the opt-out (tokP 53.6% vs 53.0%), because dropping outliers also shrinks spans
+and that helps independently. So GB026=1 means "the contiguity *precision* signal is absent here", not
+"contiguity is harmful here" — and there is no measured reason to disable the protection for these
+languages. The gate stays unwired.
+
+Caveats on the rus test, all real: n is small (360 + 233 pairs vs eng's 2,112 + 1,165); gbt rus gold
+averages 1.18 gloss words per entry, so like Clear fra it caps multi-word precision by arithmetic
+(both arms sit at 26.0%, well below that 50% cap, so it can still discriminate — but absolute numbers
+mean nothing here); and gbt glosses its own target text, not the Synodal edition we aligned.
 
 Note also `GB137` (clause-final negation) = 1 for fra: French *ne … pas* is genuinely discontinuous, which
 may be part of why fra's numbers behave differently throughout.
@@ -641,6 +665,139 @@ negative. Both successes are **exception lists that only ever disable a protecti
 coverage is acceptable there and fatal in a predictor. Neither is wired into the default path: no gold
 language can currently validate either (the GB026=1 candidate is quarantined `rus`; every gold language
 codes 1 on the #4 features), so both wait on gold coverage, not on implementation.
+
+---
+
+## Residual re-alignment — the second pass through the MODEL (2026-09-01)
+
+`residual_align.py`. Every protection above acts on ALLOCATION and all of them failed or were
+negligible, because eflomal's output is already near the best allocation *its model supports*. This is
+the other lever: strip the corpus to what is still unexplained and let eflomal learn a **fresh model**
+on that. No external knowledge, works on any language with a Bible.
+
+Per verse the residual keeps: **source** = content tokens eflomal+gloss both missed; **target** = tokens
+not already consumed, not target stopwords, and not "light renderings" — word forms whose aligned mass
+goes ≥50% to a light source lexeme (`config/light_lexemes.json`). We have no target-side light list, so
+it is induced from the taken pool, the target-side mirror of the source-side one. A share floor matters:
+fra *est* is mostly `grc:1510` and should go, a form that brushed a light lexeme once should not.
+
+**Two definitions of "already explained" were measured.**
+
+| | residual source tokens | distinct Strong's | seen once | aligned |
+|---|---|---|---|---|
+| A: any pair explains it | fra 1,121 / hin 2,350 / eng 1,407 | 251 / 644 / 333 | 55 / 70 / 63% | 96 / 96 / 95% |
+| B: only INTERSECTION-backed pairs explain it | 4,922 / 11,518 / 3,812 | 877 / 2,636 / 887 | 52 / 58 / 61% | — / 93 / 93% |
+
+**A — additive coverage on zero-signal tokens: WORKS, at a price.** The pass aligns 93-96% of tokens
+that had nothing, against gap-fill's 13-30%. Precision is lower — but its own confidence separates
+cleanly, so the weak half is dropped by default:
+
+| | residual **intersection** | residual weak | gap-fill, same kind of token |
+|---|---|---|---|
+| fra | **36.0%** (339 judgeable) | 14.7% (259) | 47.1% (121) |
+| hin | **43.9%** (528) | 20.9% (611) | 59.9% (322) |
+| eng | **30.0%** (527) | 13.9% (547) | 44.2% (86) |
+
+So the intersection half is less precise than gap-fill but reaches 3-6x more tokens, yielding **2.1x /
+1.2x / 4.2x more CORRECT fills** on tokens that previously had none. That is a genuine, model-derived
+coverage tier — and the first mechanism in this whole pass to beat gap-fill at its own job. It ships at
+`--fill-score 0.75`, deliberately below export_lex's 0.9 hi_conf bar, exactly like gap-fill's phrase
+tier: 30-44% is additive coverage, not high confidence, and a consumer must be able to filter it out.
+
+**B — re-deciding the weak 0.6 tier: DOES NOT WORK.** Releasing eflomal's non-intersection links back
+into the residual and re-aligning them scores fra 45.7% vs 41.8% (+3.9pt) but hin 52.7% vs 56.0%
+(-3.4pt) and eng 45.4% vs 50.8% (-5.3pt) — worse on two of three. A fresh model on the residual is not
+better than the original model was on the same tokens; only on tokens the original model never reached.
+
+### Combining with gap-fill — higher confidence AND more tokens, as separate tiers
+
+Gap-fill and the residual pass reach the same token pool by completely independent routes: hand-built
+vocabulary priors versus a freshly-estimated model. So their AGREEMENT is a real confidence signal —
+the same reasoning `merge_align` already applies to eflomal/gloss. `combine_with_gapfill()` stratifies
+the three outcomes (default ON, `--no-combine-gapfill` to ablate):
+
+| tier | rule | fra | hin | eng |
+|---|---|---|---|---|
+| **agree_gapfill** | both mechanisms picked the same target → score 0.9 | **62.5%** | **77.8%** | **55.6%** |
+| gapfill | gap-fill fired; it WINS contests (see below) | 47.1% | 59.9% | 44.2% |
+| residual_only | nothing else reached the token → score 0.75 | 33.5% | 40.3% | 26.5% |
+| **union** | | **148/372** | **356/693** | **153/500** |
+| *gap-fill alone, for comparison* | | *57/121* | *193/322* | *38/86* |
+
+**Contests go to gap-fill**, measured: on tokens where both fire and differ, gap-fill is right 68.8% vs
+the residual's 50.5% (hin) and 51.9% vs 40.7% (eng); fra is 36.4 vs 34.1 at n=44, i.e. noise. So the
+residual link is dropped there and gap-fill's own jsonl keeps the token.
+
+Net: the top tier is **+15.4 / +17.9 / +11.4pt more precise than gap-fill alone**, and the union reaches
+**3.1x / 2.2x / 5.8x more tokens** and lands **2.6x / 1.8x / 4.0x more correct fills**. Both at once —
+but only because the tiers stay separately scored. Blended into one number the union is *less* precise
+than gap-fill alone (39.8 / 51.4 / 30.6%), which is exactly why the project publishes an additive union
+with provenance rather than a single merged answer. Caveat: the agreement tier is thin (24 / 36 / 18
+gold-judgeable tokens), so its precision estimate is the least stable number in this table.
+
+### Grambank at this step — asked, and answered NO
+
+The one ambiguity was how to define a target-side light form. Grambank looks ideal for it (GB117 copula,
+GB126 existential, GB250 'have', GB313 possessives all say whether a language HAS such a word), so it
+was tested rather than assumed. `tpi` codes **GB117=0** (no copula) yet induces a *more* concentrated
+rendering of `grc:1510` than Russian, which codes 1:
+
+| iso | GB117 | grc:1510 pairs | top-form share | renderings |
+|---|---|---|---|---|
+| fra / eng / hin / rus | 1 | 3,622 / 3,785 / 2,743 / 1,223 | 37.9 / 33.7 / 26.6 / 20.0% | est · is · है · есть |
+| **tpi** | **0** | 4,616 | **37.0%** | **i · em · stap** |
+
+Tok Pisin's `i` is a predicate marker — a real, stable word in that slot. Together with Hindi rendering
+`grc:2192` correctly 63.5% of the time despite GB250=0, the lesson is now measured twice:
+**Grambank codes how a language marks a category, not whether a target word appears in the alignment.**
+Absence-of-category is not absence-of-word — the gap is exactly the periphrases and particles coded
+"not X" that still occupy a slot. This is why GB026 (a *structural* claim about discontinuity) validated
+at #2 while the *lexical-existence* features do not transfer. The self-derived induction is kept; its
+independent check is gold, not Grambank.
+
+---
+
+## Known limitation — `hi_conf` mis-ranks, and we are choosing not to fix it
+
+`verse_checks.py` computes CROSS-METHOD AGREEMENT: how many methods independently produced the
+IDENTICAL target span for a source token. Measured against Clear gold (fra/hin/eng, NT):
+
+| | 1 method | 2 agree |
+|---|---|---|
+| fra | 40.8% | **75.7%** |
+| hin | 81.5% | **94.9%** |
+| eng | 56.1% | **94.8%** |
+
++13 to +39 points — the most discriminative signal found anywhere in this work. Crucially it carries
+information the published `hi_conf` (score >= 0.9) does NOT:
+
+| | hi_conf=T agree>=2 | hi_conf=T agree<2 | hi_conf=F agree>=2 | hi_conf=F agree<2 |
+|---|---|---|---|---|
+| fra | 75.7% | **40.8%** | **71.6%** | 41.8% |
+| eng | 94.9% | **58.7%** | **70.4%** | 44.8% |
+| hin | 95.1% | 88.2% | 74.3% | 54.3% |
+
+**So `hi_conf` mis-ranks: on fra and eng a NON-hi_conf token that has agreement (70-72%) is better than
+a hi_conf token that does not (41-59%).** The tier consumers are told to trust is internally
+heterogeneous by 7-36 points.
+
+**Not fixed, deliberately.** The obvious repair — require agreement for `hi_conf` — was tested and
+rejected: it would raise precision (fra 69.2→75.7, eng 88.3→94.9, hin 89.0→95.1) but retain only
+**11.7% of hin's hi_conf tokens**, because hin's gloss pass runs at 20% coverage and most of its tokens
+are eflomal-only. Agreement's AVAILABILITY depends on how many methods happened to work for a language,
+so it is informative but makes a poor universal contract — and penalising single-method languages is
+penalising exactly the tail this project exists to serve.
+
+A published confidence sidecar for compact-alignments was also designed, sized and rejected
+(`compact_align.confidence_sidecar`, built but deliberately NOT wired into the writer). Three reasons:
+it cannot be backfilled (no published artifact retains per-occurrence method spans, and `--clean-out`
+deletes the jsonl), so it would ship for a handful of new editions against 1,708 without; the free part
+of the signal — contiguity — is already documented in the published format at zero bytes; and the
+`hi_conf` finding above shows agreement resists being turned into a universal guarantee. Sizing, if it
+is ever revisited: 135.4M aligned tokens, base64 bitfield +3.2% (24.8 MB), dense digits +24.7%.
+
+Agreement remains valuable as an INTERNAL diagnostic and should be used to evaluate future changes —
+it is how this limitation was found.
 
 ---
 

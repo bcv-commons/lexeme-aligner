@@ -162,6 +162,33 @@ dataset assumes that anchor as given rather than re-explaining it. (On GitHub, t
 | *(ordinal absent)* | that content lexeme is **unaligned** in this edition — no null placeholder |
 | `""` (empty string) | the verse has no aligned content lexeme, or the edition has no text there (e.g. a non-anchor verse of a pooled translation range) |
 
+### Contiguity is a confidence signal — and it is already in the data
+
+A span's punctuation carries information beyond its extent. Measured against Clear-Bible gold with span
+length held constant at 2 tokens, so that contiguity is the *only* variable:
+
+| | span-2 contiguous | span-2 scattered | difference |
+|---|---|---|---|
+| English (BSB) | 84.5% | 62.3% | **+22.2pt** |
+| Hindi (IRVHin) | 82.5% | 64.0% | **+18.5pt** |
+| French (LSG) | 41.0% | 37.8% | +3.2pt |
+| Russian (Synodal) | 26.0% | 26.0% | +0.0pt |
+
+**A scattered (`,`) span is a materially weaker claim than a contiguous (`-`) one** — roughly 20 points
+of token precision in languages whose reference gold can judge multi-word spans. Treat `4,6` as lower
+confidence than `4-5`, and filter on it if your use needs precision over coverage. This costs nothing to
+use: it is already encoded in every published partition.
+
+Two honest caveats. Russian shows **no** contiguity effect, and it is the one language here that
+Grambank codes `GB026=1` — adnominal material may occur discontinuously — so in some languages a
+scattered span is simply how the language renders the phrase, not a defect. And French's gold averages
+1.07 attested surfaces per source word, which caps any multi-word span by arithmetic, so its +3.2pt is
+not comparable to the others.
+
+Scattered spans are ~2-4% of spans in partitions published before 2026-09-01. From that date the
+aligner keeps only the longest contiguous run of a source token's targets by default, so newer
+partitions carry very few; the signal remains meaningful for everything already published.
+
 Target token positions are addressed by **position in that verse's own tokenized text** — a consumer
 tokenizes the edition's text the SAME way alignment did to resolve a position back to a word, or target
 positions silently point at the wrong words. This is NOT plain whitespace/punctuation splitting — the

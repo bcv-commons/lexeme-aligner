@@ -1,7 +1,8 @@
 {
  "_doc": "Gold languages for the empirical trust/contest analysis (contest_rule / phase2 / trust_profile). Add a language by aligning it (eflomal + gloss) and adding one line here — no code edit. `clear` = positional Clear-Bible attestations (data/resources/strongs/attestations/<iso>.parquet); `lexicon` = karnbibeln Strong's→Swedish (stem-tolerant). Languages listed but not yet aligned are auto-skipped until their align_eflomal/align_gloss jsonl exist. We already HOLD Clear gold for asm/ben/hin/por/rus/spa — they just need ingest+align to join.",
  "_edition_doc": "Each entry may be a bare backend string (legacy) or {gold, edition, base_text}. `edition` is the ingest-cache tag (pipeline/work/ingest-cache/usj-<edition>) that IS the translation the gold was built against, and `base_text` is Clear's own name for it. THIS MATTERS: scoring requires the SAME translation the gold describes, and most of these languages have many ingested editions — picking by book-count or alphabetically silently scores one Bible against another Bible's gold. Live case (2026-08-31): spa was scored on spa_bes instead of spa_r09 and gap-fill precision read 10.9%; against the right edition it is 54.8%. Resolve with contest_rule.gold_edition(iso), never by globbing.",
- "_quarantine": "rus is QUARANTINED for BAD GOLD, NOT a fixable alignment issue. Diagnosed (2026-07-10): the Clear RUSSYN gold is itself positionally mis-aligned — ~57% of its per-verse strong→word pairings are wrong (EXO 1:1: H3478/Israel→'вошли'/came, H4714/Egypt→'иаковом'/Jacob). Proof: verse boundaries agree 100% (gold ref R = our ref R word-bag, so NOT a versification offset), our aggregate strong→surface is correct (18/18 top strongs), yet positional match is only 40% vs 79% lexical — a 39pt gap (healthy langs 1-7pt). Every versification remap (identity/lxx/hebrew) stayed ~42-44% because the scramble is intra-verse, below where remapping has leverage. Auto-excluded by contest_rule --oracle-floor (0.5) and surfaced by the gold-health table (--gap-flag). Our rus lexeme-alignments (94.3% cov, aggregate-correct) is UNAFFECTED and fine to keep published; only Clear's rus reference is unusable. Re-check if Clear reships a corrected rus alignment.",
+ "_gbt_doc": "`gold: gbt` = globalbibletools occurrence alignment (CC0), extracted by gbt_align.py to pipeline/work/occurrence_align/gbt_<iso>.jsonl. LOOSER than Clear: gbt's gold is a gloss PHRASE per source word and it glosses its OWN target text, not the edition we align — positional agreement with Clear where both exist is eng 83.9% / hin 63.4% / spa 61.7%. Use gbt for A/B-ing our own variants and for reach, NEVER to compare absolute scores against a Clear language.\nCHECK COVERAGE BEFORE TRUSTING A LANGUAGE: `gbt_align --coverage` reports usable rows. The raw jsonl row count is SOURCE WORDS and is ~448k for every language regardless of whether the gloss project has any target text at all — measured 2026-09-01, only eng/spa/por/hin exceed 50k usable rows, while amh/kan/mal/tgl/tpi have under 2k and were removed from this file again after being added on the row count alone. `gbt_usable_rows` / `gbt_greek_rows` below are the measured numbers; Greek rows are what an NT-only test can use.\nThese four are listed because each has a Grambank feature no usable Clear gold language has (GB117=0 no copula / GB250=0 no transitive 'have'), which is what the docs/pipeline-overview.md #4 gate needs to validate. They are INERT until aligned — every consumer auto-skips a language with no align_* jsonl. tam is the only real GB117=0 candidate (4,854 Greek rows); tel/njm are OT-heavy and cannot test a Greek copula.\nSEPARATELY VALUABLE: gbt_rus has 38,969 Greek rows and Clear's rus gold is QUARANTINED for being positionally scrambled — gbt is an independent reference that could rehabilitate rus as a gold language. Not wired up here; see the _quarantine note.",
+ "_quarantine": "rus WAS quarantined for BAD GOLD (not a fixable alignment issue): Clear's RUSSYN gold is itself positionally mis-aligned — ~57% of its per-verse strong->word pairings are wrong (EXO 1:1: H3478/Israel->'вошли'/came). Verse boundaries agree 100%, and our aggregate strong->surface is correct, so it is an intra-verse scramble no versification remap can reach.\nREHABILITATED 2026-09-01 by switching rus to `gold: gbt`. The gold-health diagnostic (positional agreement vs lexical agreement; a large gap means the gold's per-verse word choice is wrong even though its overall vocabulary is right) run on the SAME rus alignment against both golds:\n    vs CLEAR gold: positional 38.7%  lexical 66.4%  GAP 27.7pt  <- scrambled (reproduces the 2026-07 diagnosis)\n    vs GBT   gold: positional 54.5%  lexical 56.0%  GAP  1.5pt  <- HEALTHY\nSo the defect is Clear's, exactly as diagnosed, and globalbibletools' independent CC0 occurrence alignment is a sound reference for the same language. rus rejoins the gold set for NT work only. Its absolute score is not comparable to a Clear language's (see _gbt_doc). Clear's rus parquet is kept on disk; re-check if Clear ever reships a corrected rus.\nNOT the cause, checked and ruled out 2026-09-01: a spine mismatch. rus_syn is textual_basis verdict `tr` (carries all 15 diagnostic verses incl. all 4 TR-only), while Clear's rus gold is keyed to SBLGNT — but re-aligning rus against the TR spine moved the gap 27.7 -> 27.9pt, i.e. nothing. And 8 of the 10 Clear gold editions are `tr` (arb/asm/ben/fra/hin/por/rus/spa), several of which score fine, so the TR/critical mismatch is not what makes rus special.",
  "arb": {
   "base_text": "AVD",
   "edition": "arb_vdv",
@@ -37,6 +38,18 @@
   "edition": "hinirv",
   "gold": "clear"
  },
+ "hun": {
+  "gbt_greek_rows": 2615,
+  "gbt_usable_rows": 12755,
+  "gold": "gbt",
+  "grambank": "GB250=0"
+ },
+ "njm": {
+  "gbt_greek_rows": 47,
+  "gbt_usable_rows": 13738,
+  "gold": "gbt",
+  "grambank": "GB117=0 no copula, GB250=0"
+ },
  "por": {
   "base_text": "JFA11",
   "edition": "porjfa",
@@ -45,7 +58,10 @@
  "rus": {
   "base_text": "RUSSYN",
   "edition": "rus_syn",
-  "gold": "clear"
+  "gbt_greek_rows": 38969,
+  "gbt_usable_rows": 38969,
+  "gold": "gbt",
+  "note": "NT ONLY (gbt rus has zero Hebrew rows). Rehabilitated 2026-09-01 — see _quarantine."
  },
  "spa": {
   "base_text": "RV09",
@@ -61,5 +77,17 @@
   "base_text": "karnbibeln",
   "edition": "swk",
   "gold": "lexicon"
+ },
+ "tam": {
+  "gbt_greek_rows": 4854,
+  "gbt_usable_rows": 5988,
+  "gold": "gbt",
+  "grambank": "GB117=0 no copula, GB250=0"
+ },
+ "tel": {
+  "gbt_greek_rows": 462,
+  "gbt_usable_rows": 5363,
+  "gold": "gbt",
+  "grambank": "GB117=0 no copula, GB250=0"
  }
 }

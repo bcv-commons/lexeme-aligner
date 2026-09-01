@@ -197,6 +197,85 @@ def load_gold_gbt(iso: str, occurrence_dir: Path, grain: str = "strong"):
     return gold, counts
 
 
+OCCURRENCE_DIR = Path("pipeline/work/occurrence_align")
+
+
+def load_gold_gbt_positional(iso: str, occurrence_dir: Path = OCCURRENCE_DIR):
+    """(ref, strong) -> {normalised target surfaces} from gbt's occurrence alignment — the POSITIONAL
+    shape (same as score_gapfill's Clear loader), not the type-level surface→strong map load_gold_gbt
+    returns. Needed because slot-allocation questions are per-occurrence: "at THIS verse, did this
+    source token get the right target word?" cannot be asked of an aggregated surface→strong table.
+
+    Same trust filter as load_gold_gbt: only `kind == "1:1"` rows with real target content. gbt's
+    target_gloss is a GLOSS PHRASE ("aux jours où"), not a single token, so every word in it counts as
+    an acceptable surface — a looser bar than Clear's word-level attestation, which is why gbt scores
+    should be read as corroboration, not as a drop-in replacement for a Clear number."""
+    fp = Path(occurrence_dir) / f"gbt_{iso}.jsonl"
+    if not fp.exists():
+        raise SystemExit(f"no gbt occurrence alignment at {fp} — run "
+                         f"`python3 -m lexeme_aligner.gbt_align --lang {iso}` first")
+    gold: dict[tuple, set] = collections.defaultdict(set)
+    for line in fp.open(encoding="utf-8"):
+        r = json.loads(line)
+        if r["kind"] != "1:1" or not r["target_gloss"] or not r["target_gloss"][0]:
+            continue
+        words = {norm_surface(w) for w in str(r["target_gloss"][0]).split()}
+        words.discard("")
+        if not words:
+            continue
+        for strong in r["source_strong"]:
+            if strong:
+                gold[(f"{int(r['verse_ref']):08d}", strong)] |= words
+    return dict(gold)
+
+
+def score_gbt(iso: str, tag: str, grain: str = "strong", gold_iso: str | None = None,
+              morph_remap: bool = True, hebrew_remap: bool = True):
+    """Type-level surface→Strong's top-1 against gbt's own occurrence alignment (CC0, independent of
+    Clear). Mirrors score_clear's metrics so the two are directly comparable — but gbt's gold is a
+    gloss phrase per source word, so its `gold_surfaces` are looser and its numbers sit higher; use it
+    to CORROBORATE and to reach languages Clear has no gold for, not to replace a Clear score."""
+    morph_table, gbt_morph = None, None
+    if morph_remap:
+        from lexeme_aligner.greek_morph_strong import load_table, _load_gbt_morphology
+        morph_table = load_table()
+        gbt_morph = _load_gbt_morphology(Path("pipeline/vendor/gbt/hbo+grc"))
+    hebrew_table = None
+    if hebrew_remap:
+        from lexeme_aligner.hebrew_lexeme_strong import load_table as load_hebrew_table
+        hebrew_table = load_hebrew_table()
+    produced, nbooks, _ = load_produced(iso, tag, OUT, grain, morph_table, gbt_morph, hebrew_table)
+    gold, gold_counts = load_gold_gbt(gold_iso or iso, OCCURRENCE_DIR, grain)
+    if not gold:
+        raise SystemExit(f"no gbt gold for {gold_iso or iso} — run "
+                         f"`python3 -m lexeme_aligner.gbt_align --lang {gold_iso or iso}` first")
+    gold_prefixes = {k[0] for ks in gold.values() for k in ks if k}
+    shared = [s for s in produced if s in gold]
+    n_types = correct_types = tok_total = tok_correct = 0
+    misses: list[tuple] = []
+    for s in shared:
+        cand = [(k, n) for k, n in produced[s].items() if k and k[0] in gold_prefixes]
+        if not cand:
+            continue
+        top_strong, top_n = max(cand, key=lambda x: x[1])
+        n_types += 1
+        ok = top_strong in gold[s]
+        correct_types += ok
+        tok_total += top_n
+        tok_correct += top_n if ok else 0
+        if not ok:
+            misses.append((s, top_strong, sorted(gold[s])[:6], top_n))
+    gold_tok = sum(gold_counts.values())
+    return {"iso": iso, "tag": tag, "grain": grain, "books": nbooks, "gold": "gbt",
+            "produced_surfaces": len(produced), "gold_surfaces": len(gold), "shared_surfaces": n_types,
+            "top1_acc_types": correct_types / max(1, n_types),
+            "top1_acc_weighted": tok_correct / max(1, tok_total),
+            "coverage_types": n_types / max(1, len(gold)),
+            "coverage_weighted": sum(gold_counts[s] for s in shared) / max(1, gold_tok),
+            "misses": sorted(misses, key=lambda m: -m[3])[:15],
+            "gbt_rescued_types": 0, "gbt_rescued_tok": 0}
+
+
 def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None = None,
                 base_text: str | None = None, morph_remap: bool = True, gbt_corroborate: bool = False,
                 hebrew_remap: bool = True):
@@ -240,7 +319,7 @@ def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None 
                 misses.append((s, top_strong, sorted(gold[s]), top_n))
     gold_tok = sum(gold_counts.values())
     return {
-        "iso": iso, "tag": tag, "grain": grain, "books": nbooks,
+        "iso": iso, "tag": tag, "grain": grain, "books": nbooks, "gold": "clear",
         "produced_surfaces": len(produced), "gold_surfaces": len(gold), "shared_surfaces": n_types,
         "top1_acc_types": correct_types / max(1, n_types),
         "top1_acc_weighted": tok_correct / max(1, tok_total),
@@ -252,7 +331,13 @@ def score_clear(iso: str, tag: str, grain: str = "strong", gold_iso: str | None 
 
 
 def report_clear(r: dict, show_misses: bool):
-    print(f"\n=== gold benchmark (clear, grain={r['grain']}) — {r['iso']} / {r['tag']} ({r['books']} books) ===")
+    print(f"\n=== gold benchmark ({r.get('gold', 'clear')}, grain={r['grain']}) — "
+          f"{r['iso']} / {r['tag']} ({r['books']} books) ===")
+    if r.get("gold") == "gbt":
+        print("    NOTE gbt gold is a gloss PHRASE per source word, glossing gbt's OWN target text —"
+              "\n         not the edition we aligned. Absolute scores are NOT comparable to a Clear"
+              "\n         number (measured agreement where both exist: eng 83.9%, hin 63.4%, spa 61.7%)."
+              "\n         Use it to A/B our own variants, and to reach languages Clear cannot judge.")
     print(f"surfaces: produced {r['produced_surfaces']}  gold {r['gold_surfaces']}  "
           f"shared {r['shared_surfaces']}")
     print(f"TOP-1 ACCURACY  (aligner's surface→{'Strong+lemma' if r['grain']=='lexeme' else 'Strong'} matches gold)")
@@ -406,7 +491,13 @@ def report_lexicon(r: dict, out: Path | None):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Score an alignment mode against a manual gold reference.")
-    ap.add_argument("--gold", choices=["clear", "lexicon"], default="clear")
+    ap.add_argument("--gold", choices=["clear", "lexicon", "gbt"], default="clear",
+                    help="clear = Clear-Bible manual attestations (10 langs, CC-BY-SA-4.0); "
+                         "lexicon = karnbibeln Strong's->Swedish (swe/swk); "
+                         "gbt = globalbibletools occurrence alignment (CC0, 40 langs available in "
+                         "pipeline/vendor/gbt/ — extract one with gbt_align --lang <code>). gbt's gold "
+                         "is a gloss PHRASE per source word, so it is a looser bar than Clear: use it "
+                         "to corroborate, and to reach languages Clear has no gold for.")
     ap.add_argument("--iso", required=True, help="target language / aligned iso (e.g. fra, hau, swk)")
     ap.add_argument("--method", "--tag", dest="tag", default="eflomal",
                     help="alignment mode of the produced jsonl (gloss|stat|eflomal|…; default eflomal)")
@@ -444,7 +535,11 @@ def main(argv=None):
     ap.add_argument("--out", type=Path, default=None, help="[lexicon] diff report md")
     a = ap.parse_args(argv)
 
-    if a.gold == "clear":
+    if a.gold == "gbt":
+        r = score_gbt(a.iso, a.tag, a.grain, gold_iso=a.gold_iso,
+                      morph_remap=a.morph_remap, hebrew_remap=a.hebrew_remap)
+        report_clear(r, a.misses)
+    elif a.gold == "clear":
         r = score_clear(a.iso, a.tag, a.grain, gold_iso=a.gold_iso, base_text=a.base_text,
                         morph_remap=a.morph_remap, gbt_corroborate=a.gbt_corroborate,
                         hebrew_remap=a.hebrew_remap)

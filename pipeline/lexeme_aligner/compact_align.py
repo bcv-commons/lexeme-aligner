@@ -47,6 +47,12 @@ ALL_BOOKS = OT_BOOKS + NT_BOOKS
 _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index, published once per book",
           "<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json = [\"srcOrd:span ...\", ...] — position-parallel "
           "to that book's _index/<BOOK>.json; hash = last N hex chars of book_content_hash()",
+          "span punctuation is a CONFIDENCE signal, free to use: '-' is a contiguous range, ',' a "
+          "scattered one, and a scattered span is measurably weaker — with span length held constant at "
+          "2, token precision against Clear gold is eng 62.3% scattered vs 84.5% contiguous, hin 64.0 vs "
+          "82.5. Filter on it if you need precision over coverage. (Russian, which Grambank codes "
+          "GB026=1 for legitimate discontinuity, shows no such gap — so this is a strong default, not a "
+          "universal law.)",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
           "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
@@ -122,6 +128,29 @@ def _encode_span(t_idx: list[int]) -> str:
     if hi - lo + 1 == len(t_idx):                      # contiguous
         return f"{lo}-{hi}"
     return ",".join(str(i) for i in sorted(t_idx))
+
+
+def confidence_sidecar(compact: list[str], agree: dict, verse_refs: list[str],
+                       ordinals: list[list[int]]) -> list[str]:
+    """Position-parallel confidence channel for one book — a SIDECAR, never inlined.
+
+    Written as `<BOOK>_<hash>.conf.json` beside the alignment file: one string per verse, one character
+    per aligned source token, in the SAME order as that verse's compact entry. Character = how many
+    methods produced the identical span ('1'..'4'); see verse_checks.agreement for the measurements.
+
+    A sidecar rather than a third field in "srcOrd:span" because that string is a published contract
+    guarded by tokenizer_version: inlining would force every existing decoder to change and make the
+    channel mandatory forever, while a separate file leaves current consumers untouched and can be
+    withdrawn if it stops earning its place. Contiguity, the other validated signal, needs no channel at
+    all — it is already carried by the '-' vs ',' punctuation of the span itself."""
+    out: list[str] = []
+    for entry, ref, ords in zip(compact, verse_refs, ordinals):
+        if not entry:
+            out.append("")
+            continue
+        per = agree.get(ref, {})
+        out.append("".join(str(min(9, per.get(h, 1))) for h in ords))
+    return out
 
 
 def _merged_pairs(iso: str, book: str, out_dir: Path, methods=("eflomal", "gloss", "gapfill")) -> dict:

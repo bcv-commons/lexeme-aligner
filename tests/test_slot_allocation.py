@@ -251,3 +251,165 @@ def test_function_word_slots_can_be_reserved_on_request(tmp_path):
     covered, taken, _, _, _ = _covered(tmp_path, [p], reserve_function_slots=True)
     assert taken[8001001] == {2}
     assert covered[8001001] == set()      # still never a gap, and never a vocabulary exemplar
+
+
+# ── gbt as a third gold backend ───────────────────────────────────────────────────────
+
+def test_gbt_positional_gold_has_the_same_shape_as_clear(tmp_path):
+    """contest_rule/score_gapfill plug gbt straight into the Clear code path, so the key shape
+    ((zero-padded ref, strong) -> {surfaces}) must match exactly."""
+    import json as _json
+    from lexeme_aligner.benchmark import load_gold_gbt_positional
+    (tmp_path / "gbt_xx.jsonl").write_text("\n".join(_json.dumps(r, ensure_ascii=False) for r in [
+        {"kind": "1:1", "verse_ref": 8001001, "source_strong": ["H1961"],
+         "target_gloss": ["Et il fut"], "target_ids": [1], "source_ids": [1]},
+        {"kind": "many:1", "verse_ref": 8001002, "source_strong": ["H3117"],
+         "target_gloss": ["ignored"], "target_ids": [1], "source_ids": [1]},
+        {"kind": "1:1", "verse_ref": 8001003, "source_strong": ["H1234"],
+         "target_gloss": [None], "target_ids": [1], "source_ids": [1]},
+    ]) + "\n")
+    g = load_gold_gbt_positional("xx", tmp_path)
+    assert set(g) == {("08001001", "H1961")}          # only 1:1 rows with real content
+    assert g[("08001001", "H1961")] == {"et", "il", "fut"}   # every word of the gloss phrase counts
+
+
+def test_gbt_gold_langs_are_inert_until_aligned():
+    """Adding gbt languages to config/gold_langs.json must not change the trust-matrix language set
+    until those languages actually have alignment output."""
+    import json as _json
+    from pathlib import Path as _P
+    cfg = _json.loads(_P("config/gold_langs.json").read_text())
+    gbt = {k for k, v in cfg.items()
+           if not k.startswith("_") and isinstance(v, dict) and v.get("gold") == "gbt"}
+    assert {"tam", "tel", "njm", "hun"} <= gbt
+    # a gbt language must carry MEASURED usable-row counts, not just a row count from the file size:
+    # amh/kan/mal/tgl/tpi were added on the raw count (~448k source words each) and removed again once
+    # measured at under 2k usable rows. See gbt_align --coverage.
+    for iso in gbt:
+        assert cfg[iso].get("gbt_usable_rows", 0) >= 5000, f"{iso} listed without usable gbt gold"
+    # The four typology candidates are unvalidated and must not enter the trust matrix until aligned.
+    # rus is excluded from this check: it is a deliberate, measured rehabilitation (see below), not a
+    # speculative addition, so it is *meant* to rejoin GOLD as soon as it has alignment output.
+    from lexeme_aligner.contest_rule import GOLD
+    assert not ((gbt - {"rus"}) & set(GOLD)), "an unvalidated gbt language leaked into GOLD"
+
+
+def test_rus_is_rehabilitated_onto_gbt_gold():
+    """rus was quarantined for a scrambled CLEAR gold; gbt's independent gold measures healthy
+    (gold-health gap 27.7pt vs 1.5pt on the same alignment). Guard the switch."""
+    import json as _json
+    from pathlib import Path as _P
+    cfg = _json.loads(_P("config/gold_langs.json").read_text())
+    assert cfg["rus"]["gold"] == "gbt"
+    assert cfg["rus"]["gbt_greek_rows"] >= 30000
+    assert "REHABILITATED" in cfg["_quarantine"]
+
+
+# ── residual re-alignment ─────────────────────────────────────────────────────────────
+
+def test_residual_target_side_light_forms_need_a_share_not_a_single_hit(tmp_path):
+    """A form that merely brushed a light lexeme once must not be stripped from the whole corpus;
+    fra 'est' (mostly grc:1510) must be. Hence a share floor, not 'ever aligned to a light lexeme'."""
+    import json as _json
+    from lexeme_aligner.residual_align import light_target_forms
+    rows = [{"ref": 1, "pairs": [
+        {"content": True, "lexeme": "grc:1510", "target": "est"},
+        {"content": True, "lexeme": "grc:1510", "target": "est"},
+        {"content": True, "lexeme": "grc:2316", "target": "dieu"},
+        {"content": True, "lexeme": "grc:2316", "target": "dieu"},
+        {"content": True, "lexeme": "grc:1510", "target": "dieu"},   # 1 of 3 -> below the floor
+    ]}]
+    (tmp_path / "align_eflomal_xx_RUT.jsonl").write_text(
+        "\n".join(_json.dumps(r) for r in rows) + "\n")
+    got = light_target_forms("xx", tmp_path, ("eflomal",), {"grc:1510"})
+    assert got == {"est"}          # est 2/2 light; dieu 1/3 light -> kept in the residual pool
+
+
+def test_residual_strips_taken_stopword_and_light_targets():
+    from lexeme_aligner.residual_align import build_residual
+
+    class _R:
+        def __init__(s, heb, toks): s.book, s.ch, s.v, s.heb, s.toks = "RUT", 1, 1, heb, toks
+
+    class _SW:
+        words = {"de"}
+        def is_function(s, w): return w.lower() in s.words
+
+    gap, done = tok(0, True), tok(1, True)
+    rec = _R([gap, done], ["alpha", "de", "est", "beta"])
+    from lexeme_aligner.refs import encode
+    ref = encode("RUT", 1, 1)
+    out = build_residual([rec], {ref: {1}}, {ref: {0}}, _SW(), {"est"})
+    assert len(out) == 1
+    assert out[0].toks == ["beta"]        # 0 taken, 'de' stopword, 'est' light rendering
+    assert out[0].orig == [3]             # ...and it remembers the ORIGINAL position
+    assert [t.idx for t in out[0].heb] == [0]   # only the uncovered source token
+
+
+def test_combine_with_gapfill_stratifies_agree_contested_and_solo(tmp_path):
+    """Agreement between two INDEPENDENT mechanisms is the confidence signal; gap-fill wins contests
+    (measured hin 68.8 vs 50.5, eng 51.9 vs 40.7); residual-only ships below hi_conf."""
+    import json as _json
+    from lexeme_aligner.residual_align import combine_with_gapfill
+    (tmp_path / "align_gapfill_xx_RUT.jsonl").write_text(_json.dumps({
+        "ref": 8001001, "book": "RUT", "chapter": 1, "verse": 1, "pairs": [
+            {"h_idx": 0, "strong": "H1", "t_idx": [4], "content": True},   # agrees below
+            {"h_idx": 1, "strong": "H2", "t_idx": [7], "content": True},   # contested below
+        ]}) + "\n")
+    by_ref = {8001001: {"ref": 8001001, "book": "RUT", "chapter": 1, "verse": 1, "pairs": [
+        {"h_idx": 0, "strong": "H1", "t_idx": [4], "score": 0.75},   # same target -> agree
+        {"h_idx": 1, "strong": "H2", "t_idx": [9], "score": 0.75},   # different -> gap-fill wins
+        {"h_idx": 2, "strong": "H3", "t_idx": [11], "score": 0.75},  # gap-fill never fired -> solo
+    ]}}
+    tally = combine_with_gapfill(by_ref, tmp_path, "xx", agree_score=0.9, fill_score=0.75)
+    kept = {p["h_idx"]: (p["tier"], p["score"]) for p in by_ref[8001001]["pairs"]}
+    assert kept == {0: ("agree_gapfill", 0.9), 2: ("residual_only", 0.75)}
+    assert tally["contested_dropped"] == 1
+
+
+def test_combiner_drops_a_verse_that_loses_every_pair(tmp_path):
+    import json as _json
+    from lexeme_aligner.residual_align import combine_with_gapfill
+    (tmp_path / "align_gapfill_xx_RUT.jsonl").write_text(_json.dumps({
+        "ref": 8001001, "pairs": [{"h_idx": 0, "strong": "H1", "t_idx": [4], "content": True}]}) + "\n")
+    by_ref = {8001001: {"ref": 8001001, "book": "RUT", "chapter": 1, "verse": 1,
+                        "pairs": [{"h_idx": 0, "strong": "H1", "t_idx": [9], "score": 0.75}]}}
+    combine_with_gapfill(by_ref, tmp_path, "xx", 0.9, 0.75)
+    assert by_ref == {}
+
+
+# ── verse-local checks ────────────────────────────────────────────────────────────────
+
+def _write(tmp_path, method, pairs):
+    import json as _json
+    (tmp_path / f"align_{method}_xx_RUT.jsonl").write_text(_json.dumps(
+        {"ref": 8001001, "book": "RUT", "chapter": 1, "verse": 1, "pairs": pairs}) + "\n")
+
+
+def test_agreement_counts_only_IDENTICAL_spans(tmp_path):
+    """Two methods picking DIFFERENT targets is disagreement; counting it as corroboration would make
+    the whole signal meaningless."""
+    from lexeme_aligner.verse_checks import agreement
+    _write(tmp_path, "eflomal", [{"h_idx": 0, "t_idx": [3]}, {"h_idx": 1, "t_idx": [5]}])
+    _write(tmp_path, "gloss",   [{"h_idx": 0, "t_idx": [3]}, {"h_idx": 1, "t_idx": [9]}])
+    a = agreement(tmp_path, "xx")[(1, 1)]
+    assert a == {0: 2, 1: 1}
+
+
+def test_agreement_ignores_pairs_with_no_span(tmp_path):
+    from lexeme_aligner.verse_checks import agreement
+    _write(tmp_path, "eflomal", [{"h_idx": 0, "t_idx": [3]}])
+    _write(tmp_path, "gloss",   [{"h_idx": 0, "t_idx": []}])
+    assert agreement(tmp_path, "xx")[(1, 1)] == {0: 1}
+
+
+def test_annotate_is_idempotent(tmp_path):
+    import json as _json
+    from lexeme_aligner.verse_checks import annotate
+    _write(tmp_path, "eflomal", [{"h_idx": 0, "t_idx": [3]}])
+    _write(tmp_path, "gloss",   [{"h_idx": 0, "t_idx": [3]}])
+    annotate(tmp_path, "xx")
+    first = (tmp_path / "align_eflomal_xx_RUT.jsonl").read_text()
+    annotate(tmp_path, "xx")
+    assert (tmp_path / "align_eflomal_xx_RUT.jsonl").read_text() == first
+    assert _json.loads(first)["pairs"][0]["agree"] == 2

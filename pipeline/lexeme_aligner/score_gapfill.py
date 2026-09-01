@@ -21,7 +21,8 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
-from lexeme_aligner.benchmark import agrees, load_gold_lexicon, norm_surface
+from lexeme_aligner.benchmark import (agrees, load_gold_gbt_positional, load_gold_lexicon,
+                                      norm_surface)
 from lexeme_aligner.config import OUT, RESOURCES
 
 _PRIORS = ["strong", "name", "cross_edition", "phrase", "phrase_xorder", "embedding"]
@@ -62,6 +63,22 @@ def score_clear(iso: str, out_dir: Path, res_dir: Path, gold_iso: str | None = N
     return tally
 
 
+def score_gbt(iso: str, out_dir: Path, gold_iso: str | None = None):
+    """Same positional question as score_clear, against gbt's occurrence alignment instead — CC0, and
+    available for any of the 40 languages in pipeline/vendor/gbt/. gbt's gold is a gloss phrase per
+    source word, so the bar is looser than Clear's; read it as corroboration and as reach, not as a
+    number directly comparable to a Clear score."""
+    gold = load_gold_gbt_positional(gold_iso or iso)
+    tally = {pr: [0, 0] for pr in _PRIORS}
+    for ref, strong, words, prior in _gap_pairs(iso, out_dir):
+        key = (f"{ref:08d}", strong)
+        if key not in gold:
+            continue
+        tally.setdefault(prior, [0, 0])[0] += 1
+        tally[prior][1] += any(w in gold[key] for w in words)
+    return tally
+
+
 def score_lexicon(iso: str, out_dir: Path, cache_dir: Path):
     heb = load_gold_lexicon("karnbibeln", "hebrew", cache_dir)
     grk = load_gold_lexicon("karnbibeln", "greek", cache_dir)
@@ -81,13 +98,14 @@ def main() -> int:
     ap.add_argument("--gold-iso", default=None,
                     help="gold attestation file's iso when it differs from the produced tag "
                          "(post-2026-07-25 tags are edition codes, e.g. --iso bsb --gold-iso eng)")
-    ap.add_argument("--gold", choices=["clear", "lexicon"], default="clear")
+    ap.add_argument("--gold", choices=["clear", "lexicon", "gbt"], default="clear")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--resources", type=Path, default=RESOURCES)
     ap.add_argument("--cache", type=Path, default=Path("pipeline/work/karnbibeln"))
     args = ap.parse_args()
 
     tally = (score_clear(args.iso, args.out, args.resources, args.gold_iso) if args.gold == "clear"
+             else score_gbt(args.iso, args.out, args.gold_iso) if args.gold == "gbt"
              else score_lexicon(args.iso, args.out, args.cache))
     tot_s = sum(v[0] for v in tally.values())
     tot_c = sum(v[1] for v in tally.values())

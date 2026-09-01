@@ -21,7 +21,8 @@ import json
 from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
-from lexeme_aligner.benchmark import agrees, load_gold_lexicon, norm_surface
+from lexeme_aligner.benchmark import (agrees, load_gold_gbt_positional, load_gold_lexicon,
+                                      norm_surface)
 from lexeme_aligner.config import OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.merge_align import _tier
 from lexeme_aligner.score_tiers import _gold_clear, _load_pos
@@ -85,8 +86,14 @@ def _index(iso, method, out_dir):
 
 
 def _judge(iso, res):
-    if GOLD[iso] == "clear":
-        gold = _gold_clear(iso, res)
+    # `gbt` uses the identical positional shape as `clear` — {(ref, strong): {surfaces}} — so it plugs
+    # straight in here. Its bar is looser (gbt's gold is a gloss PHRASE per source word, and it glosses
+    # its OWN target text rather than the edition we aligned: measured agreement with Clear where both
+    # exist is eng 83.9%, hin 63.4%, spa 61.7%). So a gbt-gold language's ABSOLUTE numbers are not
+    # comparable to a Clear language's; it is for A/B-ing our own variants and for reaching the ~30
+    # languages Clear has no gold for at all.
+    if GOLD[iso] in ("clear", "gbt"):
+        gold = _gold_clear(iso, res) if GOLD[iso] == "clear" else load_gold_gbt_positional(iso)
         return (lambda ref, s: (f"{ref:08d}", s) in gold,
                 lambda ref, s, words: any(w in gold[(f"{ref:08d}", s)] for w in words))
     heb = load_gold_lexicon("karnbibeln", "hebrew", _KARN)

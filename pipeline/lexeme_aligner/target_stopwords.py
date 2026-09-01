@@ -240,15 +240,33 @@ _INGEST_CACHE = Path("pipeline/work/ingest-cache")
 
 
 def usj_dir_for(iso: str, ingest_cache: Path = _INGEST_CACHE) -> Path | None:
-    """Locate an ingested USJ dir for a BARE iso. Dirs are named `usj-<edition tag>` and the tag is the
-    iso plus an edition suffix (onboard._tag), so a prefix glob resolves it; every ISO 639-3 code is
-    exactly 3 chars, so `usj-<iso>*` cannot collide with a different language.
+    """Locate an ingested USJ dir for a BARE iso.
 
-    A language may have several. Pick the one with the MOST book files, not the lexicographically first:
-    the bare-iso dir (`usj-ayz`, `usj-gef`) is often a leftover EMPTY shell from a partial/failed ingest
-    and sorts ahead of the real edition (`usj-ayzyss`, `usj-gefsgv`), which silently produced 0 candidates
-    and wiped those languages' lists. Ties break alphabetically so the choice stays deterministic."""
-    hits = [p for p in Path(ingest_cache).glob(f"usj-{iso}*") if p.is_dir()]
+    Resolves the language's real edition TAGS via onboard.editions_for()/_tag() — the same source of
+    truth full_chain uses — rather than guessing. The previous version globbed `usj-<iso>*` on the
+    assumption that "the tag is the iso plus an edition suffix"; that is FALSE whenever the edition
+    code comes from a different ISO, and silently returned None for real languages: ayr ingests as
+    `aymbsb`/`aymsbu`, bpx as `pcfwfw`, ndp as `kdpbsu`, xmz as `mzqlai`, kdn as `xdnpit`. Measured
+    2026-09-01, the glob missed cached text for 10 published languages outright.
+
+    The prefix glob is kept as a FALLBACK for tags that do follow the iso-prefix shape but are not in
+    the current edition config (renamed or retired editions whose text is still cached). Among the
+    candidates, pick the one with the MOST book files: a bare-iso dir (`usj-ayz`, `usj-gef`) is often
+    an empty shell from a partial/failed ingest and would otherwise win on sort order, silently
+    producing 0 candidates and wiping that language's list. Ties break alphabetically so the choice
+    stays deterministic."""
+    cache = Path(ingest_cache)
+    hits: list[Path] = []
+    try:                                   # local import: onboard imports config, avoid a cycle at module load
+        from lexeme_aligner.onboard import allowed_testaments, editions_for, _tag
+        eds = editions_for(iso, allowed_testaments(iso))
+        for i, ed in enumerate(eds):
+            d = cache / f"usj-{_tag(iso, ed['edition_code'], is_primary=(i == 0))}"
+            if d.is_dir():
+                hits.append(d)
+    except Exception:
+        pass                               # no catalog entry / config unreadable -> fall back to the glob
+    hits += [p for p in cache.glob(f"usj-{iso}*") if p.is_dir() and p not in hits]
     if not hits:
         return None
     return max(hits, key=lambda p: (len(list(p.glob("*.json"))), [-ord(c) for c in p.name]))

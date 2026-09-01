@@ -54,6 +54,12 @@ publish/aligned_mwe/iso=*/
 # compact-alignments: the `[a-z]` bucket dirs are the per-edition data (<iso[0]>/<iso>/<edition>/);
 # `_index/` (shared verse-ref indices, small, worth committing) starts with `_` so it's unaffected.
 publish/compact-alignments/[a-z]/
+# The SHARED per-book lexeme indices live (and are tracked) at publish/compact-alignments/_index/ —
+# that is compact_align's --index-root CLI default. `config/canonical_index/` is only the library-level
+# fallback in publish_compact()'s signature, so a direct in-process call that doesn't pass index_root
+# drops stray copies there. They're deterministic from the spine and regenerate on demand, so ignore
+# them; whole_bible.json is a different artifact and stays tracked.
+config/canonical_index/*_lexemes.json
 # target-morphology: ignore all *.json EXCEPT manifest.json (which also ends in .json)
 publish/target-morphology/*.json
 !publish/target-morphology/manifest.json

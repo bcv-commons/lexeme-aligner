@@ -471,3 +471,56 @@ def test_residual_source_light_gate_is_opt_in_and_works_when_asked():
     assert [t.idx for t in gated[0].heb] == [1]      # asked for: light source token is not a gap
     default = build_residual([rec], {ref: set()}, {ref: set()}, None, set())
     assert [t.idx for t in default[0].heb] == [0, 1]  # default: it stays, and contributes to the model
+
+
+def test_publish_compact_requires_an_explicit_index_root():
+    """It has TWO output locations and must not invent either. The old default pointed at
+    config/canonical_index (a different artifact's home) and only fired on direct in-process calls,
+    silently leaving stray index files there."""
+    import inspect
+    from lexeme_aligner.compact_align import publish_compact
+    sig = inspect.signature(publish_compact)
+    assert sig.parameters["index_root"].default is inspect.Parameter.empty
+    assert sig.parameters["out_root"].default is inspect.Parameter.empty
+
+
+# ── usj_dir_for must resolve real edition tags, not guess from the iso ─────────────────
+
+def test_usj_dir_for_resolves_tags_that_do_not_start_with_the_iso(tmp_path, monkeypatch):
+    """The old version globbed `usj-<iso>*` on the assumption that a tag is the iso plus a suffix.
+    False whenever the edition code comes from a DIFFERENT iso — ayr ingests as aymbsb, ndp as
+    kdpbsu, xmz as mzqlai — so it silently returned None for 10 published languages."""
+    import lexeme_aligner.target_stopwords as ts
+    (tmp_path / "usj-aymbsb").mkdir()
+    (tmp_path / "usj-aymbsb" / "01-GEN.json").write_text("{}")
+    monkeypatch.setattr(ts, "_INGEST_CACHE", tmp_path)
+    import lexeme_aligner.onboard as ob
+    monkeypatch.setattr(ob, "allowed_testaments", lambda iso, *a, **k: {"ot"})
+    monkeypatch.setattr(ob, "editions_for", lambda iso, *a, **k: [{"edition_code": "AYMBSB"}])
+    monkeypatch.setattr(ob, "_tag", lambda iso, code, is_primary=False: "aymbsb")
+    got = ts.usj_dir_for("ayr", tmp_path)
+    assert got is not None and got.name == "usj-aymbsb"
+
+
+def test_usj_dir_for_falls_back_to_the_prefix_glob(tmp_path, monkeypatch):
+    """Retired/renamed editions whose text is still cached have no catalog entry — the glob must
+    still find them."""
+    import lexeme_aligner.onboard as ob
+    monkeypatch.setattr(ob, "editions_for", lambda *a, **k: (_ for _ in ()).throw(KeyError("gone")))
+    from lexeme_aligner.target_stopwords import usj_dir_for
+    (tmp_path / "usj-xyzold").mkdir()
+    (tmp_path / "usj-xyzold" / "01-GEN.json").write_text("{}")
+    got = usj_dir_for("xyz", tmp_path)
+    assert got is not None and got.name == "usj-xyzold"
+
+
+def test_usj_dir_for_prefers_the_richest_dir_not_the_first(tmp_path, monkeypatch):
+    """A bare-iso dir is often an empty shell from a failed ingest and sorts first."""
+    import lexeme_aligner.onboard as ob
+    monkeypatch.setattr(ob, "editions_for", lambda *a, **k: (_ for _ in ()).throw(KeyError("none")))
+    from lexeme_aligner.target_stopwords import usj_dir_for
+    (tmp_path / "usj-ayz").mkdir()                       # empty shell
+    (tmp_path / "usj-ayzyss").mkdir()
+    for b in ("01-GEN.json", "02-EXO.json"):
+        (tmp_path / "usj-ayzyss" / b).write_text("{}")
+    assert usj_dir_for("ayz", tmp_path).name == "usj-ayzyss"

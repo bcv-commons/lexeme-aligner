@@ -52,14 +52,20 @@ def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_s
     small and the sha-diff in publish_chunked skips them if unchanged anyway) — this is what makes
     e.g. `--iso dan --publish-hf ...` push ONLY Danish instead of the entire accumulated local
     backlog for every other language that happens to already be sitting under `root`."""
+    # Shared, non-per-language companions. `tokenize.js` is part of the DATASET CONTRACT, not a
+    # convenience: compact_align's own _SCHEMA tells consumers "Use the published tokenize.js" to
+    # reproduce the exact tokenization these target positions are indexed against — and target
+    # positions silently resolve to the wrong words under a different tokenizer, which the per-file
+    # content hash cannot detect (it covers verse TEXT, identical across tokenizer versions). It was
+    # never in this list, so that instruction pointed at a file that had never been published.
+    _COMPANIONS = ("manifest.json", "README.md", "tokenize.js", "tokenizer_sensitive_languages.json")
     global_files = sorted(
         str(fp.relative_to(root)) for fp in root.glob("_index/*.json")
-    ) + (["manifest.json"] if (root / "manifest.json").exists() else []) \
-      + (["README.md"] if (root / "README.md").exists() else [])
+    ) + [f for f in _COMPANIONS if (root / f).exists()]
     if isos is None:
         lang_files = sorted(
             str(fp.relative_to(root)) for fp in root.rglob("*.json")
-            if fp.relative_to(root).parts[0] != "_index" and fp.name != "manifest.json"
+            if fp.relative_to(root).parts[0] != "_index" and fp.name not in _COMPANIONS
         )
     else:
         lang_files = sorted(

@@ -272,10 +272,10 @@ def edition_id(iso: str, tag: str, sources: dict) -> str:
 
 
 def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_root: Path,
+                    index_root: Path,
                     books: list[str] = ALL_BOOKS, methods=METHODS,
                     out_dir: Path = OUT, hash_len: int = 5, edition: str | None = None,
                     sources_path: Path = Path("config/sources.json"),
-                    index_root: Path = Path("config/canonical_index"),
                     with_layer: bool = True) -> dict[str, Path]:
     """Writes one compact-alignment JSON per (edition, book) at
     `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<last-hash_len-hex-of-book-content-hash>.json` — `iso` is
@@ -297,6 +297,16 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
     lazily here (only if missing), so the first edition published for a book creates it and every
     subsequent edition just reuses it — no ref string is ever repeated across the hundreds of edition
     files that will eventually exist for one book.
+    `index_root` is REQUIRED and has no default, deliberately. This function has TWO output locations —
+    `out_root` for the per-edition arrays and `index_root` for the shared per-book lexeme index — and it
+    should not invent either. It previously defaulted to `config/canonical_index`, which is the wrong
+    directory (that holds `whole_bible.json`, a different artifact consumed by --build-index/--index and
+    cross-repo) and which no caller ever used: main() always passes --index-root, whose default is the
+    real published home, `publish/compact-alignments/_index/`. The stale default only fired on a direct
+    in-process call and silently dropped stray index files there. Defaulting it to the CLI's value would
+    have moved the same footgun somewhere worse — into the published tree, where strays are tracked and
+    would ship. Requiring it removes the failure mode instead of relocating it.
+
     Returns {book: written_path} for books that actually have target text (skips ones that don't)."""
     if edition is None:
         sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}

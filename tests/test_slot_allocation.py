@@ -413,3 +413,61 @@ def test_annotate_is_idempotent(tmp_path):
     annotate(tmp_path, "xx")
     assert (tmp_path / "align_eflomal_xx_RUT.jsonl").read_text() == first
     assert _json.loads(first)["pairs"][0]["agree"] == 2
+
+
+def test_residual_enforces_contiguity_in_ORIGINAL_coordinates():
+    """The residual target side is stripped to a few percent of the verse, so a contiguous run in
+    residual space maps back to a scattered span. Measured before the fix: 15-18% of fills scattered,
+    gaps up to 27 tokens. Contiguity must be re-applied after the mapping."""
+    from lexeme_aligner.eflomal_align import _longest_contiguous
+    # residual positions 0,1,2 are contiguous; their originals are not
+    orig_map = [8, 10, 15]
+    mapped = sorted(orig_map[j] for j in (0, 1, 2))
+    assert _longest_contiguous(mapped, set()) == [8]
+    # a genuinely adjacent pair survives
+    assert _longest_contiguous(sorted([11, 12, 20]), set()) == [11, 12]
+
+
+# ── compact-alignments: residual ships as an opt-in LAYER, not merged in ──────────────
+
+def test_residual_is_not_in_the_base_compact_methods():
+    """Merging residual (23-27% precise) into a 70-90% file would dilute every consumer silently."""
+    from lexeme_aligner.compact_align import METHODS, LAYER_METHODS
+    assert "residual" not in METHODS
+    assert LAYER_METHODS == ("residual",)
+
+
+def test_layer_drops_anything_the_base_already_covers(monkeypatch):
+    """The two files must not be able to contradict each other, even under a naive client merge."""
+    import lexeme_aligner.compact_align as ca
+    base = {"RUT 1:1": "0:3 1:5", "RUT 1:2": ""}
+    layer = {"RUT 1:1": "1:9 4:11", "RUT 1:2": "2:1"}
+    calls = []
+
+    def fake(tag, usj, heb, out, books, methods):
+        calls.append(methods)
+        return layer if methods == ca.LAYER_METHODS else base
+
+    monkeypatch.setattr(ca, "build_compact", fake)
+    got = ca.build_layer("xx", None, None, None, ["RUT"], base=base)
+    assert got == {"RUT 1:1": "4:11", "RUT 1:2": "2:1"}   # ordinal 1 dropped: base has it
+
+
+def test_residual_source_light_gate_is_opt_in_and_works_when_asked():
+    """DEFAULT OFF: measured to cost content fills (fra 72->62 correct) without the light-source fills
+    being less trustworthy, because the residual pass has ~2.9 target candidates per source token and
+    therefore no slot scarcity. The mechanism is kept for the case where that stops being true."""
+    from lexeme_aligner.residual_align import build_residual
+    from lexeme_aligner.refs import encode
+
+    class _R:
+        def __init__(s, heb, toks): s.book, s.ch, s.v, s.heb, s.toks = "RUT", 1, 1, heb, toks
+
+    light = tok(0, True); light.lexeme = "grc:1510"
+    real = tok(1, True); real.lexeme = "grc:2316"
+    rec = _R([light, real], ["alpha", "beta"])
+    ref = encode("RUT", 1, 1)
+    gated = build_residual([rec], {ref: set()}, {ref: set()}, None, set(), {"grc:1510"})
+    assert [t.idx for t in gated[0].heb] == [1]      # asked for: light source token is not a gap
+    default = build_residual([rec], {ref: set()}, {ref: set()}, None, set())
+    assert [t.idx for t in default[0].heb] == [0, 1]  # default: it stays, and contributes to the model

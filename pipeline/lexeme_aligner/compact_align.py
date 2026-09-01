@@ -43,6 +43,18 @@ from lexeme_aligner.usj_source import TOKENIZER_VERSION, read_verse_ranges, rema
 from lexeme_aligner.versification import remapper
 
 ALL_BOOKS = OT_BOOKS + NT_BOOKS
+METHODS = ("eflomal", "gloss", "gapfill")
+# `residual` (residual_align.py) is NOT in METHODS. It reaches source tokens the three above left with
+# nothing — 93-96% of them, against gap-fill's 13-30% — but at 23-27% gold precision against a file
+# that is otherwise 70-90%. Merging it into the main array would dilute every consumer silently, so it
+# ships as a SEPARATE OPT-IN LAYER instead: `<BOOK>_<hash>.extra.json`, same string format, same
+# ordinals. Consequences that make this the better shape:
+#   * every existing per-book file stays BYTE-IDENTICAL — no republish churn across 49,476 files;
+#   * a consumer who ignores the layer keeps today's exact semantics AND today's precision;
+#   * merging is string concatenation per verse — no new parser, no tokenizer_version change;
+#   * the layer is honestly what it is: a second, weaker alignment pass, not metadata about the first.
+# Merge rule for clients: if an ordinal already appears in the base entry, the BASE WINS.
+LAYER_METHODS = ("residual",)
 
 _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index, published once per book",
           "<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json = [\"srcOrd:span ...\", ...] — position-parallel "
@@ -153,9 +165,13 @@ def confidence_sidecar(compact: list[str], agree: dict, verse_refs: list[str],
     return out
 
 
-def _merged_pairs(iso: str, book: str, out_dir: Path, methods=("eflomal", "gloss", "gapfill")) -> dict:
+def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS) -> dict:
     """{(chapter, verse): {h_idx: t_idx}} — additive union, first method wins on overlap
-    (mirrors merge_align's own priority order: eflomal > gloss > gapfill)."""
+    (mirrors merge_align's own priority order: eflomal > gloss > gapfill > residual).
+
+    `residual` sits LAST deliberately. It only ever aligns source tokens no other method reached, so it
+    cannot displace anything — but the priority order is what guarantees that, not the residual pass's
+    own restraint, and it should stay last if that pass is ever loosened."""
     by_verse: dict[tuple[int, int], dict[int, list[int]]] = {}
     for m in methods:
         for fp in tag_files(out_dir, m, iso):
@@ -175,7 +191,7 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=("eflomal", "gloss
 
 
 def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
-                  books: list[str] = ALL_BOOKS, methods=("eflomal", "gloss", "gapfill")) -> list[str]:
+                  books: list[str] = ALL_BOOKS, methods=METHODS) -> list[str]:
     """Per-language compact array, position-parallel to build_index()'s canonical ordinal index.
 
     Target-token positions (`span` in "srcOrd:span") are published in RAW-TEXT coordinates — indices
@@ -256,10 +272,11 @@ def edition_id(iso: str, tag: str, sources: dict) -> str:
 
 
 def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_root: Path,
-                    books: list[str] = ALL_BOOKS, methods=("eflomal", "gloss", "gapfill"),
+                    books: list[str] = ALL_BOOKS, methods=METHODS,
                     out_dir: Path = OUT, hash_len: int = 5, edition: str | None = None,
                     sources_path: Path = Path("config/sources.json"),
-                    index_root: Path = Path("config/canonical_index")) -> dict[str, Path]:
+                    index_root: Path = Path("config/canonical_index"),
+                    with_layer: bool = True) -> dict[str, Path]:
     """Writes one compact-alignment JSON per (edition, book) at
     `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<last-hash_len-hex-of-book-content-hash>.json` — `iso` is
     the true published language code (NOT the internal alignment `tag`, which can be an edition-specific
@@ -286,6 +303,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         edition = edition_id(iso, tag, sources)
     written: dict[str, Path] = {}
     by_ref = build_compact(tag, usj_dir, heb, out_dir, books, methods)
+    layer = build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref) if with_layer else {}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         if not usj_path.exists():
@@ -305,7 +323,37 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         out_fp.parent.mkdir(parents=True, exist_ok=True)
         out_fp.write_text(json.dumps(array, ensure_ascii=False) + "\n", encoding="utf-8")
         written[book] = out_fp
+        # the opt-in layer, written ONLY when it has content — its absence means "no residual here",
+        # which is exactly true for every edition published before it existed, so there is no
+        # backfill gap and no inconsistency to explain to a consumer.
+        extra = [layer.get(ref, "") for ref in book_index]
+        if any(extra):
+            (out_fp.parent / f"{book}_{digest}.extra.json").write_text(
+                json.dumps(extra, ensure_ascii=False) + "\n", encoding="utf-8")
     return written
+
+
+def build_layer(tag: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
+                books: list[str] = ALL_BOOKS, base: dict | None = None) -> dict[str, str]:
+    """The opt-in `residual` layer: same "srcOrd:span" strings, same ordinals, but ONLY for source
+    tokens the base methods left unaligned. Ordinals are spine-derived (position among a verse's content
+    lexemes), so they are identical in both files by construction — the layer is joinable without any
+    shared state beyond the verse ref.
+
+    Anything the base already covers is dropped here rather than left to the client's merge rule, so the
+    two files cannot contradict each other even if a consumer merges them naively."""
+    layer = build_compact(tag, usj_dir, heb, out_dir, books, LAYER_METHODS)
+    if base is None:
+        base = build_compact(tag, usj_dir, heb, out_dir, books, METHODS)
+    out: dict[str, str] = {}
+    for ref, entry in layer.items():
+        if not entry:
+            continue
+        taken = {p.split(":", 1)[0] for p in base.get(ref, "").split() if p}
+        keep = [p for p in entry.split() if p.split(":", 1)[0] not in taken]
+        if keep:
+            out[ref] = " ".join(keep)
+    return out
 
 
 def main() -> int:
@@ -319,7 +367,11 @@ def main() -> int:
     ap.add_argument("--usj-dir", type=Path, default=None)
     ap.add_argument("--index", type=Path, default=Path("config/canonical_index/whole_bible.json"),
                     help="the canonical ordinal index (read to align array positions, or write with --build-index)")
-    ap.add_argument("--methods", default="eflomal,gloss,gapfill")
+    ap.add_argument("--methods", default=",".join(METHODS),
+                    help="alignment sources for the MAIN array. `residual` is deliberately absent — it "
+                         "ships as the opt-in .extra.json layer instead; see METHODS/LAYER_METHODS")
+    ap.add_argument("--no-layer", action="store_true",
+                    help="skip the opt-in residual layer (<BOOK>_<hash>.extra.json)")
     ap.add_argument("--out-dir", type=Path, default=OUT)
     ap.add_argument("--out", type=Path, default=None,
                     help="single whole-bible array output path (dev/debug mode)")
@@ -358,6 +410,7 @@ def main() -> int:
         resolved_edition = args.edition or edition_id(publish_iso, args.iso, sources)
         written = publish_compact(args.iso, publish_iso, usj_dir, heb, args.publish,
                                   methods=methods, out_dir=args.out_dir, hash_len=args.hash_len,
+                                  with_layer=not args.no_layer,
                                   edition=resolved_edition, sources_path=args.sources,
                                   index_root=args.index_root)
         for book, fp in sorted(written.items()):

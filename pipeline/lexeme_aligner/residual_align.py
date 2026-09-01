@@ -38,6 +38,7 @@ from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT, PRIOR_PACK
+from lexeme_aligner.eflomal_align import _longest_contiguous
 from lexeme_aligner.gapfill import load_covered, load_priors
 from lexeme_aligner.gloss_align import NORMALIZERS, Normalizer
 from lexeme_aligner.hebrew_source import HebrewSource
@@ -83,13 +84,36 @@ def light_target_forms(iso: str, out_dir: Path, methods, light: set,
     return {w for w, n in lit.items() if tot[w] and n / tot[w] >= share}
 
 
-def build_residual(recs, covered_h, taken_t, stopwords, light_forms) -> list[_Rec]:
+def build_residual(recs, covered_h, taken_t, stopwords, light_forms, light_lexemes=frozenset()) -> list[_Rec]:
+    """Residual verses. The TARGET side drops taken positions, stopwords and light renderings; the
+    SOURCE side drops semantically light lexemes outright.
+
+    The TARGET half is the one that pays. Stripping light RENDERINGS stops a real content gap being
+    matched onto 'est'/'are' — 183 forms in fra, 110 in eng.
+
+    The SOURCE half (`light_lexemes`) is DEFAULT OFF, and the reason is a corrected assumption worth
+    keeping. Light lexemes do receive residual fills (8.5% fra / 7.0% eng: grc:1510 -> 'du',
+    grc:2192 -> 'afin'), and the obvious move — refuse to spend a fill on a token we do not care about
+    getting right — was built and then measured. It fails on both counts:
+
+      * those fills are NOT less trustworthy: 16.7% (fra, n=12) / 35.7% (eng, n=14) against a
+        content-source rate of 27.4% / 22.2% — opposite directions on tiny samples, i.e. no signal;
+      * gating them does not free slots, it COSTS content fills — fra 234->212 judgeable / 72->62
+        correct, eng 417->374 / 101->99.
+
+    Because there is NO SLOT SCARCITY here: the residual pass has ~2.9 target candidates per source
+    token (fra: 1,121 sources, 3,243 targets), unlike the first pass where every position is contested.
+    Removing source tokens only shrinks an already data-starved corpus (fra 971 -> 611) and weakens the
+    model that must estimate from it. "Light words take slots from real matches" is a property of the
+    crowded FIRST pass, not of this one. Enable with --strip-light-sources only if that changes."""
     out: list[_Rec] = []
     for r in recs:
         ref = encode(r.book, r.ch, r.v)
         if not r.toks:
             continue
-        gap = [t for t in r.heb if t.strong and t.is_content and t.idx not in covered_h.get(ref, set())]
+        gap = [t for t in r.heb
+               if t.strong and t.is_content and t.idx not in covered_h.get(ref, set())
+               and t.lexeme not in light_lexemes]
         if not gap:
             continue
         taken = taken_t.get(ref, set())
@@ -162,7 +186,12 @@ def main() -> int:
     ap.add_argument("--book", action="append")
     ap.add_argument("--methods", default="eflomal,gloss", help="passes that define 'already explained'")
     ap.add_argument("--no-strip-stopwords", action="store_true", help="ablation: keep target stopwords")
-    ap.add_argument("--no-strip-light", action="store_true", help="ablation: keep light renderings")
+    ap.add_argument("--no-strip-light", action="store_true",
+                    help="ablation: keep light RENDERINGS in the target pool (default strips them)")
+    ap.add_argument("--strip-light-sources", action="store_true",
+                    help="also drop light lexemes from the SOURCE gap set. DEFAULT OFF — measured to "
+                         "cost content fills (fra 72->62 correct, eng 101->99) without those fills "
+                         "being any less trustworthy; see build_residual")
     ap.add_argument("--explained-min-score", type=float, default=0.0,
                     help="a pair counts as 'already explained' only at or above this score. 0.0 (default) "
                          "= any pair, so the residual is purely what nothing touched. 0.9 = only "
@@ -200,7 +229,8 @@ def main() -> int:
                                                           args.explained_min_score, lex_pos)
     light_forms = (set() if args.no_strip_light
                    else light_target_forms(args.iso, args.out, methods, _load_light_lexemes()))
-    res = build_residual(recs, covered_h, taken_t, stopwords, light_forms)
+    light_lex = _load_light_lexemes() if args.strip_light_sources else set()
+    res = build_residual(recs, covered_h, taken_t, stopwords, light_forms, light_lex)
 
     n_src = sum(len(r.heb) for r in res)
     n_trg = sum(len(r.toks) for r in res)
@@ -209,7 +239,7 @@ def main() -> int:
           f"  residual SOURCE tokens {n_src}   residual TARGET tokens {n_trg} "
           f"(of {orig_trg} original, {100*n_trg/max(1,orig_trg):.1f}%)\n"
           f"  stripped: {0 if stopwords is None else len(stopwords.words)} stopword forms, "
-          f"{len(light_forms)} light-rendering forms\n"
+          f"{len(light_forms)} light-rendering forms (target), {len(light_lex)} light lexemes (source)\n"
           f"  mean per residual verse: {n_src/max(1,len(res)):.2f} source, {n_trg/max(1,len(res)):.2f} target",
           file=sys.stderr)
     if args.stats:
@@ -229,13 +259,21 @@ def main() -> int:
             t = next((h for h in r.heb if h.idx == m.h_idx), None)
             if not t:
                 continue
-            orig_idx = [r.orig[j] for j in m.t_idx if j < len(r.orig)]
+            orig_idx = sorted(r.orig[j] for j in m.t_idx if j < len(r.orig))
             if not orig_idx:
                 continue
+            # CONTIGUITY MUST BE ENFORCED IN ORIGINAL COORDINATES, not residual ones. The residual
+            # target side is stripped to 1.7-5% of the verse, so a perfectly contiguous run there maps
+            # back to a wildly scattered span here — measured before this fix: 15-18% of fills were
+            # scattered, with gaps up to 27 tokens (one fra fill spanned original positions 8..31).
+            # Those are exactly the spans protection #2 removes as ~20pt less precise, so re-applying
+            # the same rule after the mapping is what keeps this pass consistent with the aligner.
+            orig_idx = _longest_contiguous(orig_idx, set())
             pairs.append({"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong, "lemma": t.lemma,
                           "stem": t.stem, "surface": t.surface, "gloss_en": t.gloss_en,
-                          "sense": t.sense, "target": " ".join(r.toks[j] for j in m.t_idx),
-                          "t_idx": sorted(orig_idx), "score": args.fill_score, "method": "residual",
+                          "sense": t.sense,
+                          "target": " ".join(tok for j, tok in zip(r.orig, r.toks) if j in set(orig_idx)),
+                          "t_idx": orig_idx, "score": args.fill_score, "method": "residual",
                           "content": True})
         if pairs:
             by_ref[encode(r.book, r.ch, r.v)] = {"ref": encode(r.book, r.ch, r.v), "book": r.book,

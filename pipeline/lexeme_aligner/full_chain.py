@@ -14,10 +14,12 @@ edition-discovery logic, no risk of drift between the two.
                                           — gloss's bootstrap priors read exactly this file next
   4. gloss align                         second pass, bootstrapped from step 3's local export
   5. gapfill                             fills eflomal+gloss coverage gaps
+  5b. residual align                     2nd eflomal pass on the remainder -> compact's opt-in layer
   6. export (final)                      re-aggregates eflomal+gloss+gapfill -> same partition
   7. aligned_mwe                         multi-word expressions (primary edition tag only)
   8. senses_attested                     OT/Hebrew sense attestation (degrades to a no-op off-OT)
   9. compact-alignments                  per-book, content-addressed (primary edition tag only)
+                                          + <BOOK>_<hash>.extra.json — the opt-in residual layer
 
 Steps 4-9 are individually best-effort (a failure prints a warning and the chain continues) EXCEPT
 step 6's final export, which is load-bearing for everything published downstream.
@@ -115,6 +117,15 @@ def main() -> int:
     for tag in tags:
         _run("gapfill", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
              "--methods", "eflomal,gloss", env=env, soft=True)
+
+    # step 5b: residual re-alignment — a second eflomal pass over only what eflomal+gloss could not
+    # explain, with target stopwords/light renderings/already-taken positions stripped out. It feeds
+    # compact-alignments' OPT-IN `.extra.json` layer only (step 9 emits it); no aggregated dataset
+    # includes it, and the main compact array is unchanged by its presence.
+    # Runs after gapfill because it stratifies against gap-fill's own fills (combine_with_gapfill).
+    for tag in tags:
+        _run("residual_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
+             scope_flag, "--methods", "eflomal,gloss", env=env, soft=True)
 
     # step 6: final export — union of all three methods, same pooling onboard.py used for step 3
     export_args: list[object] = ["--iso", primary, "--publish-iso", args.iso, "--methods", _METHODS]

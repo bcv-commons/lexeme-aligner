@@ -28,7 +28,8 @@
 #   make update-language ISO=ceb
 #   make new-edition ISO=fra          # after adding the edition to config/language_editions.json
 #   make update-batch SPEC=config/onboard_batch_id.json
-#   make update-all
+#   make update-all                  # resumable: skips languages already done in the current sweep
+#   make update-all FRESH=1           # ...start a genuinely new sweep instead of resuming
 #   make new-catalog                  # non-DBT sweep of the full cross-source catalog
 #   make new-catalog-dbt              # DBT-inclusive follow-up sweep
 #   make status
@@ -101,7 +102,7 @@ update-batch: _require-spec
 
 update-all:
 	$(LOAD_ENV)
-	$(PY) pipeline/scripts/update_all.py --clean-out $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
+	$(PY) pipeline/scripts/update_all.py --clean-out $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest) $(if $(filter 1,$(FRESH)),--fresh) $(if $(MIN_FREE_GB),--min-free-gb $(MIN_FREE_GB))
 
 new-batch: _require-spec
 	$(LOAD_ENV)

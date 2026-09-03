@@ -91,6 +91,45 @@ Same length as that book's `_lexemes.json`, **position-parallel to its keys** �
 the compact string for the `i`-th verse ref (in `_lexemes.json`'s own key order). No verse-ref keys
 stored per edition.
 
+### 3. Provenance sidecars — `<BOOK>_<hash>.method.json` / `.conf.json` / `.contested.json`
+
+Optional, additive, and **safe to ignore** — a reader that only wants alignments can stop at section 2.
+They exist because an alignment string alone cannot tell you *who produced this and how sure they were*,
+and because a merged file silently discards the alternative that lost.
+
+`.method.json` and `.conf.json` are **dense**: one character per aligned token, in the same order as
+that verse's compact entry. Character `i` describes the `i`-th `srcOrd:span` of the alignment string, so
+the two are read side by side and their lengths always match.
+
+```
+alignment  "0:1 1:2 2:5 3:5-6"
+method     "EGeF"          E = eflomal, G = gloss, e = eflomal, f = gapfill
+conf       "2211"          how many methods produced that identical span
+```
+
+| method char | meaning |
+|---|---|
+| `E` / `e` | eflomal, at its own score 0.9 / 0.6 |
+| `G` / `g` | gloss, strong match (`exact`, `stem`) / weaker (`head`, `fuzzy`, `prefix`, `multi`) |
+| `f` | gapfill (already restricted to the `strong` and `name` priors) |
+| `r` | residual — appears only against the opt-in `.extra.json` layer |
+
+`.contested.json` is **sparse**: only the positions where eflomal and gloss proposed *different* spans
+and a rule had to choose. Each entry is `srcOrd:method:span` naming the **loser** — the winner is in the
+alignment file at the same `srcOrd`.
+
+```json
+["", "3:g:12 7:E:20-21", "", ...]
+```
+
+This is the only place a discarded alternative survives; everything else in this dataset is a
+winner-take-all projection. If you disagree with our choice, this is what lets you make your own.
+
+**Do not read `conf` as an absolute guarantee.** Agreement ranks well *within* an edition, but its
+availability depends on how many methods happened to work for that language — an edition whose gloss
+pass ran at 20% coverage will show mostly `1` for reasons that have nothing to do with quality. Compare
+within an edition, never across.
+
 ### Deriving the ref list — one line, either language
 
 Since the ref list is just `_index/<BOOK>_lexemes.json`'s own ordered keys, don't fetch/store it

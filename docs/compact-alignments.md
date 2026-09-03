@@ -182,6 +182,62 @@ for part in by_ref["RUT 1:1"].split():
     print(lexemes[int(ordinal)], "->", _decode_span(span))   # e.g. "0802" -> [24]  (his wife)
 ```
 
+## How a position that two methods both reached is resolved
+
+Until 2026-09-03 `_merged_pairs` took the first method in `METHODS` order, so **eflomal won every
+position it reached** and gloss only ever filled gaps. That contradicted our own measurements:
+`config/contest_rule.json` is the LOO-validated rule for exactly this decision, `merge_align` has used
+it as "the PROVEN standard" since 2026-07, and it hands 6 of its 12 tier-pairs to gloss — every
+low-confidence-eflomal pairing except `head`.
+
+It is now applied here too. Measured on `swk` (536,223 raw positions, 269,996 published content
+positions):
+
+| | |
+|---|---|
+| eflomal and gloss both fire | 40.0% of positions |
+| …of which they agree | 79.7% |
+| …of which they contest | 20.3% |
+| contested positions the rule flips | 32.8% (2.66% of all) |
+| published verses whose string changes | 15.57% |
+| **aligned tokens gained or lost** | **0** |
+
+That last row is the safety property: the rule changes *which* target a source position takes, never
+whether it has one. Coverage is identical before and after.
+
+Dominant flip is `eflomal 0.6 × gloss exact` (11,488 of 14,256) — a low-confidence statistical guess
+overruled by an exact dictionary match.
+
+`--no-contest-rule` restores the old flat-priority behaviour verbatim, for A/B work.
+
+A **light** gloss pair does not vote (mirroring `merge_align`), but is still emitted when nothing else
+covers the position. Dropping it instead would have cost swk 1,308 aligned positions for no gain: not
+voting is about who decides a contest, not about whether an alignment exists.
+
+## The provenance sidecars
+
+Three optional files per book, written only when non-empty — the same "absence means nothing to say"
+rule the `.extra.json` residual layer already uses, so no existing reader changes.
+
+- `<BOOK>_<hash>.method.json` — dense, one char per aligned token: `E`/`e` eflomal at score 0.9/0.6,
+  `G`/`g` gloss strong (`exact`,`stem`)/weak, `f` gapfill, `r` residual.
+- `<BOOK>_<hash>.conf.json` — dense, one char per aligned token: how many methods produced that
+  identical span. This wires up `confidence_sidecar()`'s long-designed shape.
+- `<BOOK>_<hash>.contested.json` — sparse, `srcOrd:method:span` naming the **loser** of each contest.
+
+Dense entries are position-parallel to the alignment string's own `srcOrd:span` tokens (char `i`
+describes token `i`), and are built in the same loop, so they cannot drift out of step.
+
+**Why now, when this was previously rejected.** `docs/pipeline-overview.md` recorded a decision *not*
+to publish a confidence sidecar, and its first and load-bearing reason was that it could not be
+backfilled — no published artifact retains per-occurrence method spans, and `--clean-out` deletes the
+jsonl, so it would have shipped for a handful of new editions against 1,708 without. The 2026-09
+full-corpus regeneration removes that reason: every edition is rebuilt from its own jsonl in the same
+sweep, so coverage is uniform. The other two reasons still stand and are honoured rather than
+overturned — contiguity remains free in the span punctuation and is not duplicated here, and the
+`hi_conf` finding is why `conf` is published as a raw count with an explicit warning against reading it
+as a cross-edition guarantee, instead of being folded into a promoted "high confidence" flag.
+
 ## Size
 
 For `ind` (Indonesian, whole Bible, single edition):

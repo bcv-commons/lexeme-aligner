@@ -788,6 +788,14 @@ are eflomal-only. Agreement's AVAILABILITY depends on how many methods happened 
 so it is informative but makes a poor universal contract — and penalising single-method languages is
 penalising exactly the tail this project exists to serve.
 
+**REVERSED 2026-09-03 — now published; see `docs/compact-alignments.md`.** The decision below was
+sound while no regeneration was planned, and it turned on its first reason. The 2026-09 full-corpus
+rebuild rebuilds every edition from its own jsonl in one sweep, so "cannot be backfilled" no longer
+holds and coverage is uniform. Reasons two and three were kept, not overridden: contiguity is still
+free in the span punctuation and is not duplicated, and the `hi_conf` finding above is exactly why the
+sidecar ships a raw agreement COUNT carrying an explicit "compare within an edition, never across"
+warning, rather than a promoted confidence flag. The original reasoning follows.
+
 A published confidence sidecar for compact-alignments was also designed, sized and rejected
 (`compact_align.confidence_sidecar`, built but deliberately NOT wired into the writer). Three reasons:
 it cannot be backfilled (no published artifact retains per-occurrence method spans, and `--clean-out`

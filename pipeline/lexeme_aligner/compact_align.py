@@ -37,6 +37,7 @@ from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
+from lexeme_aligner.merge_align import _norm as _merge_norm, _tier as _merge_tier
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS, _BOOK_FILE_NUM, pooled_verse_groups
 from lexeme_aligner.usj_source import TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw
@@ -56,6 +57,37 @@ METHODS = ("eflomal", "gloss", "gapfill")
 # Merge rule for clients: if an ordinal already appears in the base entry, the BASE WINS.
 LAYER_METHODS = ("residual",)
 
+CONTEST_RULE = Path("config/contest_rule.json")
+_AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods produce the same span
+
+# One character per aligned token in the `.method.json` sidecar. Case carries the method's OWN
+# high-confidence tier — free, and it is the exact input the contest rule keys on:
+#   e/E = eflomal at score 0.6 / 0.9      g/G = gloss weak (head,fuzzy,prefix,multi) / strong (exact,stem)
+#   f   = gapfill (already gated to the strong/name priors)      r = residual (opt-in layer)
+_METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s"}
+_GLOSS_STRONG = {"exact", "stem"}
+
+
+def load_contest_rule(path: Path = CONTEST_RULE) -> dict:
+    """{(eflomal_tier, gloss_tier): 'ef'|'gl'} — the LOO-validated universal disagreement rule.
+
+    Same file and same shape merge_align.load_contest_rule reads. Missing file -> {} -> the caller
+    falls back to plain method priority, i.e. exactly the pre-2026-09 behaviour."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return {tuple(k.split(" | ")): v for k, v in json.loads(p.read_text(encoding="utf-8")).items()}
+
+
+def _method_char(pair: dict) -> str:
+    m = pair.get("_method", "")
+    ch = _METHOD_CHAR.get(m, "?")
+    if m == "eflomal" and (pair.get("score") or 0) >= 0.9:
+        return ch.upper()
+    if m == "gloss" and pair.get("method") in _GLOSS_STRONG:
+        return ch.upper()
+    return ch
+
 _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index, published once per book",
           "<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json = [\"srcOrd:span ...\", ...] — position-parallel "
           "to that book's _index/<BOOK>.json; hash = last N hex chars of book_content_hash()",
@@ -65,6 +97,19 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "82.5. Filter on it if you need precision over coverage. (Russian, which Grambank codes "
           "GB026=1 for legitimate discontinuity, shows no such gap — so this is a strong default, not a "
           "universal law.)",
+          "<BOOK>_<hash>.method.json / .conf.json = OPTIONAL provenance sidecars, position-parallel to "
+          "the same book_index. Each entry is ONE CHARACTER PER ALIGNED TOKEN, in the same order as that "
+          "verse's compact entry (so entry i of the sidecar describes the i-th 'srcOrd:span' of the "
+          "alignment string). method: e/E = eflomal at score 0.6/0.9, g/G = gloss weak/strong "
+          "(exact,stem), f = gapfill, r = residual. conf: how many methods produced that identical span "
+          "('1'..'9'). NEITHER IS A GUARANTEE — agreement's availability depends on how many methods "
+          "happened to work for a language, so it ranks well WITHIN an edition and must not be compared "
+          "as an absolute across editions.",
+          "<BOOK>_<hash>.contested.json = OPTIONAL, SPARSE: the positions where eflomal and gloss "
+          "proposed DIFFERENT spans and the contest rule picked one. Entries are 'srcOrd:method:span' "
+          "naming the LOSER (the winner is in the alignment file at the same srcOrd), space-separated, "
+          "'' for verses with no contest. This is the only place the discarded alternative survives — "
+          "everything else is a winner-take-all projection.",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
           "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
@@ -165,14 +210,29 @@ def confidence_sidecar(compact: list[str], agree: dict, verse_refs: list[str],
     return out
 
 
-def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS) -> dict:
-    """{(chapter, verse): {h_idx: t_idx}} — additive union, first method wins on overlap
-    (mirrors merge_align's own priority order: eflomal > gloss > gapfill > residual).
+def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS, contest: dict | None = None) -> dict:
+    """{(chapter, verse): {h_idx: {t_idx, char, agree, alt}}} — the per-position resolution.
 
-    `residual` sits LAST deliberately. It only ever aligns source tokens no other method reached, so it
-    cannot displace anything — but the priority order is what guarantees that, not the residual pass's
-    own restraint, and it should stay last if that pass is ever loosened."""
-    by_verse: dict[tuple[int, int], dict[int, list[int]]] = {}
+    `residual` sits LAST in method priority deliberately. It only ever aligns source tokens no other
+    method reached, so it cannot displace anything — but the priority order is what guarantees that,
+    not the residual pass's own restraint, and it should stay last if that pass is ever loosened.
+
+    HOW OVERLAPS ARE RESOLVED (changed 2026-09-03). This used to be a flat "first method in `methods`
+    wins", i.e. eflomal beat gloss on every position both reached — so wherever eflomal fired, eflomal
+    is what shipped, and gloss only ever filled gaps. That contradicted the project's own measurements:
+    `config/contest_rule.json` is a LOO-validated rule for exactly this decision (merge_align has used
+    it as "the PROVEN standard" since 2026-07), and it hands 6 of 12 tier-pairs to gloss — notably every
+    low-confidence-eflomal pairing except `head`. Measured on swk (536,223 positions): eflomal and gloss
+    both fire on 40.0%, of which 20.3% contest, and the rule flips 32.8% of those — 2.66% of all
+    positions, dominated by `eflomal 0.6 x gloss exact` (11,488 of 14,256).
+
+    Pass `contest=None` to get the old flat-priority behaviour back verbatim.
+
+    A LIGHT gloss pair (semantically general source lexeme, low cross-lingual target dominance) does not
+    VOTE — merge_align's rule, mirrored here — but it is still emitted if nothing else covers the
+    position. Dropping it instead would have cost swk 1,308 aligned positions for no gain: not voting is
+    about who decides a contest, not about whether an alignment exists."""
+    raw: dict[tuple[int, int], dict[int, dict]] = {}
     for m in methods:
         for fp in tag_files(out_dir, m, iso):
             if fp.stem.rsplit("_", 1)[-1] != book:
@@ -181,17 +241,43 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS) -> dict:
                 if not line.strip():
                     continue
                 rec = json.loads(line)
-                d = by_verse.setdefault((rec["chapter"], rec["verse"]), {})
+                d = raw.setdefault((rec["chapter"], rec["verse"]), {})
                 for p in rec["pairs"]:
-                    ti = p.get("t_idx")
-                    if not ti or p["h_idx"] in d:
+                    if not p.get("t_idx"):
                         continue
-                    d[p["h_idx"]] = ti
+                    p = dict(p, _method=m)
+                    d.setdefault(p["h_idx"], {})[m] = p
+
+    by_verse: dict[tuple[int, int], dict[int, dict]] = {}
+    for key, hs in raw.items():
+        out = by_verse.setdefault(key, {})
+        for h_idx, mp in hs.items():
+            win, alt = _resolve(mp, methods, contest)
+            if win is None:
+                continue
+            agree = sum(1 for p in mp.values() if _merge_norm(p.get("target")) == _merge_norm(win.get("target")))
+            out[h_idx] = {"t_idx": win["t_idx"], "char": _method_char(win), "agree": agree,
+                          "alt": ({"char": _method_char(alt), "t_idx": alt["t_idx"]} if alt else None)}
     return by_verse
 
 
+def _resolve(mp: dict, methods, contest: dict | None):
+    """One position -> (winning_pair, losing_pair_or_None). See _merged_pairs for the why."""
+    ef, gl = mp.get("eflomal"), mp.get("gloss")
+    if contest and ef and gl and not gl.get("light"):
+        if _merge_norm(ef.get("target")) == _merge_norm(gl.get("target")):
+            return ef, None                                   # agreement — nothing was contested
+        side = contest.get((_merge_tier("eflomal", ef), _merge_tier("gloss", gl)), "ef")
+        return (ef, gl) if side == "ef" else (gl, ef)
+    for m in methods:                                          # flat priority (also the no-rule path)
+        if m in mp:
+            return mp[m], None
+    return None, None
+
+
 def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
-                  books: list[str] = ALL_BOOKS, methods=METHODS) -> list[str]:
+                  books: list[str] = ALL_BOOKS, methods=METHODS,
+                  contest: dict | None = None) -> tuple[dict, dict]:
     """Per-language compact array, position-parallel to build_index()'s canonical ordinal index.
 
     Target-token positions (`span` in "srcOrd:span") are published in RAW-TEXT coordinates — indices
@@ -208,11 +294,12 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     it just never appears as a source of a valid raw_idx."""
     remap = remapper(iso, str(usj_dir))
     by_ref: dict[str, str] = {}                        # "BOOK C:V" -> compact string, filled as we go
+    side: dict[str, dict[str, str]] = {"method": {}, "conf": {}, "contested": {}}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         ranges = read_verse_ranges(usj_path) if usj_path.exists() else {}
         raw_ranges = read_verse_ranges(usj_path, rules={}) if usj_path.exists() else {}
-        pairs_by_verse = _merged_pairs(iso, book, out_dir, methods)
+        pairs_by_verse = _merged_pairs(iso, book, out_dir, methods, contest)
         for ch in heb.chapters(book):
             for anchor_v, vs, ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
                 pairs = pairs_by_verse.get((ch, anchor_v), {})
@@ -224,19 +311,36 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 raw_info = raw_ranges.get((tc, vs))
                 raw_text = raw_info["text"] if raw_info else ""
                 raw_idx_of = remap_clean_to_raw(raw_text, text) if raw_text else []
-                parts = []
+                parts, meth, conf, contested = [], [], [], []
                 for ordinal, tok in enumerate(anchor_content):
-                    ti = pairs.get(tok.idx)
-                    if not ti:
+                    rec = pairs.get(tok.idx)
+                    if not rec:
                         continue
-                    mapped = [raw_idx_of[i] for i in ti if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
-                    if mapped:
-                        parts.append(f"{ordinal}:{_encode_span(mapped)}")
-                by_ref[f"{book} {ch}:{anchor_v}"] = " ".join(parts)
+                    mapped = [raw_idx_of[i] for i in rec["t_idx"]
+                              if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
+                    if not mapped:
+                        continue
+                    parts.append(f"{ordinal}:{_encode_span(mapped)}")
+                    # The two DENSE channels are one character per aligned token, in the same order as
+                    # `parts` — the shape confidence_sidecar() was designed around. Appended in the same
+                    # loop as `parts` so they cannot drift out of step with it.
+                    meth.append(rec["char"])
+                    conf.append(str(min(9, rec["agree"])))
+                    alt = rec["alt"]
+                    if alt:
+                        alt_mapped = [raw_idx_of[i] for i in alt["t_idx"]
+                                      if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
+                        if alt_mapped:
+                            contested.append(f"{ordinal}:{alt['char']}:{_encode_span(alt_mapped)}")
+                ref = f"{book} {ch}:{anchor_v}"
+                by_ref[ref] = " ".join(parts)
+                side["method"][ref] = "".join(meth)
+                side["conf"][ref] = "".join(conf)
+                side["contested"][ref] = " ".join(contested)
                 for orig_v, _tok in members:
                     if orig_v != vs:
                         by_ref.setdefault(f"{book} {ch}:{orig_v}", "")   # pooled non-anchor member
-    return by_ref
+    return by_ref, side
 
 
 def book_content_hash(usj_path: Path) -> str:
@@ -276,7 +380,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
                     books: list[str] = ALL_BOOKS, methods=METHODS,
                     out_dir: Path = OUT, hash_len: int = 5, edition: str | None = None,
                     sources_path: Path = Path("config/sources.json"),
-                    with_layer: bool = True) -> dict[str, Path]:
+                    with_layer: bool = True, contest: dict | None = None,
+                    with_sidecars: bool = True) -> dict[str, Path]:
     """Writes one compact-alignment JSON per (edition, book) at
     `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<last-hash_len-hex-of-book-content-hash>.json` — `iso` is
     the true published language code (NOT the internal alignment `tag`, which can be an edition-specific
@@ -312,7 +417,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}
         edition = edition_id(iso, tag, sources)
     written: dict[str, Path] = {}
-    by_ref = build_compact(tag, usj_dir, heb, out_dir, books, methods)
+    by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest)
     layer = build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref) if with_layer else {}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
@@ -340,6 +445,13 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         if any(extra):
             (out_fp.parent / f"{book}_{digest}.extra.json").write_text(
                 json.dumps(extra, ensure_ascii=False) + "\n", encoding="utf-8")
+        # provenance sidecars — same "write only if non-empty" rule, same position-parallel indexing
+        if with_sidecars:
+            for name in ("method", "conf", "contested"):
+                arr = [side[name].get(ref, "") for ref in book_index]
+                if any(arr):
+                    (out_fp.parent / f"{book}_{digest}.{name}.json").write_text(
+                        json.dumps(arr, ensure_ascii=False) + "\n", encoding="utf-8")
     return written
 
 
@@ -352,9 +464,9 @@ def build_layer(tag: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
 
     Anything the base already covers is dropped here rather than left to the client's merge rule, so the
     two files cannot contradict each other even if a consumer merges them naively."""
-    layer = build_compact(tag, usj_dir, heb, out_dir, books, LAYER_METHODS)
+    layer, _ = build_compact(tag, usj_dir, heb, out_dir, books, LAYER_METHODS)
     if base is None:
-        base = build_compact(tag, usj_dir, heb, out_dir, books, METHODS)
+        base, _ = build_compact(tag, usj_dir, heb, out_dir, books, METHODS)
     out: dict[str, str] = {}
     for ref, entry in layer.items():
         if not entry:
@@ -382,6 +494,14 @@ def main() -> int:
                          "ships as the opt-in .extra.json layer instead; see METHODS/LAYER_METHODS")
     ap.add_argument("--no-layer", action="store_true",
                     help="skip the opt-in residual layer (<BOOK>_<hash>.extra.json)")
+    ap.add_argument("--contest-rule", type=Path, default=CONTEST_RULE,
+                    help="LOO-validated eflomal-vs-gloss disagreement rule used to resolve a position "
+                         "both methods reached (default: config/contest_rule.json)")
+    ap.add_argument("--no-contest-rule", action="store_true",
+                    help="resolve overlaps by flat method priority instead — the pre-2026-09 behaviour, "
+                         "i.e. eflomal wins every position it reached")
+    ap.add_argument("--no-sidecars", action="store_true",
+                    help="skip the provenance sidecars (<BOOK>_<hash>.{method,conf,contested}.json)")
     ap.add_argument("--out-dir", type=Path, default=OUT)
     ap.add_argument("--out", type=Path, default=None,
                     help="single whole-bible array output path (dev/debug mode)")
@@ -400,6 +520,13 @@ def main() -> int:
     args = ap.parse_args()
 
     heb = HebrewSource()
+    contest = None if args.no_contest_rule else load_contest_rule(args.contest_rule)
+    if contest:
+        print(f"[compact_align] contest rule: {len(contest)} tier-pair(s) from {args.contest_rule}",
+              file=sys.stderr)
+    elif not args.no_contest_rule:
+        print(f"[compact_align] WARNING: no contest rule at {args.contest_rule} — falling back to flat "
+              f"method priority (eflomal wins every contested position)", file=sys.stderr)
 
     if args.build_index:
         out = args.out or Path("config/canonical_index/whole_bible.json")
@@ -420,7 +547,8 @@ def main() -> int:
         resolved_edition = args.edition or edition_id(publish_iso, args.iso, sources)
         written = publish_compact(args.iso, publish_iso, usj_dir, heb, args.publish,
                                   methods=methods, out_dir=args.out_dir, hash_len=args.hash_len,
-                                  with_layer=not args.no_layer,
+                                  with_layer=not args.no_layer, contest=contest,
+                                  with_sidecars=not args.no_sidecars,
                                   edition=resolved_edition, sources_path=args.sources,
                                   index_root=args.index_root)
         for book, fp in sorted(written.items()):
@@ -435,7 +563,8 @@ def main() -> int:
     if not args.out:
         raise SystemExit("--out required for the whole-bible array mode (or use --publish)")
     index = json.loads(args.index.read_text(encoding="utf-8"))
-    by_ref = build_compact(args.iso, usj_dir, heb, args.out_dir, methods=methods)
+    by_ref, _ = build_compact(args.iso, usj_dir, heb, args.out_dir, methods=methods,
+                              contest=contest)
     array = [by_ref.get(ref, "") for ref in index]
 
     n_aligned_verses = sum(1 for s in array if s)

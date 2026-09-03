@@ -88,6 +88,11 @@ def _contest_pick(mp: dict, rule: dict):
     if gl:
         return gl, ["gloss"], (gl.get("score") or 0.5)
     gf = mp.get("gapfill")                                       # neither eflomal nor gloss had a signal
+    if gf is None:
+        # Reachable: a position whose ONLY pair is a LIGHT gloss pair (gl was zeroed above) and which
+        # no other method touched. Callers already handle a None winner (`if win is None: continue`);
+        # before this guard the `gf.get` below raised AttributeError instead of reaching them.
+        return None, [], 0.0
     return gf, ["gapfill"], (gf.get("score") or 0.0)
 
 

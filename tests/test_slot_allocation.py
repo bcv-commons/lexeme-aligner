@@ -444,9 +444,9 @@ def test_layer_drops_anything_the_base_already_covers(monkeypatch):
     layer = {"RUT 1:1": "1:9 4:11", "RUT 1:2": "2:1"}
     calls = []
 
-    def fake(tag, usj, heb, out, books, methods):
+    def fake(tag, usj, heb, out, books, methods, contest=None):
         calls.append(methods)
-        return layer if methods == ca.LAYER_METHODS else base
+        return (layer if methods == ca.LAYER_METHODS else base), {}
 
     monkeypatch.setattr(ca, "build_compact", fake)
     got = ca.build_layer("xx", None, None, None, ["RUT"], base=base)
@@ -524,3 +524,68 @@ def test_usj_dir_for_prefers_the_richest_dir_not_the_first(tmp_path, monkeypatch
     for b in ("01-GEN.json", "02-EXO.json"):
         (tmp_path / "usj-ayzyss" / b).write_text("{}")
     assert usj_dir_for("ayz", tmp_path).name == "usj-ayzyss"
+
+
+def test_contest_rule_overrules_low_confidence_eflomal():
+    """The 2026-09 change: a position both eflomal and gloss reached is decided by the LOO-validated
+    rule, not by method order. Low-confidence eflomal (0.6) loses to an exact gloss match — the single
+    biggest flip class (11,488 of 14,256 on swk)."""
+    import lexeme_aligner.compact_align as ca
+    rule = ca.load_contest_rule()
+    ef = {"_method": "eflomal", "score": 0.6, "t_idx": [4], "target": "wrong"}
+    gl = {"_method": "gloss", "method": "exact", "score": 1.0, "t_idx": [7], "target": "right"}
+    win, lose = ca._resolve({"eflomal": ef, "gloss": gl}, ca.METHODS, rule)
+    assert win is gl and lose is ef
+    # ...and the pre-2026-09 behaviour is still one flag away, unchanged
+    win, lose = ca._resolve({"eflomal": ef, "gloss": gl}, ca.METHODS, None)
+    assert win is ef and lose is None
+
+
+def test_contest_rule_keeps_high_confidence_eflomal():
+    import lexeme_aligner.compact_align as ca
+    ef = {"_method": "eflomal", "score": 0.9, "t_idx": [4], "target": "a"}
+    gl = {"_method": "gloss", "method": "exact", "score": 1.0, "t_idx": [7], "target": "b"}
+    win, lose = ca._resolve({"eflomal": ef, "gloss": gl}, ca.METHODS, ca.load_contest_rule())
+    assert win is ef and lose is gl
+
+
+def test_agreement_is_not_a_contest():
+    """Same span from both methods must report no loser — .contested.json means 'we had to choose'."""
+    import lexeme_aligner.compact_align as ca
+    ef = {"_method": "eflomal", "score": 0.6, "t_idx": [4], "target": "Same"}
+    gl = {"_method": "gloss", "method": "exact", "score": 1.0, "t_idx": [4], "target": "same "}
+    win, lose = ca._resolve({"eflomal": ef, "gloss": gl}, ca.METHODS, ca.load_contest_rule())
+    assert win is ef and lose is None
+
+
+def test_light_gloss_pair_does_not_vote_but_is_still_emitted():
+    """Not voting is about who decides a contest, not about whether an alignment exists — dropping
+    these would have cost swk 1,308 aligned positions for no gain."""
+    import lexeme_aligner.compact_align as ca
+    rule = ca.load_contest_rule()
+    light = {"_method": "gloss", "method": "exact", "score": 1.0, "t_idx": [7],
+             "target": "x", "light": True}
+    ef = {"_method": "eflomal", "score": 0.6, "t_idx": [4], "target": "y"}
+    win, lose = ca._resolve({"eflomal": ef, "gloss": light}, ca.METHODS, rule)
+    assert win is ef and lose is None                    # light pair did not contest
+    win, lose = ca._resolve({"gloss": light}, ca.METHODS, rule)
+    assert win is light                                  # ...but alone, it still aligns the position
+
+
+def test_method_char_encodes_the_tier_the_rule_keys_on():
+    import lexeme_aligner.compact_align as ca
+    assert ca._method_char({"_method": "eflomal", "score": 0.9}) == "E"
+    assert ca._method_char({"_method": "eflomal", "score": 0.6}) == "e"
+    assert ca._method_char({"_method": "gloss", "method": "exact"}) == "G"
+    assert ca._method_char({"_method": "gloss", "method": "head"}) == "g"
+    assert ca._method_char({"_method": "gapfill"}) == "f"
+    assert ca._method_char({"_method": "residual"}) == "r"
+
+
+def test_contest_pick_survives_a_light_gloss_only_position():
+    """Latent crash fixed alongside: gl is zeroed for being light, no eflomal, no gapfill -> the old
+    code did None.get('score'). Callers already handle a None winner."""
+    from lexeme_aligner.merge_align import _contest_pick
+    mp = {"gloss": {"method": "exact", "score": 1.0, "target": "x", "light": True}}
+    win, voters, score = _contest_pick(mp, {})
+    assert win is None and voters == [] and score == 0.0

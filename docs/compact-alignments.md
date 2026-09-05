@@ -219,14 +219,23 @@ voting is about who decides a contest, not about whether an alignment exists.
 Three optional files per book, written only when non-empty — the same "absence means nothing to say"
 rule the `.extra.json` residual layer already uses, so no existing reader changes.
 
-- `<BOOK>_<hash>.method.json` — dense, one char per aligned token: `E`/`e` eflomal at score 0.9/0.6,
-  `G`/`g` gloss strong (`exact`,`stem`)/weak, `f` gapfill, `r` residual.
-- `<BOOK>_<hash>.conf.json` — dense, one char per aligned token: how many methods produced that
-  identical span. This wires up `confidence_sidecar()`'s long-designed shape.
-- `<BOOK>_<hash>.contested.json` — sparse, `srcOrd:method:span` naming the **loser** of each contest.
+ONE file per book, `<BOOK>_<hash>.meta.json`, holding three position-parallel arrays:
+
+- `method` — dense, one char per aligned token: `E`/`e` eflomal at score 0.9/0.6, `G`/`g` gloss strong
+  (`exact`,`stem`)/weak, `f` gapfill, `r` residual.
+- `conf` — dense, one char per aligned token: how many methods produced that identical span. This wires
+  up `confidence_sidecar()`'s long-designed shape.
+- `contested` — sparse, `srcOrd:method:span` naming the **loser** of each contest.
 
 Dense entries are position-parallel to the alignment string's own `srcOrd:span` tokens (char `i`
 describes token `i`), and are built in the same loop, so they cannot drift out of step.
+
+**One file, not three.** HF caps commits at 128/hour/repo, and this dataset is ~66 books x 1,626
+editions: three channels put a full-catalog publish at ~242,000 files / ~1,210 commits (~9.5h of pure
+rate-limit), one file puts it at ~145,000 / ~725 (~5.7h). The channels stay separate arrays inside the
+file, so each is still read independently. `pipeline/scripts/merge_compact_sidecars.py` migrates the
+brief three-file form (2026-09-03/04) in place — a pure file transformation, verified byte-identical to
+what the writer now produces, idempotent, no re-alignment.
 
 **Why now, when this was previously rejected.** `docs/pipeline-overview.md` recorded a decision *not*
 to publish a confidence sidecar, and its first and load-bearing reason was that it could not be

@@ -91,15 +91,23 @@ Same length as that book's `_lexemes.json`, **position-parallel to its keys** �
 the compact string for the `i`-th verse ref (in `_lexemes.json`'s own key order). No verse-ref keys
 stored per edition.
 
-### 3. Provenance sidecars — `<BOOK>_<hash>.method.json` / `.conf.json` / `.contested.json`
+### 3. Provenance sidecar — `<BOOK>_<hash>.meta.json`
 
 Optional, additive, and **safe to ignore** — a reader that only wants alignments can stop at section 2.
-They exist because an alignment string alone cannot tell you *who produced this and how sure they were*,
+It exists because an alignment string alone cannot tell you *who produced this and how sure they were*,
 and because a merged file silently discards the alternative that lost.
 
-`.method.json` and `.conf.json` are **dense**: one character per aligned token, in the same order as
-that verse's compact entry. Character `i` describes the `i`-th `srcOrd:span` of the alignment string, so
-the two are read side by side and their lengths always match.
+```json
+{"method":    ["eEgEEE", ...],
+ "conf":      ["121222", ...],
+ "contested": ["2:E:2",  ...]}
+```
+
+All three arrays are position-parallel to the same book index as the alignment file.
+
+**`method` and `conf` are dense** — one character per aligned token, in the same order as that verse's
+compact entry. Character `i` describes the `i`-th `srcOrd:span` of the alignment string, so the two are
+read side by side and their lengths always match.
 
 ```
 alignment  "0:1 1:2 2:5 3:5-6"
@@ -114,13 +122,9 @@ conf       "2211"          how many methods produced that identical span
 | `f` | gapfill (already restricted to the `strong` and `name` priors) |
 | `r` | residual — appears only against the opt-in `.extra.json` layer |
 
-`.contested.json` is **sparse**: only the positions where eflomal and gloss proposed *different* spans
-and a rule had to choose. Each entry is `srcOrd:method:span` naming the **loser** — the winner is in the
-alignment file at the same `srcOrd`.
-
-```json
-["", "3:g:12 7:E:20-21", "", ...]
-```
+**`contested` is sparse** — only the positions where eflomal and gloss proposed *different* spans and a
+rule had to choose. Each entry is `srcOrd:method:span` naming the **loser**; the winner is in the
+alignment file at the same `srcOrd`. `""` where nothing was contested.
 
 This is the only place a discarded alternative survives; everything else in this dataset is a
 winner-take-all projection. If you disagree with our choice, this is what lets you make your own.

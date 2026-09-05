@@ -589,3 +589,48 @@ def test_contest_pick_survives_a_light_gloss_only_position():
     mp = {"gloss": {"method": "exact", "score": 1.0, "target": "x", "light": True}}
     win, voters, score = _contest_pick(mp, {})
     assert win is None and voters == [] and score == 0.0
+
+
+def test_merge_compact_sidecars_is_lossless_and_idempotent(tmp_path):
+    """The migration is destructive (it unlinks the legacy files), so it must be exactly equivalent to
+    what the writer now emits, and safe to re-run."""
+    import importlib.util, json, sys
+    spec = importlib.util.spec_from_file_location(
+        "merge_compact_sidecars", "pipeline/scripts/merge_compact_sidecars.py")
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+
+    d = tmp_path / "c" / "cxx" / "cxx_ED"
+    d.mkdir(parents=True)
+    align = ["0:1 1:2", "", "0:3"]
+    (d / "RUT_ab12c.json").write_text(json.dumps(align), encoding="utf-8")
+    legacy = {"method": ["Eg", "", "F"], "conf": ["21", "", "1"], "contested": ["1:e:9", "", ""]}
+    for c, arr in legacy.items():
+        (d / f"RUT_ab12c.{c}.json").write_text(json.dumps(arr), encoding="utf-8")
+
+    n = mod.migrate(tmp_path, dry_run=False)
+    assert n["merged"] == 1 and n["legacy files removed"] == 3
+    assert json.loads((d / "RUT_ab12c.meta.json").read_text()) == legacy
+    assert not list(d.glob("*.method.json")) and not list(d.glob("*.tmp"))
+
+    again = mod.migrate(tmp_path, dry_run=False)           # idempotent
+    assert again["merged"] == 0
+    assert json.loads((d / "RUT_ab12c.meta.json").read_text()) == legacy
+
+
+def test_merge_compact_sidecars_refuses_a_length_mismatch(tmp_path):
+    """A channel that is not position-parallel to the alignment array means something upstream is
+    wrong; merging it would silently misalign every consumer, so the book is left untouched."""
+    import importlib.util, json
+    spec = importlib.util.spec_from_file_location(
+        "merge_compact_sidecars", "pipeline/scripts/merge_compact_sidecars.py")
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+
+    d = tmp_path / "c" / "cxx" / "cxx_ED"
+    d.mkdir(parents=True)
+    (d / "RUT_ab12c.json").write_text(json.dumps(["0:1", "", "0:3"]), encoding="utf-8")
+    (d / "RUT_ab12c.method.json").write_text(json.dumps(["E", "x"]), encoding="utf-8")   # 2 != 3
+
+    n = mod.migrate(tmp_path, dry_run=False)
+    assert n["skipped: length mismatch"] == 1 and n["merged"] == 0
+    assert (d / "RUT_ab12c.method.json").exists()          # nothing destroyed
+    assert not (d / "RUT_ab12c.meta.json").exists()

@@ -91,8 +91,12 @@ def main() -> int:
           file=sys.stderr)
 
     if args.publish:
+        # `*.json` also matches `.publish_state.json`, this dataset's own LOCAL push cache — it was
+        # being uploaded to the public repo, and since its content changes on every push it re-uploaded
+        # itself every time. Skip dotfiles; detect_deletions removes the already-published copy.
         files = ["manifest.json", "README.md"] + [fp.name for fp in sorted(args.morph_dir.glob("*.json"))
-                                                  if fp.name != "manifest.json"]
+                                                  if fp.name != "manifest.json"
+                                                  and not fp.name.startswith(".")]
         # chunked, not one upload_file() commit per file — HF caps commits at 128/hour/repo, and this
         # dataset alone can have 700+ files, so a naive per-file loop hits that wall almost immediately.
         publish_chunked(args.morph_dir, args.publish, files, args.create, args.dry_run,

@@ -65,6 +65,7 @@ _AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods p
 #   e/E = eflomal at score 0.6 / 0.9      g/G = gloss weak (head,fuzzy,prefix,multi) / strong (exact,stem)
 #   f   = gapfill (already gated to the strong/name priors)      r = residual (opt-in layer)
 _METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s"}
+SIDECAR_CHANNELS = ("method", "conf", "contested")
 _GLOSS_STRONG = {"exact", "stem"}
 
 
@@ -97,19 +98,19 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "82.5. Filter on it if you need precision over coverage. (Russian, which Grambank codes "
           "GB026=1 for legitimate discontinuity, shows no such gap — so this is a strong default, not a "
           "universal law.)",
-          "<BOOK>_<hash>.method.json / .conf.json = OPTIONAL provenance sidecars, position-parallel to "
-          "the same book_index. Each entry is ONE CHARACTER PER ALIGNED TOKEN, in the same order as that "
-          "verse's compact entry (so entry i of the sidecar describes the i-th 'srcOrd:span' of the "
-          "alignment string). method: e/E = eflomal at score 0.6/0.9, g/G = gloss weak/strong "
-          "(exact,stem), f = gapfill, r = residual. conf: how many methods produced that identical span "
-          "('1'..'9'). NEITHER IS A GUARANTEE — agreement's availability depends on how many methods "
-          "happened to work for a language, so it ranks well WITHIN an edition and must not be compared "
-          "as an absolute across editions.",
-          "<BOOK>_<hash>.contested.json = OPTIONAL, SPARSE: the positions where eflomal and gloss "
-          "proposed DIFFERENT spans and the contest rule picked one. Entries are 'srcOrd:method:span' "
-          "naming the LOSER (the winner is in the alignment file at the same srcOrd), space-separated, "
-          "'' for verses with no contest. This is the only place the discarded alternative survives — "
-          "everything else is a winner-take-all projection.",
+          "<BOOK>_<hash>.meta.json = OPTIONAL provenance sidecar, {\"method\":[...], \"conf\":[...], "
+          "\"contested\":[...]}. Every array is position-parallel to the same book_index as the "
+          "alignment file. method/conf are DENSE — one character per aligned token, in the same order as "
+          "that verse's compact entry, so character i describes the i-th 'srcOrd:span' of the alignment "
+          "string. method: e/E = eflomal at score 0.6/0.9, g/G = gloss weak/strong (exact,stem), "
+          "f = gapfill, r = residual. conf: how many methods produced that identical span ('1'..'9'); "
+          "NOT A GUARANTEE — agreement's availability depends on how many methods happened to work for a "
+          "language, so it ranks well WITHIN an edition and must not be compared as an absolute across "
+          "editions. contested is SPARSE — the positions where eflomal and gloss proposed DIFFERENT "
+          "spans and the rule picked one, as 'srcOrd:method:span' naming the LOSER (the winner is in the "
+          "alignment file at the same srcOrd), space-separated, '' where nothing was contested. That is "
+          "the only place a discarded alternative survives; everything else is a winner-take-all "
+          "projection.",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
           "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
@@ -445,13 +446,18 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         if any(extra):
             (out_fp.parent / f"{book}_{digest}.extra.json").write_text(
                 json.dumps(extra, ensure_ascii=False) + "\n", encoding="utf-8")
-        # provenance sidecars — same "write only if non-empty" rule, same position-parallel indexing
+        # provenance sidecar — ONE file carrying all three channels, same "write only if non-empty"
+        # rule and the same position-parallel indexing the alignment array uses. One file rather than
+        # three per book because HF caps commits at 128/hour/repo and this dataset is ~66 books x 1,626
+        # editions: three separate channels put the full-catalog publish at ~1,210 commits (~9.5h of
+        # pure rate-limit), one file puts it at ~725 (~5.7h). Channels stay separate arrays inside it,
+        # so each is still read independently.
         if with_sidecars:
-            for name in ("method", "conf", "contested"):
-                arr = [side[name].get(ref, "") for ref in book_index]
-                if any(arr):
-                    (out_fp.parent / f"{book}_{digest}.{name}.json").write_text(
-                        json.dumps(arr, ensure_ascii=False) + "\n", encoding="utf-8")
+            meta = {name: [side[name].get(ref, "") for ref in book_index]
+                    for name in SIDECAR_CHANNELS}
+            if any(any(a) for a in meta.values()):
+                (out_fp.parent / f"{book}_{digest}.meta.json").write_text(
+                    json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
     return written
 
 

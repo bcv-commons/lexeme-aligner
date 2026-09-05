@@ -63,9 +63,14 @@ def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_s
         str(fp.relative_to(root)) for fp in root.glob("_index/*.json")
     ) + [f for f in _COMPANIONS if (root / f).exists()]
     if isos is None:
+        # `rglob("*.json")` DOES match dotfiles, so this was sweeping in `.publish_state.json` — this
+        # dataset's own 5 MB local push cache — and shipping it to the public repo, where it re-uploaded
+        # itself on every publish because its content changes with each push. The docstring above always
+        # claimed it was excluded; now it is.
         lang_files = sorted(
             str(fp.relative_to(root)) for fp in root.rglob("*.json")
             if fp.relative_to(root).parts[0] != "_index" and fp.name not in _COMPANIONS
+            and not fp.name.startswith(".")
         )
     else:
         lang_files = sorted(

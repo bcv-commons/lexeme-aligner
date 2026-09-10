@@ -92,6 +92,74 @@ def _paren_is_noise(content: str) -> bool:
     )
 
 
+def _blank(text: str, spans: list[tuple[int, int]]) -> str:
+    """Replace each (start, end) range with same-length spaces — used only to re-scan for a bracket
+    revealed by removing an inner one (rare: 0/31,161 real verses needed it, checked directly), while
+    keeping every other character's offset into the ORIGINAL text unchanged for later iterations."""
+    chars = list(text)
+    for s, e in spans:
+        for i in range(s, e):
+            chars[i] = " "
+    return "".join(chars)
+
+
+def annotation_spans(raw_text: str) -> list[tuple[int, int]]:
+    """Character (start, end) ranges of EVERY `[...]` and `(...)` span in `raw_text` — unconditional,
+    no `rules` involved and no noise/kept classification applied. Used for compact-alignments' bonus
+    channel (compact_align.py), which searches annotation text for corpus-attested corroboration of
+    otherwise-unresolved lexemes: unlike `removed_spans` (which only matters for what gets deleted
+    from TRAINING, and is deliberately conservative/per-edition-reviewed because that's destructive),
+    a bonus match never trains anything and never claims a source token, so there is no precision risk
+    in searching every bracket and every paren regardless of what an edition's strip decision says —
+    including editions with no strip rule on file at all. Kept vs. noise stops being a relevant
+    distinction once nothing is actually being deleted."""
+    spans = [(m.start(), m.end()) for m in _BRACKET_NOTE_RE.finditer(raw_text)]
+    spans += [(m.start(), m.end()) for m in _PAREN_RE.finditer(raw_text)]
+    spans.sort()
+    merged: list[tuple[int, int]] = []
+    for s, e in spans:
+        if merged and s <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+    return merged
+
+
+def removed_spans(raw_text: str, rules: dict) -> list[tuple[int, int]]:
+    """Character (start, end) ranges in `raw_text` that `_strip_bracket_notes`/`_strip_paren_notes`
+    would DELETE OUTRIGHT under `rules` — i.e. text present in raw_text with no trace in the stripped
+    output, as opposed to a KEPT paren, which only loses its `(`/`)` punctuation (never part of a
+    token, so it needs no span entry: unwrapping cannot change tokenize()'s output at all).
+
+    Exists so `remap_clean_to_raw` can determine which raw token survives into clean text by exact
+    CHARACTER-RANGE overlap, not by diffing the two token sequences — see that function's docstring
+    for the failure mode this replaces (a repeated word straddling a deletion boundary can fool a
+    generic diff into matching the wrong occurrence; character removal has no such ambiguity, since
+    it never has to choose between candidates)."""
+    spans: list[tuple[int, int]] = []
+    if rules.get("strip_brackets"):
+        work = raw_text
+        while True:
+            found = [(m.start(), m.end()) for m in _BRACKET_NOTE_RE.finditer(work)]
+            if not found:
+                break
+            spans.extend(found)
+            work = _blank(work, found)   # length-preserving, so offsets stay valid for the next pass
+    if rules.get("strip_parens_noise"):
+        work = raw_text if not spans else _blank(raw_text, spans)
+        for m in _PAREN_RE.finditer(work):
+            if _paren_is_noise(m.group(1)):
+                spans.append((m.start(), m.end()))
+    spans.sort()
+    merged: list[tuple[int, int]] = []
+    for s, e in spans:
+        if merged and s <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+    return merged
+
+
 def _strip_paren_notes(text: str) -> str:
     # Kept content is padded with spaces on both sides, not spliced back in bare — some editions run a
     # paren directly against its neighbor with no space ("Simeons(Shimons) söner"; found via the compact-
@@ -389,31 +457,60 @@ def _split_unspaced(tok: str) -> list[str]:
     return out
 
 
-def remap_clean_to_raw(raw_text: str, clean_text: str) -> list[int]:
+def _token_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) character offsets for every tokenize()-equivalent token, in order — letter+mark
+    runs, same grain as tokenize()'s own L/M category walk (marks-stripping doesn't move boundaries:
+    strip_marks only DROPS characters of category Mn, it never merges or splits an adjacent run)."""
+    spans = []
+    start = None
+    for i, ch in enumerate(text):
+        if unicodedata.category(ch)[0] in ("L", "M"):
+            if start is None:
+                start = i
+        elif start is not None:
+            spans.append((start, i))
+            start = None
+    if start is not None:
+        spans.append((start, len(text)))
+    return spans
+
+
+def remap_clean_to_raw(raw_text: str, clean_text: str, rules: dict | None = None) -> list[int]:
     """result[clean_idx] = raw_idx (or -1 if no confident match was found — see below) for every token in
     tokenize(clean_text). Used at compact-alignment publish time (compact_align.py) to convert an
     alignment's target positions — computed against clean (opt-in stripped) text, since that's what the
     aligner actually trained on — into positions in the edition's RAW, unmodified text, so a client who
     tokenizes their own untouched copy of the verse gets the right word.
 
-    Correct by construction, not by guessing: `_strip_bracket_notes`/`_strip_paren_notes` only ever DELETE
-    substrings or drop parenthesis punctuation around KEPT text — they never reorder or rewrite surviving
-    words. So clean_text's tokens are always an exact, order-preserving subsequence of raw_text's tokens;
-    the ones that exist only in raw (inside a stripped span) are exactly the ones with no entry in the
-    returned list — which is what makes them "unaligned" for free under the compact format's existing
-    absence-means-unaligned convention, once a caller only ever looks up indices this function actually
-    returns.
+    `rules` (the SAME text_strip_rules.json entry that produced `clean_text` from `raw_text`) is what
+    makes this unambiguous: `removed_spans(raw_text, rules)` says EXACTLY which raw characters were
+    deleted, so a raw token survives into clean_text iff its own character span doesn't overlap any
+    removed span — a direct positional fact, never a guess. Surviving raw tokens, in raw order, line up
+    1:1 with clean_text's own tokens (stripping only ever deletes substrings or drops parenthesis
+    punctuation around KEPT text; it never reorders or rewrites surviving words).
 
-    Diffs the TOKEN sequences (stdlib difflib on the two tokenize() outputs), not the raw characters —
-    tried a character-level diff first and it broke on real data: a stripped bracket's fragment ("en",
-    from "...en som skär...") coincidentally matched the trailing two characters of a SURVIVING word
-    elsewhere ("häl-EN"), since SequenceMatcher has no concept of word boundaries and a long deleted
-    span (swk's brackets run to hundreds of words) gives it plenty of room to find that kind of spurious
-    short match. Diffing whole tokens instead makes a wrong match structurally impossible — two elements
-    only ever compare equal if they're the same complete word, matching how `_paren_is_noise`/friends
-    already operate on words either kept or dropped whole, never split mid-word."""
+    2026-09-10: replaced a token-diffing implementation (stdlib difflib on the two tokenize() outputs)
+    that broke on a DIFFERENT real case than the one it was already hardened against: a word repeated
+    on both sides of a deleted span (JOS 15:5 swe_svk: raw "...av havet [Döda havet] vid..." — the
+    correct running-text "havet" sits right before the bracket, but a generic diff matched clean's one
+    surviving "havet" against the bracket's OWN copy instead, since both are equally valid completions
+    of the same longest-common-subsequence). Character-range removal has no such ambiguity — a token
+    either overlaps a known-deleted span or it doesn't, regardless of what token happens to sit next
+    to it. `rules=None` (or a caller with no rules to give) falls back to the OLD diff-based path,
+    kept only so an existing call site missing the new argument still gets an answer rather than an
+    exception — no current caller relies on this; pass `rules` whenever they're available."""
     if raw_text == clean_text:
         return list(range(len(tokenize(clean_text))))
+    if rules:
+        spans = removed_spans(raw_text, rules)
+        raw_spans = _token_spans(raw_text)
+        out = [i for i, (s, e) in enumerate(raw_spans) if not any(s < re_ and e > rs for rs, re_ in spans)]
+        expected = tokenize(clean_text)
+        if len(out) == len(expected):
+            return out
+        print(f"[usj_source] warn: removed_spans reconstruction found {len(out)} surviving raw token(s), "
+              f"expected {len(expected)} clean token(s) — falling back to the diff-based remap for this "
+              "verse", file=sys.stderr)
     raw_toks = tokenize(raw_text)
     clean_toks = tokenize(clean_text)
     out = [-1] * len(clean_toks)

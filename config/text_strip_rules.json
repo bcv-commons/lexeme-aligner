@@ -5,6 +5,11 @@
       "strip_brackets": true,
       "strip_parens_noise": true,
       "reason": "Svenska Kärnbibeln ('en expanderad översättning'). [...] is used exclusively for long-form editorial/study-note commentary inline in verse text — full-corpus sample: avg 18.7 words/span, up to 894 words in one span, often longer than the verse's own translated sentence; left unstripped this floods eflomal/gloss with non-scripture prose (measured: swk gap-fill precision collapsed to ~0.5-0.7% before this was found). (...) is a heterogeneous mix in the SAME edition: ~83% are short (one to a few words) alternate/amplified Swedish glosses that are genuine translated content worth aligning (e.g. '(blygdes)', '(oförtjänt kärlek, god favör)'), ~17% are real noise — source-language citations ('hebr. chesed', 'gr. logos'), cross-references ('1 Mos 1:1', 'vers 17'), metalinguistic glosses ('ordagrant ...', '... betyder ...'), era/date annotations ('735-715 f.Kr.'). Verified via full-corpus sweep across all 182 cached editions (the noise-pattern regexes are Swedish-lexical, checked they don't misfire on other languages' legitimate parenthetical scripture text) plus a controlled before/after benchmark A/B (git stash isolating the code change as the only variable): discriminating paren strip alone gave a small, consistent, non-regressive improvement (eflomal-Hebrew 67.6%->68.2%, gloss-Greek 75.2%->75.8%)."
+    },
+    "swe_svk": {
+      "strip_brackets": true,
+      "strip_parens_noise": true,
+      "reason": "2026-09-10: discovered this rule had NEVER applied to the actual published Kärnbibeln edition — it was keyed only to `swk`, a separate benchmark-only ingest-cache tag (config/gold_langs.json's frozen gold-scoring reference) with byte-identical text to the production `swe_svk` tag (verified: the two ingest-cache USJ files compare equal). Every real onboarding/publish of Swedish ran with this edition's commentary brackets UNSTRIPPED the entire time. Same edition, same evidence, same rule — see the `swk` entry above for the full measurement. A client's downstream cross-referencing tool surfaced this independently: most of a 24-note Joshua test set they sent back were tagged SWALLOWED_ELSEWHERE/SELF_GLOSS — our alignment DID produce a span, but it landed inside a bracketed commentary block, exactly the failure mode this rule exists to prevent."
     }
   }
 }

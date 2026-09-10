@@ -58,9 +58,20 @@ class GapFiller:
     def __init__(self, pos_weight: float = 0.2, strong_boost: float = 0.6,
                 name_boost: float = 0.6, pos_boost: float = 0.15, cross_edition_boost: float = 0.5,
                 phrase_boost: float = 0.4, phrase_pos_weight: float = 0.6,
-                phrase_fill_score: float = 0.75, morph_boost: float = 0.1):
+                phrase_fill_score: float = 0.75, morph_boost: float = 0.1,
+                cross_edition_strict_boost: float = 0.7):
         self.pos_weight, self.strong_boost, self.name_boost, self.pos_boost, self.cross_edition_boost = (
             pos_weight, strong_boost, name_boost, pos_boost, cross_edition_boost)
+        # Tiered #4 guardrail (2026-09-10, prototyped from a client's downstream cross-referencing
+        # heuristic — see reverse_align_check.load_lexeme_vocab_weighted): measured A/B on arb/clear
+        # gold, a GLOBAL swap to the count+dominance-filtered vocab traded steep recall for precision
+        # (53.1%->67.7% precision, but -65% recall). Checking the strict vocab FIRST and falling back to
+        # the existing bare vocab ONLY where strict doesn't fire keeps the fallback's full recall net
+        # intact while still preferring the higher-confidence candidate whenever one exists — never
+        # worse than today's baseline coverage, strictly additive precision where evidence supports it.
+        # Above cross_edition_boost: on a target BOTH tiers would claim, strict's corpus-wide dominance
+        # evidence should win the position, not lose it to a same-priority coin flip via list order.
+        self.cross_edition_strict_boost = cross_edition_strict_boost
         # Morphology agreement (number/gender) — TIE-BREAK ONLY, same weight class as pos_boost: prefers
         # the strong-rollup candidate whose surface is independently attested for THIS occurrence's own
         # number/gender over another occurrence's, when a Strong's has more than one known surface.
@@ -90,14 +101,18 @@ class GapFiller:
                   cross_lang: dict | None = None, multiword_floor: float = 0.6,
                   max_extend: int = 1, extend_over_stopwords: bool = False,
                   cross_edition_vocab: dict | None = None,
+                  cross_edition_vocab_strict: dict | None = None,
                   rec_after_rate: float | None = None,
                   phrase_enabled: bool = True,
                   func_order: dict | None = None,
                   morph_surf: dict | None = None) -> list[tuple]:
         """Align ONLY the gap source tokens (`gap_idx`) onto the UNTAKEN targets. Returns (Match, prior)
-        pairs — prior is 'strong', 'name', 'cross_edition', 'phrase', or 'phrase_xorder' (the only tiers
-        that can ever fire, model-free). `rec_after_rate`: learned P(construct-DEPENDENT's target comes
-        after its HEAD's target) for this language (from the taken pool); None → assume source order
+        pairs — prior is 'strong', 'name', 'cross_edition_strict', 'cross_edition', 'phrase', or
+        'phrase_xorder' (the only tiers that can ever fire, model-free). `cross_edition_vocab_strict`:
+        an optional higher-confidence overlay checked BEFORE `cross_edition_vocab` (see __init__) — pass
+        None to disable and get exactly today's single-tier behavior. `rec_after_rate`: learned
+        P(construct-DEPENDENT's target comes after its HEAD's target) for this language (from the taken
+        pool); None → assume source order
         preserved. `func_order`: gated {(function_a, function_b): rate} — P(target keeps a-then-b source
         order) for ADJACENT BHSA phrase-function pairs (constituent_order.py), pre-filtered by the caller
         to confidently one-sided pairs only (see gapfill.py) — Step 2/Track A: generalizes the phrase
@@ -205,6 +220,8 @@ class GapFiller:
         for i, h in enumerate(content):
             known = strong_surfaces.get(h.strong) if strong_surfaces else None
             known_cross = cross_edition_vocab.get(h.lexeme) if cross_edition_vocab and h.lexeme else None
+            known_cross_strict = (cross_edition_vocab_strict.get(h.lexeme)
+                                  if cross_edition_vocab_strict and h.lexeme else None)
             spos = lex_pos.get(h.lexeme) if lex_pos else None
             translit = ((lex_translit.get(h.lexeme) or "").replace(".", "").replace("·", "")
                         if lex_translit else "")
@@ -213,13 +230,18 @@ class GapFiller:
             p_exp, p_prior = p_result if p_result else (None, None)
             for j in avail:
                 is_strong = bool(known and tnorm[j] in known)
+                is_cross_strict = bool(not is_strong and known_cross_strict and tnorm[j] in known_cross_strict)
+                # bare #4 is the FALLBACK net, not a second independent vote: it only applies where the
+                # strict overlay didn't already claim this candidate, so recall never drops below
+                # today's baseline — a source token strict has no answer for still gets exactly the
+                # coverage it always did (see __init__ for the measured reasoning).
+                is_cross = bool(not is_strong and not is_cross_strict and known_cross and tnorm[j] in known_cross)
                 is_name = bool(spos == "name" and translit and _name_score(translit, tokens[j]) >= 0.8)
-                is_cross = bool(not is_strong and known_cross and tnorm[j] in known_cross)
                 # phrase-adjacency: within 1 of where the aligned phrase-mate predicts this token —
                 # can FIRE a fill alone (rare construct dependents with no vocabulary anywhere), and
                 # boosts the ranking of vocab-fired candidates sitting in the syntactically right spot.
                 is_phrase = bool(p_exp is not None and abs(j - p_exp) <= 1)
-                if not (is_strong or is_name or is_cross or is_phrase):   # model-free: only these fire
+                if not (is_strong or is_name or is_cross_strict or is_cross or is_phrase):   # model-free: only these fire
                     continue
                 pos_ok = bool(spos and target_pos and target_pos.get(tnorm[j]) == spos)
                 morph_ok = bool(is_strong and morph_surf and (
@@ -232,21 +254,23 @@ class GapFiller:
                         exp = expected(h.idx)
                     pos_pen = self.pos_weight * abs(j - exp) / n_trg
                 s = ((self.strong_boost if is_strong else 0.0) + (self.name_boost if is_name else 0.0)
-                     + (self.cross_edition_boost if is_cross else 0.0)
+                     + (self.cross_edition_strict_boost if is_cross_strict else
+                        self.cross_edition_boost if is_cross else 0.0)
                      + (self.phrase_boost if is_phrase else 0.0)
                      + (self.pos_boost if pos_ok else 0.0) + (self.morph_boost if morph_ok else 0.0) - pos_pen)
-                if is_strong or is_name or is_cross:
-                    scored.append((s, i, j, is_strong, is_name, is_cross))
+                if is_strong or is_name or is_cross_strict or is_cross:
+                    scored.append((s, i, j, is_strong, is_name, is_cross_strict, is_cross))
                 else:
                     phrase_only.append((s, i, j, p_prior))
         scored.sort(key=lambda x: -x[0])
         out: list[tuple] = []                                       # (Match, prior) — prior tags the scorer
         done_src: set[int] = set()
         used: set[int] = set()
-        for s, i, j, is_strong, is_name, is_cross in scored:
+        for s, i, j, is_strong, is_name, is_cross_strict, is_cross in scored:
             if i in done_src or j in used:
                 continue
-            prior = "strong" if is_strong else "name" if is_name else "cross_edition"
+            prior = ("strong" if is_strong else "name" if is_name else
+                     "cross_edition_strict" if is_cross_strict else "cross_edition")
             out.append((Match(content[i].idx, [j], 0.9, "gapfill"), prior))
             done_src.add(i)
             used.add(j)

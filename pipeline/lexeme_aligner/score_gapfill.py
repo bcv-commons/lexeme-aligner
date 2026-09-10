@@ -25,7 +25,7 @@ from lexeme_aligner.benchmark import (agrees, load_gold_gbt_positional, load_gol
                                       norm_surface)
 from lexeme_aligner.config import OUT, RESOURCES
 
-_PRIORS = ["strong", "name", "cross_edition", "phrase", "phrase_xorder", "embedding"]
+_PRIORS = ["strong", "name", "cross_edition_strict", "cross_edition", "phrase", "phrase_xorder", "embedding"]
 
 
 def _gap_pairs(iso: str, out_dir: Path):

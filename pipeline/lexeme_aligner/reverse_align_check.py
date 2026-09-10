@@ -129,6 +129,100 @@ def load_lexeme_vocab(iso: str, root: Path = LEX_ROOT, hi_conf_only: bool = Fals
     return dict(vocab)
 
 
+def load_lexeme_vocab_weighted(iso: str, root: Path = LEX_ROOT, min_count: int = 3,
+                               min_share: float = 0.5) -> dict[str, set[str]]:
+    """{lexeme: {surface, ...}} from lexeme-alignments/iso=<iso>/data.parquet, selected by CORPUS-WIDE
+    DOMINANCE rather than `load_lexeme_vocab`'s bare "ever confidently aligned once" membership test —
+    prototyped from a client's own downstream heuristic (a translation-notes tool cross-referencing
+    unclaimed verse words against this exact dataset), which recovered cases this repo's own #4
+    cross-edition prior did not.
+
+    proportion = count(surface, lexeme) / sum(count(surface, lexeme')) over every lexeme' that surface
+    ever renders — i.e. an empirical P(lexeme | surface) over the whole corpus. A pair qualifies only
+    at count >= min_count AND proportion >= min_share: repeated AND dominant, not merely non-zero once.
+
+    `count` is taken as the MAX across method rows WITHIN one base_text for a (surface, lexeme) pair,
+    then SUMMED across base_texts — per the client's own reasoning (independently verified against
+    this schema), extended one step for a pooled language: eflomal/gloss/gapfill rows for the same
+    pair, in the SAME edition, largely report on the same underlying occurrences rather than each
+    adding new evidence, so maxing avoids double/triple-counting a single occurrence's support across
+    every method that happened to also reach it. A DIFFERENT edition using the same word for the same
+    lexeme is genuinely independent corroborating evidence, though — the same additive-evidence
+    treatment `base_text` already gets everywhere else in this project (senses_attested's cross-edition
+    agreement, `export_lex --pool`) — so base_texts are summed, not maxed, after the per-edition max.
+
+    This is a genuinely different selection criterion from `load_lexeme_vocab(hi_conf_only=True)`, not
+    a stricter/looser version of the same one: that filter is a PER-ROW, PER-OCCURRENCE signal (was
+    THIS alignment confident); this one is an AGGREGATE, CROSS-OCCURRENCE signal (across every time
+    this word was ever aligned, does it overwhelmingly mean this lexeme). Prototype only."""
+    max_count, total_by_surface = _surface_lexeme_counts(iso, root)
+    vocab: dict[str, set[str]] = collections.defaultdict(set)
+    for (surface, lexeme), count in max_count.items():
+        if count < min_count:
+            continue
+        total = total_by_surface[surface]
+        if total and count / total >= min_share:
+            for word in tokenize(surface):
+                vocab[lexeme].add(word)
+    return dict(vocab)
+
+
+def _surface_lexeme_counts(iso: str, root: Path) -> tuple[dict[tuple[str, str], int], dict[str, int]]:
+    """Shared counting pass behind `load_lexeme_vocab_weighted`/`load_lexeme_vocab_scored`: per-edition
+    max-across-methods, then summed across base_texts — see either caller's docstring for why. Returns
+    (max_count[(surface, lexeme)], total_by_surface[surface])."""
+    import pyarrow.parquet as papq
+    fp = root / f"iso={iso}" / "data.parquet"
+    if not fp.exists():
+        raise SystemExit(f"[reverse_check] no published data at {fp} — export_lex first")
+    table = papq.read_table(fp, columns=["lexeme", "surface", "method", "base_text", "count"])
+    lexemes = table.column("lexeme").to_pylist()
+    surfaces = table.column("surface").to_pylist()
+    base_texts = table.column("base_text").to_pylist()
+    counts = table.column("count").to_pylist()
+
+    per_edition_max: dict[tuple[str, str, str], int] = collections.defaultdict(int)
+    for lexeme, surface, base_text, count in zip(lexemes, surfaces, base_texts, counts):
+        key = (surface, lexeme, base_text)
+        if count > per_edition_max[key]:
+            per_edition_max[key] = count
+
+    max_count: dict[tuple[str, str], int] = collections.defaultdict(int)
+    for (surface, lexeme, _base_text), count in per_edition_max.items():
+        max_count[(surface, lexeme)] += count
+
+    total_by_surface: dict[str, int] = collections.defaultdict(int)
+    for (surface, _lexeme), count in max_count.items():
+        total_by_surface[surface] += count
+    return dict(max_count), dict(total_by_surface)
+
+
+def load_lexeme_vocab_scored(iso: str, root: Path = LEX_ROOT) -> dict[str, dict[str, tuple[int, float]]]:
+    """{lexeme: {word: (count, proportion)}} — the SAME corpus-wide count/proportion signal as
+    `load_lexeme_vocab_weighted`, but UNFILTERED: every (lexeme, word) pair the corpus attests at all,
+    with its raw numbers attached, no min_count/min_share cutoff applied here.
+
+    Built for compact-alignments' bonus channel (compact_align.py): unlike a gapfill prior, which has
+    to commit to a single yes/no answer because it's choosing what to publish as a real, taken
+    alignment, a bonus candidate never claims anything and never trains anything — so there's no reason
+    to bake a threshold in on our side. Publish the numbers and let each consumer apply whatever bar
+    fits their own use (mirroring `conf`'s existing raw-count-not-a-verdict philosophy) — a client who
+    already has their own count/proportion threshold (as this repo's own gapfill work was originally
+    prototyped from) can just read it straight off this data instead of re-deriving it themselves."""
+    max_count, total_by_surface = _surface_lexeme_counts(iso, root)
+    vocab: dict[str, dict[str, tuple[int, float]]] = collections.defaultdict(dict)
+    for (surface, lexeme), count in max_count.items():
+        total = total_by_surface[surface]
+        if not total:
+            continue
+        proportion = count / total
+        for word in tokenize(surface):
+            prev = vocab[lexeme].get(word)
+            if prev is None or count > prev[0]:
+                vocab[lexeme][word] = (count, proportion)
+    return dict(vocab)
+
+
 def find_recoverable(rows: list[dict], vocab: dict[str, set[str]]) -> list[dict]:
     """Among 'unaligned' rows (target text existed, eflomal's own decode just missed this token):
     does the SAME verse-group's own target text contain a word already known — from elsewhere in the

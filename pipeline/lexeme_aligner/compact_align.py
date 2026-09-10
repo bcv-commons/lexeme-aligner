@@ -40,7 +40,9 @@ from lexeme_aligner.config import OUT
 from lexeme_aligner.merge_align import _norm as _merge_norm, _tier as _merge_tier
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS, _BOOK_FILE_NUM, pooled_verse_groups
-from lexeme_aligner.usj_source import TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw
+from lexeme_aligner.usj_source import (TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw,
+                                       _rules_for, annotation_spans, _token_spans, tokenize)
+from lexeme_aligner.reverse_align_check import load_lexeme_vocab_scored
 from lexeme_aligner.versification import remapper
 
 ALL_BOOKS = OT_BOOKS + NT_BOOKS
@@ -65,7 +67,7 @@ _AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods p
 #   e/E = eflomal at score 0.6 / 0.9      g/G = gloss weak (head,fuzzy,prefix,multi) / strong (exact,stem)
 #   f   = gapfill (already gated to the strong/name priors)      r = residual (opt-in layer)
 _METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s"}
-SIDECAR_CHANNELS = ("method", "conf", "contested")
+SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus")
 _GLOSS_STRONG = {"exact", "stem"}
 
 
@@ -99,18 +101,25 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "GB026=1 for legitimate discontinuity, shows no such gap — so this is a strong default, not a "
           "universal law.)",
           "<BOOK>_<hash>.meta.json = OPTIONAL provenance sidecar, {\"method\":[...], \"conf\":[...], "
-          "\"contested\":[...]}. Every array is position-parallel to the same book_index as the "
-          "alignment file. method/conf are DENSE — one character per aligned token, in the same order as "
-          "that verse's compact entry, so character i describes the i-th 'srcOrd:span' of the alignment "
-          "string. method: e/E = eflomal at score 0.6/0.9, g/G = gloss weak/strong (exact,stem), "
-          "f = gapfill, r = residual. conf: how many methods produced that identical span ('1'..'9'); "
-          "NOT A GUARANTEE — agreement's availability depends on how many methods happened to work for a "
-          "language, so it ranks well WITHIN an edition and must not be compared as an absolute across "
-          "editions. contested is SPARSE — the positions where eflomal and gloss proposed DIFFERENT "
-          "spans and the rule picked one, as 'srcOrd:method:span' naming the LOSER (the winner is in the "
-          "alignment file at the same srcOrd), space-separated, '' where nothing was contested. That is "
-          "the only place a discarded alternative survives; everything else is a winner-take-all "
-          "projection.",
+          "\"contested\":[...], \"bonus\":[...]}. Every array is position-parallel to the same "
+          "book_index as the alignment file. method/conf are DENSE — one character per aligned token, "
+          "in the same order as that verse's compact entry, so character i describes the i-th "
+          "'srcOrd:span' of the alignment string. method: e/E = eflomal at score 0.6/0.9, g/G = gloss "
+          "weak/strong (exact,stem), f = gapfill, r = residual. conf: how many methods produced that "
+          "identical span ('1'..'9'); NOT A GUARANTEE — agreement's availability depends on how many "
+          "methods happened to work for a language, so it ranks well WITHIN an edition and must not be "
+          "compared as an absolute across editions. contested is SPARSE — the positions where eflomal "
+          "and gloss proposed DIFFERENT spans and the rule picked one, as 'srcOrd:method:span' naming "
+          "the LOSER (the winner is in the alignment file at the same srcOrd), space-separated, '' "
+          "where nothing was contested. That is the only place a discarded alternative survives for a "
+          "CONTESTED position; everything else is a winner-take-all projection. bonus is SPARSE — "
+          "'srcOrd:span:count:pct' for a word found inside a `[...]`/`(...)` annotation span in this "
+          "verse's RAW text that the corpus-wide vocabulary (lexeme-alignments) independently attests "
+          "as a real rendering of that srcOrd's lexeme: count is the raw corpus-wide occurrence count, "
+          "pct its corpus-wide share of that word's renderings (0-100) — UNFILTERED, apply your own "
+          "threshold. srcOrd here is ALWAYS a gap in the main alignment file (annotation text never "
+          "wins a slot there, even when eflomal/gloss/gapfill's own decode landed on it — see "
+          "build_compact's docstring), so a bonus entry only ever ADDS information, never contests one.",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
           "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
@@ -278,7 +287,7 @@ def _resolve(mp: dict, methods, contest: dict | None):
 
 def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
                   books: list[str] = ALL_BOOKS, methods=METHODS,
-                  contest: dict | None = None) -> tuple[dict, dict]:
+                  contest: dict | None = None, cross_edition_iso: str | None = None) -> tuple[dict, dict]:
     """Per-language compact array, position-parallel to build_index()'s canonical ordinal index.
 
     Target-token positions (`span` in "srcOrd:span") are published in RAW-TEXT coordinates — indices
@@ -292,12 +301,23 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     for free — such a word exists in the raw token stream but was never part of what the aligner saw, so
     it never gets a mapped position and is simply absent from the compact string, which already means
     "unaligned" under this format's existing convention. No special-casing needed for stripped content;
-    it just never appears as a source of a valid raw_idx."""
+    it just never appears as a source of a valid raw_idx.
+
+    A winning candidate whose raw position lands inside ANY `[...]`/`(...)` span (2026-09-10, `bonus`
+    below) is excluded here too, by the same reasoning — that target position is annotation text, not
+    running translation, so it doesn't get to claim the source lexeme's slot even when it survived
+    stripping (a KEPT, non-noise paren: see text_strip_rules.json). It becomes an ordinary gap instead,
+    and the word itself is still published, just in `bonus` rather than the main string."""
     remap = remapper(iso, str(usj_dir))
+    try:
+        vocab_scored = load_lexeme_vocab_scored(cross_edition_iso or iso)
+    except SystemExit:
+        vocab_scored = {}
     by_ref: dict[str, str] = {}                        # "BOOK C:V" -> compact string, filled as we go
-    side: dict[str, dict[str, str]] = {"method": {}, "conf": {}, "contested": {}}
+    side: dict[str, dict[str, str]] = {"method": {}, "conf": {}, "contested": {}, "bonus": {}}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
+        strip_rules = _rules_for(usj_path)
         ranges = read_verse_ranges(usj_path) if usj_path.exists() else {}
         raw_ranges = read_verse_ranges(usj_path, rules={}) if usj_path.exists() else {}
         pairs_by_verse = _merged_pairs(iso, book, out_dir, methods, contest)
@@ -311,15 +331,29 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 tc, _tv = (remap(book, ch, anchor_v)[1:] if remap else (ch, anchor_v))
                 raw_info = raw_ranges.get((tc, vs))
                 raw_text = raw_info["text"] if raw_info else ""
-                raw_idx_of = remap_clean_to_raw(raw_text, text) if raw_text else []
-                parts, meth, conf, contested = [], [], [], []
+                raw_idx_of = remap_clean_to_raw(raw_text, text, strip_rules) if raw_text else []
+                annot_spans = annotation_spans(raw_text) if raw_text else []
+                raw_toks = tokenize(raw_text) if raw_text else []
+                raw_spans = _token_spans(raw_text) if raw_text else []
+                parts, meth, conf, contested, bonus = [], [], [], [], []
+                gap_ordinals: list[tuple[int, object]] = []
                 for ordinal, tok in enumerate(anchor_content):
                     rec = pairs.get(tok.idx)
                     if not rec:
+                        gap_ordinals.append((ordinal, tok))
                         continue
                     mapped = [raw_idx_of[i] for i in rec["t_idx"]
                               if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
                     if not mapped:
+                        gap_ordinals.append((ordinal, tok))
+                        continue
+                    # A winning candidate landing inside `[...]`/`(...)` doesn't get to claim this
+                    # slot — see build_compact's docstring. It's still real signal, just not THIS
+                    # signal, so the ordinal falls through to the bonus search below instead.
+                    if annot_spans and any(
+                            m < len(raw_spans) and raw_spans[m][0] < pe and raw_spans[m][1] > ps
+                            for m in mapped for ps, pe in annot_spans):
+                        gap_ordinals.append((ordinal, tok))
                         continue
                     parts.append(f"{ordinal}:{_encode_span(mapped)}")
                     # The two DENSE channels are one character per aligned token, in the same order as
@@ -333,11 +367,30 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                                       if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
                         if alt_mapped:
                             contested.append(f"{ordinal}:{alt['char']}:{_encode_span(alt_mapped)}")
+                # Bonus channel: for every gap (never a "taken" position, so it can only ever ADD
+                # coverage, never contest anything) search this verse's OWN annotation text — ALL of
+                # it, kept or noise, stripped or not, since a bonus match trains nothing and claims
+                # nothing — for a word the corpus-wide vocabulary independently attests as a real
+                # rendering of the gap's lexeme. Published with its raw count/proportion, unfiltered:
+                # see load_lexeme_vocab_scored for why the threshold decision is left to the consumer.
+                if gap_ordinals and annot_spans and raw_toks:
+                    annot_tok_idxs = [i for i, (s, e) in enumerate(raw_spans)
+                                      if any(s < pe and e > ps for ps, pe in annot_spans)]
+                    for ordinal, tok in gap_ordinals:
+                        cand = vocab_scored.get(tok.lexeme)
+                        if not cand:
+                            continue
+                        for ti in annot_tok_idxs:
+                            hit = cand.get(raw_toks[ti].lower())
+                            if hit:
+                                count, pct = hit
+                                bonus.append(f"{ordinal}:{ti}:{count}:{round(pct * 100)}")
                 ref = f"{book} {ch}:{anchor_v}"
                 by_ref[ref] = " ".join(parts)
                 side["method"][ref] = "".join(meth)
                 side["conf"][ref] = "".join(conf)
                 side["contested"][ref] = " ".join(contested)
+                side["bonus"][ref] = " ".join(bonus)
                 for orig_v, _tok in members:
                     if orig_v != vs:
                         by_ref.setdefault(f"{book} {ch}:{orig_v}", "")   # pooled non-anchor member
@@ -418,7 +471,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}
         edition = edition_id(iso, tag, sources)
     written: dict[str, Path] = {}
-    by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest)
+    by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest, cross_edition_iso=iso)
     layer = build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref) if with_layer else {}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"

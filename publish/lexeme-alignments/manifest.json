@@ -49935,38 +49935,45 @@
     },
     "swe": {
       "base_texts": [
-        "swe_fol"
+        "swe_fol",
+        "swe_svk"
       ],
       "books": 66,
       "by_base_text": {
-        "swe_fol": 96206
+        "swe_fol": 94989,
+        "swe_svk": 106341
       },
       "by_method": {
-        "eflomal": 60311,
-        "gapfill": 492,
-        "gloss": 35403
+        "eflomal": 129247,
+        "gapfill": 2167,
+        "gloss": 69916
       },
-      "content_sha256": "285cccadf5d12f0f32f89c326a2bfcb3714d6ac1c9213ffc116d8a385f60682a",
+      "content_sha256": "089c65ac848037aca81d52e9b511c13ee3443399575b439c697b00db9aa32402",
       "file": "iso=swe/data.parquet",
-      "hi_conf_ge_0.9": 24893,
+      "hi_conf_ge_0.9": 61717,
       "language": "Swedish",
-      "lexemes": 13671,
+      "lexemes": 13980,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 96206,
+      "rows": 201330,
       "sources": {
         "swe_fol": {
           "edition": "swe_fol",
           "license_url": "https://ebible.org/Scriptures/details.php?id=swef",
           "provider": "bible.helloao.org"
+        },
+        "swe_svk": {
+          "edition": "swe_svk",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=swe",
+          "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12825,
-      "surfaces": 23222,
+      "strongs": 13105,
+      "surfaces": 45639,
       "testament": "NT+OT"
     },
     "swh": {

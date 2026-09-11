@@ -22,7 +22,7 @@ Verified live (2026-07-22) against the actual DBP v4 routes (`github.com/faithco
     python3 -m lexeme_aligner.dbt_source --bible-id SPARVC --iso spa --to-usj pipeline/work/ingest-cache/usj-spa-rvc
     python3 -m lexeme_aligner.dbt_source --bible-id SPARVC --iso spa --to-usj pipeline/work/ingest-cache/usj-spa-rvc --book RUT
 
-Read-only fast path: the sibling `audio-sync` repo independently downloads DBT/helloAO chapter text
+Cache fast path: the sibling `audio-sync` repo independently downloads DBT/helloAO chapter text
 for its own audio-timing work into `downloads/BB/{ot,nt}/{iso}/{bible_id}/{book}/
 {BOOK}_{chapter:03d}_{fileset_id}.raw.json` (a `{source, fileset_id, verses:[{verse_start, verse_end,
 verse_text}]}` sidecar it added at our request — see internal-docs handover, 2026-08-28). When a
@@ -33,7 +33,10 @@ pre-fetched. Matched on bible_id alone (globbing across audio-sync's iso path se
 ISO audio-sync's directories are keyed by, so bible_id is the only reliably shared key between the
 two repos' independent naming. Falls back to the live call whenever the sibling repo, that edition,
 or that specific chapter isn't cached there (most of the catalog won't be — audio-sync's coverage is
-a curated subset, not the ~1,876-language catalog this repo sweeps). Never writes into that tree.
+a curated subset, not the ~1,876-language catalog this repo sweeps). On a genuine live-fetch (cache
+miss) success, also WRITES the chapter back into that tree (`_write_back_to_audio_sync`, gated on
+`--bare-iso` being passed) — see that function's docstring for the reverse-sharing design (confirmed
+with audio-sync 2026-08-28); never overwrites an existing file there.
 """
 from __future__ import annotations
 

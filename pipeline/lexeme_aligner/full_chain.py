@@ -26,7 +26,7 @@ step 6's final export, which is load-bearing for everything published downstream
 
     python3 -m lexeme_aligner.full_chain --iso ceb --lang-name Cebuano
     python3 -m lexeme_aligner.full_chain --iso ceb --skip-ingest        # re-run the chain on cached text
-    python3 -m lexeme_aligner.full_chain --iso ceb --clean-out          # + delete its out/ jsonl once done
+    python3 -m lexeme_aligner.full_chain --iso ceb --clean-out          # + gzip its out/ jsonl once done
 """
 from __future__ import annotations
 
@@ -64,9 +64,8 @@ def main() -> int:
     ap.add_argument("--exclusions", type=Path, default=_EXCLUSIONS)
     ap.add_argument("--editions-config", type=Path, default=_EDITIONS_CONFIG)
     ap.add_argument("--clean-out", action="store_true",
-                    help="delete this language's out/ raw jsonl once every step succeeds (opt-in — "
-                         "leave off if you might want to re-derive aligned_mwe/senses_attested/"
-                         "compact-alignments differently later without a full re-align)")
+                    help="gzip-compress (NOT delete — see the clean-out block below for why) this "
+                         "language's out/ raw jsonl once every step succeeds")
     args = ap.parse_args()
 
     env = dict(os.environ)
@@ -155,14 +154,38 @@ def main() -> int:
           f"({len(tags)} edition(s): {', '.join(tags)})", file=sys.stderr)
 
     if args.clean_out:
+        import gzip
+        import shutil
+        from lexeme_aligner.align_files import tag_files_any_method
         from lexeme_aligner.config import OUT
-        removed = 0
+        # tag_files_any_method (not a raw glob) deliberately, for the same reason align_files.py's
+        # module docstring documents: a raw `align_*_{tag}_*.jsonl` glob also matches a SIBLING tag
+        # that happens to start with `tag + "_"` (e.g. tag "ind" matching "ind_ayt"'s own files) — the
+        # old delete-based version of this block had exactly that bug; fixed here as a byproduct of
+        # switching to compression, since it's the same file-selection logic either way.
+        #
+        # COMPRESS rather than delete (2026-09-11): this used to unlink these files outright, on the
+        # same "cheap to regenerate" theory the comment below already rejected for the ingested TEXT
+        # back in 2026-07 — and it turned out just as wrong here. gapfill/compact-alignments/
+        # aligned_mwe/senses_attested/export_lex all read straight from these jsonl; every retroactive
+        # algorithm fix this project has shipped (bracket-stripping, the bonus channel, the tiered
+        # cross-edition gapfill default) needed them again for languages already published, and
+        # deleting them meant re-running eflomal+gloss from scratch for every one of those languages
+        # just to re-run the one cheap step that actually changed. A full-Bible edition's raw jsonl
+        # gzips to ~1/10th its ~190MB size (measured) — trivial to just keep. `tag_files`/
+        # `tag_files_any_method` (align_files.py) already read `.jsonl.gz` transparently via
+        # `AlignPath`, so nothing downstream needed to change to make this safe.
+        compressed = 0
         for tag in tags:
-            for fp in Path(OUT).glob(f"align_*_{tag}_*.jsonl"):
+            for fp in tag_files_any_method(Path(OUT), tag):
+                if fp.suffix == ".gz":
+                    continue                       # already compressed (e.g. a --skip-ingest re-run)
+                with fp.open("rb") as src, gzip.open(fp.with_name(fp.name + ".gz"), "wb") as dst:
+                    shutil.copyfileobj(src, dst)
                 fp.unlink()
-                removed += 1
-        print(f"[full_chain] --clean-out: removed {removed} raw jsonl file(s) for {', '.join(tags)}",
-              file=sys.stderr)
+                compressed += 1
+        print(f"[full_chain] --clean-out: gzip-compressed {compressed} raw jsonl file(s) for "
+              f"{', '.join(tags)}", file=sys.stderr)
 
         # the ingested target text (usj-<tag>) is intentionally KEPT for every source, not just DBT —
         # was previously deleted for PKF/helloAO on the theory that they're "cheap to refetch," but that

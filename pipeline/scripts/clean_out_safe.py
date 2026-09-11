@@ -4,6 +4,11 @@ design — a language whose aligned_mwe/compact-alignments step failed or hasn't
 cleaned, even if lexeme-alignments alone looks done). senses_attested is deliberately NOT required —
 it's legitimately absent for NT-only languages, so its absence must never block cleanup.
 
+"Clean" means gzip-COMPRESS, not delete (2026-09-11) — see full_chain.py's clean-out block for why:
+these files are cheap to keep (~1/10th size gzipped) and a retroactive gapfill/compact-alignments fix
+across hundreds of already-published languages needs them again. `align_files.AlignPath` already
+reads `.jsonl.gz` transparently, so nothing downstream needs to change.
+
 This is the corrected version of the ad hoc single-dataset check used earlier in the project's history
 (which only looked at lexeme-alignments and, as a result, cleaned aligned_mwe/senses_attested/
 compact-alignments out from under themselves before they'd ever run).
@@ -21,8 +26,10 @@ was never itself the one referenced.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import re
+import shutil
 from pathlib import Path
 
 from lexeme_aligner.config import LEX_ROOT, OUT
@@ -70,7 +77,9 @@ def _resolve(tag: str, tag_to_iso: dict[str, str]) -> str | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--delete", action="store_true", help="actually delete — default is a dry run")
+    ap.add_argument("--delete", action="store_true",
+                    help="actually gzip-compress the safe set — default is a dry run (flag name kept "
+                         "for Makefile compatibility; it compresses, not deletes — see module docstring)")
     args = ap.parse_args()
 
     lex = _manifest_tags(str(LEX_ROOT))
@@ -114,16 +123,18 @@ def main() -> int:
         print(f"    ... and {len(unsafe) - 20} more")
 
     if not args.delete:
-        print("\n[clean_out_safe] dry run — nothing deleted. Re-run with --delete to actually remove "
-              "the safe set.")
+        print("\n[clean_out_safe] dry run — nothing compressed. Re-run with --delete to actually "
+              "gzip-compress the safe set.")
         return 0
 
-    removed = 0
+    compressed = 0
     for tag, _ in safe:
         for fp in tag_files[tag]:
+            with fp.open("rb") as src, gzip.open(fp.with_name(fp.name + ".gz"), "wb") as dst:
+                shutil.copyfileobj(src, dst)
             fp.unlink()
-            removed += 1
-    print(f"\n[clean_out_safe] deleted {removed} file(s) across {len(safe)} tag(s).")
+            compressed += 1
+    print(f"\n[clean_out_safe] gzip-compressed {compressed} file(s) across {len(safe)} tag(s).")
     return 0
 
 

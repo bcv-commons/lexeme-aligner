@@ -13,9 +13,27 @@ kkl/kkl_wbt, knj/knj_wbt, pls/pls_wbt, hvn/hvn_ubb, hch/hch_wbt.
 Book codes (run_pilot.OT_BOOKS + NT_BOOKS) are always pure uppercase/digits with no underscore, so
 the exact-tag file is unambiguous: after the `align_<method>_<tag>_` prefix, what remains must be
 exactly one of those book codes.
+
+A file may exist either as plain `<BOOK>.jsonl` or gzip-compressed `<BOOK>.jsonl.gz` — once a
+language's been through `full_chain.py`'s clean-out step, its raw jsonl is kept compressed rather
+than deleted (see full_chain.py's clean-out block for why: these files are cheap to keep — a
+full-Bible edition gzips to ~1/10th its ~190MB raw size — and a retroactive fix that needs to
+re-derive gapfill/compact-alignments/etc. for hundreds of already-published languages is NOT cheap
+if that means re-running eflomal+gloss from scratch for all of them).
+
+`tag_files`/`tag_files_any_method` match both extensions AND return `AlignPath` instances (a `Path`
+subclass, Path.glob() preserves the subclass — verified on this repo's Python 3.14) whose
+`.open()`/`.read_text()`/`.stem` transparently treat a `.gz` suffix as gzip-compressed. This means
+every one of the ~20 existing callers — which just do `fp.open(encoding="utf-8")`,
+`fp.read_text(encoding="utf-8")`, or `fp.stem` to pull the book code — keeps working completely
+unchanged, gzipped or not. Deliberately NOT solved with a separate `open_align()` helper function
+callers would each have to remember to call instead of `.open()`: that shape requires touching every
+call site and silently breaks again the next time someone writes `fp.open(...)` in new code. Moving
+the gzip-transparency into the Path type itself needs the change made in exactly one place.
 """
 from __future__ import annotations
 
+import gzip
 import re
 from pathlib import Path
 
@@ -24,17 +42,56 @@ from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS
 ALL_BOOKS = frozenset(OT_BOOKS + NT_BOOKS)
 
 
-def tag_files(out_dir: Path, method: str, tag: str) -> list[Path]:
-    """Exact-tag align_<method>_<tag>_<BOOK>.jsonl files for ONE known method."""
+class AlignPath(Path):
+    """A Path to an align_*.jsonl(.gz) file. `.open()`/`.read_text()`/`.stem` treat a `.gz` suffix
+    as gzip-compressed transparently; a plain `.jsonl` path behaves exactly like a normal Path."""
+
+    def open(self, mode="r", *args, **kwargs):
+        if self.suffix != ".gz":
+            return super().open(mode, *args, **kwargs)
+        if "b" not in mode and "t" not in mode:
+            mode += "t"
+        if "b" not in mode:
+            kwargs.setdefault("encoding", "utf-8")
+        return gzip.open(self, mode, **kwargs)
+
+    def read_text(self, encoding=None, errors=None):
+        if self.suffix != ".gz":
+            return super().read_text(encoding=encoding, errors=errors)
+        with self.open("rt", encoding=encoding or "utf-8", errors=errors) as f:
+            return f.read()
+
+    @property
+    def stem(self):
+        # only ONE suffix would otherwise be stripped, leaving "<BOOK>.jsonl" instead of "<BOOK>"
+        # for a gzipped file — every caller that does `fp.stem.rsplit("_", 1)[-1]` to get the book
+        # code needs this fixed transparently too, same reasoning as .open()/.read_text() above.
+        if self.name.endswith(".jsonl.gz"):
+            return self.name[:-len(".jsonl.gz")]
+        return super().stem
+
+
+def _strip_book(name: str, prefix: str) -> str | None:
+    """`name` minus `prefix` and a trailing .jsonl or .jsonl.gz, or None if neither suffix matches."""
+    if name.endswith(".jsonl.gz"):
+        return name[len(prefix):-len(".jsonl.gz")]
+    if name.endswith(".jsonl"):
+        return name[len(prefix):-len(".jsonl")]
+    return None
+
+
+def tag_files(out_dir: Path, method: str, tag: str) -> list[AlignPath]:
+    """Exact-tag align_<method>_<tag>_<BOOK>.jsonl(.gz) files for ONE known method."""
     prefix = f"align_{method}_{tag}_"
-    return [fp for fp in sorted(out_dir.glob(f"{prefix}*.jsonl"))
-            if fp.name[len(prefix):-len(".jsonl")] in ALL_BOOKS]
+    candidates = list(out_dir.glob(f"{prefix}*.jsonl")) + list(out_dir.glob(f"{prefix}*.jsonl.gz"))
+    return sorted(AlignPath(fp) for fp in candidates if _strip_book(fp.name, prefix) in ALL_BOOKS)
 
 
-def tag_files_any_method(out_dir: Path, tag: str) -> list[Path]:
-    """Exact-tag align_<method>_<tag>_<BOOK>.jsonl files across ALL methods (method name unknown)."""
-    rx = re.compile(rf"^align_(?P<method>[a-z]+)_{re.escape(tag)}_(?P<book>[A-Z0-9]+)\.jsonl$")
-    return sorted(fp for fp in out_dir.glob(f"align_*_{tag}_*.jsonl")
+def tag_files_any_method(out_dir: Path, tag: str) -> list[AlignPath]:
+    """Exact-tag align_<method>_<tag>_<BOOK>.jsonl(.gz) files across ALL methods (method name unknown)."""
+    rx = re.compile(rf"^align_(?P<method>[a-z]+)_{re.escape(tag)}_(?P<book>[A-Z0-9]+)\.jsonl(?:\.gz)?$")
+    candidates = list(out_dir.glob(f"align_*_{tag}_*.jsonl")) + list(out_dir.glob(f"align_*_{tag}_*.jsonl.gz"))
+    return sorted(AlignPath(fp) for fp in candidates
                   if (m := rx.match(fp.name)) and m.group("book") in ALL_BOOKS)
 
 

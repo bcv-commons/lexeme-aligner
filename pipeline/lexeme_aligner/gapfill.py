@@ -198,23 +198,32 @@ def main() -> int:
                          "published pool)")
     ap.add_argument("--no-cross-edition", action="store_true", help="disable prior #4")
     ap.add_argument("--cross-edition-weighted", action="store_true",
-                    help="prototype: REPLACE #4's vocab with the corpus-wide count+dominance one "
-                         "(load_lexeme_vocab_weighted) instead of the default bare "
-                         "ever-confidently-aligned-once membership test. Measured (arb/clear gold): "
-                         "higher precision, substantial recall loss — see --cross-edition-tiered for "
-                         "the guardrailed version that keeps the baseline's recall floor")
-    ap.add_argument("--cross-edition-tiered", action="store_true",
-                    help="prototype: ADD the count+dominance vocab as a higher-priority overlay ABOVE "
-                         "the existing bare vocab (mutually exclusive with --cross-edition-weighted — "
-                         "tiered wins if both are passed) — a source token the strict overlay has no "
-                         "answer for still gets exactly today's bare-membership fallback, so recall "
-                         "cannot drop below baseline while precision improves where evidence supports "
-                         "it. Fires reported as 'cross_edition_strict' vs 'cross_edition' separately.")
-    ap.add_argument("--cross-edition-min-count", type=int, default=3,
-                    help="--cross-edition-weighted only: minimum corpus-wide occurrence count")
-    ap.add_argument("--cross-edition-min-share", type=float, default=0.5,
-                    help="--cross-edition-weighted only: minimum share of the surface's occurrences "
-                         "this lexeme must account for")
+                    help="ablation: REPLACE #4's vocab with the corpus-wide count+dominance one "
+                         "(load_lexeme_vocab_weighted) instead of the default TIERED behavior — a "
+                         "global swap, not an overlay, so it trades away real recall (measured, "
+                         "arb/clear gold: higher precision, -65%% recall). Not recommended; kept only "
+                         "for A/B comparison against the tiered default below.")
+    ap.add_argument("--no-cross-edition-tiered", action="store_true",
+                    help="disable the DEFAULT-ON tiered guardrail (see --cross-edition-min-count/"
+                         "-min-share below) and fall back to the pre-2026-09-10 bare "
+                         "ever-confidently-aligned-once membership test with no dominance overlay at "
+                         "all. Tiered checks the count+dominance vocab FIRST and falls back to that "
+                         "same bare test wherever it has no answer, so recall cannot drop below what "
+                         "this flag gives you — there is no recall-based reason to pass it, only use "
+                         "it for A/B comparison. Measured net correct-fill gain, tiered vs bare, 5 "
+                         "gold languages: arb +2.5%%, hin +19.6%%, spa +2.9%%, eng +28.6%%, fra flat "
+                         "(zero regressions). Made default 2026-09-10.")
+    ap.add_argument("--cross-edition-min-count", type=int, default=2,
+                    help="minimum corpus-wide occurrence count for the tiered/weighted dominance vocab. "
+                         "Default (2, paired with --cross-edition-min-share 0.3 below) is the ONLY "
+                         "combination validated in tiered mode across the 5-language gold set above; a "
+                         "stricter 3/0.5 was also measured there and did WORSE in aggregate (2,316 vs "
+                         "2,430 total correct fills) despite higher precision on its own overlay tier — "
+                         "its narrower vocabulary pushes more tokens onto the lower-precision bare "
+                         "fallback than the looser threshold's own bigger overlay resolves itself.")
+    ap.add_argument("--cross-edition-min-share", type=float, default=0.3,
+                    help="minimum share of the surface's occurrences this lexeme must account for — "
+                         "see --cross-edition-min-count above for why 0.3 is the validated default")
     ap.add_argument("--no-phrase", action="store_true",
                     help="disable the BHSA phrase-syntax prior (placement + last-resort fills) — ablation switch")
     ap.add_argument("--no-func-order", action="store_true",
@@ -257,7 +266,7 @@ def main() -> int:
                 cross_edition_vocab = load_lexeme_vocab_weighted(
                     cross_edition_iso,
                     min_count=args.cross_edition_min_count, min_share=args.cross_edition_min_share)
-            elif args.cross_edition_tiered:
+            elif not args.no_cross_edition_tiered:
                 cross_edition_vocab = load_lexeme_vocab(cross_edition_iso, hi_conf_only=True)
                 cross_edition_vocab_strict = load_lexeme_vocab_weighted(
                     cross_edition_iso,
@@ -370,7 +379,7 @@ def main() -> int:
           f"{len(cross_edition_vocab)}"
           f"{'+' + str(len(cross_edition_vocab_strict)) + ' strict' if cross_edition_vocab_strict else ''} "
           f"cross-edition lexeme-vocab entries "
-          f"(#4, {'tiered strict-overlay count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if args.cross_edition_tiered else 'weighted count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if args.cross_edition_weighted else 'hi_conf-only'}, "
+          f"(#4, {'weighted count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if args.cross_edition_weighted else 'tiered strict-overlay count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if not args.no_cross_edition_tiered else 'hi_conf-only (bare, --no-cross-edition-tiered)'}, "
           f"from iso={args.cross_edition_iso or publish_iso}) · "
           f"construct-order: {rec_after}/{rec_total} dep-after-head "
           f"(rate={'%.2f' % rec_after_rate if rec_after_rate is not None else 'sparse, default'}) · "

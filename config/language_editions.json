@@ -1,5 +1,5 @@
 {
-  "_doc": "Per-language RESTRICTION to specific editions, for languages with enough distinct versions that pooling everything (onboard.py's default) would be noisy/redundant rather than helpful. A language absent from `editions` is unaffected — onboard.py pools every fetchable edition catalog_source.all_versions() finds. Present here, it pools ONLY the listed editions. Each entry: {source: pkf|helloao|dbt, param: the value that source's adapter needs (helloAO translation id / DBT bible_id — pkf just uses the iso), edition_code: the catalog's own identifier for it (used to derive a stable per-edition tag; see onboard.py's _tag())}. The FIRST entry in the list is the primary edition (becomes the published partition's driving alignment tag); the rest are pooled. Adding/removing/reordering entries here is safe and incremental — see onboard.py's module docstring for exactly what re-runs (the changed edition only) vs what's untouched (everyone else's cached ingest+align data) when you edit a list.",
+  "_doc": "Per-language RESTRICTION to specific editions, for languages with enough distinct versions that pooling everything (onboard.py's default) would be noisy/redundant rather than helpful. A language absent from `editions` is unaffected — onboard.py pools every fetchable edition catalog_source.all_versions() finds. Present here, it pools ONLY the listed editions. Each entry: {source: pkf|helloao|dbt, param: the value that source's adapter needs (helloAO translation id / DBT bible_id — pkf just uses the iso), edition_code: the catalog's own identifier for it (used to derive a stable per-edition tag; see onboard.py's _tag())}. The FIRST entry in the list is the primary edition (becomes the published partition's driving alignment tag); the rest are pooled. Adding/removing/reordering entries here is safe and incremental — see onboard.py's module docstring for exactly what re-runs (the changed edition only) vs what's untouched (everyone else's cached ingest+align data) when you edit a list. NOTE: dwu/kiw/mzq/nuz/snx/tiw are NOT genuine restrictions (every fetchable edition IS listed) — they override a catalog bug where catalog-overlap.json marks EVERY id for these 6 languages `r: false` ('confirmed unreachable'), so the normal catalog-driven lookup returns nothing even though every edition is already ingested/cached and was previously published fine (same stale-flag pattern proven wrong for aoz_AO1UBB/ZAQTBL/MDVWYI/MBZWBT/NUZNTP earlier). Discovered 2026-09-14 as the only 6 failures in a full 1,627-language resweep.",
   "_examples": {
     "spa": [
       {"source": "helloao", "param": "spa_r09", "edition_code": "spa_r09"},
@@ -128,6 +128,31 @@
       {"source": "dbt", "param": "BENWTC", "edition_code": "BENWTC"},
       {"source": "helloao", "param": "ben_ocv", "edition_code": "ben_ocv",
        "note": "dbt:BNGDIP dropped — near_identical (0.98) to this edition. Reverses an earlier per-language call to keep both as a 'cross-edition agreement signal'; the new DEFAULT policy (near-duplicates drop uniformly) takes precedence for consistency across languages."}
+    ],
+    "dwu": [
+      {"source": "helloao", "param": "dwu_liv", "edition_code": "dwu_liv", "note": "anchor — existing published edition"},
+      {"source": "helloao", "param": "dwu_wbt", "edition_code": "dwu_wbt"}
+    ],
+    "kiw": [
+      {"source": "helloao", "param": "kiw_wbt", "edition_code": "kiw_wbt", "note": "anchor — existing published edition"},
+      {"source": "pkf", "param": "kiw", "edition_code": "KIWPKF"}
+    ],
+    "mzq": [
+      {"source": "dbt", "param": "MZQKTD", "edition_code": "MZQKTD", "note": "anchor — existing published edition"},
+      {"source": "helloao", "param": "mzq_sco", "edition_code": "mzq_sco"}
+    ],
+    "nuz": [
+      {"source": "dbt", "param": "NUZNTP", "edition_code": "NUZNTP",
+       "note": "anchor — existing published edition. The manifest's other recorded base_text 'nuz_nuz' is a stale artifact (no such ingest-cache dir/align tag exists on disk; sources.json only ever had an entry for 'nuzntp') — correctly resolves to 'nuzntp' here."},
+      {"source": "pkf", "param": "nuz", "edition_code": "NUZPKF"}
+    ],
+    "snx": [
+      {"source": "helloao", "param": "snx_wbt", "edition_code": "snx_wbt", "note": "anchor — existing published edition"},
+      {"source": "pkf", "param": "snx", "edition_code": "SNXPKF"}
+    ],
+    "tiw": [
+      {"source": "helloao", "param": "tiw_mwb", "edition_code": "tiw_mwb", "note": "anchor — existing published edition"},
+      {"source": "helloao", "param": "tiw_wbt", "edition_code": "tiw_wbt"}
     ]
   },
   "_excluded_tracks": {

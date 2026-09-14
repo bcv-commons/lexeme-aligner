@@ -71,6 +71,9 @@ publish/cross-lingual-span-profile/light_lexemes.json
 # local cache of sha256s last successfully pushed per (repo, path) — avoids re-uploading unchanged
 # shared files (manifest/README/companions) on every language in a publish batch (export_lex.py).
 .publish_state.json
+# hf_bulk_publish.py's rate-limiter history (recent commit timestamps per repo) — survives a restart
+# so pacing stays correct across process boundaries, not just within one long-running run.
+.publish_rate.json
 
 # --- misc ---
 internal-docs/

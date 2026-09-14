@@ -4,7 +4,7 @@ separate, deliberate step (never run automatically here).
 
     python3 -m lexeme_aligner.onboard --iso ceb --lang-name Cebuano
 
-Design (per project convention, see CLAUDE.local.md/DATA.md):
+Design (per project convention, see CLAUDE.local.md/advanced-docs/DATA.md):
 - **One language per invocation** — this is NOT a batch-all-2000 walker. Call it once per language
   you decide to bring in.
 - **Whole Bible** — every edition is aligned with `run_pilot --all` (OT+NT in one pass; a missing

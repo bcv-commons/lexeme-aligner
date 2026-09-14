@@ -278,7 +278,7 @@ def main() -> int:
                          "because it also blocks legitimate function<->function matches, but gating it on "
                          "the SOURCE being a content, non-light lexeme removes that failure mode and is a "
                          "clear win — token precision vs Clear gold fra +1.6 / hin +3.1 / eng +1.4 with "
-                         "coverage flat. `lightlast` measured INERT on all three (see docs/pipeline-overview.md). "
+                         "coverage flat. `lightlast` measured INERT on all three (see advanced-docs/pipeline-overview.md). "
                          "DEFAULT morph+scatter: #2 is a clean win (coverage +5pt, precision flat); "
                          "#4 tags semantically light source lexemes (avg cross-lingual target dominance "
                          "<30%%) — their gloss pairs stay in the output but don't vote in the merge "

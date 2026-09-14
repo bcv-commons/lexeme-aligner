@@ -29,7 +29,7 @@ attested PREFIX particles, which our own spine already splits correctly via MACU
 
 Table stored at data/greek_morph_strong.json (small, committed — a derived reference table, not bulk
 data). Applied ONLY when comparing against Clear gold (benchmark.py) — NOT written back into our own
-published `strong` field, which stays the stable MACULA lemma-rollup (docs/publishing-principles.md
+published `strong` field, which stays the stable MACULA lemma-rollup (advanced-docs/publishing-principles.md
 §2: strong is a bridge key, lexeme is the anchor of record; this table is a benchmark-side translation
 layer, not a schema change).
 

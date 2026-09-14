@@ -237,7 +237,7 @@ file, so each is still read independently. `pipeline/scripts/merge_compact_sidec
 brief three-file form (2026-09-03/04) in place — a pure file transformation, verified byte-identical to
 what the writer now produces, idempotent, no re-alignment.
 
-**Why now, when this was previously rejected.** `docs/pipeline-overview.md` recorded a decision *not*
+**Why now, when this was previously rejected.** `../advanced-docs/pipeline-overview.md` recorded a decision *not*
 to publish a confidence sidecar, and its first and load-bearing reason was that it could not be
 backfilled — no published artifact retains per-occurrence method spans, and `--clean-out` deletes the
 jsonl, so it would have shipped for a handful of new editions against 1,708 without. The 2026-09

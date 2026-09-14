@@ -1,7 +1,7 @@
 """Residual re-alignment — run eflomal AGAIN on what the first pass could not explain.
 
 The idea (2026-09-01): every protection tried so far acted on ALLOCATION — which source token gets
-which target slot once eflomal has spoken — and docs/pipeline-overview.md records that all of them
+which target slot once eflomal has spoken — and advanced-docs/pipeline-overview.md records that all of them
 failed or were negligible, because eflomal's output is already near the best allocation ITS MODEL
 supports. The one lever that remains is the model itself. This is that lever, without needing any
 external knowledge: strip the corpus down to what is still unexplained, and let eflomal learn a fresh

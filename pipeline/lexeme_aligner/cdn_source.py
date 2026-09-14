@@ -1,6 +1,6 @@
 """CDN ingest adapter — fetch target Bible text from `cdn.bibel.wiki` (PKF), by pin.
 
-Recipe layer (docs/bibles-recipe-layer.md): the text stays at its origin; we hold a **pin**
+Recipe layer (advanced-docs/bibles-recipe-layer.md): the text stays at its origin; we hold a **pin**
 (hashed pkf filename + `sha256` of the consumed bytes) and a **recipe**. On rebuild we re-fetch and
 verify the hash — a mismatch means upstream drifted, so we re-pin deliberately.
 

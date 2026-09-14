@@ -1,18 +1,7 @@
 ---
 pretty_name: Lexeme-anchored alignments (surface → lexeme, Strong's-bridged)
 language:
-  - arb
-  - asm
-  - ben
-  - eng
-  - fra
-  - hau
-  - hin
-  - ind
-  - rus
-  - spa
-  - swe
-  - swk
+  - multilingual
 tags:
   - bible
   - word-alignment
@@ -34,7 +23,8 @@ configs:
 
 For each language, the attested mapping from target **surface word-forms** → the original-language
 **lexeme** they render, mined by the aligner. **Lexeme-anchored, provenance-honest, additive** — the
-design principles are in [`docs/publishing-principles.md`](../docs/publishing-principles.md). One
+design principles are in [`advanced-docs/publishing-principles.md`](https://github.com/bcv-commons/lexeme-aligner/blob/main/advanced-docs/publishing-principles.md)
+(source repo — this dataset card is also published standalone on HF, where a relative link wouldn't resolve). One
 language per partition, for consumption by **bcv-commons** and downstream tools.
 
 > The `language:` list above tracks the published partitions; the authoritative list is always
@@ -92,7 +82,8 @@ eflomal and gloss is **two rows** (eflomal ×N, gloss ×M) — full provenance, 
 This means:
 - a **gapfill-only** fact says `method=gapfill` — it can never masquerade as eflomal/gloss-attested
   (`gapfill` is the lower-confidence coverage layer — model-free priors filling positions eflomal+gloss
-  left uncovered; see `docs/publishing-principles.md` §3 for why this provenance is never hidden);
+  left uncovered; see `advanced-docs/publishing-principles.md` §3 in the source repo for why this
+  provenance is never hidden);
 - an **enhanced translation** that renders one lexeme with many words keeps all of them — we never force
   a lexeme to a single "canonical" surface;
 - `count`s are **per-method**, so *do not sum across methods* to get an occurrence total (the same verse
@@ -224,7 +215,8 @@ keyed by its `content_sha256`.
 Per-language provenance (methods present, per-method row counts, testament, counts, `hi_conf_ge_0.9`,
 spine tags, content hash) lives in `manifest.json`. Every language is produced by the **same pipeline**,
 validated against Clear-Bible manual gold **where it exists** — token-weighted top-1 of ~92–97%
-(Strong's grain) / ~89–92% (lexeme grain — the anchor's headline; `docs/benchmark.md`). Languages without
+(Strong's grain) / ~89–92% (lexeme grain — the anchor's headline; `advanced-docs/benchmark.md` in the
+source repo). Languages without
 usable gold (`ind`; `rus`, whose only manual reference is itself mis-aligned) run the **identical**
 pipeline and are **not lower quality — simply un-cross-checked**. We do **not** stamp a verified/unverified
 tier. Your confidence signal is the same for every language: the row-level `method` / `hi_conf` / `count`

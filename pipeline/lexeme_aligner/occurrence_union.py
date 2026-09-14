@@ -1,6 +1,6 @@
 """Union the per-source occurrence-alignment extractions (gbt_align.py, bsb_align.py) into one file
 per language — the additive-union / provenance-honest pattern already used for `lexeme-alignments`
-(docs/publishing-principles.md §3, §5): each source's rows are kept and tagged (`source` = gbt/bsb),
+(advanced-docs/publishing-principles.md §3, §5): each source's rows are kept and tagged (`source` = gbt/bsb),
 never merged or picked-a-winner. Concatenation only — the two extractors already emit the identical
 row schema (source_ids, source_text, source_strong, target_ids, target_gloss, kind, verse_ref, lang,
 source), so nothing needs reshaping.

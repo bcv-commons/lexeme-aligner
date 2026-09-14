@@ -9,7 +9,7 @@
 The two tokenize differently (spine fuses prefixes: וַ⁠תֹּ֤אמֶר = conj+verb in ONE spine
 token; BHSA splits them), so the join is STRONG-IN-ORDER within the verse — the nth spine
 token bearing Strong's S matches the nth hbo row with Strong's S — not positional. This is
-the pragmatic id-bridge from docs/aligner-plan.md §Design gotchas.
+the pragmatic id-bridge from advanced-docs/aligner-plan.md §Design gotchas.
 """
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def _tag_psalm_superscriptions(toks: list["HebToken"]) -> None:
 class HebrewSource:
     def __init__(self, spine_db: Path = SPINE_DB, hbo_db: Path = HBO_DB):
         self.spine = sqlite3.connect(f"file:{spine_db}?mode=ro", uri=True)
-        # Forward-compat with the lexeme-anchored spine (docs/data-contracts.md): use the spine's own
+        # Forward-compat with the lexeme-anchored spine (advanced-docs/data-contracts.md): use the spine's own
         # `lexeme` column when it lands; until then derive a lexeme from (strong, lemma) so the rest of
         # the pipeline is already lexeme-anchored.
         _spine_cols = {r[1] for r in self.spine.execute("PRAGMA table_info(spine_words)")}

@@ -27,7 +27,7 @@ language, so one table applies everywhere.
 
 Table stored at data/hebrew_lexeme_strong.json (small, committed). Applied ONLY when comparing
 against Clear gold (benchmark.py) — never written back into the published `lexeme`/`strong` fields
-(docs/publishing-principles.md §2: strong is a bridge, lexeme is the anchor of record).
+(advanced-docs/publishing-principles.md §2: strong is a bridge, lexeme is the anchor of record).
 
     python3 -m lexeme_aligner.hebrew_lexeme_strong --build
 """

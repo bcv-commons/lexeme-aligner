@@ -1,8 +1,15 @@
 # Bibles — the recipe layer (source-of-truth ingest for the aligner)
 
+> **⚠ HISTORICAL — an early prototyping log**, written while the PKF→USFM converter was still
+> being built as a standalone script under `example/`. That script has since been folded into
+> this repo proper at `pipeline/pkf2usfm/export_usfm.mjs` (paths below updated to match) and is
+> invoked automatically by `cdn_source.py` — nobody runs it by hand anymore. Kept for the design
+> rationale (why the recipe-layer/no-caching principle, why versification needed special
+> handling), not as a current runbook.
+
 How `bcv-commons/bibles` and the aligner get target-language Bible text **without caching it** —
 so there is one source of truth (upstream), reproducible builds, and no silent drift. Companion to
-`docs/aligner-plan.md` (which covers the alignment itself + the USJ/Burrito input decision).
+`aligner-plan.md` (which covers the alignment itself + the USJ/Burrito input decision).
 
 ## Principle: single source of truth
 
@@ -55,7 +62,7 @@ thing that reads PKF is **Proskomma (JS)**. Resolution: run Proskomma **once, as
 converter at the ingestion edge** — never a runtime/server dependency. `.pkf → USFM` in Node, then the
 rest of the pipeline is pure Python (`usfmtc` USFM→USJ). Confine Node to this one CLI/container.
 
-- Current tool: **`example/scripts/export_usfm.mjs <iso>`** — reads `pipeline/work/ingest-cache/pkf-pool/<iso>/*.pkf`
+- Current tool: **`pipeline/pkf2usfm/export_usfm.mjs <iso>`** — reads `pipeline/work/ingest-cache/pkf-pool/<iso>/*.pkf`
   (proskomma-core + fflate), writes `temp/usfm-<iso>/<NN>-<BOOK>.usfm` via proskomma's native `usfm`
   document field. Isolate it as a container/`npx` step invoked from Python `subprocess`; its output
   (USFM → USJ) is what we pin + hash.
@@ -84,7 +91,7 @@ The hashed filename in `manifest.json` **is** a natural pin — record `{iso, pk
 
 ## Versification & headings
 
-Handled in the converter, per `docs/aligner-plan.md` §"Versification & the heading trap":
+Handled in the converter, per `aligner-plan.md` §"Versification & the heading trap":
 - **helloAO** normalizes to Protestant versification and **embeds psalm superscriptions inconsistently**
   (English separates as `hebrew_subtitle`; German folds into v1) — prefer its **USFM** (`\d` title,
   cleanly separable), and record `versification=protestant`.
@@ -110,7 +117,7 @@ concrete facts here are what to carry forward.
 curl -s https://cdn.bibel.wiki/pkf/manifest.json           # index → find the language's .pkf
 curl -sL -o pipeline/work/ingest-cache/pkf-pool/ind/ind_C01.CN8xM8h_.pkf \          # download the pinned PKF (3.3 MB)
      https://cdn.bibel.wiki/pkf/ind/ind_C01.CN8xM8h_.pkf
-node example/scripts/export_usfm.mjs ind                   # PKF → temp/usfm-ind/<NN>-<BOOK>.usfm (67)
+node pipeline/pkf2usfm/export_usfm.mjs ind                   # PKF → temp/usfm-ind/<NN>-<BOOK>.usfm (67)
 # Python: for each usfm →  usfmtc.readFile(f).outUsj()  → temp/usj-ind/*.json  (USJ 3.0)
 ```
 
@@ -120,7 +127,7 @@ node example/scripts/export_usfm.mjs ind                   # PKF → temp/usfm-i
   version pin** (`ind_C01.CN8xM8h_.pkf`); record it + a `sha256` of the downloaded bytes.
 - **PKF read (Node):** `proskomma-core` + `fflate` — `loadSuccinctDocSet(JSON.parse(strFromU8(decompressSync(bytes))))`,
   then GraphQL `document(bookCode){usfm}` per book. proskomma's **native `usfm` field** does the export —
-  no separate tool. (`example/scripts/export_usfm.mjs` is the working reference.)
+  no separate tool. (`pipeline/pkf2usfm/export_usfm.mjs` is the working reference.)
 - **USFM→USJ (Python):** `doc = usfmtc.readFile(path); usj = doc.outUsj()` → `{type:"USJ", version:"3.0",
   content:[…]}`. `usfmtc` also gives `outUsx()`, `fromUsj()` (round-trip), `saveAs()`.
 - **USJ structure confirmed** (Matthew): element `type`s = `book, chapter, para, verse, note, char`.
@@ -137,7 +144,7 @@ node example/scripts/export_usfm.mjs ind                   # PKF → temp/usfm-i
 | `temp/usj-ind/*.json` | the aligner input, and/or a published **Burrito snapshot** (USJ ingredient + metadata) |
 
 ### Porting checklist
-- [ ] Lift `example/scripts/export_usfm.mjs` into `bcv-commons/bibles` as the **PKF→USFM** converter;
+- [ ] Lift `pipeline/pkf2usfm/export_usfm.mjs` into `bcv-commons/bibles` as the **PKF→USFM** converter;
       commit a `package.json`/lockfile pinning `proskomma-core` + `fflate`; wrap it as a container so a
       Python dev never runs npm.
 - [ ] Behind a **Python `subprocess`** call, so the pipeline stays Python end-to-end (Node only at the edge).

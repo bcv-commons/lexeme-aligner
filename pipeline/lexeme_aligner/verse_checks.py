@@ -2,7 +2,7 @@
 
 Placed BEFORE both exports on purpose. compact-alignments is where these signals are most useful, but
 computing them there would make compact-alignments and lexeme-alignments disagree about the same verse,
-which breaks the provenance model in docs/publishing-principles.md. So this annotates the shared jsonl
+which breaks the provenance model in advanced-docs/publishing-principles.md. So this annotates the shared jsonl
 and both exports derive from one corrected source.
 
 CROSS-METHOD AGREEMENT (`agree`) — how many methods independently produced the IDENTICAL target span for

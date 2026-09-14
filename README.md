@@ -1,6 +1,9 @@
 # lexeme-aligner
 
-Word-level alignments between Bible translations and their **Strong's-tagged Hebrew/Greek original**,
+Word-level alignments between Bible translations and their **Strong's-tagged Hebrew/Greek original**
+(*Strong's numbers* are a long-standing reference system that tags every word in the Hebrew Old
+Testament and Greek New Testament with a fixed dictionary-entry ID, e.g. `G26` for ἀγάπη/"love" —
+the standard way Bible software cross-references the original words behind a translation),
 growing in language coverage over time — plus derived datasets mined from the same alignment work (word
 senses, target-language stopword lists, cross-lingual structural stats). All published, all free to use.
 
@@ -61,5 +64,7 @@ license (we never copy source text, only point to where its terms live).
 
 ## Building or extending this yourself
 
-The above is everything most people need. If you want to run the alignment pipeline, add a new
-language, or understand how the data is produced: see [**docs/architecture.md**](docs/architecture.md).
+The above is everything most people need. If you want to run the alignment pipeline yourself in a
+cloned copy of this repo, add a new language, or understand how the data is produced: see
+[**advanced-docs/**](advanced-docs/), starting with
+[**advanced-docs/architecture.md**](advanced-docs/architecture.md).

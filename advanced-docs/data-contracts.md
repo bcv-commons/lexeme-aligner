@@ -92,7 +92,7 @@ storage); the bulk data is git-ignored, only the small deterministic `manifest.j
 block links to where the source translation's own license lives.
 
 **Consumers:** anyone (public CC0), and specifically the **bcv-query monorepo** ingests it as external
-`resources/`. Gated behind the benchmark (`docs/benchmark.md`) before wide publication.
+`resources/`. Gated behind the benchmark (`benchmark.md`) before wide publication.
 
 ---
 

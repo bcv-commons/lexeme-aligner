@@ -1,4 +1,4 @@
-"""Slot-allocation tests — protection #1 (docs/pipeline-overview.md).
+"""Slot-allocation tests — protection #1 (advanced-docs/pipeline-overview.md).
 
 The pipeline's recurring failure is a function-word source token holding a target position a content
 token needed. These lock down the two mechanisms that decide who gets a position, so a future change

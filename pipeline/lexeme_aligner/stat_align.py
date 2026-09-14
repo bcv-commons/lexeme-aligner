@@ -1,6 +1,6 @@
 """Stage (b′): statistical alignment — Strong's-anchored IBM Model 1 (pure-Python EM).
 
-The 'universal spine' from docs/aligner-plan.md — needs ONLY the parallel text + Strong's,
+The 'universal spine' from advanced-docs/aligner-plan.md — needs ONLY the parallel text + Strong's,
 no glosses, no encoder, no LLM. So it reaches languages nothing else can (see the ensemble
 table in the plan). This is the portable pure-Python core of what eflomal does (eflomal adds
 Bayesian priors + an HMM distortion model — a drop-in upgrade later).

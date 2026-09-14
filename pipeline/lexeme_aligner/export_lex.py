@@ -1,6 +1,6 @@
 """Aggregate per-verse alignment `.jsonl` into the published `lexeme-alignments` dataset.
 
-Lexeme-anchored, provenance-honest, additive (docs/publishing-principles.md). Data contract:
+Lexeme-anchored, provenance-honest, additive (advanced-docs/publishing-principles.md). Data contract:
     surface, lexeme, method, base_text, count, hi_conf
 The anchor is the **lexeme** (MACULA `lang:augmented-strong`). `strong` and `share` are DELIBERATELY
 NOT stored — both are exact, lossless derivations from the stored columns, so storing them is pure

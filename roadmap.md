@@ -3,7 +3,7 @@
 **This doc mostly describes early-extraction status** (single-language pilots, "next: create the HF
 repo and push `ind`") from the 2026-07 standalone bring-up. The repo has since moved to a
 Makefile-driven onboarding-at-scale workflow and published ~924 languages across 6 dataset trees —
-see `docs/architecture.md` for the current "how it runs" picture. Kept below for design rationale
+see `advanced-docs/architecture.md` for the current "how it runs" picture. Kept below for design rationale
 (the projection channels, the ensemble design) and for `roadmap.md`'s own already-marked-done items;
 read the numbers as history, not current state.
 
@@ -25,11 +25,11 @@ contracted lexeme-anchored schema — 63.5k rows / 34k surfaces / 7.7k Strong's 
 **Gold benchmark passed — promotion gate cleared.** eflomal scored against Clear-Bible manual gold
 (`lexeme_aligner.benchmark`): **91.8% (fra) / 95.6% (hau)** token-weighted top-1. Hausa (distant,
 lower-resource) beats French, so the method generalizes rather than overfitting — trustworthy for
-no-gold languages like `ind`. Full write-up + recipe: **`docs/benchmark.md`**.
+no-gold languages like `ind`. Full write-up + recipe: **`advanced-docs/benchmark.md`**.
 
-Design docs: **`docs/architecture.md`** (the map) · **`docs/aligner-plan.md`** (full spec) ·
-**`docs/bibles-recipe-layer.md`** (source-of-truth ingest) · **`docs/data-contracts.md`** (cross-repo
-flows + the shoresh lexeme-spine ask) · **`docs/benchmark.md`** (validation). Schemas: **`DATA.md`**.
+Design docs: **`advanced-docs/architecture.md`** (the map) · **`advanced-docs/aligner-plan.md`** (full spec) ·
+**`advanced-docs/bibles-recipe-layer.md`** (source-of-truth ingest) · **`advanced-docs/data-contracts.md`** (cross-repo
+flows + the shoresh lexeme-spine ask) · **`advanced-docs/benchmark.md`** (validation). Schemas: **`advanced-docs/DATA.md`**.
 Packaging/run: **`README.md`**.
 
 ## Architecture — the ensemble
@@ -50,7 +50,7 @@ Packaging/run: **`README.md`**.
 Everything keys on Strong's, so aligning once unlocks: (1) occurrence-direct (morphology/sense/
 frame-role/coref), (2) Strong's-join (glosses/domains/keyness), (3) verse-correspondence (speaker/
 xrefs/topics/entities — needs only a verse map, **not** word alignment), (4) name-bridge. Coverage is
-a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. Detail in `docs/aligner-plan.md`.
+a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. Detail in `advanced-docs/aligner-plan.md`.
 
 ## Roadmap / next steps
 1. ~~Copy `spine.db` in + smoke-test `--method eflomal --book RUT`.~~ **Done** — spine + `usj-ind`
@@ -62,7 +62,7 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
 3. ~~Benchmark vs gold.~~ **Done + generalized** — `lexeme_aligner.benchmark` now scores any
    `--method` against `--gold clear|lexicon`: Clear-Bible attestations (91.8% fra / 95.6% hau) *and* a
    manual Strong's→translation lexicon (karnbibeln.se Swedish — Greek ~92% both translations, Hebrew
-   ~87% swk / ~79% swe). `docs/benchmark.md`. **Only the statistical (eflomal) mode is scored so far;**
+   ~87% swk / ~79% swe). `advanced-docs/benchmark.md`. **Only the statistical (eflomal) mode is scored so far;**
    gloss (needs priors), IBM-1, gapfill, and the merged ensemble are runnable through the same tool once
    produced — a natural companion to the multi-version work below.
 4. ~~Publish `publish/lexeme-alignments` to a data channel.~~ **Done, at scale** — live at
@@ -88,7 +88,7 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    Bible Platform / Bible Brain v4 API (needs `BIBLE_API_KEY`), unlocking ~750 DBT-only catalog languages.
 6. **bcv-commons dataset contract** — the *consume* side is still open: pin the exact published
    names/schemas this repo reads from `bcv-commons/strongs` (glosses/senses). The *produce* side
-   (`publish/lexeme-alignments`) is pinned by DATA.md + `export_lex`; the gold-consume side is pinned by `benchmark`.
+   (`publish/lexeme-alignments`) is pinned by advanced-docs/DATA.md + `export_lex`; the gold-consume side is pinned by `benchmark`.
 7. ~~`senses_i18n` — blocked on `hbo.db`.~~ **Done as `publish/senses_attested`** (per the bcv-query contract).
    The enriched `lexeme-spine.db` carries MACULA `stem`(binyan)/`sense` inline; `hebrew_source` reads
    them, and `lexeme_aligner.senses_attested` emits `lexeme, stem, sense, surface, count, share, method,
@@ -102,8 +102,8 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    + `gloss`/`role`; pinned by `macula_spine_sha256`). `hebrew_source` auto-detects the `lexeme` column
    (`has_lexeme`), `run_pilot`/`export_lex` are lexeme-primary (`surface, lexeme, strong, …`), and it's
    now the **default spine**. Verified end-to-end: Kärnbibeln whole Bible → 13,700 lexemes; benchmark vs
-   karnbibeln **improved** (Greek 92→**93.4%**, Hebrew 87→**88.7%**). Contract: `docs/data-contracts.md`;
-   rationale: `docs/architecture.md`. **Phase-2 A/B done:** `run_pilot --anchor strong|lexeme` — aligning
+   karnbibeln **improved** (Greek 92→**93.4%**, Hebrew 87→**88.7%**). Contract: `advanced-docs/data-contracts.md`;
+   rationale: `advanced-docs/architecture.md`. **Phase-2 A/B done:** `run_pilot --anchor strong|lexeme` — aligning
    *on* lexeme vs strong is a **wash** on the (strong-keyed) benchmark at every threshold. The
    granularity comes from the lexeme **labeling**, not the anchor key: both separate homonyms (e.g.
    `hbo:3068 herren` vs `hbo:3069 adonai jahveh`, a distinction the canonicalized Strong's erases) —

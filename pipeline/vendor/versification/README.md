@@ -56,7 +56,7 @@ map covers the Psalm superscriptions + OT chapter/verse offsets, which is what X
 Each Bible **version** declares its `versification` scheme; this is external metadata, not derivable
 from content. Our own corpora auto-tag (`hebrew`, `lxx`, else `kjv`); externally-sourced Bibles
 (the aligner's targets, helloAO/PKF) must supply it (default `kjv`, flag unknowns). Lives in the
-bibles recipe layer — see `internal-docs/bibles-recipe-layer.md`.
+bibles recipe layer — see `advanced-docs/bibles-recipe-layer.md`.
 
 ## Rebuild
 ```bash

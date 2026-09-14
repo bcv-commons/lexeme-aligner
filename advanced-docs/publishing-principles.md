@@ -105,4 +105,5 @@ merged away, full provenance. Consumers:
 - Merged best-pick view: still a consumer-side recipe (`merge_align.py` + `--contest-rule`), not a
   separate published dataset — matches the "left as a recipe" option.
 - ✅ Headline benchmark grain: `benchmark.py --grain lexeme` implemented; tool default left at `strong`
-  for continuity with older gold comparisons (see 2026-07 session log in `CLAUDE.local.md`).
+  for continuity with older gold comparisons (decided 2026-07 — see `benchmark.md` for the lexeme-
+  vs-strong grain comparison and why `strong` stayed the tool default).

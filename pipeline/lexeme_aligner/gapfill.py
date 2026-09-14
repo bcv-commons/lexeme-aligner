@@ -62,7 +62,7 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
       strong_surf     = {strong: {top target words}}       (→ strong-rollup back-off)
       target_pos      = {target word: majority source POS} (→ BOOTSTRAPPED target POS, grammatical prior)
 
-    `release_light` (#3, docs/pipeline-overview.md): a pair whose source lexeme is semantically LIGHT
+    `release_light` (#3, advanced-docs/pipeline-overview.md): a pair whose source lexeme is semantically LIGHT
     (config/light_lexemes.json — copulas, `all`, `have`, `one`) stays in `covered_h`, so gap-fill never
     wastes a fill trying to re-align it, but its target positions are NOT added to `taken_t` — so a real
     content gap may claim the slot it is sitting on. This is the asymmetry the project actually wants:
@@ -72,7 +72,7 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
     exemplar. Measured: these lexemes land ENTIRELY on target stopwords 55.7/76.0/62.2% of the time
     (fra/hin/eng) against a 6.3/10.3/6.6% all-content base rate.
 
-    `reserve_function_slots` (#5, docs/pipeline-overview.md): a NON-CONTENT source pair (waw, article,
+    `reserve_function_slots` (#5, advanced-docs/pipeline-overview.md): a NON-CONTENT source pair (waw, article,
     ὁ, καί, prepositions) is dropped at export, so this used to skip it entirely — leaving the target
     position it consumed looking FREE to gap-fill, which could then claim it while eflomal still held it.
     Two source tokens then claimed one target position with nothing recording the conflict. Reserving the

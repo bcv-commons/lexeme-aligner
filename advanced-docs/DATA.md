@@ -1,5 +1,10 @@
 # Data contracts
 
+> **Scope note:** this is a contributor-facing schema reference — the exact input/output formats a
+> sibling repo or a new pipeline stage needs to integrate with. If you just want to *use* the
+> published datasets, you don't need this file — see each dataset's own README on HF instead (or
+> the top-level [`README.md`](../README.md) for the quick-start).
+
 Exactly what the aligner reads and writes — so a standalone repo knows what to feed it (and where
 to get it) and what it emits. All paths are `config.py` env vars.
 
@@ -14,7 +19,7 @@ is_content INT                                     -- 1 = N/V/A head-POS content
 lexeme TEXT                                        -- the lexical ANCHOR (present in the current spine)
 ```
 `lexeme` is the target anchor (MACULA lang+augmented-Strong's — finer than bare Strong's, which it
-rolls up to; see `docs/data-contracts.md` for the shoresh export contract). `hebrew_source` reads it
+rolls up to; see `data-contracts.md` for the shoresh export contract). `hebrew_source` reads it
 directly when present, else derives `<paddedStrong>|<lemma>` as a fallback — so a spine without the
 column still works, just at coarser (Strong's-only) precision. Where to get the spine (standalone):
 build from **STEPBible** TAHOT/TAGNT or **MACULA** (Clear-Bible) — both open; shoresh builds it
@@ -35,7 +40,7 @@ is a no-op; **eflomal needs none of this**.
 ### 4. Target text — `--usj-dir` (USJ, **required**)
 One `<NN>-<BOOK>.json` per book (USFM Paratext numbering), USJ 3.0. The adapter walks `content`,
 tracks `chapter`/`verse` markers, keeps `char:w`/paragraph text, excludes `note`/`para:s*`/`para:d`.
-Build USJ from USFM/USX (`usfmtc`) or PKF (Proskomma) — see `docs/bibles-recipe-layer.md`.
+Build USJ from USFM/USX (`usfmtc`) or PKF (Proskomma) — see `bibles-recipe-layer.md`.
 
 ### 5. Prior pack — `ALIGNER_PRIOR_PACK` (Parquet, **optional** — recipes only)
 Pulled from **`bcv-commons/prior-pack`** (HF, CC-BY): one row per MACULA lexeme with `keyness`,
@@ -96,7 +101,7 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
   the small companion reference files are committed. This keeps regenerated bulk data out of git
   history at multi-thousand-language scale. Design principles (lexeme anchor, Strong's bridge,
   method-provenance, additive union) live in
-  `docs/publishing-principles.md`.
+  `publishing-principles.md`.
 - `publish/aligned_mwe/` (**CC0**) — one row per (lexeme → **contiguous multi-word expression**):
   `lexeme, strong, phrase, n_words, count, share, contig`. Where `publish/lexeme-alignments` is per token, this mines
   the real phrase renderings (חֶסֶד → "kasih setia") using the jsonl `t_idx` positions: only spans whose
@@ -130,7 +135,7 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
   no double prefix). The filename's hash is computed over the book's TRANSLATABLE TEXT (not JSON bytes),
   so any client can independently verify — or locate — the file matching its own copy of that edition's
   text; a revised book (reworded or re-versified) hashes differently, so a stale alignment can never be
-  silently served (see `docs/compact-alignments.md` for the exact hash algorithm). Each per-edition file
+  silently served (see `../docs/compact-alignments.md` for the exact hash algorithm). Each per-edition file
   is a **plain array** of compact strings, position-parallel to the (ordered) KEYS of one shared,
   once-published file, `publish/compact-alignments/_index/<BOOK>_lexemes.json`
   (`{"BOOK C:V": [lexeme, ...], ...}`, from `build_source_lexemes()`) — no separate flat `["BOOK C:V",
@@ -152,5 +157,5 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
   `python3 -m lexeme_aligner.compact_align --iso <tag> --publish-iso <iso> --usj-dir <dir> --publish
   <root>`. A whole-bible single-array dev/debug mode also exists (`--out`, needs a one-time
   `--build-index` — `config/canonical_index/whole_bible.json`, shared across languages) but is not
-  the published form. Full format detail in `docs/compact-alignments.md`.
+  the published form. Full format detail in `../docs/compact-alignments.md`.
 - per-word interlinear. → published to **bcv-commons**; the monorepo consumes them as external resources.

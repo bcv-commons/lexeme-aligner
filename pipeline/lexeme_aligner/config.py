@@ -3,7 +3,7 @@
 This is the aligner's only coupling to its host layout. Defaults point at the repo's `pipeline/`
 directory (spine.db lives there, gitignored — see config/PROVENANCE.txt); set the env vars to run
 against a different spine, published bcv-commons datasets, or a spine built from STEPBible+MACULA.
-See DATA.md. Repo layout (2026-07 reorg): `publish/` (staged HF datasets), `config/` (small tracked
+See advanced-docs/DATA.md. Repo layout (2026-07 reorg): `publish/` (staged HF datasets), `config/` (small tracked
 config/pins), `pipeline/` (this package + vendor snapshots + transient `work/`).
 
   ALIGNER_SPINE_DB   original-language backbone (spine_words: book,chapter,verse,idx,surface,strong,lemma,morph,is_content)

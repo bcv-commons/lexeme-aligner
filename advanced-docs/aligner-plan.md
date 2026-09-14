@@ -1,13 +1,21 @@
 # The aligner — plan for a Strong's word-alignment factory
 
-> **Status: planning; first experiment scoped (Indonesian — see below).** The `aligner/`
-> folder exists but is empty; nothing is implemented yet. This document is the design — and
-> an open invitation to help build it. It's the single biggest force-multiplier on the
-> project's roadmap. Built **generic from day one**: a pluggable *Bible-source adapter* + an
-> `iso639-3` code is all it takes to run for **any language from any Bible repository**
-> (bcv-commons/bibles, helloAO, eBible, …). Alignment is a **multi-resource harvest across four
-> projection channels**, and coverage is a dial — an auto pass gets ~50–80%, LLM/manual passes
-> raise it, and each bump re-enables more mining.
+> **⚠ HISTORICAL — this is the original 2026-07 design proposal, written before any of it was
+> built.** Read it for *design rationale* (why lexeme-anchoring, why a generic source-adapter
+> model, why the multi-resource-harvest framing), not for current status: the "nothing is
+> implemented yet" line below describes the very first day of this project. The pipeline it
+> proposed has since been fully built and now covers 1,600+ languages — see
+> [`architecture.md`](architecture.md) for how it actually works today, and the top-level
+> [`roadmap.md`](../roadmap.md) for what's shipped since.
+
+> **Status (as of 2026-07, see banner above): planning; first experiment scoped (Indonesian —
+> see below).** The `aligner/` folder exists but is empty; nothing is implemented yet. This
+> document is the design — and an open invitation to help build it. It's the single biggest
+> force-multiplier on the project's roadmap. Built **generic from day one**: a pluggable *Bible-
+> source adapter* + an `iso639-3` code is all it takes to run for **any language from any Bible
+> repository** (bcv-commons/bibles, helloAO, eBible, …). Alignment is a **multi-resource harvest
+> across four projection channels**, and coverage is a dial — an auto pass gets ~50–80%,
+> LLM/manual passes raise it, and each bump re-enables more mining.
 
 ## The one-sentence idea
 
@@ -20,8 +28,8 @@ Hebrew/Greek (which carries Strong's numbers), and out comes:
    language.
 
 The aligner is a **producer of `resources/`, not a service** — it runs offline,
-writes shared data, and both [bcv-RAG](bcv-RAG.md) and [shoresh](shoresh.md)
-consume the result.
+writes shared data, and both **bcv-RAG** and **shoresh** (sibling projects, separate
+repos — not part of this codebase) consume the result.
 
 ## Why this matters
 

@@ -1,5 +1,11 @@
 # Pipeline overview — what each step does, and what it extracts
 
+> **Scope note:** this is a deep engineering log, not an onboarding doc — dense internal R&D notes,
+> code snippets, and measured ablation results, written for someone already familiar with this
+> codebase who needs the exact reasoning behind one specific allocation rule. If you're new here,
+> start with [`architecture.md`](architecture.md) instead; come back to this file once you need to
+> know *why* a specific protection/prior exists or how it was measured.
+
 Step-by-step reference for the 9-step per-language chain (`full_chain.py`), written to answer one
 question at every stage: **who is allowed to claim a target token here, and what stops the wrong
 source token from claiming it?**
@@ -788,7 +794,7 @@ are eflomal-only. Agreement's AVAILABILITY depends on how many methods happened 
 so it is informative but makes a poor universal contract — and penalising single-method languages is
 penalising exactly the tail this project exists to serve.
 
-**REVERSED 2026-09-03 — now published; see `docs/compact-alignments.md`.** The decision below was
+**REVERSED 2026-09-03 — now published; see `../docs/compact-alignments.md`.** The decision below was
 sound while no regeneration was planned, and it turned on its first reason. The 2026-09 full-corpus
 rebuild rebuilds every edition from its own jsonl in one sweep, so "cannot be backfilled" no longer
 holds and coverage is uniform. Reasons two and three were kept, not overridden: contiguity is still

@@ -3,7 +3,7 @@
 Per verse: score every (Hebrew token × target-token position) pair from the gloss priors
 + proper-noun transliteration fuzz, then assign greedily (best score first, each side
 used once, positional proximity as tie-break). No models, no network — mirrors the
-English prototype's strategy chain (docs/aligner-plan.md §English prototype).
+English prototype's strategy chain (advanced-docs/aligner-plan.md §English prototype).
 
 Language plug-point: `Normalizer` — per-language token normalization (the Indonesian one
 strips clitics/affixes: -lah/-nya/…, me-/di-/ber-/ter-/…). Everything else is generic.
@@ -138,7 +138,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
         Additive: never steals a token already matched, so it only lifts recall on compound lexemes.
 
     Two protections against a semantically LIGHT source lexeme taking a slot a real match needed
-    (protection #4, docs/pipeline-overview.md) — both default OFF pending measurement:
+    (protection #4, advanced-docs/pipeline-overview.md) — both default OFF pending measurement:
       • `light_last` — light lexemes (config/light_lexemes.json: copulas, `all`, `have`, `one`) are
         sorted BEHIND every non-light candidate, so they can only claim positions no real content
         lexeme wanted. Deliberately NOT a ban: εἰμί→'est' is a correct alignment (fra 'est' genuinely

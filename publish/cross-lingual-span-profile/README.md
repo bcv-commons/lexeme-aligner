@@ -10,7 +10,10 @@ tags:
 # cross-lingual-span-profile
 
 A per-**MACULA-lexeme** structural profile — span length / multi-word tendency — aggregated across every
-language the lexeme-aligner has aligned. Every language anchors to the same lexeme, so this is a
+language the lexeme-aligner has aligned. (A **lexeme** here is a MACULA-anchored original-language
+Hebrew/Greek word, e.g. `hbo:2545` or `grc:0026` — the same anchor used throughout
+[`bcv-commons/lexeme-alignments`](https://huggingface.co/datasets/bcv-commons/lexeme-alignments), whose
+README has the full definition.) Every language anchors to the same lexeme, so this is a
 language-independent INTERLINGUA signal: it tells you whether a Hebrew/Greek lexeme typically needs a
 single target word or a multi-word phrase (compound place names — "Kadesh Barnea" — compound numbers —
 "four thousand"), based on what OTHER languages actually did, with NO target-language model for the

@@ -1,6 +1,6 @@
 """Align a draft Bible book/testament/whole-Bible against an EXISTING language's published priors,
 fully isolated from this repo's own shared work directory and published trees — the reusable core
-behind `docs/generate-your-own-edition.md`'s hand-run recipe, now one call instead of four
+behind `advanced-docs/generate-your-own-edition.md`'s hand-run recipe, now one call instead of four
 CLI invocations a caller has to get exactly right themselves.
 
 Runs the same chain `full_chain.py` runs for steps 4-6 (minus `export_lex`, which aggregates into

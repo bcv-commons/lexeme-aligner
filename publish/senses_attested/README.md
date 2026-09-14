@@ -15,10 +15,18 @@ configs:
 
 # senses_attested — attested target renderings per lexeme sense
 
-The empirical **evidence** layer produced for shoresh (bcv-query data-contract): for a lexeme in a
-disambiguated *(binyan, sense)*, which target-language words attest it, with counts. It is the *supply*
-that fills shoresh's `senses_i18n/_gaps` demand and cross-checks the `llm_strongs_glosses` predictions —
-it **does not replace** shoresh's curated `senses_i18n/<iso>.tsv`; consumed as an HF Parquet dataset.
+Many Hebrew words carry more than one distinguishable meaning depending on their grammatical form —
+for example, a verb's meaning can shift with its **binyan** (the Hebrew verb-stem pattern: *qal*
+"simple/active" vs. *hiphil* "causative," etc.). This dataset records, for each Hebrew **lexeme**
+(a MACULA-anchored original-language word — see `bcv-commons/lexeme-alignments`'s own README for the
+full definition) in a specific disambiguated *(binyan, sense)*, which target-language translation
+words actually render that sense in practice, with counts — empirical evidence mined directly from
+the alignment data, not a hand-curated gloss list.
+
+(Internal note for readers tracking the sibling **shoresh**/**bcv-query** projects — separate repos,
+not part of this codebase: this dataset is the *evidence* layer that fills shoresh's own
+`senses_i18n/_gaps` demand and cross-checks its `llm_strongs_glosses` predictions. It does **not**
+replace shoresh's own curated `senses_i18n/<iso>.tsv`.) Consumed as an HF Parquet dataset.
 
 ## Schema (per row)
 | column | meaning |

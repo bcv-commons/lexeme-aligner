@@ -65,7 +65,7 @@ def _grow_diag_final_and(fwd, rev, n_src, n_trg):
 
 def _content_priority(sym, union, src_toks, inter=frozenset(), displace_weak: bool = False):
     """Reallocate target positions held ONLY by non-content source tokens to content source tokens
-    that got nothing (protection #1, docs/pipeline-overview.md).
+    that got nothing (protection #1, advanced-docs/pipeline-overview.md).
 
     Every spine token carries a Strong's, so eflomal's source line includes the 312,853 non-content
     tokens (waw, article, ὁ, καί, prepositions) and they compete for target positions on equal footing
@@ -165,7 +165,7 @@ class EflomalAligner:
         # of a source token's targets, releasing the scattered outliers. Measured token-precision gain
         # vs Clear gold: fra +1.3, hin +2.2, eng +0.9, for a coverage cost of -0.6/-0.5/-0.2; the
         # released tokens were only 23-46% gold-correct against a 68-90% baseline. See
-        # docs/pipeline-overview.md "Protection #2". Opt out per run with --eflomal-allow-scattered
+        # advanced-docs/pipeline-overview.md "Protection #2". Opt out per run with --eflomal-allow-scattered
         # (the languages where scatter is legitimate are Grambank GB026=1, ~6% — currently UNVALIDATED,
         # so the opt-out is manual, never automatic).
         self.contiguous_only = contiguous_only

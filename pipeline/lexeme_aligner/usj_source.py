@@ -1,6 +1,6 @@
 """USJ source adapter — read a book's USJ, emit per-verse target-language tokens.
 
-The only format-specific code in the pipeline (docs/aligner-plan.md §Generic input):
+The only format-specific code in the pipeline (advanced-docs/aligner-plan.md §Generic input):
 walk the USJ `content` tree in document order, track chapter/verse markers, collect
 translatable text, and EXCLUDE apparatus by element type/marker (notes, headings,
 titles, intro material) so footnote/heading words can never leak into the alignment.

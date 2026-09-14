@@ -133,7 +133,7 @@ No single method covers every language; they run as an ensemble (agreement ⇒ c
   When eflomal and gloss disagree, `contest_rule.json` (empirically validated, leave-one-out tested
   across 10 gold languages) decides the winner. Lossy by design — drops valid alternatives — so it's a
   convenience regenerable from the union, never the published source of truth
-  (`docs/publishing-principles.md` §5).
+  (`publishing-principles.md` §5).
 
 ## Canonical internal format: USJ
 **USJ is the format-agnostic seam.** Every source (PKF, helloAO JSON, eBible USFM/USX) is converted to
@@ -163,7 +163,7 @@ docstrings for the full story, and `publish/lexeme-alignments/README.md` for how
 | **spine** (`lexeme-spine.db`) | original-language backbone | shoresh (pinned, MACULA-based) | `spine_words(book,chapter,verse,idx,surface,lexeme,strong,lemma,morph,is_content,gloss,role)` |
 | **target USJ** | the translation to align | CDN/helloAO (pinned) | one `<NN>-<BOOK>.json`, USJ 3.0 |
 | **lexeme-alignments** | the published product | this repo | `surface, lexeme, method, base_text, count, hi_conf` (`strong`/`share` are derived, not stored) |
-| **canonical ordinal index** + per-language compact array | maximum-compact per-verse companion to lexeme-alignments (type-level, can't reconstruct one verse's alignment) — one shared flat `["BOOK C:V", ...]` index + a position-parallel per-language array of `"srcOrd:span ..."` strings | this repo (`compact_align.py`) | see `docs/compact-alignments.md` |
+| **canonical ordinal index** + per-language compact array | maximum-compact per-verse companion to lexeme-alignments (type-level, can't reconstruct one verse's alignment) — one shared flat `["BOOK C:V", ...]` index + a position-parallel per-language array of `"srcOrd:span ..."` strings | this repo (`compact_align.py`) | see `../docs/compact-alignments.md` |
 
 Full schemas in `DATA.md`.
 
@@ -211,7 +211,7 @@ catalog walk) · `full_chain.py` (the 9-step orchestrator both `new-language` an
 
 **Other published exports:** `export_mwe` (multi-word expressions) · `export_stopwords` ·
 `export_morph` · `compact_align` (canonical ordinal index + per-language compact array, see
-`docs/compact-alignments.md`).
+`../docs/compact-alignments.md`).
 
 **Gap-fill quality R&D (BHSA phrase syntax, OT-only):** `constituent_order` / `constituent_order_batch`
 (per-language word-order typology profile vs Hebrew, `config/constituent_order/`) · `phrase_coherence`

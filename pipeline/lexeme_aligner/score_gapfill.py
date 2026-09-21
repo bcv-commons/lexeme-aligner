@@ -28,11 +28,13 @@ from lexeme_aligner.config import OUT, RESOURCES
 _PRIORS = ["strong", "name", "cross_edition_strict", "cross_edition", "phrase", "phrase_xorder", "embedding"]
 
 
-def _gap_pairs(iso: str, out_dir: Path):
-    """Yield (ref, strong, target_words, prior) for every gapfill fill (align_gapfill jsonl)."""
-    files = tag_files(out_dir, "gapfill", iso)
+def _gap_pairs(iso: str, out_dir: Path, method: str = "gapfill"):
+    """Yield (ref, strong, target_words, prior) for every fill of `method` (align_<method> jsonl) —
+    `gapfill` by default; `residual`/`llm` score the other gap-filling passes the same way, broken down
+    by the `prior` field their pairs carry (an llm pair's prior is `llm_<strategy>`)."""
+    files = tag_files(out_dir, method, iso)
     if not files:
-        raise SystemExit(f"no align_gapfill_{iso}_*.jsonl — run gapfill --iso {iso} first")
+        raise SystemExit(f"no align_{method}_{iso}_*.jsonl — run the {method} pass for --iso {iso} first")
     for fp in files:
         with fp.open(encoding="utf-8") as fh:
             for line in fh:
@@ -40,10 +42,11 @@ def _gap_pairs(iso: str, out_dir: Path):
                 for p in rec["pairs"]:
                     if p.get("content") and p.get("strong") and (p.get("target") or "").strip():
                         yield (rec["ref"], p["strong"],
-                               [norm_surface(w) for w in p["target"].split()], p.get("prior", "embedding"))
+                               [norm_surface(w) for w in p["target"].split()], p.get("prior", method if method != "gapfill" else "embedding"))
 
 
-def score_clear(iso: str, out_dir: Path, res_dir: Path, gold_iso: str | None = None):
+def clear_gold(iso: str, res_dir: Path, gold_iso: str | None = None) -> dict[tuple, set]:
+    """Clear-Bible positional gold: {(ref '00000000' string, strong): {normalized target surfaces}}."""
     import pyarrow.parquet as pq
     base = res_dir / "strongs" / "attestations"
     fp = base / f"{gold_iso or iso}.parquet"
@@ -52,9 +55,16 @@ def score_clear(iso: str, out_dir: Path, res_dir: Path, gold_iso: str | None = N
     gold: dict[tuple, set] = collections.defaultdict(set)      # (ref, strong) -> {norm target surfaces}
     t = pq.read_table(fp, columns=["ref", "strong", "surface"]).to_pydict()
     for ref, strong, surf in zip(t["ref"], t["strong"], t["surface"]):
-        gold[(str(ref), strong)].add(norm_surface(surf))
+        # gold refs for books 1-9 are stored as 7 digits ("1001001"); every lookup pads to 8 — pad here too
+        gold[(str(ref).zfill(8), strong)].add(norm_surface(surf))
+    return gold
+
+
+def score_clear(iso: str, out_dir: Path, res_dir: Path, gold_iso: str | None = None,
+                method: str = "gapfill"):
+    gold = clear_gold(iso, res_dir, gold_iso)
     tally = {pr: [0, 0] for pr in _PRIORS}                     # prior -> [scorable, correct]
-    for ref, strong, words, prior in _gap_pairs(iso, out_dir):
+    for ref, strong, words, prior in _gap_pairs(iso, out_dir, method):
         key = (f"{ref:08d}", strong)
         if key not in gold:
             continue                                          # gold has no truth for this token → not scorable
@@ -63,14 +73,14 @@ def score_clear(iso: str, out_dir: Path, res_dir: Path, gold_iso: str | None = N
     return tally
 
 
-def score_gbt(iso: str, out_dir: Path, gold_iso: str | None = None):
+def score_gbt(iso: str, out_dir: Path, gold_iso: str | None = None, method: str = "gapfill"):
     """Same positional question as score_clear, against gbt's occurrence alignment instead — CC0, and
     available for any of the 40 languages in pipeline/vendor/gbt/. gbt's gold is a gloss phrase per
     source word, so the bar is looser than Clear's; read it as corroboration and as reach, not as a
     number directly comparable to a Clear score."""
     gold = load_gold_gbt_positional(gold_iso or iso)
     tally = {pr: [0, 0] for pr in _PRIORS}
-    for ref, strong, words, prior in _gap_pairs(iso, out_dir):
+    for ref, strong, words, prior in _gap_pairs(iso, out_dir, method):
         key = (f"{ref:08d}", strong)
         if key not in gold:
             continue
@@ -79,11 +89,11 @@ def score_gbt(iso: str, out_dir: Path, gold_iso: str | None = None):
     return tally
 
 
-def score_lexicon(iso: str, out_dir: Path, cache_dir: Path):
+def score_lexicon(iso: str, out_dir: Path, cache_dir: Path, method: str = "gapfill"):
     heb = load_gold_lexicon("karnbibeln", "hebrew", cache_dir)
     grk = load_gold_lexicon("karnbibeln", "greek", cache_dir)
     tally = {pr: [0, 0] for pr in _PRIORS}
-    for ref, strong, words, prior in _gap_pairs(iso, out_dir):
+    for ref, strong, words, prior in _gap_pairs(iso, out_dir, method):
         gloss = (heb if strong.startswith("H") else grk).get(strong)
         if not gloss:
             continue
@@ -98,18 +108,22 @@ def main() -> int:
     ap.add_argument("--gold-iso", default=None,
                     help="gold attestation file's iso when it differs from the produced tag "
                          "(post-2026-07-25 tags are edition codes, e.g. --iso bsb --gold-iso eng)")
+    ap.add_argument("--method", default="gapfill",
+                    help="which pass's fills to score: gapfill (default), residual, or llm — read from "
+                         "align_<method>_<iso>_*.jsonl; every pair's `prior` field becomes a row")
     ap.add_argument("--gold", choices=["clear", "lexicon", "gbt"], default="clear")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--resources", type=Path, default=RESOURCES)
     ap.add_argument("--cache", type=Path, default=Path("pipeline/work/karnbibeln"))
     args = ap.parse_args()
 
-    tally = (score_clear(args.iso, args.out, args.resources, args.gold_iso) if args.gold == "clear"
-             else score_gbt(args.iso, args.out, args.gold_iso) if args.gold == "gbt"
-             else score_lexicon(args.iso, args.out, args.cache))
+    tally = (score_clear(args.iso, args.out, args.resources, args.gold_iso, args.method)
+             if args.gold == "clear"
+             else score_gbt(args.iso, args.out, args.gold_iso, args.method) if args.gold == "gbt"
+             else score_lexicon(args.iso, args.out, args.cache, args.method))
     tot_s = sum(v[0] for v in tally.values())
     tot_c = sum(v[1] for v in tally.values())
-    print(f"\n=== gap-fill direct score — {args.iso} (gold={args.gold}) ===")
+    print(f"\n=== {args.method} direct score — {args.iso} (gold={args.gold}) ===")
     print(f"  {'prior':10} {'scorable':>9} {'correct':>8} {'precision':>10}")
     for pr in _PRIORS + [k for k in tally if k not in _PRIORS]:
         s, c = tally.get(pr, [0, 0])
@@ -117,7 +131,7 @@ def main() -> int:
             print(f"  {pr:10} {s:>9} {c:>8} {100*c/s:>9.1f}%")
     print(f"  {'OVERALL':10} {tot_s:>9} {tot_c:>8} {100*tot_c/max(1,tot_s):>9.1f}%")
     print(f"  → {tot_c} source tokens that had ZERO alignment are now CORRECTLY aligned "
-          f"(of {tot_s} gap fills the gold can judge).")
+          f"(of {tot_s} {args.method} fills the gold can judge).")
     return 0
 
 

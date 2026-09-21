@@ -10,6 +10,7 @@ config/pins), `pipeline/` (this package + vendor snapshots + transient `work/`).
   ALIGNER_HBO_DB     per-occurrence sense sidecar (occurrence: ref,lex,stem,sp,strong,gloss,sense,sense_conf) — optional
   ALIGNER_RESOURCES  dir holding gloss priors (word_glosses/, llm_strongs_glosses/, strongs_tw.tsv, tw_articles/) — optional
   ALIGNER_OUT        experiment output dir (gitignored)
+  ALIGNER_LLM_CACHE  llm_align.py's on-disk response cache (gitignored; default pipeline/work/llm-cache)
   ALIGNER_HF_CHUNK_SIZE  files per HF commit for every publish_chunked() call project-wide (default
                      200 — HF's 128/hour-per-repo commit-rate limit means fewer, bigger commits go
                      further, but very large chunks have been observed to time out on this
@@ -36,6 +37,9 @@ SPINE_DB = _p("ALIGNER_SPINE_DB", _PIPELINE / "lexeme-spine.db")  # required —
 HBO_DB = _p("ALIGNER_HBO_DB", _PIPELINE / "hbo.db")               # optional — per-occurrence sense sidecar
 RESOURCES = _p("ALIGNER_RESOURCES", _PIPELINE / "vendor" / "resources")  # optional — gloss priors (bcv-commons/strongs)
 OUT = _p("ALIGNER_OUT", _PIPELINE / "work" / "out")               # experiment output (gitignored, transient)
+# on-disk response cache for the opt-in LLM-alignment experiment (llm_align.py): keyed by a hash of the
+# whole request, so re-running or re-scoring a finished cell never re-spends. Lives under work/ (gitignored).
+LLM_CACHE = _p("ALIGNER_LLM_CACHE", _PIPELINE / "work" / "llm-cache")
 LEX_ROOT = _p("ALIGNER_LEX_ROOT", _REPO_ROOT / "publish" / "lexeme-alignments")  # published dataset root (was aligned_lex)
 # language-independent prior pack pulled from bcv-commons/prior-pack (HF, CC-BY) — feeds the recipes
 # (R1 keyness-filter, R2 sense-surface, R3 gap-map, LXX NT-gap). See internal-docs/aligner-handover.md.

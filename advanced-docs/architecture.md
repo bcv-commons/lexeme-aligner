@@ -8,7 +8,7 @@ The "you are here" map. Detail lives in the companion docs: **`aligner-plan.md`*
 projection channels, the full spec), **`bibles-recipe-layer.md`** (target-text ingest),
 **`benchmark.md`** (validation), **`data-contracts.md`** (cross-repo/service flows), **`DATA.md`**
 (input/output schemas), **`publishing-principles.md`** (the lexeme-anchored, additive-union publish
-design).
+design), **`llm-experiment.md`** (the opt-in, measured LLM-alignment pass — never part of the default chain).
 
 ## What this is
 An **offline producer of data**, not a service. Given any Bible translation, it aligns the target

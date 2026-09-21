@@ -21,6 +21,7 @@ dependencies = [
 ingest = ["usfmtc"]                       # USFM/USX → USJ conversion (source ingest)
 publish = ["pyarrow", "huggingface_hub"]  # Parquet export + push lexeme-alignments to a HF dataset
 validate = ["pyarrow", "snowballstemmer"] # karnbibeln_diff test — read Parquet + Swedish stemming
+llm = ["anthropic>=1.0"]                  # opt-in LLM-alignment experiment (llm_align.py) — API route only; the `claude -p` route needs nothing
 
 [project.scripts]
 lexeme-align = "lexeme_aligner.run_pilot:main"

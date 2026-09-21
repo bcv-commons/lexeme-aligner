@@ -70,7 +70,7 @@ def _gold_clear(iso: str, res_dir: Path):
     t = pq.read_table(fp, columns=["ref", "strong", "surface"]).to_pydict()
     g: dict[tuple, set] = collections.defaultdict(set)
     for ref, s, su in zip(t["ref"], t["strong"], t["surface"]):
-        g[(str(ref), s)].add(norm_surface(su))
+        g[(str(ref).zfill(8), s)].add(norm_surface(su))     # 7-digit refs for books 1-9 in the parquet
     return g
 
 

@@ -4,7 +4,7 @@
 # export_lex.py/export_mwe.py/senses_attested.py/export_stopwords.py/export_morph.py/
 # compact_align_batch.py, cross_lang_prior.py) so the six everyday actions don't need their
 # individual flags memorized. Finer-grained calls to those scripts directly are still there for the
-# rare cases that need them — see docs/architecture.md.
+# rare cases that need them — see advanced-docs/architecture.md.
 #
 # THE 9-STEP CHAIN (what "new-language"/"update-language" actually runs — see full_chain.py):
 #   1 ingest  2 eflomal align  3 export(eflomal-only, LOCAL)  4 gloss (bootstraps from step 3)
@@ -14,9 +14,11 @@
 # separate, deliberate step (the `publish`/`publish-all`/`publish-span-profile` targets below),
 # decoupled on purpose so HF's 128-commits/hour/repo limit is never a per-language concern.
 #
-# `out/`'s raw per-verse jsonl is transient (regenerable, safe to delete) — every chain target below
-# cleans a language's own out/ jsonl automatically once ITS OWN chain finishes (steps 7/8/9 — aligned_mwe/
-# senses_attested/compact-alignments — always run first, so nothing is lost). No flag needed.
+# `out/`'s raw per-verse jsonl is KEPT, gzip-compressed (~1/10th the size) — every chain target below
+# compresses a language's own out/ jsonl automatically once ITS OWN chain finishes (steps 7/8/9 — aligned_mwe/
+# senses_attested/compact-alignments — always run first). It used to be deleted; a retroactive fix across
+# already-published languages then meant re-running eflomal+gloss for all of them. Readers are gzip-transparent
+# (align_files.AlignPath). No flag needed.
 #
 # HF publish chunk size (files per commit) is ONE global setting, config.HF_CHUNK_SIZE, used by every
 # publish/publish-all target — no per-script flag to remember. Override via ALIGNER_HF_CHUNK_SIZE (env
@@ -39,6 +41,8 @@
 #   make publish ISO=ceb
 #   make publish-span-profile
 #   make publish-all
+#   make llm-align ISO=hinirv PUBLISH_ISO=hin USJ_DIR=pipeline/work/ingest-cache/usj-hinirv PROVIDER=mock   # opt-in LLM experiment
+#   make llm-score ISO=hinirv PUBLISH_ISO=hin OUT_TAG=hinirv.gap-seeded.mock GOLD_ISO=hin
 
 .ONESHELL:
 SHELL := /bin/bash
@@ -47,12 +51,12 @@ SHELL := /bin/bash
 PY := python3
 LOAD_ENV = if [ -f .env ]; then export $$(grep -v '^\#' .env | xargs); fi
 
-.PHONY: help new-language update-language new-edition update-edition update-batch update-all \
+.PHONY: llm-align llm-score help new-language update-language new-edition update-edition update-batch update-all \
         new-batch new-catalog new-catalog-dbt status text-strip-report clean-out publish \
         publish-span-profile publish-all _require-iso _require-spec
 
 help:
-	@sed -n '2,40p' Makefile
+	@sed -n '2,46p' Makefile
 
 _require-iso:
 	@if [ -z "$${ISO:-}" ]; then echo "ISO is required, e.g. make $(MAKECMDGOALS) ISO=ceb" >&2; exit 1; fi
@@ -158,3 +162,20 @@ publish-all:
 	$(PY) -m lexeme_aligner.export_stopwords --publish bcv-commons/target-stopwords --create
 	$(PY) -m lexeme_aligner.export_morph --publish bcv-commons/target-morphology --create
 	$(MAKE) publish-span-profile
+
+# --- opt-in LLM-alignment experiment (internal-docs/llm-align-experiment-plan.md, advanced-docs/llm-experiment.md) ---
+# NEVER part of the default chain. Everything but PROVIDER=mock spends money (API key) or subscription quota
+# (PROVIDER=cli) — start with `EXTRA=--dry-run`, which prints the prompt and an estimate and calls nothing.
+#   make llm-align ISO=fra-lsg PUBLISH_ISO=fra USJ_DIR=pipeline/work/ingest-cache/usj-fra-lsg STRATEGY=gap-seeded \
+#        PROVIDER=anthropic MODEL=claude-sonnet-5 EXTRA="--nt --batch --max-usd 10"
+llm-align: _require-iso
+	$(LOAD_ENV)
+	$(PY) -m lexeme_aligner.llm_align --iso "$(ISO)" --publish-iso "$(or $(PUBLISH_ISO),$(ISO))" \
+	  --usj-dir "$(USJ_DIR)" --strategy "$(or $(STRATEGY),gap-seeded)" --provider "$(or $(PROVIDER),anthropic)" \
+	  --model "$(or $(MODEL),claude-sonnet-5)" $(if $(BOOKS),$(foreach b,$(BOOKS),--book $(b)),$(if $(findstring --nt,$(EXTRA))$(findstring --ot,$(EXTRA))$(findstring --all,$(EXTRA)),,--nt)) $(EXTRA)
+
+llm-score: _require-iso
+	$(LOAD_ENV)
+	@if [ -z "$${OUT_TAG:-}" ]; then echo "OUT_TAG is required, e.g. make llm-score ISO=hinirv OUT_TAG=hinirv.gap-seeded.sonnet5 GOLD_ISO=hin" >&2; exit 1; fi
+	$(PY) -m lexeme_aligner.llm_align --report --iso "$(ISO)" --publish-iso "$(or $(PUBLISH_ISO),$(ISO))" \
+	  --out-tag "$(OUT_TAG)" --gold-iso "$(or $(GOLD_ISO),$(or $(PUBLISH_ISO),$(ISO)))"

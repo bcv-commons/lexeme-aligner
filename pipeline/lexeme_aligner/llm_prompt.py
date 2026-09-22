@@ -23,10 +23,10 @@ from typing import Iterable
 from lexeme_aligner.eflomal_align import _longest_contiguous
 from lexeme_aligner.hebrew_source import HebToken
 
-PROMPT_VERSION = "llm-align-v3"      # v3: `full` also carries SEEDS (content lexemes only)
+PROMPT_VERSION = "llm-align-v4"      # v4: `lexeme-verify` — cross-verse consistency review, grouped by lexeme
 
-STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "verify")
-SEEDED = ("full", "gap-seeded", "lexeme-grouped")    # strategies that carry the whole-language known-surface hints
+STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "lexeme-verify", "verify")
+SEEDED = ("full", "gap-seeded", "lexeme-grouped", "lexeme-verify")   # strategies carrying whole-language hints
 
 ALIGNED = ("aligned", "noncompositional")            # statuses that become a pair
 _DECLINED = ("unrepresented", "rejected")            # statuses that become an `llm_skipped` entry
@@ -68,6 +68,17 @@ SCHEMA_VERIFY = {
                            "status": {"type": "string", "enum": ["confirmed", "corrected", "rejected"]},
                            "t_idx": _T_IDX, "note": {"type": "string"}}}}}}
 
+SCHEMA_LEXEME_VERIFY = {
+    "type": "object", "additionalProperties": False, "required": ["lexeme", "verdicts"],
+    "properties": {
+        "lexeme": {"type": "string"},
+        "verdicts": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["ref", "h_idx", "status", "t_idx", "note"],
+            "properties": {"ref": {"type": "integer"}, "h_idx": {"type": "integer"},
+                           "status": {"type": "string", "enum": ["confirmed", "corrected", "rejected"]},
+                           "t_idx": _T_IDX, "note": {"type": "string"}}}}}}
+
 # `full` — the ASV-shaped whole-verse contract (port of example/American-Standard-Version-Bible-Alignment-
 # Data's shape, minus its English-specific rules): a TWO-SIDED partition. Every source id appears in exactly
 # one alignment's `h_idx` (singly, or grouped for `noncompositional`); every target id appears in exactly one
@@ -96,7 +107,7 @@ SCHEMA_FULL = {
 
 
 def schema_for(strategy: str) -> dict:
-    return {"lexeme-grouped": SCHEMA_LEXEME, "verify": SCHEMA_VERIFY,
+    return {"lexeme-grouped": SCHEMA_LEXEME, "lexeme-verify": SCHEMA_LEXEME_VERIFY, "verify": SCHEMA_VERIFY,
             "full": SCHEMA_FULL}.get(strategy, SCHEMA_VERSE)
 
 
@@ -285,6 +296,18 @@ The statistical aligner proposed a span for each DECIDE word but was not sure (`
 the available positions), or `rejected` (no available position is a correct rendering; `t_idx` empty). Return
 {"ref": <int>, "verdicts": [{"h_idx", "status", "t_idx", "note"}, ...]}, one entry per DECIDE word.
 """,
+    "lexeme-verify": """\
+## Strategy: lexeme-verify
+A REVIEW pass over a completed `full` alignment, batched by lexeme instead of by verse — is the SAME
+original-language word rendered consistently across every place it occurs? One lexeme is shown with its
+SEEDS, followed by every occurrence's own `PROPOSED` span (what the earlier pass decided) and its verse
+context. For each occurrence answer `confirmed` (the earlier decision is right; repeat its positions in
+`t_idx`), `corrected` (give the right span among the positions shown in that verse's TARGET line), or
+`rejected` (no position in that verse is a correct rendering; `t_idx` empty). A rendering that differs from
+the rest of the group is not automatically wrong — trust the verse's own words and word order over the
+majority when they disagree; note why when you correct or reject. Return {"lexeme": "<the lexeme>",
+"verdicts": [{"ref", "h_idx", "status", "t_idx", "note"}, ...]}, one entry per occurrence shown.
+""",
 }
 
 _GENERIC_CONVENTIONS = """\
@@ -368,6 +391,17 @@ Every h0-h6 appears exactly once; every t0-t9 appears exactly once. Three more c
 — and a target word the translation supplies that nothing in the source states —
  {"h_idx": [], "h_head": null, "t_idx": [14], "t_head": null, "status": "added",
   "note": "translator-supplied \\"therefore\\" for English flow"}
+""",
+    "lexeme-verify": """\
+LEXEME hbo:8064  H8064 noun  known renderings: heavens 40/0.9, heaven 12/0.8
+[REF 1001001  GEN 1:1]  h3  PROPOSED -> t6  context: ...beginning->beginning | [heaven] | earth->earth...
+  t0:In t1:the~ t2:beginning t3:God t4:created t5:the~ t6:heavens t7:and~ t8:the~ t9:earth
+[REF 1010003  GEN 10:3]  h2  PROPOSED -> t3  context: ...Gomer->Gomer | [heaven] | Riphath->Riphath...
+  t0:the~ t1:sons t2:of~ t3:Gomer t4:sky t5:and~ t6:Riphath
+ANSWER: {"lexeme": "hbo:8064", "verdicts": [
+ {"ref": 1001001, "h_idx": 3, "status": "confirmed", "t_idx": [6], "note": ""},
+ {"ref": 1010003, "h_idx": 2, "status": "corrected", "t_idx": [4],
+  "note": "proposal took the neighbouring name Gomer (t3); the lexeme's own word is sky (t4)"}]}
 """,
 }
 
@@ -546,6 +580,45 @@ def render_lexeme_suffix(p: Packet) -> str:
     return "\n".join(lines)
 
 
+def render_lexeme_verify_suffix(p: Packet) -> str:
+    """One lexeme card + N occurrence blocks (the `lexeme-verify` user message) — a REVIEW of a completed
+    `full` pass, not a fresh decision: each occurrence shows what that pass already decided (`PROPOSED`,
+    exactly as `verify` renders a low-confidence pair) plus its verse context, for a cross-verse consistency
+    check. Far cheaper than re-deciding the verse: only the lexemes with more than one occurrence are ever
+    shown, and each occurrence costs one small block, not a whole verse's worth of source+target rows."""
+    assert p.lexeme and p.members, "render_lexeme_verify_suffix needs a lexeme-verify packet"
+    lines = [f"LEXEME {p.lexeme}", _seed_line(p.lexeme, p, None).strip(), f"{len(p.members)} occurrence(s):", ""]
+    for m in p.members:
+        h = m.decide[0]
+        ts, score = m.proposed[h]
+        lines.append(f"[{_header(m)}]  h{h}  PROPOSED -> {_fmt_pos(ts)}  context: {_neighbourhood(m, h)}")
+        lines.append(_target_line(m))
+        lines.append("")
+    return "\n".join(lines)
+
+
+def raw_from_lexeme_verify(resp: dict, group: Packet) -> dict[int, list[dict]]:
+    """A `lexeme-verify` response -> {ref: raw items}. `confirmed` restores the group member's own PROPOSED
+    span (the same trick `raw_from_verify` uses for a single verse, generalised across the group's several
+    (ref, h) occurrences); `corrected` uses the model's span; `rejected` declines."""
+    proposed = {(m.ref, m.decide[0]): m.proposed[m.decide[0]] for m in group.members}
+    out: dict[int, list[dict]] = {}
+    for v in (resp or {}).get("verdicts", []):
+        if not (isinstance(v, dict) and isinstance(v.get("ref"), int) and isinstance(v.get("h_idx"), int)):
+            continue
+        key, status, note = (v["ref"], v["h_idx"]), v.get("status"), str(v.get("note") or "")
+        if status == "confirmed":
+            ts = proposed.get(key, ([], 0.0))[0]
+            item = {"h_idx": v["h_idx"], "t_idx": list(ts), "status": "aligned", "note": note, "tag": "confirmed"}
+        elif status == "corrected":
+            item = {"h_idx": v["h_idx"], "t_idx": v.get("t_idx") or [], "status": "aligned", "note": note,
+                    "tag": "corrected"}
+        else:
+            item = {"h_idx": v["h_idx"], "t_idx": [], "status": "rejected", "note": note}
+        out.setdefault(v["ref"], []).append(item)
+    return out
+
+
 def render_packed_suffix(members: list[Packet]) -> str:
     """Several complete verse tasks, one wrapper (the packed-call mode; port of the ASV project's
     `packing.packed_prompt`, adapted to `full`'s per-verse body). Each member keeps its own
@@ -573,6 +646,8 @@ def raw_from_packed(resp: dict) -> dict[int, list[dict]]:
 def render_suffix(p: Packet) -> str:
     if p.strategy == "lexeme-grouped":
         return render_lexeme_suffix(p)
+    if p.strategy == "lexeme-verify":
+        return render_lexeme_verify_suffix(p)
     if p.strategy == "full":
         return render_packed_suffix(p.members) if p.members else render_full_verse_suffix(p)
     return render_verse_suffix(p)
@@ -798,8 +873,8 @@ def derive_score(d: Decision, agrees: bool, base: float = 0.75, agree_score: flo
 
 
 def prior_for(strategy: str, d: Decision) -> str:
-    if strategy == "verify":
-        return f"llm_verify_{d.tag or 'corrected'}"
+    if strategy in ("verify", "lexeme-verify"):
+        return f"llm_{strategy.replace('-', '_')}_{d.tag or 'corrected'}"
     return f"llm_{strategy}"
 
 

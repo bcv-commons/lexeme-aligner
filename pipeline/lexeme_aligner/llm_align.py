@@ -46,8 +46,9 @@ from lexeme_aligner.config import LEX_ROOT, LLM_CACHE, OUT, PRIOR_PACK, RESOURCE
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.llm_prompt import (
     ALIGNED, PROMPT_VERSION, SCHEMA_FULL_PACKED, SEEDED, STRATEGIES, Decision, FullDecision, Packet,
-    derive_score, derive_score_full, normalize, normalize_full, prior_for, raw_from_lexeme, raw_from_packed,
-    raw_from_verify, raw_from_verse, render_prefix, render_suffix, schema_for, seed_renderings)
+    derive_score, derive_score_full, normalize, normalize_full, prior_for, raw_from_lexeme,
+    raw_from_lexeme_verify, raw_from_packed, raw_from_verify, raw_from_verse, render_prefix, render_suffix,
+    schema_for, seed_renderings)
 from lexeme_aligner.llm_providers import (
     Job, PRICES, Provider, ProviderError, ResponseCache, Usage, cache_key, load_prices, make_provider,
     supports_effort)
@@ -274,6 +275,61 @@ def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: in
     return groups, base, dict(stats)
 
 
+def build_lexeme_verify_packets(source_tag: str, inp: Inputs, out_dir: Path, *, group_size: int = 12,
+                                top_k: int = 6) -> tuple[list[Packet], dict[int, Packet], dict]:
+    """A REVIEW pass over a COMPLETED `full` run's own output (`align_llm_<source_tag>_*.jsonl`), batched by
+    lexeme: this strategy IS `verify` (same confirmed/corrected/rejected verdict shape, same `normalize()`,
+    same scoring), just grouped across verses by lexeme instead of scanned per verse by score — far cheaper
+    than re-deciding every token, since only lexemes with more than one occurrence across the aligned
+    corpus are ever shown, and each occurrence costs one small block, not a whole verse.
+
+    `base` stays ref-keyed with the UNION of every reviewed h_idx in that verse (across however many
+    different lexeme calls touch it — a verse can have more than one repeated lexeme), exactly the property
+    `lexeme-grouped` already relies on; each individual member packet narrows `decide` to its own single
+    occurrence and carries that occurrence's CURRENT span in `proposed`, mirroring `verify`'s PROPOSED
+    convention exactly. Neighbourhood context (`resolved`, read by `_neighbourhood`) is the completed pass's
+    OWN spans — not the statistical chain's — so a reviewer sees what it is actually reviewing."""
+    by_ref = {encode(r.book, r.ch, r.v): r for r in inp.recs}
+    full_pass_spans: dict[int, dict[int, list[int]]] = collections.defaultdict(dict)
+    raw_occ: dict[str, list[tuple[int, int, list[int], float]]] = collections.defaultdict(list)
+    for _m, ref, p in read_pairs(source_tag, out_dir, ("llm",)):
+        h, ts = p["h_idx"], sorted(p["t_idx"])
+        full_pass_spans[ref][h] = ts
+        lx = p.get("lexeme")
+        if lx:
+            raw_occ[lx].append((ref, h, ts, float(p.get("score") or 0.75)))
+    buckets = {lx: occ for lx, occ in raw_occ.items() if len(occ) > 1}    # nothing to review without a peer
+
+    per_ref_h: dict[int, set[int]] = collections.defaultdict(set)
+    for occ in buckets.values():
+        for ref, h, _ts, _s in occ:
+            per_ref_h[ref].add(h)
+
+    base: dict[int, Packet] = {}
+    for ref, hs in per_ref_h.items():
+        r = by_ref.get(ref)
+        if r is None:
+            continue
+        func = {j for j, w in enumerate(r.toks) if inp.is_function(w)}
+        allpos = set(range(len(r.toks)))
+        base[ref] = _verse_packet("lexeme-verify", r, inp, sorted(hs), allpos - func, func, set(),
+                                  dict(full_pass_spans.get(ref, {})), top_k=top_k)
+
+    groups: list[Packet] = []
+    for lx in sorted(buckets, key=lambda k: (-len(buckets[k]), k)):
+        occ = buckets[lx]
+        for i in range(0, len(occ), group_size):
+            members = [dataclasses.replace(base[ref], decide=[h], proposed={h: (ts, score)}, seeds={}, meta={})
+                       for ref, h, ts, score in occ[i:i + group_size] if ref in base]
+            if members:
+                groups.append(Packet("lexeme-verify", 0, "", 0, 0, inp.label, [], [], [], [], [], [], lexeme=lx,
+                                     seeds={lx: seed_renderings(lx, inp.vocab, top_k)}, meta=_meta([lx], inp),
+                                     members=members))
+    stats = {"lexemes_reviewed": len(buckets), "occurrences_reviewed": sum(len(v) for v in buckets.values()),
+             "packs": len(groups)}
+    return groups, base, stats
+
+
 # --- execution ----------------------------------------------------------------------------------------
 @dataclass
 class Ledger:
@@ -295,7 +351,7 @@ class Ledger:
 
 
 def max_tokens_for(p: Packet) -> int:
-    base = 8192 if p.strategy in ("full", "lexeme-grouped") else 4096
+    base = 8192 if p.strategy in ("full", "lexeme-grouped", "lexeme-verify") else 4096
     if p.strategy == "full" and p.members:                 # packed: N verses' worth of JSON in one response
         return min(base * len(p.members), 64000)
     return base
@@ -378,6 +434,9 @@ def resolve(results, base: dict[int, Packet], strategy: str, *, allow_scattered:
             continue
         if strategy == "lexeme-grouped":
             for ref, items in raw_from_lexeme(resp).items():
+                raw[ref].extend(items)
+        elif strategy == "lexeme-verify":
+            for ref, items in raw_from_lexeme_verify(resp, p).items():
                 raw[ref].extend(items)
         elif strategy == "full" and p.members:                  # a packed call: several verses, one response
             for ref, items in raw_from_packed(resp).items():
@@ -586,6 +645,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "current default behaviour)")
     ap.add_argument("--top-k", type=int, default=6, help="seed renderings per lexeme")
     ap.add_argument("--verify-below", type=float, default=0.9, help="verify: eflomal pairs scoring below this")
+    ap.add_argument("--source-tag", default=None,
+                    help="lexeme-verify: the completed `full` run's --out-tag to review "
+                         "(reads align_llm_<source-tag>_*.jsonl)")
     ap.add_argument("--limit", type=int, default=None, help="send at most N calls")
     ap.add_argument("--ref", type=int, default=None, help="only this verse ref (BBCCCVVV)")
     ap.add_argument("--dry-run", action="store_true", help="print the prompt + an estimate; call nothing")
@@ -622,12 +684,20 @@ def main(argv=None) -> int:
     if not a.no_gold_check:
         gold_guard(a.publish_iso, a.usj_dir)
 
+    if a.strategy == "lexeme-verify" and not a.source_tag:
+        raise SystemExit("[llm] --strategy lexeme-verify needs --source-tag <a completed `full` run's --out-tag>")
+
     prices = load_prices(a.prices)
     inp = load_inputs(a)
-    packets, base, stats = build_packets(a.strategy, inp, group_size=a.group_size, top_k=a.top_k,
-                                         pack_size=a.pack_size)
+    if a.strategy == "lexeme-verify":
+        packets, base, stats = build_lexeme_verify_packets(a.source_tag, inp, a.out, group_size=a.group_size,
+                                                            top_k=a.top_k)
+    else:
+        packets, base, stats = build_packets(a.strategy, inp, group_size=a.group_size, top_k=a.top_k,
+                                             pack_size=a.pack_size)
+    grouped_by_members = a.strategy in ("lexeme-grouped", "lexeme-verify") or (a.strategy == "full" and a.pack_size > 1)
     if a.ref is not None:
-        if a.strategy == "lexeme-grouped" or (a.strategy == "full" and a.pack_size > 1):
+        if grouped_by_members:
             for g in packets:
                 g.members = [m for m in g.members if m.ref == a.ref]
             packets = [g for g in packets if g.members]
@@ -638,7 +708,7 @@ def main(argv=None) -> int:
         packets = packets[:a.limit]
         keep = {m.ref for p in packets for m in p.members} | {p.ref for p in packets if not p.members}
         base = {r: p for r, p in base.items() if r in keep}
-    if a.strategy == "lexeme-grouped":
+    if a.strategy in ("lexeme-grouped", "lexeme-verify"):
         # a verse is answered across several calls, one per lexeme; after --ref/--limit only some of them
         # are sent, so the tokens whose groups were dropped must not be counted as missing answers
         sent: dict[int, set[int]] = collections.defaultdict(set)

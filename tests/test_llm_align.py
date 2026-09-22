@@ -618,6 +618,24 @@ def test_cli_command_is_isolated_keeps_subscription_auth_and_strips_api_keys(mon
     assert (usage.billing, usage.cost_usd, usage.cache_read) == ("subscription", 0.0123, 2000)
 
 
+def test_cli_prices_the_uncached_counterfactual_when_prices_are_given():
+    # total_cost_usd is real money the CLI's own billing already reports (cache-discounted); ONLY
+    # cost_usd_if_uncached is a separately-priced diagnostic, previously hardcoded equal to cost_usd here.
+    envelope = {"is_error": False, "structured_output": {"ref": 1, "alignments": []},
+                "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 2000,
+                          "cache_creation_input_tokens": 0}, "total_cost_usd": 0.0123}
+    from lexeme_aligner.llm_providers import PRICES
+    p = ClaudeCliProvider("claude-sonnet-5", runner=Recorder(json.dumps(envelope)), prices=PRICES)
+    _, usage = p.complete("P", "S", SCHEMA_VERSE, max_tokens=10)
+    assert usage.cost_usd == 0.0123                                    # real billed cost: untouched
+    expected = PRICES["claude-sonnet-5"].cost(10, 5, 2000, 0, cached=False)   # 2000 tokens at the FULL rate
+    assert usage.cost_usd_if_uncached == expected and expected > PRICES["claude-sonnet-5"].cost(10, 5, 2000, 0)
+    # no price data for the model at all: falls back to the old equal-to-cost_usd behaviour, not a crash
+    p2 = ClaudeCliProvider("unknown-model", runner=Recorder(json.dumps(envelope)))
+    _, usage2 = p2.complete("P", "S", SCHEMA_VERSE, max_tokens=10)
+    assert usage2.cost_usd_if_uncached == usage2.cost_usd
+
+
 def test_cli_decodes_fenced_json_in_result_when_there_is_no_structured_output():
     env = json.dumps({"is_error": False, "result": '```json\n{"ref": 2, "alignments": []}\n```', "usage": {}})
     resp, _ = ClaudeCliProvider("m", runner=Recorder(env)).complete("P", "S", SCHEMA_VERSE, max_tokens=10)
@@ -970,6 +988,79 @@ def test_grouped_answers_for_one_verse_are_merged_and_conflicts_resolved_across_
     decisions, tally, _ = resolve(results, base, "lexeme-grouped")
     kept = {d.h_idx: d.t_idx for d in decisions[REF]}
     assert kept == {1: [2], 2: []} and tally["conflict_dropped"] == 1
+
+
+# ── lexeme-verify (review a completed `full` run, grouped by lexeme) ──────────────────────────────────
+
+def _write_llm_output(out_dir, tag, book, records):
+    fp = out_dir / f"align_llm_{tag}_{book}.jsonl"
+    fp.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    return fp
+
+
+def test_build_lexeme_verify_packets_reviews_only_lexemes_with_a_peer(tmp_path):
+    from lexeme_aligner.llm_align import build_lexeme_verify_packets
+    ref1, ref2 = encode("MAT", 1, 1), encode("MAT", 1, 2)
+    inp = inputs(recs=[verse(1, ("grc:1", "grc:2", "grc:3")), verse(2, ("grc:1", "grc:9", "grc:9"))])
+    _write_llm_output(tmp_path, "srctag", "MAT", [
+        {"ref": ref1, "book": "MAT", "chapter": 1, "verse": 1, "llm": {}, "llm_skipped": [], "pairs": [
+            {"h_idx": 0, "lexeme": "grc:1", "strong": "G0001", "t_idx": [1], "target": "beta",
+             "score": 0.75, "content": True}]},
+        {"ref": ref2, "book": "MAT", "chapter": 1, "verse": 2, "llm": {}, "llm_skipped": [], "pairs": [
+            {"h_idx": 0, "lexeme": "grc:1", "strong": "G0001", "t_idx": [2], "target": "gamma",
+             "score": 0.75, "content": True},
+            {"h_idx": 1, "lexeme": "grc:9", "strong": "G0009", "t_idx": [3], "target": "delta",
+             "score": 0.9, "content": True},
+            {"h_idx": 2, "lexeme": "grc:9", "strong": "G0009", "t_idx": [4], "target": "eps",
+             "score": 0.9, "content": True}]}])
+    packets, base, stats = build_lexeme_verify_packets("srctag", inp, tmp_path)
+    assert stats == {"lexemes_reviewed": 2, "occurrences_reviewed": 4, "packs": 2}     # grc:1 x2, grc:9 x2
+    assert {p.lexeme for p in packets} == {"grc:1", "grc:9"}
+    grc1 = next(p for p in packets if p.lexeme == "grc:1")
+    assert {(m.ref, m.decide[0]) for m in grc1.members} == {(ref1, 0), (ref2, 0)}
+    assert sorted((tuple(m.proposed[0][0]), m.proposed[0][1]) for m in grc1.members) == [((1,), 0.75), ((2,), 0.75)]
+    assert set(base) == {ref1, ref2}
+    assert base[ref2].decide == [0, 1, 2]           # grc:1's h0 AND grc:9's h1/h2 both reviewed in verse 2
+    assert base[ref2].resolved == {0: [2], 1: [3], 2: [4]}     # the FULL PASS's own spans, for context
+
+
+def test_build_lexeme_verify_packets_skips_a_lexeme_seen_only_once(tmp_path):
+    from lexeme_aligner.llm_align import build_lexeme_verify_packets
+    ref1 = encode("MAT", 1, 1)
+    inp = inputs(recs=[verse(1, ("grc:1", "grc:2", "grc:3"))])
+    _write_llm_output(tmp_path, "srctag", "MAT", [
+        {"ref": ref1, "book": "MAT", "chapter": 1, "verse": 1, "llm": {}, "llm_skipped": [], "pairs": [
+            {"h_idx": 0, "lexeme": "grc:1", "strong": "G0001", "t_idx": [1], "target": "beta",
+             "score": 0.75, "content": True}]}])
+    packets, base, stats = build_lexeme_verify_packets("srctag", inp, tmp_path)
+    assert packets == [] and base == {} and stats["lexemes_reviewed"] == 0
+
+
+def test_lexeme_verify_end_to_end_confirmed_corrected_rejected(tmp_path):
+    from lexeme_aligner.llm_align import build_lexeme_verify_packets
+    ref1, ref2, ref3 = encode("MAT", 1, 1), encode("MAT", 1, 2), encode("MAT", 1, 3)
+    inp = inputs(recs=[verse(1), verse(2), verse(3)])
+    _write_llm_output(tmp_path, "srctag", "MAT", [
+        {"ref": r, "book": "MAT", "chapter": 1, "verse": v, "llm": {}, "llm_skipped": [], "pairs": [
+            {"h_idx": 0, "lexeme": "grc:1", "strong": "G0001", "t_idx": [v], "target": "x",
+             "score": 0.75, "content": True}]}
+        for v, r in ((1, ref1), (2, ref2), (3, ref3))])
+    (group,), base, _ = build_lexeme_verify_packets("srctag", inp, tmp_path)
+    resp = {"lexeme": "grc:1", "verdicts": [
+        {"ref": ref1, "h_idx": 0, "status": "confirmed", "t_idx": [], "note": ""},          # t_idx ignored
+        {"ref": ref2, "h_idx": 0, "status": "corrected", "t_idx": [2], "note": "moved"},   # t2 = "gamma" (content)
+        {"ref": ref3, "h_idx": 0, "status": "rejected", "t_idx": [], "note": "wrong word entirely"}]}
+    decisions, tally, _ = resolve([(group, resp, None)], base, "lexeme-verify")
+    by_ref = {ref: decisions[ref][0] for ref in (ref1, ref2, ref3)}
+    assert by_ref[ref1].t_idx == [1] and by_ref[ref1].tag == "confirmed"        # restored from `proposed`
+    assert by_ref[ref2].t_idx == [2] and by_ref[ref2].tag == "corrected"
+    assert by_ref[ref3].status == "rejected" and not by_ref[ref3].is_pair
+    inp2 = inputs(recs=[verse(1), verse(2), verse(3)])
+    by_book = to_records(decisions, base, "lexeme-verify", inp2, {"model": "m", "run_id": "r"})
+    by_ref_rec = {rec["ref"]: rec for rec in by_book["MAT"]}
+    assert by_ref_rec[ref1]["pairs"][0]["prior"] == "llm_lexeme_verify_confirmed"
+    assert by_ref_rec[ref2]["pairs"][0]["prior"] == "llm_lexeme_verify_corrected"
+    assert by_ref_rec[ref3]["pairs"] == [] and by_ref_rec[ref3]["llm_skipped"][0]["status"] == "rejected"
 
 
 def test_estimate_and_model_short_and_the_ledger_arithmetic():

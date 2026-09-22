@@ -45,7 +45,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from lexeme_aligner.llm_prompt import PROMPT_VERSION, SCHEMA_FULL, SCHEMA_FULL_PACKED, SCHEMA_LEXEME, SCHEMA_VERIFY
+from lexeme_aligner.llm_prompt import (
+    PROMPT_VERSION, SCHEMA_FULL, SCHEMA_FULL_PACKED, SCHEMA_LEXEME, SCHEMA_LEXEME_VERIFY, SCHEMA_VERIFY)
 
 # --- pricing / usage ----------------------------------------------------------------------------------
 
@@ -228,6 +229,7 @@ _REF_LINE = re.compile(r"^REF (\d+)", re.M)
 _DECIDE_LINE = re.compile(r"^DECIDE: (.+)$", re.M)
 _BLOCK = re.compile(r"^\[REF (\d+) ", re.M)
 _BLOCK_DECIDE = re.compile(r"^\s+DECIDE h(\d+)\b", re.M)
+_LV_OCC = re.compile(r"^\[REF (\d+)[^\]]*\]\s+h(\d+)\s+PROPOSED", re.M)
 _H = re.compile(r"h(\d+)")
 
 
@@ -250,6 +252,11 @@ class MockProvider(Provider):
         if schema == SCHEMA_FULL_PACKED:
             results = [self._full_verse(block) for block in suffix.split("\n---\n")]
             return {"results": results}, Usage(billing="none")
+        if schema == SCHEMA_LEXEME_VERIFY:
+            lexeme = re.search(r"^LEXEME (\S+)", suffix, re.M).group(1)
+            verdicts = [{"ref": int(ref), "h_idx": int(h), "status": "confirmed", "t_idx": [],
+                        "note": "mock: proposal kept"} for ref, h in _LV_OCC.findall(suffix)]
+            return {"lexeme": lexeme, "verdicts": verdicts}, Usage(billing="none")
         ref = int(_REF_LINE.search(suffix).group(1))
         m = _DECIDE_LINE.search(suffix)
         hs = [int(x) for x in _H.findall(m.group(1))] if m else []
@@ -449,10 +456,12 @@ class ClaudeCliProvider(Provider):
     name = "cli"
 
     def __init__(self, model: str, effort: str = "low", *, max_budget_usd: float = 1.0, claude_bin: str = "claude",
-                 timeout: float = 900.0, runner: Callable = subprocess.run, concurrency: int = 2):
+                 timeout: float = 900.0, runner: Callable = subprocess.run, concurrency: int = 2,
+                 prices: dict[str, Price] | None = None):
         self.model, self.effort = model, effort
         self.max_budget_usd, self.claude_bin, self.timeout = max_budget_usd, claude_bin, timeout
         self.runner, self.concurrency = runner, concurrency
+        self.prices = prices or {}
 
     @staticmethod
     def sanitized_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -506,7 +515,14 @@ class ClaudeCliProvider(Provider):
         usage = Usage(u.get("input_tokens", 0) or 0, u.get("output_tokens", 0) or 0,
                       u.get("cache_read_input_tokens", 0) or 0, u.get("cache_creation_input_tokens", 0) or 0,
                       float(envelope.get("total_cost_usd") or 0.0), 0.0, time.time() - t0, False, "subscription")
-        usage.cost_usd_if_uncached = usage.cost_usd
+        # `total_cost_usd` already reflects whatever cache discount the CLI's own billing applies — real
+        # money, not an artifact of this route hiding caching. `cost_usd_if_uncached` is a SEPARATE
+        # diagnostic (what the same tokens would have cost with no cache at all), priced the same way
+        # AnthropicProvider prices it; previously hardcoded equal to `cost_usd` here, which made every CLI
+        # cell LOOK like caching bought nothing, when the cache_read/cache_write tokens above show it did.
+        pr = self.prices.get(self.model)
+        usage.cost_usd_if_uncached = (pr.cost(usage.input_tokens, usage.output_tokens, usage.cache_read,
+                                              usage.cache_write, cached=False) if pr else usage.cost_usd)
         return self._decode(envelope), usage
 
 
@@ -522,5 +538,6 @@ def make_provider(name: str, model: str, effort: str, *, prices: dict[str, Price
     if name == "cli":
         if batch:
             raise SystemExit("[llm] --batch is an Anthropic-API feature; the CLI route has no batch mode")
-        return ClaudeCliProvider(model, effort, max_budget_usd=max_budget_usd, concurrency=min(concurrency, 2))
+        return ClaudeCliProvider(model, effort, max_budget_usd=max_budget_usd, concurrency=min(concurrency, 2),
+                                 prices=prices)
     raise SystemExit(f"[llm] unknown provider {name!r} (anthropic | cli | mock)")

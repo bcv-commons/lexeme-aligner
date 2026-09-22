@@ -8,9 +8,10 @@ import pytest
 
 from lexeme_aligner.hebrew_source import HebToken
 from lexeme_aligner.llm_prompt import (
-    STRATEGIES, Decision, Packet, PROMPT_VERSION, derive_score, normalize, prior_for, raw_from_lexeme,
-    raw_from_verify, raw_from_verse, render_lexeme_suffix, render_prefix, render_suffix,
-    render_verse_suffix, schema_for, seed_renderings)
+    SCHEMA_FULL, STRATEGIES, Decision, Packet, PROMPT_VERSION, derive_score, derive_score_full, normalize,
+    normalize_full, prior_for, raw_from_lexeme, raw_from_verify, raw_from_verse, render_full_verse_suffix,
+    render_lexeme_suffix, render_prefix, render_suffix, render_verse_suffix, review_notes_from, schema_for,
+    seed_renderings)
 
 
 def tok(idx, surface, strong, lexeme, lemma=None, content=True, gloss=None):
@@ -220,6 +221,113 @@ def test_normalize_noncompositional_group_may_share_a_span():
 def test_normalize_declined_statuses_pass_through():
     (d,), _ = normalize([item(1, [], "unrepresented", "carried by inflection")], packet())
     assert d.status == "unrepresented" and d.note == "carried by inflection" and not d.repairs
+
+
+# ── full (two-sided partition) ────────────────────────────────────────────────────────────────────────
+
+def full_item(h_idx, t_idx, status="aligned", note="", h_head=None, t_head=None):
+    return {"h_idx": h_idx, "h_head": h_head if h_head is not None else (h_idx[0] if h_idx else None),
+            "t_idx": t_idx, "t_head": t_head if t_head is not None else (t_idx[-1] if t_idx else None),
+            "status": status, "note": note}
+
+
+def test_schema_full_requires_two_sided_fields():
+    item_schema = SCHEMA_FULL["properties"]["alignments"]["items"]
+    assert set(item_schema["required"]) == {"h_idx", "h_head", "t_idx", "t_head", "status", "note"}
+    assert item_schema["properties"]["status"]["enum"] == ["aligned", "unrepresented", "added",
+                                                            "noncompositional"]
+    assert schema_for("full") is SCHEMA_FULL
+
+
+def test_normalize_full_partitions_both_sides_including_added():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={})
+    resp = [full_item([0], [0]), full_item([1], [1, 2]), full_item([2], [3, 4]),
+            full_item([3], [], "unrepresented"), full_item([], [5, 6], "added", note="extra")]
+    ds, repairs, stats = normalize_full(resp, p)
+    assert {tuple(d.h_idx) for d in ds} == {(0,), (1,), (2,), (3,), ()}
+    assert sum(len(d.t_idx) for d in ds) == 7 and stats["target_unclaimed"] == 0 and stats["added"] == 1
+    assert not any("dropped" in r or "missing" in r for r in repairs)
+
+
+def test_normalize_full_reports_unclaimed_target_without_inventing_coverage():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={})
+    resp = [full_item([0], [0]), full_item([1], []), full_item([2], []), full_item([3], [], "unrepresented")]
+    ds, _, stats = normalize_full(resp, p)
+    assert stats["target_unclaimed"] == 6 and stats["unclaimed_t_idx"] == [1, 2, 3, 4, 5, 6]
+    assert not any(d.status == "added" for d in ds)          # never fabricated
+
+
+def test_normalize_full_missing_h_becomes_invalid_not_dropped():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={})
+    ds, repairs, _ = normalize_full([full_item([0], [0]), full_item([1], [1]), full_item([2], [2])], p)
+    by = {tuple(d.h_idx): d for d in ds}
+    assert by[(3,)].status == "invalid" and "missing from the response" in by[(3,)].repairs[0]
+    assert any("h3" in r for r in repairs)
+
+
+def test_normalize_full_added_with_h_idx_is_demoted_to_aligned():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={})
+    ds, repairs, _ = normalize_full([full_item([0], [0], "added")] +
+                                     [full_item([h], [h + 1]) for h in (1, 2, 3)], p)
+    by = {tuple(d.h_idx): d for d in ds}
+    assert by[(0,)].status == "aligned"
+    assert any("demoted to aligned" in r for r in repairs)
+
+
+def test_normalize_full_second_claim_of_a_target_position_loses():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={})
+    resp = [full_item([0], [0]), full_item([1], [0]), full_item([2], [2]),
+            full_item([3], [], "unrepresented")]
+    ds, repairs, _ = normalize_full(resp, p)
+    by = {tuple(d.h_idx): d for d in ds}
+    assert by[(1,)].status == "unrepresented" and by[(1,)].t_idx == []
+    assert any("already claimed" in r for r in repairs)
+
+
+def test_normalize_full_noncompositional_group_shares_one_span():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={})
+    resp = [full_item([0, 1], [0, 1], "noncompositional", h_head=1),
+            full_item([2], [2]), full_item([3], [], "unrepresented")]
+    ds, _, stats = normalize_full(resp, p)
+    by = {tuple(sorted(d.h_idx)): d for d in ds}
+    assert by[(0, 1)].t_idx == [0, 1] and by[(0, 1)].h_head == 1 and by[(0, 1)].is_pair
+    assert stats["target_unclaimed"] == 4
+
+
+def test_normalize_full_unknown_status_becomes_invalid():
+    p = packet("full", decide=[0], resolved={})
+    ds, _, _ = normalize_full([full_item([0], [0], "confirmed")], p)
+    assert ds[0].status == "invalid"
+
+
+def test_derive_score_full_agreement_raises_to_hi_conf():
+    assert derive_score_full(agrees=False) == 0.75
+    assert derive_score_full(agrees=True) == 0.9
+
+
+def test_render_full_verse_suffix_shows_every_token_incl_function_as_decide():
+    p = packet("full", decide=[0, 1, 2, 3], resolved={2: [3, 4]}, taken=[])
+    out = render_full_verse_suffix(p)
+    assert "DECIDE: h0, h1, h2, h3" in out
+    for h in (0, 1, 2, 3):
+        assert f"h{h} " in out
+    assert "aligner proposed -> t3 t4" in out
+    assert "*" not in out.split("TARGET:")[1].split("DECIDE:")[0]     # nothing pre-taken in `full`
+
+
+def test_render_full_verse_suffix_seeds_only_lexemes_present_in_p_seeds():
+    # h3's lexeme (grc:3588, the function word "τοῦ") is deliberately absent from p.seeds — membership in
+    # that dict, not `tok.lexeme` truthiness, gates the SEEDS line (see render_full_verse_suffix docstring).
+    p = packet("full", decide=[0, 1, 2, 3], resolved={}, taken=[],
+              seeds={"grc:1078": [("fils", 9, 0.5)]}, meta={"grc:1078": {"pos": "noun"}})
+    out = render_full_verse_suffix(p)
+    assert "SEEDS:" in out and "grc:1078" in out and "fils 9/0.50" in out
+    assert "grc:3588" not in out.split("SEEDS:")[1]
+
+
+def test_review_notes_from_tolerates_garbage():
+    assert review_notes_from({}) == []
+    assert review_notes_from({"review_notes": ["check idiom", 3, None]}) == ["check idiom"]
 
 
 # ── verify / grouped parsing, scoring, provenance ─────────────────────────────────────────────────────
@@ -559,8 +667,9 @@ def test_anthropic_route_needs_a_key(monkeypatch):
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.llm_align import (
-    Inputs, Ledger, build_packets, estimate, execute, max_tokens_for, model_short, resolve, to_records,
-    write_outputs)
+    Inputs, Ledger, _even_packs, build_packets, estimate, execute, max_tokens_for, model_short, resolve,
+    to_records, write_outputs)
+from lexeme_aligner.llm_prompt import raw_from_packed
 from lexeme_aligner.refs import encode
 from lexeme_aligner.run_pilot import VerseRec
 
@@ -615,9 +724,85 @@ def test_verses_with_no_gap_are_not_sent():
     assert pkts == []
 
 
-def test_full_packet_decides_every_content_word_with_nothing_taken():
+def test_full_packet_decides_every_source_token_with_nothing_taken():
     (p,), _, _ = build_packets("full", inputs())
-    assert p.decide == [0, 1, 2] and p.taken == [] and p.soft == [4, 5] and p.allowed == [0, 1, 2, 3] and p.resolved == {}
+    assert p.decide == [0, 1, 2, 3] and p.taken == [] and p.soft == [4, 5] and p.allowed == [0, 1, 2, 3]
+    assert p.resolved == {0: [0]}      # the base chain's own span for h0 — an EVIDENCE hint, not a taken state
+
+
+def test_full_packet_seeds_content_lexemes_only_not_function_words():
+    (p,), _, _ = build_packets("full", inputs())
+    # h0/h1/h2 = grc:1/grc:2/grc:3 (content); h3 = grc:588 (function, "τό")
+    assert set(p.seeds) == {"grc:1", "grc:2", "grc:3"}                 # grc:588 never even attempted
+    assert p.seeds["grc:2"] == [("beta", 9, 0.9)] and p.seeds["grc:1"] == []      # no vocab -> empty, not absent
+    assert set(p.meta) == {"grc:1", "grc:2", "grc:3"}                  # meta (pos/translit) matches the same scope
+    text = render_suffix(p)
+    assert "SEEDS:" in text and "grc:2" in text and "beta 9/0.90" in text
+    assert "grc:588" not in text.split("SEEDS:")[1]                    # the function word never gets a SEEDS line
+
+
+# ── packed `full` calls ───────────────────────────────────────────────────────────────────────────────
+
+def test_even_packs_splits_evenly_not_lopsided():
+    assert [len(g) for g in _even_packs(list(range(75)), 50)] == [38, 37]     # not the lopsided 50+25
+    assert [len(g) for g in _even_packs(list(range(4)), 1)] == [1, 1, 1, 1]   # cap<=1: identity split
+    assert _even_packs([], 5) == []
+
+
+def test_build_packets_packs_full_evenly_but_base_stays_per_verse():
+    inp = inputs(recs=[verse(1), verse(2), verse(3)])
+    packets, base, stats = build_packets("full", inp, pack_size=2)
+    assert stats["packs"] == 2 and [len(p.members) for p in packets] == [2, 1]     # 3 verses, cap 2 -> 2+1
+    assert all(p.strategy == "full" and p.members for p in packets)
+    assert set(base) == {encode("MAT", 1, v) for v in (1, 2, 3)}                   # unaffected by packing
+
+
+def test_build_packets_pack_size_one_is_the_identity_unpacked_shape():
+    inp = inputs(recs=[verse(1), verse(2)])
+    packets, _, stats = build_packets("full", inp, pack_size=1)
+    assert "packs" not in stats and all(not p.members for p in packets)           # exactly today's behaviour
+
+
+def test_render_packed_suffix_shows_every_member_and_states_the_wrapper_once():
+    inp = inputs(recs=[verse(1), verse(2)])
+    (pack,), _, _ = build_packets("full", inp, pack_size=5)
+    text = render_suffix(pack)
+    assert text.count("SOURCE:") == 2 and text.count("Return ONE object") == 1
+    assert '"results"' in text and "2 objects" in text
+
+
+def test_raw_from_packed_keys_by_each_items_own_ref():
+    resp = {"results": [
+        {"ref": 1, "alignments": [{"h_idx": [0]}], "review_notes": []},
+        {"ref": 2, "alignments": [{"h_idx": [1]}], "review_notes": []},
+        "garbage", {"no_ref": True}]}
+    got = raw_from_packed(resp)
+    assert set(got) == {1, 2} and got[1] == [{"h_idx": [0]}] and got[2] == [{"h_idx": [1]}]
+    assert raw_from_packed({}) == {}
+
+
+def test_resolve_reassembles_a_packed_response_per_verse():
+    inp = inputs(recs=[verse(1), verse(2)])
+    (pack,), base, _ = build_packets("full", inp, pack_size=5)
+    ref1, ref2 = encode("MAT", 1, 1), encode("MAT", 1, 2)
+    resp = {"results": [
+        {"ref": ref1, "alignments": [{"h_idx": [1], "h_head": 1, "t_idx": [2], "t_head": 2,
+                                      "status": "aligned", "note": ""}], "review_notes": []},
+        {"ref": ref2, "alignments": [{"h_idx": [1], "h_head": 1, "t_idx": [4], "t_head": 4,
+                                      "status": "aligned", "note": ""}], "review_notes": []}]}
+    decisions, _, _ = resolve([(pack, resp, None)], base, "full")
+    assert set(decisions) == {ref1, ref2}
+    assert next(d for d in decisions[ref1] if d.h_idx == [1]).t_idx == [2]
+    assert next(d for d in decisions[ref2] if d.h_idx == [1]).t_idx == [4]
+
+
+def test_max_tokens_for_scales_with_pack_size_and_caps():
+    inp = inputs(recs=[verse(i) for i in range(1, 5)])
+    (pack,), _, _ = build_packets("full", inp, pack_size=10)          # 4 verses -> one pack of 4
+    assert max_tokens_for(pack) == 8192 * 4
+    inp2 = inputs(recs=[verse(i) for i in range(1, 20)])
+    (huge,), _, _ = build_packets("full", inp2, pack_size=20)
+    assert max_tokens_for(huge) == 64000                              # capped, not 8192*19
 
 
 def test_verify_packet_frees_the_proposals_own_positions_and_allows_them_even_if_function_words():
@@ -736,7 +921,7 @@ def test_resolve_to_records_write_and_the_scorer_reads_it_back(tmp_path):
         {"h_idx": 1, "t_idx": [2], "status": "aligned", "note": "picked beta"},
         {"h_idx": 2, "t_idx": [], "status": "unrepresented", "note": "carried by inflection"}]}, None)]
     inp = inputs()
-    decisions, tally = resolve(results, base, "gap")
+    decisions, tally, _ = resolve(results, base, "gap")
     assert tally["aligned"] == 1 and tally["unrepresented"] == 1
     by_book = to_records(decisions, base, "gap", inp, {"model": "m", "run_id": "r"})
     files = write_outputs(by_book, tmp_path, "xx.gap.m")
@@ -757,7 +942,7 @@ def test_agreement_with_another_method_raises_the_score_to_hi_conf(tmp_path):
     results = [(pkts[0], {"ref": REF, "alignments": [
         {"h_idx": 1, "t_idx": [1], "status": "aligned", "note": ""},
         {"h_idx": 2, "t_idx": [2], "status": "aligned", "note": ""}]}, None)]
-    decisions, _ = resolve(results, base, "gap")
+    decisions, _, _ = resolve(results, base, "gap")
     # h1 -> t1 is a function-word-only span here (soft), so it is repaired away; h2 -> t2 matches others[(REF, 2)]
     by = to_records(decisions, base, "gap", inputs(), {})
     (pair,) = by["MAT"][0]["pairs"]
@@ -766,7 +951,7 @@ def test_agreement_with_another_method_raises_the_score_to_hi_conf(tmp_path):
 
 def test_failed_calls_leave_invalid_decisions_and_no_pairs():
     pkts, base, _ = build_packets("gap", inputs())
-    decisions, tally = resolve([(pkts[0], None, "api: boom")], base, "gap")
+    decisions, tally, _ = resolve([(pkts[0], None, "api: boom")], base, "gap")
     assert tally["invalid"] == 2 and not any(d.is_pair for d in decisions[REF])
     assert all(d.repairs == ["call failed"] for d in decisions[REF])
 
@@ -782,7 +967,7 @@ def test_grouped_answers_for_one_verse_are_merged_and_conflicts_resolved_across_
         h = g.members[0].decide[0]
         results.append((g, {"lexeme": g.lexeme, "verses": [
             {"ref": REF, "h_idx": h, "t_idx": [2], "status": "aligned", "note": ""}]}, None))
-    decisions, tally = resolve(results, base, "lexeme-grouped")
+    decisions, tally, _ = resolve(results, base, "lexeme-grouped")
     kept = {d.h_idx: d.t_idx for d in decisions[REF]}
     assert kept == {1: [2], 2: []} and tally["conflict_dropped"] == 1
 

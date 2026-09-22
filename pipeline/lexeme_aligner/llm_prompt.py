@@ -23,10 +23,10 @@ from typing import Iterable
 from lexeme_aligner.eflomal_align import _longest_contiguous
 from lexeme_aligner.hebrew_source import HebToken
 
-PROMPT_VERSION = "llm-align-v1"
+PROMPT_VERSION = "llm-align-v3"      # v3: `full` also carries SEEDS (content lexemes only)
 
 STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "verify")
-SEEDED = ("gap-seeded", "lexeme-grouped")            # strategies that carry the whole-language known-surface hints
+SEEDED = ("full", "gap-seeded", "lexeme-grouped")    # strategies that carry the whole-language known-surface hints
 
 ALIGNED = ("aligned", "noncompositional")            # statuses that become a pair
 _DECLINED = ("unrepresented", "rejected")            # statuses that become an `llm_skipped` entry
@@ -68,9 +68,51 @@ SCHEMA_VERIFY = {
                            "status": {"type": "string", "enum": ["confirmed", "corrected", "rejected"]},
                            "t_idx": _T_IDX, "note": {"type": "string"}}}}}}
 
+# `full` — the ASV-shaped whole-verse contract (port of example/American-Standard-Version-Bible-Alignment-
+# Data's shape, minus its English-specific rules): a TWO-SIDED partition. Every source id appears in exactly
+# one alignment's `h_idx` (singly, or grouped for `noncompositional`); every target id appears in exactly one
+# alignment's `t_idx` — either claimed by a source group (`aligned`/`noncompositional`), or, when the
+# translation supplies a word no listed source id licenses, by an `added` entry (`h_idx: []`). A source id with
+# no defensible target is `unrepresented` (`t_idx: []`). `h_head`/`t_head` name the single id that carries the
+# group's part of speech, for groups bigger than one.
+_STATUS_FULL = {"type": "string", "enum": ["aligned", "unrepresented", "added", "noncompositional"]}
+_INT_OR_NULL = {"type": ["integer", "null"]}
+
+SCHEMA_FULL = {
+    "type": "object", "additionalProperties": False, "required": ["ref", "alignments", "review_notes"],
+    "properties": {
+        "ref": {"type": "integer"},
+        "alignments": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["h_idx", "h_head", "t_idx", "t_head", "status", "note"],
+            "properties": {
+                "h_idx": {"type": "array", "items": {"type": "integer"}},
+                "h_head": _INT_OR_NULL,
+                "t_idx": _T_IDX,
+                "t_head": _INT_OR_NULL,
+                "status": _STATUS_FULL,
+                "note": {"type": "string"}}}},
+        "review_notes": {"type": "array", "items": {"type": "string"}}}}
+
 
 def schema_for(strategy: str) -> dict:
-    return {"lexeme-grouped": SCHEMA_LEXEME, "verify": SCHEMA_VERIFY}.get(strategy, SCHEMA_VERSE)
+    return {"lexeme-grouped": SCHEMA_LEXEME, "verify": SCHEMA_VERIFY,
+            "full": SCHEMA_FULL}.get(strategy, SCHEMA_VERSE)
+
+
+def wrap_schema(item_schema: dict) -> dict:
+    """The item schema, inside one ordered `results` array — the SAME per-verse contract, just a container.
+    A packed request asks for the same objects a single request asks for; relaxing anything here (a looser
+    field, a shared field hoisted out) would be a second contract, and the whole point of packing is that
+    there is only ever one (port of the ASV project's `packing.wrap_schema`, generalised to a dict schema
+    instead of a schema string). Deliberately no `minItems`/`maxItems` — unevenly supported across routes,
+    and would only make the guarantee look stronger than it is; the count is stated in the prompt and
+    checked by the caller instead (a verse missing from `results` is reported invalid, not guessed at)."""
+    return {"type": "object", "additionalProperties": False, "required": ["results"],
+            "properties": {"results": {"type": "array", "items": item_schema}}}
+
+
+SCHEMA_FULL_PACKED = wrap_schema(SCHEMA_FULL)
 
 
 # --- packet -------------------------------------------------------------------------------------------
@@ -115,6 +157,23 @@ class Decision:
     @property
     def is_pair(self) -> bool:
         return self.status in ALIGNED and bool(self.t_idx)
+
+
+@dataclass
+class FullDecision:
+    """One entry of a validated `full`-strategy (two-sided) response. `h_idx` can hold more than one id only
+    for `noncompositional`; `added` always has `h_idx == []`; `unrepresented` always has `t_idx == []`."""
+    h_idx: list[int]
+    h_head: int | None
+    t_idx: list[int]
+    t_head: int | None
+    status: str                                # aligned | noncompositional | unrepresented | added | invalid
+    note: str = ""
+    repairs: list[str] = field(default_factory=list)
+
+    @property
+    def is_pair(self) -> bool:
+        return self.status in ALIGNED and bool(self.h_idx) and bool(self.t_idx)
 
 
 # --- the stable prefix --------------------------------------------------------------------------------
@@ -167,10 +226,37 @@ only the source words the packet lists after `DECIDE:`. Everything else in the p
 
 _STRATEGY = {
     "full": """\
-## Strategy: full
-Nothing in this verse is aligned yet. Every content word listed after `DECIDE:` is yours. Rows marked `fn`
-are context only. No positions are marked `*`; you must avoid claiming one position twice yourself.
-Return {"ref": <int>, "alignments": [{"h_idx", "t_idx", "status", "note"}, ...]}, one entry per DECIDE word.
+## Strategy: full — whole-verse, two-sided partition
+Nothing in this verse is pre-decided. EVERY listed `h` (content and function words both) must appear in
+exactly one alignment entry, and EVERY `t` position must appear in exactly one entry too. This is stricter
+than the other strategies: you are not just choosing spans for a subset, you are partitioning the whole verse.
+A line marked `(aligner proposed -> t..)` is a statistical aligner's own guess for that word, given as
+evidence only — confirm it, correct it, or ignore it; it is never binding and never marks a position taken.
+A DECIDE content word's lexeme may also carry a SEEDS line (renderings attested elsewhere in this
+language, by count/share, as in the seeded strategies) — evidence for consistency, not a command; the
+verse's own words and word order still decide the answer when they point elsewhere. Function words never
+carry SEEDS (their renderings are formulaic, not worth showing).
+
+Four statuses:
+- `aligned` — one source id, its target span. Usual case.
+- `noncompositional` — two or more source ids fused into one target span that cannot be split (a light-verb
+  construction, an idiom). List every id it covers in `h_idx`, name the syntactic head in `h_head`, give all
+  of them the SAME `t_idx`.
+- `unrepresented` — a source id (typically a function word already carried by an inflection, or a light word
+  the translation omits) has no defensible target span. `t_idx: []`.
+- `added` — a target word that no source id licenses (a supplied word the translation needs but nothing in
+  the original states outright: an inserted "the", a connective the translator added for flow). `h_idx: []`,
+  `h_head: null`.
+
+For a single-id entry, set `h_head` to that same id and `t_head` to the one target id that best carries the
+word's part of speech (the noun in a noun phrase, the verb in a verb phrase) — usually the last content word
+of the span. Every source id from `DECIDE:` must be used in `h_idx` across the array exactly once (never
+split across two entries, never omitted, never invented). Every target id from 0 to the last one shown must
+appear in exactly one entry's `t_idx` — if you truly cannot place one, still record it as its own `added`
+entry with a `note` explaining why, rather than leaving it out. `review_notes` is a place for anything you
+want a reviewer to double-check (ambiguous idiom, a variant reading, a rare word) — usually empty (`[]`).
+Return {"ref": <int>, "alignments": [{"h_idx": [...], "h_head": <int|null>, "t_idx": [...],
+"t_head": <int|null>, "status", "note"}, ...], "review_notes": [...]}.
 """,
     "gap": """\
 ## Strategy: gap
@@ -250,6 +336,39 @@ ANSWER: {"ref": 1001001, "verdicts": [
  {"h_idx": 3, "status": "confirmed", "t_idx": [6], "note": ""},
  {"h_idx": 4, "status": "corrected", "t_idx": [9], "note": "proposal took the article t8, not the noun"}]}
 """,
+    "full": """\
+REF 1001001  GEN 1:1  (English, edition example)
+SOURCE:
+  h0 בְּ prep "in" (function)  DECIDE
+  h1 רֵאשִׁית H7225 noun "beginning"  DECIDE  (aligner proposed -> t1, t2)
+  h2 בָּרָא H1254 verb "to create"  DECIDE  (aligner proposed -> t4)
+  h3 אֱלֹהִים H0430 noun "God"  DECIDE
+  h4 שָׁמַיִם H8064 noun "heaven"  DECIDE
+  h5 וְ conj "and" (function)  DECIDE
+  h6 אֶרֶץ H0776 noun "earth"  DECIDE
+TARGET:
+  t0:In t1:the~ t2:beginning t3:God t4:created t5:the~ t6:heavens t7:and~ t8:the~ t9:earth
+DECIDE: h0, h1, h2, h3, h4, h5, h6
+ANSWER: {"ref": 1001001, "alignments": [
+ {"h_idx": [0], "h_head": 0, "t_idx": [0], "t_head": 0, "status": "aligned", "note": ""},
+ {"h_idx": [1], "h_head": 1, "t_idx": [1, 2], "t_head": 2, "status": "aligned", "note": ""},
+ {"h_idx": [2], "h_head": 2, "t_idx": [4], "t_head": 4, "status": "aligned", "note": "aligner's proposal confirmed"},
+ {"h_idx": [3], "h_head": 3, "t_idx": [3], "t_head": 3, "status": "aligned", "note": ""},
+ {"h_idx": [4], "h_head": 4, "t_idx": [5, 6], "t_head": 6, "status": "aligned", "note": "plural noun"},
+ {"h_idx": [5], "h_head": 5, "t_idx": [7], "t_head": 7, "status": "aligned", "note": ""},
+ {"h_idx": [6], "h_head": 6, "t_idx": [8, 9], "t_head": 9, "status": "aligned", "note": ""}],
+ "review_notes": []}
+Every h0-h6 appears exactly once; every t0-t9 appears exactly once. Three more cases, shown in isolation
+(not part of this verse): a light-verb idiom realized by one fused span —
+ {"h_idx": [7, 8], "h_head": 8, "t_idx": [11, 12], "t_head": 12, "status": "noncompositional",
+  "note": "\\"gave answer\\" for h7 (gave) + h8 (answer), a fixed idiom for \\"answered\\""}
+— a source word the translation drops (its meaning was already carried by an inflection kept elsewhere) —
+ {"h_idx": [9], "h_head": 9, "t_idx": [], "t_head": null, "status": "unrepresented",
+  "note": "resumptive pronoun; ASV's verb ending already carries it"}
+— and a target word the translation supplies that nothing in the source states —
+ {"h_idx": [], "h_head": null, "t_idx": [14], "t_head": null, "status": "added",
+  "note": "translator-supplied \\"therefore\\" for English flow"}
+""",
 }
 
 
@@ -259,8 +378,7 @@ def render_prefix(publish_iso: str, lang_name: str, strategy: str, conventions_m
     silently turn every request into a cold write."""
     if strategy not in STRATEGIES:
         raise ValueError(f"unknown strategy {strategy!r}; expected one of {STRATEGIES}")
-    example = _EXAMPLES["lexeme-grouped" if strategy == "lexeme-grouped" else
-                        "verify" if strategy == "verify" else "verse"]
+    example = _EXAMPLES.get(strategy, _EXAMPLES["verse"])
     return "\n".join([
         _CONTRACT.format(version=PROMPT_VERSION, lang_name=lang_name, publish_iso=publish_iso),
         _STRATEGY[strategy],
@@ -369,6 +487,32 @@ def render_verse_suffix(p: Packet) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_full_verse_suffix(p: Packet) -> str:
+    """The `full`-strategy user message: every source token is DECIDE (function words included — nothing is
+    context-only), every target token is free (nothing is `*` taken). `p.resolved` still carries the base
+    statistical chain's own proposal per h_idx, but here it is shown as a non-binding EVIDENCE hint on the
+    DECIDE line itself, never as an already-settled state. SEEDS (v3) cover CONTENT lexemes only — a
+    function word's "known renderings" are formulaic and not worth the tokens; `p.seeds` only has keys for
+    the lexemes actually worth seeding (see `_verse_packet`'s content-only `seed_scope`), so membership in
+    that dict, not truthiness of `tok.lexeme`, is what decides whether a lexeme gets a SEEDS line."""
+    lines = [_header(p), "SOURCE:"]
+    decide = set(p.decide)
+    for tok in p.heb:
+        ev = p.resolved.get(tok.idx)
+        state = f"  DECIDE  (aligner proposed -> {_fmt_pos(ev)})" if ev else "  DECIDE"
+        lines.append(_source_row(tok, state, p.meta.get(tok.lexeme or "", {}).get("pos")))
+    lines += ["TARGET:", _target_line(p), "DECIDE: " + ", ".join(f"h{h}" for h in p.decide)]
+    if p.seeds:
+        present = _present(p)
+        lines.append("SEEDS:")
+        seen: set[str] = set()
+        for tok in p.heb:
+            if tok.idx in decide and tok.lexeme in p.seeds and tok.lexeme not in seen:
+                seen.add(tok.lexeme)
+                lines.append(_seed_line(tok.lexeme, p, present))
+    return "\n".join(lines) + "\n"
+
+
 def _neighbourhood(p: Packet, h_idx: int, k: int = 2) -> str:
     """The k content words either side of a DECIDE word, each with its already-aligned target word."""
     content = [t for t in p.heb if (t.strong and t.is_content) or t.idx == h_idx]
@@ -402,8 +546,36 @@ def render_lexeme_suffix(p: Packet) -> str:
     return "\n".join(lines)
 
 
+def render_packed_suffix(members: list[Packet]) -> str:
+    """Several complete verse tasks, one wrapper (the packed-call mode; port of the ASV project's
+    `packing.packed_prompt`, adapted to `full`'s per-verse body). Each member keeps its own
+    REF/SOURCE/TARGET/DECIDE/SEEDS block exactly as a single-verse `full` call renders it — nothing about a
+    verse's own task changes when it travels with others — and the wrapper instruction is stated ONCE at
+    the end, not once per verse, so it never contradicts a per-verse rule."""
+    bodies = [render_full_verse_suffix(m) for m in members]
+    return ("\n---\n".join(bodies) +
+            f"\n\nReturn ONE object: {{\"results\": [<{len(members)} objects, one per REF above, in the SAME "
+            f"order, each the usual {{\"ref\", \"alignments\", \"review_notes\"}} shape>]}}.\n")
+
+
+def raw_from_packed(resp: dict) -> dict[int, list[dict]]:
+    """A packed `full` response -> {ref: alignments}. Each item carries its own `ref` (the ordinary `full`
+    schema requires it), so a verse the response reordered, duplicated or omitted is identified correctly —
+    or correctly reported missing by `normalize_full`'s existing "missing from the response" path — rather
+    than matched by position in the array."""
+    out: dict[int, list[dict]] = {}
+    for item in (resp or {}).get("results", []):
+        if isinstance(item, dict) and isinstance(item.get("ref"), int):
+            out[item["ref"]] = raw_from_verse(item)
+    return out
+
+
 def render_suffix(p: Packet) -> str:
-    return render_lexeme_suffix(p) if p.strategy == "lexeme-grouped" else render_verse_suffix(p)
+    if p.strategy == "lexeme-grouped":
+        return render_lexeme_suffix(p)
+    if p.strategy == "full":
+        return render_packed_suffix(p.members) if p.members else render_full_verse_suffix(p)
+    return render_verse_suffix(p)
 
 
 # --- seeds --------------------------------------------------------------------------------------------
@@ -450,6 +622,101 @@ def raw_from_verify(resp: dict, packet: Packet) -> list[dict]:
         else:
             out.append({"h_idx": a["h_idx"], "t_idx": [], "status": "rejected", "note": a.get("note", "")})
     return out
+
+
+def review_notes_from(resp: dict) -> list[str]:
+    return [str(n) for n in (resp or {}).get("review_notes", []) if isinstance(n, str)]
+
+
+def normalize_full(raw_items: list[dict], packet: Packet, *, allow_scattered: bool = False
+                   ) -> tuple[list[FullDecision], list[str], dict]:
+    """Validate a `full`-strategy (two-sided) response. Guarantees: every id in `packet.decide` is claimed by
+    exactly one entry's `h_idx` (singly, or as part of a `noncompositional` group, or synthesized as
+    `invalid` when the model never mentioned it); a kept target position is claimed by at most one entry; a
+    span is contiguous unless `allow_scattered`. Unlike `normalize`, this validates BOTH sides — a target
+    position no entry claims is reported in `stats["target_unclaimed"]`, never silently invented into an
+    `added` entry (that would credit the model with coverage it did not actually produce)."""
+    decide = set(packet.decide)
+    n_t = len(packet.toks)
+    claimed_h: dict[int, int] = {}
+    claimed_t: dict[int, int] = {}
+    decisions: list[FullDecision] = []
+    packet_repairs: list[str] = []
+
+    for item in raw_items:
+        raw_h = item.get("h_idx")
+        hs = sorted({h for h in (raw_h if isinstance(raw_h, list) else []) if isinstance(h, int)})
+        status = item.get("status") if item.get("status") in ("aligned", "unrepresented", "added",
+                                                               "noncompositional") else "invalid"
+        note = str(item.get("note") or "").strip()[:200]
+        repairs: list[str] = []
+        unknown = [h for h in hs if h not in decide]
+        if unknown:
+            repairs.append(f"dropped unknown h_idx {unknown}")
+            hs = [h for h in hs if h in decide]
+        dup = [h for h in hs if h in claimed_h]
+        if dup:
+            repairs.append(f"dropped h_idx already claimed by another entry {dup}")
+            hs = [h for h in hs if h not in claimed_h]
+        if status == "invalid":
+            repairs.append(f"unknown status {item.get('status')!r}")
+        if status == "added" and hs:
+            repairs.append("`added` must carry no h_idx; entry demoted to aligned")
+            status = "aligned"
+        if status != "added" and not hs:
+            packet_repairs.append("dropped an entry left with no usable h_idx")
+            continue
+
+        raw_t = item.get("t_idx")
+        ts = sorted({t for t in (raw_t if isinstance(raw_t, list) else []) if isinstance(t, int)})
+        valid_t = [t for t in ts if 0 <= t < n_t]
+        if len(valid_t) != len(ts):
+            repairs.append("removed out-of-range t_idx " + str(sorted(set(ts) - set(valid_t))))
+        kept_t = []
+        for t in valid_t:
+            if t in claimed_t:
+                repairs.append(f"t{t} already claimed by another entry")
+            else:
+                kept_t.append(t)
+        if kept_t and not allow_scattered:
+            run = _longest_contiguous(kept_t, set())
+            if run != kept_t:
+                repairs.append("trimmed to the longest contiguous run")
+                kept_t = run
+        if status == "unrepresented" and kept_t:
+            repairs.append("`unrepresented` carried t_idx; cleared")
+            kept_t = []
+        if status in ("aligned", "noncompositional") and not kept_t:
+            repairs.append("no usable target positions; demoted to unrepresented")
+            status = "unrepresented"
+        if status == "added" and not kept_t:
+            packet_repairs.append("dropped an empty `added` entry")
+            continue
+
+        h_head = item.get("h_head") if item.get("h_head") in hs else (hs[0] if hs else None)
+        t_head = item.get("t_head") if item.get("t_head") in kept_t else (kept_t[-1] if kept_t else None)
+        d = FullDecision(hs, h_head, kept_t, t_head, status, note, repairs)
+        idx = len(decisions)
+        decisions.append(d)
+        for h in hs:
+            claimed_h[h] = idx
+        for t in kept_t:
+            claimed_t[t] = idx
+        packet_repairs.extend(f"h{hs or '[]'}/t{kept_t}: {r}" for r in repairs)
+
+    for h in sorted(decide - set(claimed_h)):
+        decisions.append(FullDecision([h], h, [], None, "invalid", "", ["missing from the response"]))
+        packet_repairs.append(f"h{h}: missing from the response")
+
+    unclaimed_t = sorted(set(range(n_t)) - set(claimed_t))
+    stats = {"target_unclaimed": len(unclaimed_t), "unclaimed_t_idx": unclaimed_t,
+             "added": sum(1 for d in decisions if d.status == "added")}
+    return decisions, packet_repairs, stats
+
+
+def derive_score_full(agrees: bool, base: float = 0.75, agree_score: float = 0.9) -> float:
+    """Same reasoning as `derive_score`, for `FullDecision`s (no verify `tag` to check)."""
+    return agree_score if agrees else base
 
 
 def normalize(raw_items: list[dict], packet: Packet, *, allow_scattered: bool = False

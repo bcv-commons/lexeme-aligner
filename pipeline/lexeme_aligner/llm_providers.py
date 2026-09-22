@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from lexeme_aligner.llm_prompt import PROMPT_VERSION, SCHEMA_LEXEME, SCHEMA_VERIFY
+from lexeme_aligner.llm_prompt import PROMPT_VERSION, SCHEMA_FULL, SCHEMA_FULL_PACKED, SCHEMA_LEXEME, SCHEMA_VERIFY
 
 # --- pricing / usage ----------------------------------------------------------------------------------
 
@@ -247,12 +247,17 @@ class MockProvider(Provider):
     def complete(self, prefix: str, suffix: str, schema: dict, *, max_tokens: int) -> tuple[dict, Usage]:
         if schema == SCHEMA_LEXEME:
             return self._lexeme(suffix), Usage(billing="none")
+        if schema == SCHEMA_FULL_PACKED:
+            results = [self._full_verse(block) for block in suffix.split("\n---\n")]
+            return {"results": results}, Usage(billing="none")
         ref = int(_REF_LINE.search(suffix).group(1))
         m = _DECIDE_LINE.search(suffix)
         hs = [int(x) for x in _H.findall(m.group(1))] if m else []
         if schema == SCHEMA_VERIFY:
             return {"ref": ref, "verdicts": [{"h_idx": h, "status": "confirmed", "t_idx": [],
                                               "note": "mock: proposal kept"} for h in hs]}, Usage(billing="none")
+        if schema == SCHEMA_FULL:
+            return self._full_verse(suffix), Usage(billing="none")
         alignments = []
         for h in hs:
             span = self.oracle(ref, h)
@@ -260,6 +265,22 @@ class MockProvider(Provider):
                                "status": "aligned" if span else "unrepresented",
                                "note": "mock:oracle" if span else "mock:no oracle answer"})
         return {"ref": ref, "alignments": alignments}, Usage(billing="none")
+
+    def _full_verse(self, block: str) -> dict:
+        """One `full`-shaped item from one verse's rendered block — shared by a single-verse `SCHEMA_FULL`
+        call and each member of a packed `SCHEMA_FULL_PACKED` call (`block` is one `\\n---\\n`-separated
+        chunk of the packed suffix, textually identical to a standalone `full` suffix)."""
+        ref = int(_REF_LINE.search(block).group(1))
+        m = _DECIDE_LINE.search(block)
+        hs = [int(x) for x in _H.findall(m.group(1))] if m else []
+        alignments = []
+        for h in hs:
+            span = self.oracle(ref, h)
+            alignments.append({"h_idx": [h], "h_head": h, "t_idx": list(span or []),
+                               "t_head": (span[-1] if span else None),
+                               "status": "aligned" if span else "unrepresented",
+                               "note": "mock:oracle" if span else "mock:no oracle answer"})
+        return {"ref": ref, "alignments": alignments, "review_notes": []}
 
     def _lexeme(self, suffix: str) -> dict:
         lexeme = re.search(r"^LEXEME (\S+)", suffix, re.M).group(1)

@@ -45,8 +45,9 @@ from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import LEX_ROOT, LLM_CACHE, OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.llm_prompt import (
-    ALIGNED, PROMPT_VERSION, SEEDED, STRATEGIES, Decision, Packet, derive_score, normalize, prior_for,
-    raw_from_lexeme, raw_from_verify, raw_from_verse, render_prefix, render_suffix, schema_for, seed_renderings)
+    ALIGNED, PROMPT_VERSION, SCHEMA_FULL_PACKED, SEEDED, STRATEGIES, Decision, FullDecision, Packet,
+    derive_score, derive_score_full, normalize, normalize_full, prior_for, raw_from_lexeme, raw_from_packed,
+    raw_from_verify, raw_from_verse, render_prefix, render_suffix, schema_for, seed_renderings)
 from lexeme_aligner.llm_providers import (
     Job, PRICES, Provider, ProviderError, ResponseCache, Usage, cache_key, load_prices, make_provider,
     supports_effort)
@@ -153,7 +154,12 @@ def _meta(lexemes, inp: Inputs) -> dict[str, dict]:
 def _verse_packet(strategy: str, r: VerseRec, inp: Inputs, decide: list[int], allowed, soft, taken,
                   resolved, proposed=None, top_k: int = 6) -> Packet:
     toks_by_idx = {t.idx: t for t in r.heb}
-    lexemes = sorted({toks_by_idx[h].lexeme for h in decide if toks_by_idx[h].lexeme})
+    # `full` decides function words too (the two-sided partition needs them), but a function word's "known
+    # renderings" are formulaic and not worth the tokens — restrict SEEDS/meta to CONTENT lexemes there,
+    # same as every other strategy already does implicitly (their `decide` is content-only to begin with).
+    seed_scope = ([h for h in decide if toks_by_idx[h].strong and toks_by_idx[h].is_content]
+                  if strategy == "full" else decide)
+    lexemes = sorted({toks_by_idx[h].lexeme for h in seed_scope if toks_by_idx[h].lexeme})
     seeds = ({lx: seed_renderings(lx, inp.vocab, top_k) for lx in lexemes}
              if strategy in SEEDED else {})
     return Packet(strategy, encode(r.book, r.ch, r.v), r.book, r.ch, r.v, inp.label, list(r.toks), r.heb,
@@ -161,11 +167,30 @@ def _verse_packet(strategy: str, r: VerseRec, inp: Inputs, decide: list[int], al
                   seeds, _meta(lexemes, inp))
 
 
-def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: int = 6
+def _even_packs(items: list, cap: int) -> list[list]:
+    """`items` split into as few, as evenly-sized groups as `cap` allows (75 items at cap 50 -> 38+37, not
+    the lopsided 50+25 a fixed-size cut leaves) — so every packed call is about as much work as every other,
+    and the size actually sent is the size that was sized for. `cap` <= 1 is the identity split (one item
+    per group), so callers don't need a separate unpacked code path."""
+    if cap <= 1 or not items:
+        return [[x] for x in items]
+    count = -(-len(items) // cap)                 # ceil division
+    base, extra = divmod(len(items), count)
+    groups, start = [], 0
+    for i in range(count):
+        size = base + (1 if i < extra else 0)
+        groups.append(items[start:start + size])
+        start += size
+    return groups
+
+
+def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: int = 6, pack_size: int = 1
                   ) -> tuple[list[Packet], dict[int, Packet], dict]:
     """(packets to send, base verse packet per ref, stats). The base packet per ref (decide = every token the
     strategy owns in that verse) is what responses are validated against, including for `lexeme-grouped`
-    where one verse can be answered across several calls."""
+    where one verse can be answered across several calls, and for a packed `full` call (`pack_size > 1`)
+    where several verses are answered by ONE call — `base` stays ref-keyed either way, only what gets SENT
+    changes."""
     if strategy not in STRATEGIES:
         raise ValueError(f"unknown strategy {strategy!r}")
     stats = collections.Counter()
@@ -180,8 +205,15 @@ def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: in
         n = len(r.toks)
         allpos = set(range(n))
         if strategy == "full":
+            # Two-sided partition (the ASV-shaped contract): EVERY source token is decided — content and
+            # function words both, unlike every other strategy — and NOTHING is pre-taken; the base chain's
+            # own union span per h_idx is carried in `resolved` purely as an EVIDENCE hint (see
+            # render_full_verse_suffix), never as a fixed/taken state.
+            decide_all = sorted(t.idx for t in r.heb)
             func = {j for j, w in enumerate(r.toks) if inp.is_function(w)}
-            base[ref] = _verse_packet(strategy, r, inp, sorted(content), allpos - func, func, set(), {}, top_k=top_k)
+            evidence = dict(inp.spans.get(ref, {}))
+            base[ref] = _verse_packet(strategy, r, inp, decide_all, allpos - func, func, set(), evidence,
+                                      top_k=top_k)
         elif strategy == "verify":
             low = {h: v for h, v in inp.low_conf.get(ref, {}).items() if h in content}
             if not low:
@@ -209,6 +241,12 @@ def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: in
     stats["verses_sent"] = len(base)
     stats["tokens_to_decide"] = sum(len(p.decide) for p in base.values())
     ordered = [base[k] for k in sorted(base)]
+    if strategy == "full" and pack_size > 1:
+        packs = _even_packs(ordered, pack_size)
+        stats["packs"] = len(packs)
+        return ([Packet("full", 0, "", 0, 0, inp.label, [], [], [], [], [], [], members=pack)
+                 for pack in packs],
+                base, dict(stats))
     if strategy != "lexeme-grouped":
         return ordered, base, dict(stats)
 
@@ -257,7 +295,10 @@ class Ledger:
 
 
 def max_tokens_for(p: Packet) -> int:
-    return 8192 if p.strategy in ("full", "lexeme-grouped") else 4096
+    base = 8192 if p.strategy in ("full", "lexeme-grouped") else 4096
+    if p.strategy == "full" and p.members:                 # packed: N verses' worth of JSON in one response
+        return min(base * len(p.members), 64000)
+    return base
 
 
 def execute(packets: list[Packet], provider: Provider, cache: ResponseCache, prefix: str, schema: dict,
@@ -325,8 +366,10 @@ def _finish(results, cache, provider, i, packet, job, resp, usage, err, ledger) 
 
 # --- turning answers into output ----------------------------------------------------------------------
 def resolve(results, base: dict[int, Packet], strategy: str, *, allow_scattered: bool = False
-            ) -> tuple[dict[int, list[Decision]], collections.Counter]:
-    """Per verse: gather every raw answer (in call order), validate against the base packet, return the Decisions."""
+            ) -> tuple[dict[int, list], collections.Counter, dict[int, dict]]:
+    """Per verse: gather every raw answer (in call order), validate against the base packet, return the
+    Decisions (or, for `full`, FullDecisions) plus a decision tally and — `full` only — per-verse two-sided
+    partition stats (`target_unclaimed`, `added`; empty dict for every other strategy)."""
     raw: dict[int, list[dict]] = collections.defaultdict(list)
     failed: set[int] = set()
     for p, resp, err in results:
@@ -336,14 +379,25 @@ def resolve(results, base: dict[int, Packet], strategy: str, *, allow_scattered:
         if strategy == "lexeme-grouped":
             for ref, items in raw_from_lexeme(resp).items():
                 raw[ref].extend(items)
+        elif strategy == "full" and p.members:                  # a packed call: several verses, one response
+            for ref, items in raw_from_packed(resp).items():
+                raw[ref].extend(items)
         elif strategy == "verify":
             raw[p.ref].extend(raw_from_verify(resp, p))
         else:
             raw[p.ref].extend(raw_from_verse(resp))
-    out: dict[int, list[Decision]] = {}
+    out: dict[int, list] = {}
+    full_stats: dict[int, dict] = {}
     tally: collections.Counter = collections.Counter()
     for ref, bp in base.items():
-        decisions, packet_repairs = normalize(raw.get(ref, []), bp, allow_scattered=allow_scattered)
+        if strategy == "full":
+            decisions, packet_repairs, stats = normalize_full(raw.get(ref, []), bp,
+                                                               allow_scattered=allow_scattered)
+            full_stats[ref] = stats
+            tally["target_unclaimed"] += stats["target_unclaimed"]
+            tally["added"] += stats["added"]
+        else:
+            decisions, packet_repairs = normalize(raw.get(ref, []), bp, allow_scattered=allow_scattered)
         if ref in failed:
             for d in decisions:
                 if d.status == "invalid":
@@ -354,39 +408,89 @@ def resolve(results, base: dict[int, Packet], strategy: str, *, allow_scattered:
             tally[d.status] += 1
             tally["repaired"] += bool(d.repairs) and d.status != "invalid"
             tally["conflict_dropped"] += any("already claimed" in x for x in d.repairs)
-    return out, tally
+    return out, tally, full_stats
 
 
-def to_records(decisions: dict[int, list[Decision]], base: dict[int, Packet], strategy: str, inp: Inputs,
-               run_meta: dict) -> dict[str, list[dict]]:
-    """{BOOK: [verse record, ...]} in gapfill's shape, plus `llm` provenance and `llm_skipped`."""
+def _full_pairs_skipped_added(ds: list[FullDecision], bp: Packet, by_idx: dict[int, "HebToken"],
+                              ref: int, inp: Inputs) -> tuple[list[dict], list[dict], list[dict]]:
+    """`full`'s two-sided decisions -> (pairs, skipped, added). A `noncompositional` group's single
+    FullDecision becomes one pair PER source id it covers, all sharing the group's span (the same rule
+    `normalize`'s noncompositional handling already used) — `group` on the pair names its siblings."""
+    pairs, skipped, added = [], [], []
+    for d in ds:
+        if d.is_pair:
+            for h in d.h_idx:
+                t = by_idx[h]
+                agrees = inp.others.get((ref, h)) == d.t_idx
+                pair = {"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong, "lemma": t.lemma,
+                        "stem": t.stem, "surface": t.surface, "gloss_en": t.gloss_en, "sense": t.sense,
+                        "target": " ".join(bp.toks[j] for j in d.t_idx if j < len(bp.toks)),
+                        "t_idx": list(d.t_idx), "score": derive_score_full(agrees), "method": "llm",
+                        "content": bool(t.strong and t.is_content), "prior": "llm_full", "note": d.note,
+                        "status": d.status}
+                if t.lexeme in inp.light_lexemes:
+                    pair["light"] = True
+                if len(d.h_idx) > 1:
+                    pair["group"] = [x for x in d.h_idx if x != h]
+                if d.repairs:
+                    pair["repairs"] = d.repairs
+                pairs.append(pair)
+        elif d.h_idx:                                          # unrepresented / invalid: source-only
+            for h in d.h_idx:
+                t = by_idx[h]
+                skipped.append({k: v for k, v in (("h_idx", h), ("strong", t.strong), ("lexeme", t.lexeme),
+                                                  ("status", d.status), ("note", d.note),
+                                                  ("repairs", d.repairs)) if v not in ("", [], None)})
+        else:                                                   # added: target-only, no source id at all
+            added.append({"t_idx": list(d.t_idx),
+                          "target": " ".join(bp.toks[j] for j in d.t_idx if j < len(bp.toks)),
+                          "note": d.note})
+    return pairs, skipped, added
+
+
+def to_records(decisions: dict[int, list], base: dict[int, Packet], strategy: str, inp: Inputs,
+               run_meta: dict, full_stats: dict[int, dict] | None = None) -> dict[str, list[dict]]:
+    """{BOOK: [verse record, ...]} in gapfill's shape, plus `llm` provenance, `llm_skipped` and — `full` only
+    — `llm_added` (target-only entries) and `llm_unclaimed_t` (positions no entry claimed at all)."""
+    full_stats = full_stats or {}
     by_book: dict[str, list[dict]] = collections.defaultdict(list)
     for ref, ds in decisions.items():
         bp = base[ref]
         by_idx = {t.idx: t for t in bp.heb}
-        pairs, skipped = [], []
-        for d in ds:
-            if d.is_pair:
-                t = by_idx[d.h_idx]
-                pair = {"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong, "lemma": t.lemma, "stem": t.stem,
-                        "surface": t.surface, "gloss_en": t.gloss_en, "sense": t.sense,
-                        "target": " ".join(bp.toks[j] for j in d.t_idx), "t_idx": list(d.t_idx),
-                        "score": derive_score(d, inp.others.get((ref, d.h_idx)) == d.t_idx),
-                        "method": "llm", "content": True, "prior": prior_for(strategy, d),
-                        "note": d.note, "status": d.status}
-                if t.lexeme in inp.light_lexemes:
-                    pair["light"] = True
-                if d.repairs:
-                    pair["repairs"] = d.repairs
-                pairs.append(pair)
-            else:
-                t = by_idx[d.h_idx]
-                skipped.append({k: v for k, v in (("h_idx", d.h_idx), ("strong", t.strong), ("lexeme", t.lexeme),
-                                                  ("status", d.status), ("note", d.note),
-                                                  ("repairs", d.repairs)) if v not in ("", [], None)})
-        if pairs or skipped:
-            by_book[bp.book].append({"ref": ref, "book": bp.book, "chapter": bp.ch, "verse": bp.v,
-                                     "pairs": pairs, "llm_skipped": skipped, "llm": run_meta})
+        added: list[dict] = []
+        if strategy == "full":
+            pairs, skipped, added = _full_pairs_skipped_added(ds, bp, by_idx, ref, inp)
+        else:
+            pairs, skipped = [], []
+            for d in ds:
+                if d.is_pair:
+                    t = by_idx[d.h_idx]
+                    pair = {"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong, "lemma": t.lemma,
+                            "stem": t.stem, "surface": t.surface, "gloss_en": t.gloss_en, "sense": t.sense,
+                            "target": " ".join(bp.toks[j] for j in d.t_idx), "t_idx": list(d.t_idx),
+                            "score": derive_score(d, inp.others.get((ref, d.h_idx)) == d.t_idx),
+                            "method": "llm", "content": True, "prior": prior_for(strategy, d),
+                            "note": d.note, "status": d.status}
+                    if t.lexeme in inp.light_lexemes:
+                        pair["light"] = True
+                    if d.repairs:
+                        pair["repairs"] = d.repairs
+                    pairs.append(pair)
+                else:
+                    t = by_idx[d.h_idx]
+                    skipped.append({k: v for k, v in (("h_idx", d.h_idx), ("strong", t.strong),
+                                                      ("lexeme", t.lexeme), ("status", d.status),
+                                                      ("note", d.note), ("repairs", d.repairs))
+                                    if v not in ("", [], None)})
+        if pairs or skipped or added:
+            rec = {"ref": ref, "book": bp.book, "chapter": bp.ch, "verse": bp.v,
+                   "pairs": pairs, "llm_skipped": skipped, "llm": run_meta}
+            if added:
+                rec["llm_added"] = added
+            unclaimed = full_stats.get(ref, {}).get("unclaimed_t_idx")
+            if unclaimed:
+                rec["llm_unclaimed_t"] = unclaimed
+            by_book[bp.book].append(rec)
     for recs in by_book.values():
         recs.sort(key=lambda x: (x["chapter"], x["verse"]))
     return by_book
@@ -477,6 +581,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--methods", default="eflomal,gloss", help="the methods that define 'covered'")
     ap.add_argument("--explained-min-score", type=float, default=0.0)
     ap.add_argument("--group-size", type=int, default=12, help="lexeme-grouped: verses per call")
+    ap.add_argument("--pack-size", type=int, default=1,
+                    help="full: verses per call, wrapped in one {\"results\": [...]} response (1 = unpacked, "
+                         "current default behaviour)")
     ap.add_argument("--top-k", type=int, default=6, help="seed renderings per lexeme")
     ap.add_argument("--verify-below", type=float, default=0.9, help="verify: eflomal pairs scoring below this")
     ap.add_argument("--limit", type=int, default=None, help="send at most N calls")
@@ -517,9 +624,10 @@ def main(argv=None) -> int:
 
     prices = load_prices(a.prices)
     inp = load_inputs(a)
-    packets, base, stats = build_packets(a.strategy, inp, group_size=a.group_size, top_k=a.top_k)
+    packets, base, stats = build_packets(a.strategy, inp, group_size=a.group_size, top_k=a.top_k,
+                                         pack_size=a.pack_size)
     if a.ref is not None:
-        if a.strategy == "lexeme-grouped":
+        if a.strategy == "lexeme-grouped" or (a.strategy == "full" and a.pack_size > 1):
             for g in packets:
                 g.members = [m for m in g.members if m.ref == a.ref]
             packets = [g for g in packets if g.members]
@@ -543,7 +651,7 @@ def main(argv=None) -> int:
     if Path(conv).is_file():
         conventions = Path(conv).read_text(encoding="utf-8")
     prefix = render_prefix(a.publish_iso, a.lang_name, a.strategy, conventions)
-    schema = schema_for(a.strategy)
+    schema = SCHEMA_FULL_PACKED if a.strategy == "full" and a.pack_size > 1 else schema_for(a.strategy)
     prefix_sha = hashlib.sha256(prefix.encode("utf-8")).hexdigest()[:8]
     est = estimate(packets, prefix, a.model, prices, batch=a.batch)
     print(f"[llm] {a.strategy} · {a.iso}→{a.out_tag}: {stats.get('verses_in_scope', 0)} verses in scope, "
@@ -590,16 +698,17 @@ def main(argv=None) -> int:
         print("\n[llm] interrupted — writing what finished", file=sys.stderr)
     wall = time.time() - t0
 
-    decisions, tally = resolve(results, base, a.strategy, allow_scattered=a.allow_scattered)
+    decisions, tally, full_stats = resolve(results, base, a.strategy, allow_scattered=a.allow_scattered)
     run_meta = {"model": a.model if a.provider != "mock" else "mock", "provider": a.provider, "strategy": a.strategy,
                 "prompt_sha8": prefix_sha, "run_id": run_id}
-    by_book = to_records(decisions, base, a.strategy, inp, run_meta)
+    by_book = to_records(decisions, base, a.strategy, inp, run_meta, full_stats)
     written = write_outputs(by_book, a.out, a.out_tag)
     n_pairs = sum(len(r["pairs"]) for rs in by_book.values() for r in rs)
     ledger.decisions = tally
     doc = {"run_id": run_id, "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "iso": a.iso, "out_tag": a.out_tag,
            "publish_iso": a.publish_iso, "books": a.books, "strategy": a.strategy, "provider": a.provider,
-           "model": a.model, "effort": a.effort, "batch": a.batch, "prompt_version": PROMPT_VERSION,
+           "model": a.model, "effort": a.effort, "batch": a.batch, "pack_size": a.pack_size,
+           "prompt_version": PROMPT_VERSION,
            "prompt_sha8": prefix_sha, "verses_in_scope": stats.get("verses_in_scope", 0),
            "content_tokens": stats.get("content_tokens", 0), "verses_sent": len(base),
            "tokens_to_decide": stats.get("tokens_to_decide", 0),

@@ -685,9 +685,9 @@ def test_anthropic_route_needs_a_key(monkeypatch):
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.llm_align import (
-    Inputs, Ledger, _even_packs, build_packets, estimate, execute, max_tokens_for, model_short, resolve,
-    to_records, write_outputs)
-from lexeme_aligner.llm_prompt import raw_from_packed
+    Inputs, Ledger, _even_packs, build_packets, build_repair_packets, estimate, execute, max_tokens_for,
+    merge_repairs, model_short, recompute_full_stats, resolve, to_records, write_outputs)
+from lexeme_aligner.llm_prompt import FullDecision, raw_from_packed
 from lexeme_aligner.refs import encode
 from lexeme_aligner.run_pilot import VerseRec
 
@@ -814,13 +814,69 @@ def test_resolve_reassembles_a_packed_response_per_verse():
     assert next(d for d in decisions[ref2] if d.h_idx == [1]).t_idx == [4]
 
 
-def test_max_tokens_for_scales_with_pack_size_and_caps():
-    inp = inputs(recs=[verse(i) for i in range(1, 5)])
-    (pack,), _, _ = build_packets("full", inp, pack_size=10)          # 4 verses -> one pack of 4
-    assert max_tokens_for(pack) == 8192 * 4
-    inp2 = inputs(recs=[verse(i) for i in range(1, 20)])
-    (huge,), _, _ = build_packets("full", inp2, pack_size=20)
-    assert max_tokens_for(huge) == 64000                              # capped, not 8192*19
+def test_max_tokens_for_scales_by_ids_to_decide_not_by_verse_count():
+    # verse() has 4 tokens (h0-h3, all decided by `full`); a single verse never needs more than the floor.
+    (single,), _, _ = build_packets("full", inputs(recs=[verse(1)]))
+    assert max_tokens_for(single) == 8192                             # 4 ids * 400 < the 8192 floor
+    # 10 verses packed (40 ids) genuinely needs more than one verse's worth of budget.
+    inp = inputs(recs=[verse(i) for i in range(1, 11)])
+    (pack,), _, _ = build_packets("full", inp, pack_size=20)
+    assert max_tokens_for(pack) == 40 * 400 > 8192
+    # 45 verses (180 ids) would ask for more than the ceiling — capped, not left uncapped.
+    inp2 = inputs(recs=[verse(i) for i in range(1, 46)])
+    (huge,), _, _ = build_packets("full", inp2, pack_size=100)
+    assert max_tokens_for(huge) == 64000
+
+
+# ── repair pass for a `full` response truncated mid-verse ────────────────────────────────────────────
+
+def test_build_repair_packets_only_for_missing_ids_and_marks_first_pass_claims_taken():
+    (base_p,), base, _ = build_packets("full", inputs())
+    decisions = {base_p.ref: [
+        FullDecision([0], 0, [0], 0, "aligned"),
+        FullDecision([1], 1, [], None, "invalid", "", ["missing from the response"]),
+        FullDecision([2], 2, [], None, "invalid", "", ["missing from the response"]),
+        FullDecision([3], 3, [2], 3, "aligned"),
+    ]}
+    (repair,) = build_repair_packets(base, decisions)
+    assert repair.decide == [1, 2]
+    assert set(repair.taken) >= {0, 2}                       # positions the first pass already claimed
+    assert 0 not in repair.allowed and 2 not in repair.allowed
+
+
+def test_build_repair_packets_skips_verses_with_nothing_missing():
+    (base_p,), base, _ = build_packets("full", inputs())
+    decisions = {base_p.ref: [FullDecision([0], 0, [0], 0, "aligned")]}
+    assert build_repair_packets(base, decisions) == []
+
+
+def test_merge_repairs_replaces_missing_entries_and_the_first_pass_wins_a_conflict():
+    decisions = {REF: [
+        FullDecision([0], 0, [0], 0, "aligned"),
+        FullDecision([1], 1, [], None, "invalid", "", ["missing from the response"]),
+        FullDecision([2], 2, [], None, "invalid", "", ["missing from the response"]),
+        FullDecision([3], 3, [2], 3, "aligned"),
+    ]}
+    repaired = {REF: [
+        FullDecision([1], 1, [2], 2, "aligned"),             # conflicts with h3's t2 -> first pass wins
+        FullDecision([2], 2, [4], 4, "aligned"),             # clean, no conflict
+    ]}
+    n = merge_repairs(decisions, repaired)
+    assert n == 2
+    by_h = {d.h_idx[0]: d for d in decisions[REF]}
+    assert by_h[1].t_idx == [] and by_h[1].status == "unrepresented"
+    assert any("already claimed by the first pass" in r for r in by_h[1].repairs)
+    assert by_h[2].t_idx == [4] and by_h[2].status == "aligned"
+    assert by_h[3].t_idx == [2]                              # untouched, first pass kept its position
+    assert not any(d.status == "invalid" for d in decisions[REF])   # no missing placeholders left
+
+
+def test_recompute_full_stats_reflects_the_merged_decisions():
+    (base_p,), base, _ = build_packets("full", inputs())
+    decisions = {base_p.ref: [FullDecision([0], 0, [0], 0, "aligned"), FullDecision([1], 1, [1], 1, "aligned")]}
+    stats = recompute_full_stats(decisions, base)
+    n_t = len(base[base_p.ref].toks)
+    assert stats[base_p.ref]["target_unclaimed"] == n_t - 2
 
 
 def test_verify_packet_frees_the_proposals_own_positions_and_allows_them_even_if_function_words():

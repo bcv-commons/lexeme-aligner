@@ -350,11 +350,21 @@ class Ledger:
             self.usage = self.usage + u
 
 
+# Empirical: the whole Joshua 1-4 `full` run averaged 143 output tokens per decided id (309,875 tokens /
+# 2,164 ids). ~2.8x margin over that average — a flat 8192 budget silently truncated the one verse in that
+# run with an unusually high id count (JOS 3:3, 33 ids) instead of erroring, because JSON-schema-constrained
+# decoding closes the array validly at the token ceiling rather than producing detectably-broken JSON; the
+# missing ids landed as ordinary "invalid: missing from the response" entries with nothing to signal the
+# call itself was cut short. Since `max_tokens` only caps a request and never forces the model to use it,
+# there is no cost to being generous here — a shorter real response just returns fewer tokens.
+_FULL_TOKENS_PER_ID = 400
+
+
 def max_tokens_for(p: Packet) -> int:
-    base = 8192 if p.strategy in ("full", "lexeme-grouped", "lexeme-verify") else 4096
-    if p.strategy == "full" and p.members:                 # packed: N verses' worth of JSON in one response
-        return min(base * len(p.members), 64000)
-    return base
+    if p.strategy == "full":
+        n = sum(len(m.decide) for m in p.members) if p.members else len(p.decide)
+        return min(max(8192, n * _FULL_TOKENS_PER_ID), 64000)
+    return 8192 if p.strategy in ("lexeme-grouped", "lexeme-verify") else 4096
 
 
 def execute(packets: list[Packet], provider: Provider, cache: ResponseCache, prefix: str, schema: dict,
@@ -468,6 +478,72 @@ def resolve(results, base: dict[int, Packet], strategy: str, *, allow_scattered:
             tally["repaired"] += bool(d.repairs) and d.status != "invalid"
             tally["conflict_dropped"] += any("already claimed" in x for x in d.repairs)
     return out, tally, full_stats
+
+
+# --- repair pass for a `full` response truncated mid-verse ---------------------------------------------
+def build_repair_packets(base: dict[int, Packet], decisions: dict[int, list]) -> list[Packet]:
+    """One small follow-up packet per verse that has any `full` id `invalid: missing from the response` — a
+    response that hit its `max_tokens` ceiling mid-verse comes back syntactically VALID (JSON-schema-
+    constrained decoding closes the array cleanly rather than truncating mid-token), so the normal
+    retry-on-unparseable-JSON path in `execute()` never fires; this is the second, cheaper check: did the
+    response actually cover everything it was asked. The follow-up packet decides only the missing ids;
+    positions the first pass already claimed are marked taken (a display hint — `merge_repairs` below is
+    what actually prevents a double-claim if the model uses one anyway)."""
+    packets = []
+    for ref, ds in decisions.items():
+        bp = base.get(ref)
+        if bp is None:
+            continue
+        missing = sorted(d.h_idx[0] for d in ds if isinstance(d, FullDecision) and d.status == "invalid"
+                         and "missing from the response" in d.repairs and d.h_idx)
+        if not missing:
+            continue
+        claimed = {t for d in ds if not (d.status == "invalid" and d.h_idx and d.h_idx[0] in missing)
+                  for t in d.t_idx}
+        packets.append(dataclasses.replace(bp, decide=missing, taken=sorted(set(bp.taken) | claimed),
+                                           allowed=sorted(set(bp.allowed) - claimed),
+                                           soft=sorted(set(bp.soft) - claimed)))
+    return packets
+
+
+def merge_repairs(decisions: dict[int, list], repaired: dict[int, list]) -> int:
+    """Splice repaired decisions back in, replacing exactly the `invalid: missing from the response` entries
+    they cover. The FIRST pass is trusted over the repair: if a repaired entry claims a target position an
+    already-kept decision holds, the repair loses that position (never the reverse — the first pass already
+    succeeded there; a repair racing a fresh, narrower context against it is the less-informed guess)."""
+    merged = 0
+    for ref, new_ds in repaired.items():
+        if ref not in decisions or not new_ds:
+            continue
+        kept = [d for d in decisions[ref]
+                if not (d.status == "invalid" and "missing from the response" in d.repairs)]
+        claimed = {t for d in kept for t in d.t_idx}
+        for d in new_ds:
+            conflict = claimed & set(d.t_idx)
+            if conflict:
+                d.repairs.append(f"repair: t{sorted(conflict)} already claimed by the first pass")
+                d.t_idx = [t for t in d.t_idx if t not in conflict]
+                if not d.t_idx and d.status in ALIGNED:
+                    d.status = "unrepresented"
+            claimed.update(d.t_idx)
+            merged += 1
+        decisions[ref] = kept + new_ds
+    return merged
+
+
+def recompute_full_stats(decisions: dict[int, list], base: dict[int, Packet]) -> dict[int, dict]:
+    """`full_stats` (target_unclaimed/added), recomputed from the FINAL decisions — only needed for verses a
+    repair pass touched, since `resolve()`'s own figures for everything else are already correct."""
+    stats = {}
+    for ref, ds in decisions.items():
+        bp = base.get(ref)
+        if bp is None:
+            continue
+        claimed = {t for d in ds for t in d.t_idx}
+        unclaimed = sorted(set(range(len(bp.toks))) - claimed)
+        stats[ref] = {"target_unclaimed": len(unclaimed), "unclaimed_t_idx": unclaimed,
+                     "added": sum(1 for d in ds if d.status == "added")}
+    return stats
 
 
 def _full_pairs_skipped_added(ds: list[FullDecision], bp: Packet, by_idx: dict[int, "HebToken"],
@@ -769,6 +845,24 @@ def main(argv=None) -> int:
     wall = time.time() - t0
 
     decisions, tally, full_stats = resolve(results, base, a.strategy, allow_scattered=a.allow_scattered)
+    if a.strategy == "full":
+        repair_packets = build_repair_packets(base, decisions)
+        if repair_packets:
+            n_missing = sum(len(p.decide) for p in repair_packets)
+            print(f"[llm] {n_missing} id(s) missing from {len(repair_packets)} verse(s) — a response hit its "
+                  f"token ceiling mid-verse; retrying just the missing ids", file=sys.stderr)
+            budget_left = max(0.0, a.max_usd - ledger.usage.cost_usd)
+            repair_results = execute(repair_packets, provider, cache, prefix, schema, ledger,
+                                     max_usd=budget_left, batch=False)
+            repair_base = {p.ref: p for p in repair_packets}
+            repaired, repair_tally, _ = resolve(repair_results, repair_base, "full",
+                                                allow_scattered=a.allow_scattered)
+            n_merged = merge_repairs(decisions, repaired)
+            full_stats.update(recompute_full_stats(
+                {ref: decisions[ref] for ref in repaired if ref in decisions}, base))
+            tally["repaired_missing_ids"] = n_merged
+            print(f"[llm] repair pass recovered {n_merged} of {n_missing} previously-missing id(s)",
+                  file=sys.stderr)
     run_meta = {"model": a.model if a.provider != "mock" else "mock", "provider": a.provider, "strategy": a.strategy,
                 "prompt_sha8": prefix_sha, "run_id": run_id}
     by_book = to_records(decisions, base, a.strategy, inp, run_meta, full_stats)

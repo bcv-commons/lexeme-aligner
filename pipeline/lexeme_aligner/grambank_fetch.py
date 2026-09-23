@@ -68,6 +68,14 @@ FEATURES = {
     # tense/aspect/mood as an inflecting AUXILIARY WORD (extra token) vs marked on the verb (no token)
     "tam_auxiliary": ["GB119", "GB120", "GB121"],
     "tam_affix": ["GB082", "GB083", "GB084", "GB086", "GB312"],
+    # DIRECTION pairs — not "does a free word exist" but "which side of the noun does it fall on", for
+    # consuming code that needs to know which adjacent position to check when widening a name/noun span
+    # (analyze_language.py's RISK_RULES flags THAT a category is worth checking; these say WHERE to look).
+    # Confirmed predictive 2026-09-23: arb GB074=1/GB075=0 (preposition, extend backward), hin GB074=0/
+    # GB075=1 (postposition, extend forward), eng GB022=1/GB023=0 (prenominal article, extend backward) —
+    # all three matched the real gold-confirmed direction found by hand for each language.
+    "adposition_order": ["GB074", "GB075"],          # [0]=preposition (before), [1]=postposition (after)
+    "article_order": ["GB022", "GB023"],              # [0]=prenominal (before), [1]=postnominal (after)
 }
 _ALL = {f for fs in FEATURES.values() for f in fs}
 

@@ -32,7 +32,13 @@ from lexeme_aligner.gapfill import load_priors
 from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES, _OUT as GRAMBANK_FEATURES_FILE
 
 # (risk key, POS tags the check applies to, minimum observed multi-word rate below which it's an
-# anomaly, human description of what the flagged Grambank feature means for alignment spans, polarity).
+# anomaly, human description of what the flagged Grambank feature means for alignment spans, polarity,
+# prompt_hint). `prompt_hint` is a short, LLM-prompt-facing phrasing of the SAME risk — distinct from
+# `description` (developer/report-facing, verbose, cites Grambank IDs) because the two audiences want
+# different things: a report reader wants the Grambank ID and the full "what to check" sentence; a model
+# reading a SEEDS line wants one short actionable clause. Consumed by llm_align.py's `_risk_notes` to
+# annotate a lexeme's SEEDS line (llm_prompt._seed_line) when its POS is flagged for the current
+# language — see internal-docs/llm-align-experiment-plan.md §14.
 # polarity "any_one" (default): flagged when ANY listed Grambank feature is "1" — the language HAS this
 # category, so a free word for it is plausible. polarity "not_all_one": flagged unless EVERY listed
 # feature is "1" — the language's marking is INCOMPLETE (partial or absent), so a free word may still be
@@ -49,20 +55,30 @@ from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES, _OUT as
 RISK_RULES = [
     ("case_marking", ("name", "noun"), 0.05,
      "oblique non-pronominal case marking (GB072) — check whether a name/noun ever needs a following "
-     "adposition/postposition attached for a genitive/dative/ablative-type source relation.", "any_one"),
+     "adposition/postposition attached for a genitive/dative/ablative-type source relation.", "any_one",
+     "this language often marks a genitive/dative/oblique relation with a following adposition/"
+     "postposition — check whether the source's own case/relation needs one attached here"),
     ("tam_auxiliary", ("verb",), 0.05,
      "tense/aspect/mood carried by a separate auxiliary word (GB119-121) — check whether verb spans "
-     "ever need more than one target word for tense/aspect/mood.", "any_one"),
+     "ever need more than one target word for tense/aspect/mood.", "any_one",
+     "this language often marks tense/aspect/mood with a separate auxiliary word — check whether the "
+     "source verb's own tense/aspect needs one added"),
     ("articles", ("noun", "name"), 0.05,
      "definite/specific articles (GB020-023) — check whether noun/name spans ever need a leading "
-     "article word.", "any_one"),
+     "article word.", "any_one",
+     "this language often marks definiteness with a leading article — check whether one belongs to "
+     "this span"),
     ("possession_affix", ("noun",), 0.05,
      "possessive marking (GB430-433) — check whether a possessed noun ever needs a following "
-     "possessive word.", "any_one"),
+     "possessive word.", "any_one",
+     "this language often marks possession with a following possessive word — check whether one "
+     "belongs to this span"),
     ("subject_indexing", ("verb",), 0.05,
      "the verb's own subject marking is incomplete (not both GB089 suffix and GB090 prefix) — check "
      "whether verb spans ever need an added free subject pronoun (a Greek/Hebrew pro-drop verb has no "
-     "separate source word for it).", "not_all_one"),
+     "separate source word for it).", "not_all_one",
+     "this language's verbs often need an explicit free subject pronoun (unlike a pro-drop source "
+     "verb) — check whether one belongs to this span"),
 ]
 
 
@@ -111,7 +127,7 @@ def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = 
 
     findings = []
     if grambank is not None:
-        for risk_key, pos_tags, threshold, description, polarity in RISK_RULES:
+        for risk_key, pos_tags, threshold, description, polarity, prompt_hint in RISK_RULES:
             feature_ids = GRAMBANK_FEATURES.get(risk_key, [])
             if polarity == "not_all_one":
                 flagged = bool(feature_ids) and not all(grambank.get(f) == "1" for f in feature_ids)
@@ -130,7 +146,7 @@ def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = 
                     findings.append({
                         "risk": risk_key, "pos": pos, "multiword": mw, "total": total,
                         "rate": round(rate, 4), "grambank_ids": matched_ids,
-                        "description": description,
+                        "description": description, "prompt_hint": prompt_hint,
                     })
     return {
         "iso": iso, "publish_iso": publish_iso, "method": method,

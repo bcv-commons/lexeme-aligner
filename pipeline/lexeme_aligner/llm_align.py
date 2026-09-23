@@ -78,6 +78,7 @@ class Inputs:
     light_lexemes: set[str] = field(default_factory=set)
     label: str = ""
     lang_name: str = ""
+    risk_by_pos: dict[str, str] = field(default_factory=dict)        # POS -> a pointed SEEDS caveat (§14)
 
 
 def read_pairs(iso: str, out_dir: Path, methods, min_score: float = 0.0):
@@ -111,6 +112,35 @@ def scan_others(iso: str, out_dir: Path, methods) -> dict[tuple[int, int], list[
     return out
 
 
+def _risk_notes(a) -> dict[str, str]:
+    """POS -> a pointed SEEDS caveat, from analyze_language's phase-1 audit of THIS language's own
+    base-chain output against its Grambank profile (internal-docs/llm-align-experiment-plan.md §14).
+    seed_renderings() aggregates from the PUBLISHED lexeme-alignments data, built from this same
+    eflomal(+gloss+gapfill) output — so a POS the audit flags as systematically undershooting a
+    grammatical marker (Portuguese's enclitic pronouns, Arabic's oblique-case prepositions, English's
+    articles/auxiliaries/subject-pronouns, ...) will ALSO have its seed ranking skewed toward the bare,
+    unmarked form for the exact same reason — the root mechanism behind the Hindi postposition bug the
+    generic v5 SEEDS caveat was written for. Swaps that generic caveat for one naming the SPECIFIC likely
+    gap when this language/POS combination has real, checked evidence for it.
+
+    Never raises: `analyze_language.analyze` already degrades gracefully (no Grambank coverage, no
+    base-chain output) to empty findings — this only adds a try/except around the jsonl read itself,
+    which can fail if `a.iso`'s align_eflomal_*.jsonl don't exist yet (a fresh strategy run before any
+    base-chain alignment)."""
+    from lexeme_aligner.analyze_language import analyze
+    try:
+        report = analyze(a.iso, a.publish_iso, a.out, PRIOR_PACK, method="eflomal")
+    except Exception as e:
+        print(f"[llm] phase-1 risk audit unavailable ({e}) — SEEDS caveats stay generic", file=sys.stderr)
+        return {}
+    notes: dict[str, str] = {}
+    for f in report.get("findings", []):
+        pos, hint = f.get("pos"), f.get("prompt_hint")
+        if pos and hint and pos not in notes:          # first (highest-priority) rule wins per POS
+            notes[pos] = hint
+    return notes
+
+
 def load_inputs(a) -> Inputs:
     """The heavy load — spine, corpus, taken pool, residual candidates, whole-language vocab, priors."""
     from lexeme_aligner.gapfill import load_covered, load_priors
@@ -132,15 +162,20 @@ def load_inputs(a) -> Inputs:
     candidates = {encode(r.book, r.ch, r.v): set(r.orig) for r in res}
     spans, low = scan_spans(a.iso, a.out, methods, a.explained_min_score, a.verify_below)
     vocab: dict = {}
+    risk_by_pos: dict[str, str] = {}
     if a.strategy in SEEDED:
         try:
             vocab = load_lexeme_vocab_scored(a.publish_iso)
         except SystemExit as e:
             print(f"[llm] whole-language vocab unavailable ({e}) — seeds will be empty", file=sys.stderr)
+        risk_by_pos = _risk_notes(a)
+        if risk_by_pos:
+            print(f"[llm] SEEDS risk notes active for pos={sorted(risk_by_pos)} (phase-1 audit, §14)",
+                  file=sys.stderr)
     agree = ("eflomal", "gloss", "gapfill") if a.strategy == "full" else ("gapfill", "residual")
     return Inputs(recs, covered_h, taken_t, spans, low, candidates, stopwords.is_function, vocab, lex_pos,
                   lex_translit, scan_others(a.iso, a.out, agree), light, f"{a.publish_iso}, edition {a.iso}",
-                  a.lang_name)
+                  a.lang_name, risk_by_pos)
 
 
 # --- packets ------------------------------------------------------------------------------------------
@@ -149,7 +184,14 @@ def _content(r: VerseRec) -> set[int]:
 
 
 def _meta(lexemes, inp: Inputs) -> dict[str, dict]:
-    return {lx: {"pos": inp.lex_pos.get(lx), "translit": inp.lex_translit.get(lx)} for lx in lexemes if lx}
+    def one(lx: str) -> dict:
+        pos = inp.lex_pos.get(lx)
+        m = {"pos": pos, "translit": inp.lex_translit.get(lx)}
+        risk = inp.risk_by_pos.get(pos) if pos else None
+        if risk:
+            m["risk"] = risk
+        return m
+    return {lx: one(lx) for lx in lexemes if lx}
 
 
 def _verse_packet(strategy: str, r: VerseRec, inp: Inputs, decide: list[int], allowed, soft, taken,

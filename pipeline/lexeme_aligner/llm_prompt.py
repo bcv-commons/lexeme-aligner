@@ -489,7 +489,16 @@ def _seed_line(lexeme: str, p: Packet, present: dict[str, list[int]] | None) -> 
         if present is not None and word.lower() in present:
             mark = " @" + ",".join(f"t{j}" for j in present[word.lower()])
         parts.append(f"{word} {count}/{share:.2f}{mark}")
-    return f"{head} — known renderings: " + ", ".join(parts)
+    line = f"{head} — known renderings: " + ", ".join(parts)
+    # A POINTED caveat, from this language's own phase-1 audit (analyze_language.py, §14 in
+    # internal-docs/llm-align-experiment-plan.md), replaces the generic SEEDS caution in _CONTRACT for
+    # exactly the lexemes it applies to: these seeds are drawn from the same base-chain output the audit
+    # checked, so a POS it flags as systematically undershooting a grammatical marker will have its seed
+    # ranking skewed the same way — this names the SPECIFIC likely gap instead of a generic warning.
+    risk = meta.get("risk")
+    if risk:
+        line += f"  [CAUTION: {risk}]"
+    return line
 
 
 def _header(p: Packet) -> str:

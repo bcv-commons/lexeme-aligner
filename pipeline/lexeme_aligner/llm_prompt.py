@@ -23,7 +23,8 @@ from typing import Iterable
 from lexeme_aligner.eflomal_align import _longest_contiguous
 from lexeme_aligner.hebrew_source import HebToken
 
-PROMPT_VERSION = "llm-align-v4"      # v4: `lexeme-verify` — cross-verse consistency review, grouped by lexeme
+PROMPT_VERSION = "llm-align-v5"      # v5: SEEDS caveat — a seed's majority reflects frequency, not this
+                                      # occurrence's grammatical role (found diagnosing hin's postposition bug)
 
 STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "lexeme-verify", "verify")
 SEEDED = ("full", "gap-seeded", "lexeme-grouped", "lexeme-verify")   # strategies carrying whole-language hints
@@ -206,7 +207,14 @@ only the source words the packet lists after `DECIDE:`. Everything else in the p
 - SEEDS list renderings of a lexeme attested elsewhere in this language, as `word count/share` (count = how
   often the word renders this lexeme; share = the fraction of that word's occurrences that render it).
   `@t7` marks a seed rendering that occurs in this verse at an available position. Seeds are evidence, not
-  commands: the verse may use a different word, or an inflected form of a seed.
+  commands: the verse may use a different word, or an inflected form of a seed. A seed's count/share is
+  taken across EVERY occurrence of that lexeme in the whole language — mostly whatever grammatical role
+  (subject, object, plain unmarked form...) the word happens to take most often overall. It says nothing
+  about which role THIS occurrence has. In a language that marks case, number, or definiteness with a
+  separate word or affix (a postposition, an article, a case ending), a lopsidedly common seed is usually
+  just the unmarked form winning by sheer frequency — it is not evidence that this verse's occurrence is
+  also unmarked. Decide the case/role from this verse's own construction (the source word's own gloss,
+  neighbouring words, its part of speech) before trusting a seed's majority.
 
 ## Rules
 1. Decide every listed `h` exactly once. Never invent, renumber or omit an id.

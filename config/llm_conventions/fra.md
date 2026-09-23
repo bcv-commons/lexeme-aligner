@@ -10,6 +10,13 @@ French notes:
 - Negation is discontinuous: `ne ... pas / point / jamais`. A source negative aligns to `ne` + `pas` only when the
   span brackets the verb it negates.
 - The compound past (`a dit`, `ont été`) is auxiliary + participle: align the source verb to the participle (or
-  auxiliary + participle), never to the auxiliary alone.
+  auxiliary + participle), never to the auxiliary alone. When in doubt, prefer the PARTICIPLE ALONE: a subject
+  pronoun is never part of the verb's span regardless of tense (`il prit` -> `prit`, not `il prit`), and the
+  same usually holds for the auxiliary itself, even in a compound SUBJUNCTIVE tense — Matthew 1:25 "ἔτεκεν"
+  ("she had brought forth") renders as "jusqu'à ce qu'elle eût enfanté un fils"; the correct span is `enfanté`
+  alone, not `elle eût enfanté` and not `eût enfanté` either. This is one confirmed case, not a large sample —
+  if a specific verse's own evidence (an attested SEEDS rendering, or the verb's own aspectual marking) argues
+  for including the auxiliary, that verse's evidence wins; this note is a default for the unclear case, not an
+  absolute rule.
 - Reflexive/pronominal verbs carry a clitic (`se`, `s`): include it only when the source verb is middle/reflexive.
 - A hyphenated name is two positions; align both (`Marie-Madeleine`).

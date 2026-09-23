@@ -24,7 +24,13 @@ from lexeme_aligner.align_files import tag_files, tag_files_any_method
 from lexeme_aligner.config import OUT, PRIOR_PACK
 
 # trust order for tie-breaks (higher wins): eflomal's intersection core > gloss dict > gapfill > IBM-1
-PRIORITY = {"eflomal": 3, "gloss": 2, "gapfill": 1, "stat": 0}
+# "llm" ranked above eflomal on the assumption an LLM pass (especially a reviewed one) generally beats
+# the statistical chain — UNVALIDATED within merge_align specifically: this session's own neural A/B
+# (internal-docs/llm-align-experiment-plan.md) found gloss beats a plurality-vote merge on every gold
+# language tested, and full/lexeme-verify LLM output was never itself run through this tie-break. Treat
+# this rank as a placeholder to revisit once merge_align is actually measured with a real "llm" method
+# present, not a re-confirmed empirical result like the other three ranks.
+PRIORITY = {"llm": 4, "eflomal": 3, "gloss": 2, "gapfill": 1, "stat": 0}
 _AGREE_SCORE = 0.97          # ≥2 methods agree → high-confidence (≥ export_lex _HI_SCORE 0.9)
 
 
@@ -98,11 +104,17 @@ def _contest_pick(mp: dict, rule: dict):
 
 def merge(iso: str, methods: list[str], out_dir: Path, trust=None, pos_map=None, mode_default=None,
           contest=None):
+    """`methods` entries may be `<method>:<out-tag>` (same convention as export_lex.aggregate /
+    compact_align._merged_pairs) to read align_<method>_<out-tag>_*.jsonl instead of
+    align_<method>_<iso>_*.jsonl — needed for "llm", whose jsonl is tagged with the LLM run's own
+    out-tag, not the plain edition iso every other method shares. Voter names / dict keys are always the
+    bare method name."""
     # verses[ref] = {book, chapter, verse, h: {h_idx: {method: pair}}}
     verses: dict[int, dict] = {}
     per_method_pairs: collections.Counter = collections.Counter()   # content pairs each method aligned
-    for m in methods:
-        files = tag_files(out_dir, m, iso)
+    for method_spec in methods:
+        m, _, explicit_tag = method_spec.partition(":")
+        files = tag_files(out_dir, m, explicit_tag or iso)
         for fp in files:
             with fp.open(encoding="utf-8") as fh:
                 for line in fh:
@@ -190,7 +202,10 @@ def merge(iso: str, methods: list[str], out_dir: Path, trust=None, pos_map=None,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
-    ap.add_argument("--methods", default=None, help="comma-sep (default: auto-detect present methods)")
+    ap.add_argument("--methods", default=None,
+                    help="comma-sep (default: auto-detect present methods — never auto-includes llm, "
+                         "see merge()'s docstring). An entry may be 'llm:<out-tag>' to fold in one LLM "
+                         "run (e.g. eflomal,gloss,llm:fra-lsg.full.sonnet5.cli.reviewed).")
     ap.add_argument("--trust", type=Path, default=None,
                     help="trust matrix json (trust_profile) → empirical (mode×pos×tier)-WEIGHTED vote")
     ap.add_argument("--contest-rule", type=Path, default=None,
@@ -214,10 +229,13 @@ def main() -> int:
     per_method, merged, agree_n, nbooks = merge(args.iso, methods, args.out, trust, pos_map, mode_default,
                                                 contest)
 
+    # dedupe while preserving order: report by bare method name — per_method_pairs (from merge()) is
+    # keyed on the bare name even when a method_spec carried an explicit ":<out-tag>".
+    bare_methods = list(dict.fromkeys(m.partition(":")[0] for m in methods))
     print(f"[merge] {args.iso}: methods {methods} over {nbooks} book(s)", file=sys.stderr)
-    for m in methods:
+    for m in bare_methods:
         print(f"   {m:9} {per_method[m]:>7} content pairs", file=sys.stderr)
-    base = max((per_method[m] for m in methods), default=0)
+    base = max((per_method[m] for m in bare_methods), default=0)
     gain = f"+{100*(merged-base)/base:.1f}%" if base else "n/a"
     hi = sum(n for a, n in agree_n.items() if a >= 2)
     print(f"   {'merged':9} {merged:>7} content pairs  (union coverage {gain} vs best single; "

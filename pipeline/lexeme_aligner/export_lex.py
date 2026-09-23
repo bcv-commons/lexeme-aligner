@@ -11,9 +11,10 @@ duplication (measured 2026-07: ~32% smaller Parquet with them dropped, zero info
     (surface, method, base_text), sum their `count`, then share = count / that sum.
 See `scripts/strongs_view.py` for a ready-made Strong's-keyed derived view that does this for you.
 
-Rows are the ADDITIVE UNION of the methods, each tagged with its source `method` (eflomal/gloss/gapfill)
-— a pair attested by two methods is two rows, nothing merged away (principles 3 + 5). `hi_conf` =
-fraction of the pair's occurrences that were intersection-backed (score >= 0.9). Content tokens only.
+Rows are the ADDITIVE UNION of the methods, each tagged with its source `method` (eflomal/gloss/gapfill,
+or opt-in `llm` — see `_METHODS`/`--methods`'s `llm:<out-tag>` syntax) — a pair attested by two methods is
+two rows, nothing merged away (principles 3 + 5). `hi_conf` = fraction of the pair's occurrences that were
+intersection-backed (score >= 0.9). Content tokens only.
 
 Scaling: the bulk data does NOT live in git (thousands of regenerated per-language files would
 bloat history forever). Instead this writes an `iso=<iso>/`-**partitioned Parquet dataset** under
@@ -51,7 +52,12 @@ SCHEMA = ["surface", "lexeme", "method", "base_text", "source_corpus", "count", 
 # the same language are indistinguishable (both carry e.g. lexeme=grc:2316). Same column name and role
 # senses_attested already publishes. `share` is therefore within (method, base_text, source_corpus).
 _HI_SCORE = 0.9   # eflomal intersection-backed link (both directions agree) — the reliable core
-_METHODS = ("eflomal", "gloss", "gapfill")   # union order; a method absent for an iso is simply skipped
+_METHODS = ("eflomal", "gloss", "gapfill")   # AUTO-DETECT set only — deliberately excludes "llm" (mission
+# note, gapfill_align.py:6: keeps the default chain LLM-free). "llm" is real and unionable — see
+# `aggregate`'s method-spec parsing below — but only when explicitly requested via
+# `--methods eflomal,gloss,gapfill,llm:<out-tag>`, never auto-detected, since an LLM run's jsonl is tagged
+# with its own out-tag (e.g. "fra-lsg.full.sonnet5.cli"), not the plain edition iso every other method
+# shares — there is nothing sensible to auto-detect it FROM.
 
 # Internal row shape keeps `strong` + `share` (needed for build_entry's testament/stat computation) —
 # they're dropped only at the write_parquet/write_tsv/_render boundary, never stored on disk.
@@ -73,15 +79,22 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str]
     (align_iso, base_text): POOLING several editions of one language into a single partition keeps every
     row tagged by its base_text, with `share` = P(lexeme | surface) computed WITHIN (method, base_text) —
     so cross-edition agreement (a surface→lexeme attested by >1 base_text) stays derivable from the rows.
-    Falls back to strong-as-lexeme for pre-lexeme jsonl."""
+    Falls back to strong-as-lexeme for pre-lexeme jsonl.
+
+    A method entry may be `<method>:<out-tag>` (mirrors pos_score.load_spec's `llm:<out-tag>` convention)
+    to read align_<method>_<out-tag>_*.jsonl instead of align_<method>_<align_iso>_*.jsonl — needed for
+    "llm", whose jsonl is tagged with the LLM run's own out-tag, not the plain edition iso every other
+    method shares. The stored/reported method name is always the bare form (e.g. "llm"), never the
+    compound spec string."""
     counts: collections.Counter = collections.Counter()          # (surface, lexeme, method, base_text) -> count
     hi: collections.Counter = collections.Counter()              # ... -> hi-conf count
     strong_of: dict[str, str] = {}                               # lexeme -> its Strong's rollup
     present: set[str] = set()
     books: set[str] = set()                                      # distinct BOOK names
     for align_iso, base_text in editions:
-        for method in methods:
-            files = tag_files(out_dir, method, align_iso)
+        for method_spec in methods:
+            method, _, explicit_tag = method_spec.partition(":")
+            files = tag_files(out_dir, method, explicit_tag or align_iso)
             if not files:
                 continue
             present.add(method)
@@ -103,7 +116,9 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str]
                             # Absent (NT, or no phrase-mate to judge by) is NOT penalized.
                             if (p.get("score") or 0) >= _HI_SCORE and p.get("coherent") is not False:
                                 hi[key] += 1
-    present_ordered = [m for m in methods if m in present]
+    # dedupe while preserving order: two method_specs could share a bare method (e.g. two different
+    # llm:<out-tag> runs) — each contributes its own rows above, but "llm" is reported once.
+    present_ordered = list(dict.fromkeys(m.partition(":")[0] for m in methods if m.partition(":")[0] in present))
     if not present_ordered:
         raise SystemExit(f"no align_<{'|'.join(methods)}>_<{','.join(i for i, _ in editions)}>_*.jsonl "
                          f"under {out_dir} — run the aligner first")
@@ -358,7 +373,11 @@ def main() -> int:
                     help="override the PRIMARY iso's edition tag (default: its source.edition)")
     ap.add_argument("--methods", default=None,
                     help="comma-sep methods to UNION into the partition (default: auto-detect present, "
-                         "e.g. eflomal,gloss,gapfill). Each row is tagged with its source method.")
+                         "e.g. eflomal,gloss,gapfill — never auto-includes llm, see _METHODS). Each row "
+                         "is tagged with its source method. An entry may be 'llm:<out-tag>' to pull in "
+                         "one LLM run's align_llm_<out-tag>_*.jsonl (e.g. --methods "
+                         "eflomal,gloss,gapfill,llm:fra-lsg.full.sonnet5.cli) — additive, never replaces "
+                         "the statistical chain's own rows.")
     ap.add_argument("--min-count", type=int, default=1,
                     help="drop (surface,lexeme,method,base_text) below this count")
     ap.add_argument("--lang-name", default=None, help="human language name, recorded in the manifest")

@@ -66,7 +66,7 @@ _AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods p
 # high-confidence tier — free, and it is the exact input the contest rule keys on:
 #   e/E = eflomal at score 0.6 / 0.9      g/G = gloss weak (head,fuzzy,prefix,multi) / strong (exact,stem)
 #   f   = gapfill (already gated to the strong/name priors)      r = residual (opt-in layer)
-_METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s"}
+_METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l"}
 SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus")
 _GLOSS_STRONG = {"exact", "stem"}
 
@@ -241,10 +241,16 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS, contest: 
     A LIGHT gloss pair (semantically general source lexeme, low cross-lingual target dominance) does not
     VOTE — merge_align's rule, mirrored here — but it is still emitted if nothing else covers the
     position. Dropping it instead would have cost swk 1,308 aligned positions for no gain: not voting is
-    about who decides a contest, not about whether an alignment exists."""
+    about who decides a contest, not about whether an alignment exists.
+
+    A `methods` entry may be `<method>:<out-tag>` (same convention as export_lex.aggregate) to read
+    align_<method>_<out-tag>_*.jsonl instead of align_<method>_<iso>_*.jsonl — needed for "llm", whose
+    jsonl is tagged with the LLM run's own out-tag, not the plain edition iso every other method shares.
+    `_method`/the `mp` dict key are always the bare method name."""
     raw: dict[tuple[int, int], dict[int, dict]] = {}
-    for m in methods:
-        for fp in tag_files(out_dir, m, iso):
+    for method_spec in methods:
+        m, _, explicit_tag = method_spec.partition(":")
+        for fp in tag_files(out_dir, m, explicit_tag or iso):
             if fp.stem.rsplit("_", 1)[-1] != book:
                 continue
             for line in fp.read_text(encoding="utf-8").splitlines():
@@ -279,7 +285,8 @@ def _resolve(mp: dict, methods, contest: dict | None):
             return ef, None                                   # agreement — nothing was contested
         side = contest.get((_merge_tier("eflomal", ef), _merge_tier("gloss", gl)), "ef")
         return (ef, gl) if side == "ef" else (gl, ef)
-    for m in methods:                                          # flat priority (also the no-rule path)
+    for method_spec in methods:                                 # flat priority (also the no-rule path)
+        m = method_spec.partition(":")[0]
         if m in mp:
             return mp[m], None
     return None, None
@@ -435,7 +442,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
                     out_dir: Path = OUT, hash_len: int = 5, edition: str | None = None,
                     sources_path: Path = Path("config/sources.json"),
                     with_layer: bool = True, contest: dict | None = None,
-                    with_sidecars: bool = True) -> dict[str, Path]:
+                    with_sidecars: bool = True, layer_methods=LAYER_METHODS) -> dict[str, Path]:
     """Writes one compact-alignment JSON per (edition, book) at
     `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<last-hash_len-hex-of-book-content-hash>.json` — `iso` is
     the true published language code (NOT the internal alignment `tag`, which can be an edition-specific
@@ -472,7 +479,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         edition = edition_id(iso, tag, sources)
     written: dict[str, Path] = {}
     by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest, cross_edition_iso=iso)
-    layer = build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref) if with_layer else {}
+    layer = (build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref, layer_methods=layer_methods)
+            if with_layer else {})
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         if not usj_path.exists():
@@ -515,15 +523,22 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
 
 
 def build_layer(tag: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
-                books: list[str] = ALL_BOOKS, base: dict | None = None) -> dict[str, str]:
+                books: list[str] = ALL_BOOKS, base: dict | None = None,
+                layer_methods=LAYER_METHODS) -> dict[str, str]:
     """The opt-in `residual` layer: same "srcOrd:span" strings, same ordinals, but ONLY for source
     tokens the base methods left unaligned. Ordinals are spine-derived (position among a verse's content
     lexemes), so they are identical in both files by construction — the layer is joinable without any
     shared state beyond the verse ref.
 
     Anything the base already covers is dropped here rather than left to the client's merge rule, so the
-    two files cannot contradict each other even if a consumer merges them naively."""
-    layer, _ = build_compact(tag, usj_dir, heb, out_dir, books, LAYER_METHODS)
+    two files cannot contradict each other even if a consumer merges them naively.
+
+    `layer_methods` defaults to the module constant `LAYER_METHODS` (residual only, unchanged behavior
+    for every existing caller) but may be overridden — e.g. `("residual", "llm:<out-tag>")` — to fold an
+    opt-in LLM run into the SAME layer file for one language/run, without touching `LAYER_METHODS` itself
+    or any other language's build. Entries may use the `<method>:<out-tag>` spec `build_compact`/
+    `_merged_pairs` already support."""
+    layer, _ = build_compact(tag, usj_dir, heb, out_dir, books, layer_methods)
     if base is None:
         base, _ = build_compact(tag, usj_dir, heb, out_dir, books, METHODS)
     out: dict[str, str] = {}
@@ -553,6 +568,11 @@ def main() -> int:
                          "ships as the opt-in .extra.json layer instead; see METHODS/LAYER_METHODS")
     ap.add_argument("--no-layer", action="store_true",
                     help="skip the opt-in residual layer (<BOOK>_<hash>.extra.json)")
+    ap.add_argument("--layer-methods", default=",".join(LAYER_METHODS),
+                    help="methods folded into the opt-in .extra.json layer (default: residual only, "
+                         "unchanged for every existing publish). An entry may be '<method>:<out-tag>' "
+                         "(e.g. --layer-methods residual,llm:fra-lsg.full.sonnet5.cli.reviewed) to also "
+                         "fold in one LLM run — additive, never republishes anything by itself.")
     ap.add_argument("--contest-rule", type=Path, default=CONTEST_RULE,
                     help="LOO-validated eflomal-vs-gloss disagreement rule used to resolve a position "
                          "both methods reached (default: config/contest_rule.json)")
@@ -599,6 +619,7 @@ def main() -> int:
         raise SystemExit("--iso required (or use --build-index)")
     usj_dir = args.usj_dir or Path(f"pipeline/work/ingest-cache/usj-{args.iso}")
     methods = tuple(m.strip() for m in args.methods.split(","))
+    layer_methods = tuple(m.strip() for m in args.layer_methods.split(","))
 
     if not args.no_publish:
         publish_iso = args.publish_iso or args.iso
@@ -609,7 +630,7 @@ def main() -> int:
                                   with_layer=not args.no_layer, contest=contest,
                                   with_sidecars=not args.no_sidecars,
                                   edition=resolved_edition, sources_path=args.sources,
-                                  index_root=args.index_root)
+                                  index_root=args.index_root, layer_methods=layer_methods)
         for book, fp in sorted(written.items()):
             print(f"[compact_align] {publish_iso}/{book} → {fp}", file=sys.stderr)
         manifest_entry = {"tag": args.iso, "books": sorted(written),

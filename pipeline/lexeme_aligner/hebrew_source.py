@@ -201,8 +201,17 @@ class HebrewSource:
             # Fused multi-token names (בֵּית לֶחֶם = 2 spine tokens, ONE Strong's, one BHSA
             # lexeme): merge consecutive same-strong tokens into one alignment unit — else
             # they inflate the denominator and double-consume target tokens. (Merge on the ROLLUP;
-            # a fused name is one Strong's across differing lemmas.)
-            if padded and toks and toks[-1].strong == padded:
+            # a fused name is one Strong's across differing lemmas — but the SAME lexeme; verified
+            # against Bethlehem, 1CH 2:51, both rows carry lexeme hbo:1035 and differ only in surface/
+            # lemma.) FIXED 2026-09-23: this used to check only `toks[-1].strong == padded`, which also
+            # fires whenever two UNRELATED adjacent words happen to collide on a rolled-up bare Strong's
+            # despite being different lexemes — measured whole-OT: 2,717 of 4,367 total merges were
+            # exactly this, ~99.6% of them a pronoun-suffix morpheme (hbo:2050c, "-him/it") immediately
+            # followed by an unrelated vav-conjunction (hbo:2050b, "and") both rolling up to bare H2050 —
+            # found diagnosing why Joshua 2:4 (idx 10/11) looked full of errors in an external comparison
+            # that tokenizes the same MACULA data without this merge. The lexeme check preserves the
+            # intended case and blocks the false-positive one.
+            if padded and toks and toks[-1].strong == padded and toks[-1].lexeme == lexeme:
                 toks[-1].surface += " " + r.get("surface", "")
                 continue
             tok = HebToken(r.get("idx"), r.get("surface"), padded, lexeme,

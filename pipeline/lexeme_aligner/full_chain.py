@@ -13,16 +13,29 @@ edition-discovery logic, no risk of drift between the two.
   3. export         (onboard.py)         eflomal-only -> publish/lexeme-alignments/iso=<iso>/ (LOCAL)
                                           — gloss's bootstrap priors read exactly this file next
   4. gloss align                         second pass, bootstrapped from step 3's local export
-  5. gapfill                             fills eflomal+gloss coverage gaps
+  4b. span extension                     widen a name/noun eflomal+gloss span onto an adjacent,
+                                          unclaimed case-marker/article — see span_extension.py's own
+                                          docstring for the measured gain (hin/arb/eng gold, this
+                                          session) and why it's narrowly gated, not a blind rule
+  5. gapfill                             fills eflomal+gloss(+spanext) coverage gaps
   5b. residual align                     2nd eflomal pass on the remainder -> compact's opt-in layer
-  6. export (final)                      re-aggregates eflomal+gloss+gapfill -> same partition
+  6. export (final)                      re-aggregates eflomal+gloss+spanext+gapfill -> same partition
   7. aligned_mwe                         multi-word expressions (primary edition tag only)
   8. senses_attested                     OT/Hebrew sense attestation (degrades to a no-op off-OT)
-  9. compact-alignments                  per-book, content-addressed (primary edition tag only)
+  9. compact-alignments                  per-book, content-addressed (primary edition tag only) —
+                                          MAIN array includes spanext (compact_align.py's _resolve()
+                                          fixed 2026-09-23 to let it win unconditionally, never
+                                          relitigated by the eflomal/gloss contest rule)
                                           + <BOOK>_<hash>.extra.json — the opt-in residual layer
+                                          (spanext does NOT belong in this layer — tried it, doesn't
+                                          work: build_layer drops any entry the base array already
+                                          covers, which is EVERY spanext entry by construction, since
+                                          spanext only ever widens something already covered)
 
 Steps 4-9 are individually best-effort (a failure prints a warning and the chain continues) EXCEPT
-step 6's final export, which is load-bearing for everything published downstream.
+step 6's final export, which is load-bearing for everything published downstream. Step 4b is also
+best-effort and silently no-ops for any language without Grambank coverage or without a phase-1-
+flagged anomaly — see span_extension.py.
 
     python3 -m lexeme_aligner.full_chain --iso ceb --lang-name Cebuano
     python3 -m lexeme_aligner.full_chain --iso ceb --skip-ingest        # re-run the chain on cached text
@@ -39,7 +52,11 @@ from pathlib import Path
 
 from lexeme_aligner.onboard import _EDITIONS_CONFIG, _EXCLUSIONS, _tag, allowed_testaments, editions_for
 
-_METHODS = "eflomal,gloss,gapfill"
+# spanext listed FIRST — export_lex/export_mwe are pure additive unions (every method's own rows kept,
+# nothing overwritten) so order barely matters there; compact_align's _resolve() has spanext win any
+# position it touches unconditionally regardless of list order (fixed 2026-09-23), but listing it first
+# here keeps this one constant honest about priority for anything that DOES read it positionally.
+_METHODS = "spanext,eflomal,gloss,gapfill"
 
 
 def _run(mod: str, *args: object, env: dict, soft: bool = False) -> bool:
@@ -110,21 +127,32 @@ def main() -> int:
              "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
 
-    # step 5: gapfill (needs eflomal+gloss jsonl; fills coverage gaps) — --publish-iso is essential
-    # here too, same reason as step 4's gloss call: the #3 stopword filter + #4 cross-edition vocab
-    # must read/cache against the BARE iso's published data, not this tag's own key
+    # step 4b: span extension (see span_extension.py's own docstring) — reads eflomal+gloss's own
+    # pairs, writes a SEPARATE align_spanext_<tag>_*.jsonl containing only the widened ones; never
+    # touches the eflomal/gloss files themselves. Best-effort: no-ops cleanly (prints, exits 0) for a
+    # language with no Grambank coverage or no phase-1-flagged anomaly, which is most languages.
+    for tag in tags:
+        _run("span_extension", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
+             scope_flag, "--methods", "eflomal,gloss", env=env, soft=True)
+
+    # step 5: gapfill (needs eflomal+gloss(+spanext) jsonl; fills coverage gaps) — --publish-iso is
+    # essential here too, same reason as step 4's gloss call: the #3 stopword filter + #4 cross-edition
+    # vocab must read/cache against the BARE iso's published data, not this tag's own key. spanext is
+    # additive-only (a widened h_idx already in eflomal/gloss's own taken pool, never a new one), so
+    # including it here just makes covered_h/taken_t correctly reflect the widened positions — safe by
+    # construction (gapfill.load_covered unions t_idx across methods, never a first-wins overwrite).
     for tag in tags:
         _run("gapfill", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
-             "--methods", "eflomal,gloss", env=env, soft=True)
+             "--methods", "eflomal,gloss,spanext", env=env, soft=True)
 
-    # step 5b: residual re-alignment — a second eflomal pass over only what eflomal+gloss could not
-    # explain, with target stopwords/light renderings/already-taken positions stripped out. It feeds
-    # compact-alignments' OPT-IN `.extra.json` layer only (step 9 emits it); no aggregated dataset
-    # includes it, and the main compact array is unchanged by its presence.
+    # step 5b: residual re-alignment — a second eflomal pass over only what eflomal+gloss(+spanext)
+    # could not explain, with target stopwords/light renderings/already-taken positions stripped out.
+    # It feeds compact-alignments' OPT-IN `.extra.json` layer only (step 9 emits it); no aggregated
+    # dataset includes it, and the main compact array is unchanged by its presence.
     # Runs after gapfill because it stratifies against gap-fill's own fills (combine_with_gapfill).
     for tag in tags:
         _run("residual_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
-             scope_flag, "--methods", "eflomal,gloss", env=env, soft=True)
+             scope_flag, "--methods", "eflomal,gloss,spanext", env=env, soft=True)
 
     # step 6: final export — union of all three methods, same pooling onboard.py used for step 3
     export_args: list[object] = ["--iso", primary, "--publish-iso", args.iso, "--methods", _METHODS]
@@ -147,6 +175,11 @@ def main() -> int:
     _run("senses_attested", *senses_args, env=env, soft=True)
 
     # step 9: compact-alignments (per-book, content-addressed; primary tag only; local write, no HF push)
+    # _METHODS (spanext included) for the MAIN array — safe now that compact_align.py's _resolve() lets
+    # spanext win any position it touches unconditionally (fixed 2026-09-23; see that function's own
+    # docstring). --layer-methods stays residual-only: tried adding spanext to the opt-in .extra.json
+    # layer too and it's a dead end there — build_layer drops any entry the base array already covers,
+    # which is every spanext entry by construction, so it can only ever land in the main array.
     _run("compact_align", "--iso", primary, "--publish-iso", args.iso, "--usj-dir", usj_dirs[primary],
          "--methods", _METHODS, env=env, soft=True)
 

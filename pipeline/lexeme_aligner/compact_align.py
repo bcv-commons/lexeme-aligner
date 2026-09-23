@@ -66,7 +66,9 @@ _AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods p
 # high-confidence tier — free, and it is the exact input the contest rule keys on:
 #   e/E = eflomal at score 0.6 / 0.9      g/G = gloss weak (head,fuzzy,prefix,multi) / strong (exact,stem)
 #   f   = gapfill (already gated to the strong/name priors)      r = residual (opt-in layer)
-_METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l"}
+#   x   = spanext (opt-in layer, like residual — see LAYER_METHODS/build_layer's docstring for why)
+_METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l",
+               "spanext": "x"}
 SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus")
 _GLOSS_STRONG = {"exact", "stem"}
 
@@ -278,7 +280,21 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS, contest: 
 
 
 def _resolve(mp: dict, methods, contest: dict | None):
-    """One position -> (winning_pair, losing_pair_or_None). See _merged_pairs for the why."""
+    """One position -> (winning_pair, losing_pair_or_None). See _merged_pairs for the why.
+
+    FIXED 2026-09-23: `spanext` (span_extension.py), when present for this position, now wins
+    UNCONDITIONALLY, before the eflomal/gloss contest-rule check is even considered. It used to fall
+    through to that check, which hardcodes `mp.get("eflomal")`/`mp.get("gloss")` and picks between only
+    those two — silently ignoring spanext even when present in `mp`, discarding its (measured, real)
+    widened span in favor of whichever of eflomal/gloss the contest rule preferred. spanext is not a
+    THIRD independent opinion to relitigate the same way eflomal-vs-gloss is: it is a validated
+    REFINEMENT of whichever of the two it read its own span from (a strictly wider version of an
+    existing decision, never a competing one), so it should always win once it fires — there is no
+    "disagreement" to resolve. Found live testing compact_align's own opt-in layer mechanism as a home
+    for spanext instead (build_layer drops any layer entry a position the base array already covers,
+    which is EVERY spanext entry by construction — that route is a dead end, this is the real fix)."""
+    if "spanext" in mp:
+        return mp["spanext"], None
     ef, gl = mp.get("eflomal"), mp.get("gloss")
     if contest and ef and gl and not gl.get("light"):
         if _merge_norm(ef.get("target")) == _merge_norm(gl.get("target")):

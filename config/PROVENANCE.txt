@@ -3,7 +3,17 @@ lexeme-spine.db — LEXEME-anchored backbone (the current spine; spine_words tab
   anchor: lexeme = lang:augmented-strong (e.g. hbo:0871a) ; strong = augment-stripped rollup
     (Hebrew equivalence-canonicalized for spine.db parity). Adds gloss + role columns.
   sources: Clear-Bible/macula-greek@main (Nestle1904) + macula-hebrew@main (WLC)
-  pin: spine_meta.macula_spine_sha256 = a3dbc0bbe95e19e0b45b5dbc533ae4b82eb61d66f1f0e817c87bb8628ac5d0ac
+  pin: spine_meta.macula_spine_sha256 = 9a1f8bd524c2783d20034bfdcbcffc2fadb78e74e9c1b6cd6c84bc9e758b1e71
+    (re-pinned 2026-09-23, was a3dbc0bbe95e19e0b45b5dbc533ae4b82eb61d66f1f0e817c87bb8628ac5d0ac — bump
+    fulfills internal-docs/bcv-query-wishlist.md #3/#3b: adds `head_idx` (syntactic head token, per
+    occurrence — confirmed populated, e.g. JOS 1:14) and `construct_group` (a construct/phrase-unit
+    chain id shared by every token in the unit, e.g. "06-Jos-001-lowfat-cg25" — confirmed on that same
+    verse) plus a new `phrase_role` column (s/v/o/pp/adv-style tags) not originally asked for but in the
+    same delivery. NOT YET WIRED into HebToken/hebrew_source.py — same "forward-compatible, zero-code-
+    change drop-in whenever it lands" pattern as `is_superscription`/`sense` before it; wiring is a
+    separate follow-up. Word count/row count for a given verse is UNCHANGED by this bump — the
+    still-open wishlist #10 (assimilated/hidden definite article as its own token) was NOT part of this
+    delivery; Joshua 1:14 still has 35 rows, not 36.)
   contract: docs/data-contracts.md §1. Provided out-of-band; gitignored (*.db).
 
 rp2018-spine.db — ALTERNATE NT spine, Robinson-Pierpont 2018 Byzantine Textform  [ALIGNER_SPINE_DB]
@@ -139,6 +149,22 @@ lexeme-spine.db — LEXEME-ANCHORED backbone (MACULA) — data-contract §1
   documented baseline exactly. Verified independently on the final build (2026-07-25): sense
   coverage 227,400/607,255 (37.4%), phrase_id coverage 296,356/607,255 (48.8%), is_superscription
   532/607,255 — all match exactly. new sha256: 0498790c57948c10d7158bb49ccd2593ae4be0aa1319570a1fac45c259541918
+
+  UPDATE 2026-09-23: + `head_idx`/`phrase_role` (from MACULA Hebrew's lowfat XML tree, WLC/lowfat/ —
+  a richer sibling distribution to the flat TSV, same repo/CC-BY-4.0, not previously ingested;
+  head_idx = idx of the row's clause verb, same verse, NULL if the row IS that verb; phrase_role =
+  v/s/o/o2/p/pp/adv) + `construct_group` (second, independent source alongside the existing
+  phrase_id+rela='rec' path, from the lowfat tree's own rule="NPofNP" grouping) — Hebrew/OT-only,
+  266,393 / 415,872 / 115,925 tokens respectively. Plus a new companion table,
+  spine_assimilated_articles(book, chapter, verse, after_idx, lemma, gloss, strong) — 6,435 rows for
+  the phonologically-assimilated definite article (e.g. Joshua 1:14 "in the land"), absent from the
+  flat TSV entirely but present in the lowfat XML as a zero-width token; NOT spliced into spine_words
+  as a new row since (book,chapter,verse,idx) is the pinned join key and a spliced row would shift
+  idx for every later token in the verse. Built via shoresh/macula/parse_lowfat_hbo.py +
+  enrich_spine_lowfat.py. Word-count parity against the TSV verified per-book (0 mismatches,
+  469,476/469,476) after fixing a real bug in the extraction (a `<c>` compound-word wrapper tag was
+  silently dropped, undercounting ~1,700 words concentrated in genealogy-heavy books — caught by
+  that same parity check). new sha256: 4bfd0cdd0a4eed93c5f14fe073f7c96f25ccd07073dc4888c6f9c4fc4c882125
 
 gbt/ — globalbibletools/data per-occurrence gloss JSON (hbo+grc source + per-language target renderings)
   seeded 2026-07-17 from bcv-query monorepo's already-fetched pin (shoresh/interlinear/fetch.py's

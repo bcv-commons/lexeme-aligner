@@ -131,10 +131,15 @@ def _book_file(usj_dir: Path, book: str) -> Path:
     return usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
 
 
-def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, res_dir: Path = RESOURCES
+def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, res_dir: Path = RESOURCES,
+              gold_methods: tuple[str, ...] = ("manual",)
               ) -> tuple[dict[int, GoldVerse], collections.Counter]:
-    """{ref: GoldVerse} for the manual links of `base_text`, mapped onto our token positions; plus stats
-    (verses seen / mapped / refused, links kept / dropped)."""
+    """{ref: GoldVerse} for the `gold_methods` links of `base_text`, mapped onto our token positions; plus
+    stats (verses seen / mapped / refused, links kept / dropped). Default is `manual` only — Clear's
+    hand-aligned rows. Some languages (e.g. por/JFA11) carry ONLY `transfer` rows (machine-projected from a
+    manually-aligned edition via verse structure, not a human annotation) — pass `gold_methods=("transfer",)`
+    explicitly for those; never silently mix the two without saying so in the report, since transfer rows
+    are a weaker evidentiary standard than manual ones."""
     import pyarrow.parquet as pq
     fp = res_dir / "strongs" / "attestations" / f"{iso}.parquet"
     if not fp.exists():
@@ -144,7 +149,7 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
     wanted = {BOOK_NUMBERS[b] for b in books}
     by_ref: dict[int, list[dict]] = collections.defaultdict(list)
     for r in rows:
-        if r["method"] != "manual" or (base_text and r["base_text"] != base_text):
+        if r["method"] not in gold_methods or (base_text and r["base_text"] != base_text):
             continue
         ref = int(r["ref"])
         if ref // 1_000_000 in wanted:
@@ -374,6 +379,10 @@ def main(argv=None) -> int:
                     help="method to score (repeatable). `llm:<out-tag>` scores an LLM cell; `merged` needs "
                          "merge_align output. Default: eflomal, gloss, gapfill")
     ap.add_argument("--base-text", default=None, help="gold edition (default: config/gold_langs.json's)")
+    ap.add_argument("--gold-method", action="append", default=None,
+                    help="Clear gold row provenance to accept (repeatable). Default: manual. Pass "
+                         "'transfer' for languages with no manual rows (e.g. por/JFA11) — machine-projected "
+                         "gold, weaker evidence than manual; the printed report always names which was used.")
     ap.add_argument("--all-tokens", action="store_true",
                     help="judge function-word links too (Aim-2 full partition); default: content lexemes only")
     ap.add_argument("--out", type=Path, default=OUT)
@@ -385,8 +394,10 @@ def main(argv=None) -> int:
     if want and Path(a.usj_dir).resolve() != Path(want).resolve():
         raise SystemExit(f"[pos_score] --usj-dir is not the gold edition for {a.publish_iso} ({want})")
     books = _books(a)
-    gold, stats = load_gold(a.publish_iso, a.usj_dir, books, base_text)
-    print(f"[pos_score] gold {a.publish_iso}/{base_text}: {stats['verses_mapped']}/{stats['verses']} verses mapped "
+    gold_methods = tuple(a.gold_method) if a.gold_method else ("manual",)
+    gold, stats = load_gold(a.publish_iso, a.usj_dir, books, base_text, gold_methods=gold_methods)
+    print(f"[pos_score] gold {a.publish_iso}/{base_text} (method={','.join(gold_methods)}): "
+          f"{stats['verses_mapped']}/{stats['verses']} verses mapped "
           f"({stats['verses_refused']} refused: tokenization mismatch; {stats['verses_no_text']} no text) · "
           f"{stats['links']} links ({stats['links_punct_only']} punctuation-only dropped, "
           f"{stats['links_beyond_text']} beyond text)", file=sys.stderr)

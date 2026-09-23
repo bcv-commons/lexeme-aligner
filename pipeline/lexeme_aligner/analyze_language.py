@@ -32,20 +32,37 @@ from lexeme_aligner.gapfill import load_priors
 from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES, _OUT as GRAMBANK_FEATURES_FILE
 
 # (risk key, POS tags the check applies to, minimum observed multi-word rate below which it's an
-# anomaly, human description of what the flagged Grambank feature means for alignment spans).
+# anomaly, human description of what the flagged Grambank feature means for alignment spans, polarity).
+# polarity "any_one" (default): flagged when ANY listed Grambank feature is "1" — the language HAS this
+# category, so a free word for it is plausible. polarity "not_all_one": flagged unless EVERY listed
+# feature is "1" — the language's marking is INCOMPLETE (partial or absent), so a free word may still be
+# needed to fill the gap. NOTE the first cut of this rule tried "all_zero" (flag only when every feature
+# is exactly "0") and it was WRONG: Grambank's GB089/090 record whether a suffix/prefix indexing the
+# subject exists AT ALL, not whether it's rich enough to license dropping the pronoun — English is coded
+# GB089=1 (its bare 3rd-singular "-s" counts) even though that one suffix can't replace "he/I/you/they" in
+# the other five person/number slots, so "all_zero" never fired for English, the exact case that motivated
+# this rule. Checked real values 2026-09-23: arb is the ONLY gold language with GB089=1 AND GB090=1 (full
+# suffix+prefix paradigm) — and arb's own gap evidence (this session) genuinely has no subject-pronoun
+# undershoot at all. eng/hin/por/fra all have at most one of the two "1" and all show a real, measured
+# need for a free subject-marking word (eng confirmed directly: ~8% of gold-undershot verbs were a bare
+# subject pronoun). "not_all_one" is the polarity that matches this pattern.
 RISK_RULES = [
     ("case_marking", ("name", "noun"), 0.05,
      "oblique non-pronominal case marking (GB072) — check whether a name/noun ever needs a following "
-     "adposition/postposition attached for a genitive/dative/ablative-type source relation."),
+     "adposition/postposition attached for a genitive/dative/ablative-type source relation.", "any_one"),
     ("tam_auxiliary", ("verb",), 0.05,
      "tense/aspect/mood carried by a separate auxiliary word (GB119-121) — check whether verb spans "
-     "ever need more than one target word for tense/aspect/mood."),
+     "ever need more than one target word for tense/aspect/mood.", "any_one"),
     ("articles", ("noun", "name"), 0.05,
      "definite/specific articles (GB020-023) — check whether noun/name spans ever need a leading "
-     "article word."),
+     "article word.", "any_one"),
     ("possession_affix", ("noun",), 0.05,
      "possessive marking (GB430-433) — check whether a possessed noun ever needs a following "
-     "possessive word."),
+     "possessive word.", "any_one"),
+    ("subject_indexing", ("verb",), 0.05,
+     "the verb's own subject marking is incomplete (not both GB089 suffix and GB090 prefix) — check "
+     "whether verb spans ever need an added free subject pronoun (a Greek/Hebrew pro-drop verb has no "
+     "separate source word for it).", "not_all_one"),
 ]
 
 
@@ -94,9 +111,14 @@ def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = 
 
     findings = []
     if grambank is not None:
-        for risk_key, pos_tags, threshold, description in RISK_RULES:
+        for risk_key, pos_tags, threshold, description, polarity in RISK_RULES:
             feature_ids = GRAMBANK_FEATURES.get(risk_key, [])
-            flagged = any(grambank.get(f) == "1" for f in feature_ids)
+            if polarity == "not_all_one":
+                flagged = bool(feature_ids) and not all(grambank.get(f) == "1" for f in feature_ids)
+                matched_ids = [f for f in feature_ids if grambank.get(f) != "1"]
+            else:
+                flagged = any(grambank.get(f) == "1" for f in feature_ids)
+                matched_ids = [f for f in feature_ids if grambank.get(f) == "1"]
             if not flagged:
                 continue
             for pos in pos_tags:
@@ -107,7 +129,7 @@ def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = 
                 if rate < threshold:
                     findings.append({
                         "risk": risk_key, "pos": pos, "multiword": mw, "total": total,
-                        "rate": round(rate, 4), "grambank_ids": [f for f in feature_ids if grambank.get(f) == "1"],
+                        "rate": round(rate, 4), "grambank_ids": matched_ids,
                         "description": description,
                     })
     return {

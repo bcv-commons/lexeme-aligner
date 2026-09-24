@@ -170,6 +170,26 @@ def test_no_construct_group_shows_no_cross_reference():
     assert "construct-chain" not in text
 
 
+def test_clause_verb_ref_shown_when_the_verb_is_listed():
+    heb = [tok(0, "יֹּ֤אמֶר", "H0559", "hbo:0559", gloss="he.said"),
+           tok(1, "יְהוֹשֻׁ֣עַ", "H3091", "hbo:3091", gloss="Joshua", content=False)]
+    heb[1].head_idx = 0
+    p = packet(heb=heb, decide=[0, 1], allowed=[1, 2], soft=[], taken=[], resolved={},
+               toks=["and", "said", "joshua"])
+    text = render_verse_suffix(p)
+    assert "{clause-verb: h0}" in text
+
+
+def test_clause_verb_ref_omitted_when_it_is_the_token_itself_or_unlisted():
+    heb = [tok(0, "יֹּ֤אמֶר", "H0559", "hbo:0559", gloss="he.said")]
+    heb[0].head_idx = 0                                  # points at itself — nonsensical, must not render
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "clause-verb" not in render_verse_suffix(p)
+    heb[0].head_idx = 99                                 # not among the listed h ids
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "clause-verb" not in render_verse_suffix(p)
+
+
 def test_non_content_rows_only_shown_for_full():
     assert " fn" not in render_verse_suffix(packet("gap"))
     p = packet("full", resolved={}, taken=[], decide=[0, 1, 2], allowed=[0, 2, 3, 4, 6], soft=[1, 5])

@@ -23,7 +23,7 @@ from typing import Iterable
 from lexeme_aligner.eflomal_align import _longest_contiguous
 from lexeme_aligner.hebrew_source import HebToken
 
-PROMPT_VERSION = "llm-align-v10"     # v5: SEEDS caveat — a seed's majority reflects frequency, not this
+PROMPT_VERSION = "llm-align-v11"     # v5: SEEDS caveat — a seed's majority reflects frequency, not this
                                       # occurrence's grammatical role (found diagnosing hin's postposition bug)
                                       # v6: the gloss's own the./of./'s marker is a hard per-occurrence signal
                                       # (found diagnosing an eng lexeme-verify regression on Joshua construct
@@ -56,8 +56,19 @@ PROMPT_VERSION = "llm-align-v10"     # v5: SEEDS caveat — a seed's majority re
                                       # directly against the live spine before shipping (Matthew 1:1's
                                       # genitive chain all tagged [genitive]; Matthew 1:16's "was born"
                                       # tagged [passive·aorist·3sg], matching eng.md's own cited example).
-                                      # Not yet re-verified against a real LLM run (held for a later,
-                                      # combined verification pass rather than spending on Joshua again).
+                                      # Combined phases 1-4 re-verified against a real Joshua 1-4 re-run:
+                                      # exact-agreement rows 744->794, ASV-example-longer overlap rows
+                                      # 251(session start)->119. Small honest tradeoff: positional F1 vs
+                                      # ASV-example .968->.959 (wider, more grammatically-complete spans
+                                      # occasionally miss ASV's own exact word boundary).
+                                      # v11: closed the Phase 4 gap left open in v10 — `head_idx` (Hebrew
+                                      # syntactic head, from bcv-query's lowfat-treebank delivery) now
+                                      # renders as a `{clause-verb: h8}` cross-reference, grounding rule
+                                      # 3/4's discontinuous-span/phrasal-reading calls in real syntax
+                                      # instead of word-order proximity. `phrase_role` (same delivery) is
+                                      # read into HebToken but deliberately left unrendered — no concrete
+                                      # alignment case has needed it yet, unlike head_idx's direct
+                                      # span-grounding role; add it only when one does.
 
 STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "lexeme-verify", "verify")
 SEEDED = ("full", "gap-seeded", "lexeme-grouped", "lexeme-verify")   # strategies carrying whole-language hints
@@ -299,7 +310,12 @@ only the source words the packet lists after `DECIDE:`. Everything else in the p
    inconsistency — trust them outright. A `{{construct-chain: h5,h7}}` annotation lists every OTHER listed
    source id sharing this word's construct chain, even when they are not adjacent in this verse's word
    order — use it to see a chain's full membership (a chain can run longer than two words, e.g. "ark of
-   the covenant of Jehovah your God" links four source ids) instead of guessing from proximity alone.
+   the covenant of Jehovah your God" links four source ids) instead of guessing from proximity alone. A
+   `{{clause-verb: h8}}` annotation (Hebrew only) names this word's own clause's verb, when that verb is
+   also a listed id — a prepositional-phrase or object word can sit several positions from its verb in
+   Hebrew's own freer word order, and this shows the real syntactic link instead of leaving it to guess
+   from proximity when judging whether a discontinuous span (rule 4) or a phrasal reading (rule 3)
+   genuinely belongs together.
 8. If the only available positions are function words, answer `unrepresented`.
 9. Names: align to the target's rendering of the name; a name may span several words. A transliteration is
    given when known.
@@ -572,6 +588,22 @@ def _construct_partners(heb: Iterable[HebToken], tok: HebToken) -> str:
     return " {construct-chain: " + ",".join(f"h{i}" for i in partners) + "}" if partners else ""
 
 
+def _clause_verb_ref(heb: Iterable[HebToken], tok: HebToken) -> str:
+    """This token's clause-level syntactic HEAD (bcv-query's `head_idx`, Hebrew/OT only) — the verb this
+    word's phrase depends on, when that verb is itself among the listed source ids. Grounds rule 4's
+    "genuinely belong together" test for a discontinuous span and rule 3's phrasal-verb case in real
+    syntax instead of word-order proximity: a prepositional-phrase member several words from its verb
+    (common in Hebrew's own freer word order) still visibly belongs to it. `phrase_role` (the same
+    delivery: v/s/o/o2/p/pp/adv/...) is read into HebToken but deliberately NOT rendered here yet — no
+    concrete alignment case has needed it so far, unlike `head_idx`'s direct span-grounding role; add it
+    if and when one does, rather than paying its ~69%-fill token cost on a guess."""
+    if tok.head_idx is None or tok.head_idx == tok.idx:
+        return ""
+    if not any(t.idx == tok.head_idx for t in heb):
+        return ""
+    return f" {{clause-verb: h{tok.head_idx}}}"
+
+
 def _source_row(tok: HebToken, state: str, pos: str | None, heb: Iterable[HebToken] = ()) -> str:
     # NOTE: the `state` parameter here is the row's trailing status string ("resolved -> t4", "DECIDE",
     # ...) — an existing, unrelated meaning predating HebToken.state (the spine's construct/absolute
@@ -580,7 +612,8 @@ def _source_row(tok: HebToken, state: str, pos: str | None, heb: Iterable[HebTok
     lemma = f" <{tok.lemma}>" if tok.lemma and tok.lemma.lower() != tok.surface.lower() else ""
     gloss = f' "{tok.gloss_en[:_MAX_GLOSS]}"' if tok.gloss_en else ""
     return (f"  h{tok.idx} {tok.surface}{lemma} {_strong_lexeme(tok)}{' ' + pos if pos else ''}"
-            f"{_gram_tag(tok)}{_construct_partners(heb, tok)}{gloss}{state}").rstrip()
+            f"{_gram_tag(tok)}{_construct_partners(heb, tok)}{_clause_verb_ref(heb, tok)}{gloss}{state}"
+            ).rstrip()
 
 
 def _fmt_pos(ts: Iterable[int]) -> str:

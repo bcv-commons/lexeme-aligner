@@ -76,7 +76,19 @@ FEATURES = {
     # all three matched the real gold-confirmed direction found by hand for each language.
     "adposition_order": ["GB074", "GB075"],          # [0]=preposition (before), [1]=postposition (after)
     "article_order": ["GB022", "GB023"],              # [0]=prenominal (before), [1]=postnominal (after)
+    # Direct possessor/possessum order — unlike the pairs above, this is ONE ternary feature, not two
+    # binary flags: GB065 codes 1 (possessor precedes possessum, e.g. English "his house"), 2 (possessor
+    # follows, e.g. "house his"), or 3 (both orders occur/free) — needs its own direction helper, not
+    # direction_for()'s before_id/after_id pair convention.
+    "possession_order": ["GB065"],
 }
+# TRIED 2026-09-24, not kept: a "subject_order" direction (GB133 verb-final=before, GB131 verb-initial=
+# after — Grambank has no dedicated subject-pronoun-position or auxiliary-order feature; checked the full
+# parameter list) derived a plausible before/after direction and matched textbook typology (hin SOV->
+# before, arb VSO->after), but adding it to span_extension's subject_indexing category measured a WASH on
+# real Clear gold (hin whole NT: F1 unchanged .627->.627, exact_span/precision slightly worse) — see
+# span_extension.py's module docstring for the full comparison. Not registered here to avoid dead code a
+# reader would reasonably assume is in active use.
 _ALL = {f for fs in FEATURES.values() for f in fs}
 
 

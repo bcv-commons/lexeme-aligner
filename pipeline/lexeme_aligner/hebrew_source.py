@@ -97,6 +97,49 @@ class HebToken:
     # no way to prefer the surface matching THIS occurrence's own features over another occurrence's.
     number: str | None = None
     gender: str | None = None
+    # Hebrew construct/absolute STATE (same spine build; OT-only, empty for Greek/NT). Deterministic and
+    # 100% filled where present — unlike the compositional gloss's own "of." marker, which MACULA does NOT
+    # apply consistently to every construct-chain rectum (confirmed: the identical word in the identical
+    # grammatical role glosses as "of.the.covenant" in one verse and plain "the.covenant" in another — a
+    # real regression found and fixed in an LLM-alignment prompt this session, see llm_prompt.py's rule 6
+    # changelog). `state == "construct"` marks the governed HEAD of a two-word construct phrase (needs a
+    # supplied English "the"/possessive per that language's own conventions); the following word (often
+    # "absolute" or "determined") is the governing rectum (needs a supplied "of").
+    state: str | None = None
+    # Greek grammatical CASE (same spine build; NT-only, empty for Hebrew/OT). Directly analogous to
+    # `state` above but for Greek: genitive/dative/ablative marking is carried by the word's own case
+    # ending, no separate source word, and (unlike the gloss's `of.`/`from.` marker) does not depend on
+    # how the gloss happened to be worded.
+    case_: str | None = None
+    # Greek verb TENSE/VOICE/MOOD (same spine build; NT-only). A hard backup for the gloss's own
+    # `will.`/`[is].`/etc. compositional markers (rule 6) — this is structured morphology, not a
+    # translator's own wording choice.
+    tense: str | None = None
+    voice: str | None = None
+    mood: str | None = None
+    # PERSON (same spine build; both testaments, verbs only). A hard backup for the gloss's own
+    # `he.`/`they.`/etc. subject-pronoun markers — combines with the ALREADY-present `number` above for a
+    # pro-drop signal (e.g. person=third + number=singular = "the verb's own inflection carries a 3rd
+    # person singular subject with no separate source pronoun").
+    person: str | None = None
+    # Comparative/superlative DEGREE (same spine build; adjectives, sparsely populated — 313/200 rows
+    # spine-wide). Small but clean: a target language needing a separate comparative/superlative word
+    # (English "more"/"most") has a hard signal instead of inferring it from the gloss.
+    degree: str | None = None
+    # `construct_group` groups every token of ONE construct chain (2 or more members — Hebrew grammar's
+    # own chain can run longer than 2 words, e.g. "ark of the covenant of Jehovah") under a shared id —
+    # a SECOND, independent construct signal alongside `state`/`phrase_id`/`rela` (bcv-query's own
+    # confirmation, see internal-docs/bcv-query-wishlist.md). Lets the packet show which OTHER listed `h`
+    # ids are a token's construct partners directly, instead of the model inferring adjacency from verse
+    # position — the fix for a SCATTERED (non-adjacent) construct chain, which `state` alone can't signal.
+    construct_group: str | None = None
+    # `head_idx` is this token's syntactic head's own spine `idx` (Hebrew/OT only, from MACULA's lowfat
+    # treebank — no Greek lowfat distribution exists to build one from); `phrase_role` is the token's
+    # phrase-level role (v/s/o/o2/p/pp/adv/...). Both bcv-query deliveries, not yet consumed anywhere in
+    # this pipeline before this field (see the wishlist doc's "not yet consumed" section) — a candidate for
+    # grounding rule 3/4's span/discontinuity decisions in real syntax rather than word-order guessing.
+    head_idx: int | None = None
+    phrase_role: str | None = None
     # filled by the aligner:
     matches: list = field(default_factory=list)
 
@@ -169,6 +212,21 @@ class HebrewSource:
         self.has_phrase = _populated("phrase_id")
         # Morphological agreement features (number/gender land together — same build as phrase syntax).
         self.has_morph_features = _populated("number")
+        # Hebrew construct/absolute state (same build; OT-only, see HebToken.state).
+        self.has_state = _populated("state")
+        # Greek case (NT-only, see HebToken.case_).
+        self.has_case = _populated("case_")
+        # Greek verb TAM (tense/voice/mood land together — same build; NT-only, see HebToken).
+        self.has_tam = _populated("tense")
+        # PERSON (both testaments, verbs only — see HebToken.person).
+        self.has_person = _populated("person")
+        # Comparative/superlative degree (adjectives, sparsely populated — see HebToken.degree).
+        self.has_degree = _populated("degree")
+        # construct_group/head_idx/phrase_role land independently (three separate bcv-query deliveries,
+        # not one build) — probe each on its own, same reasoning as has_gloss/has_stem/has_sense above.
+        self.has_construct_group = _populated("construct_group")
+        self.has_head_idx = _populated("head_idx")
+        self.has_phrase_role = _populated("phrase_role")
         # hbo.db is the optional per-occurrence sense sidecar (sense-mining only).
         # Statistical methods (eflomal/IBM-1) need only spine + target USJ, so a
         # missing hbo.db must not be fatal — connect only when the file is present.
@@ -234,6 +292,24 @@ class HebrewSource:
             if self.has_morph_features:                # number/gender agreement (OT-only; see HebToken)
                 tok.number = r.get("number") or None
                 tok.gender = r.get("gender") or None
+            if self.has_state:                         # construct/absolute state (OT-only; see HebToken)
+                tok.state = r.get("state") or None
+            if self.has_case:                          # Greek case (NT-only; see HebToken.case_)
+                tok.case_ = r.get("case_") or None
+            if self.has_tam:                            # Greek tense/voice/mood (NT-only; see HebToken)
+                tok.tense = r.get("tense") or None
+                tok.voice = r.get("voice") or None
+                tok.mood = r.get("mood") or None
+            if self.has_person:                        # verb person (both testaments; see HebToken)
+                tok.person = r.get("person") or None
+            if self.has_degree:                        # comparative/superlative (see HebToken.degree)
+                tok.degree = r.get("degree") or None
+            if self.has_construct_group:               # construct-chain grouping (see HebToken)
+                tok.construct_group = r.get("construct_group") or None
+            if self.has_head_idx:                      # syntactic head idx (OT-only; see HebToken)
+                tok.head_idx = r.get("head_idx")
+            if self.has_phrase_role:                   # phrase-level role (see HebToken.phrase_role)
+                tok.phrase_role = r.get("phrase_role") or None
             toks.append(tok)
 
         if not self.has_superscription_col and book == "PSA" and toks:

@@ -51,3 +51,40 @@ categories at once, plus two more real patterns Grambank wasn't asked about):
   specific verse's own evidence (an attested SEEDS rendering, or — especially for the possessive-pronoun
   case above — a listed pronoun `h` id with its own better claim) argues against extending the span, that
   verse's evidence wins. These are defaults for the unclear case, not absolute rules.
+- **`lexeme-verify` specifically: a correct `of`/`the`/possessive/auxiliary supplial (the categories
+  above) is per-OCCURRENCE grammar, not a lexeme-wide convention — do not strip one because sibling
+  occurrences of the same lexeme render without it.** Confirmed live regression (Joshua 1:1, hbo:4872
+  "Moses"): the `full` pass correctly decided the construct-state occurrence "עֶבֶד מֹשֶׁה" (servant OF
+  Moses) as `of Moses` (note: `construct 'of Moses'`) — matching this file's own genitive-`of` rule —
+  and the following `lexeme-verify` pass then corrected it back down to bare `Moses`, with the note
+  `"t8 'of' is function word, only Moses itself belongs"`, even though `lexeme-verify`'s own strategy
+  text already warns "a rendering that differs from the rest of the group is not automatically wrong."
+  Most of this lexeme's other occurrences in the same chapter (Joshua 1:1 h15, 1:5, 1:7, 1:13, 1:15 —
+  all plain nominative "Moses") legitimately render as bare `Moses`; this ONE occurrence's own
+  construct/genitive marking (visible from ITS OWN gloss, e.g. "of.Moses" vs plain "Moses") is what
+  licenses the wider span, not majority vote across the lexeme's occurrences. Same pattern confirmed on
+  hbo:0001 ("father"): Joshua 2:12/2:18's genitive "my father's"/"your father's" occurrences are the
+  ONLY ones of that lexeme in the chapter needing the possessive `'s`; a lexeme-verify pass must not use
+  that minority status as evidence for stripping it. When reviewing a genitive/construct occurrence,
+  check that occurrence's OWN gloss (a genitive gloss usually reads "of.X" or "X's", not bare "X") before
+  trusting the group's dominant span width.
+- **The gloss's own `the.` marker is the deciding signal for the definite article — check it directly,
+  every time, instead of pattern-matching from a similar case just decided.** The bullet above fixed the
+  genitive-`of` regression cleanly (confirmed: every changed genitive-of decision moved correctly), but
+  the SAME re-run also flipped several PLAIN (non-genitive) definite-article decisions the WRONG way in
+  both directions, each one contradicting its own word's gloss: `אֲר֤וֹן` (gloss `the.ark`) was
+  correctly `the ark`, then wrongly corrected to bare `ark`, TWICE, in Joshua 3:3 and 3:8; `רַגְלֵ֤י`
+  (gloss `the.feet`) went from correct `the feet` to wrong `feet` in Joshua 3:15 and 4:9; `יְמֵ֥י` (gloss
+  `the.days`) went from correct `the days` to wrong `days` in Joshua 4:14; `כֹּֽהֲנִים֙`/`כֹּהֲנִ֔ים`
+  (gloss `the.priests`) went from correct `the priests` to a WORSE match in 3:15/4:3; and in the other
+  direction, `מַּיִם֩` (gloss plain `waters`, no article marker at all) went from correct bare `waters`
+  to wrongly-added `the waters` in Joshua 3:16, and `אָר֗וֹן` (gloss plain `ark`) similarly gained an
+  unwarranted `the` in 4:10. **Rule: a gloss written `the.X` or `[the].X` means the span needs `the` (or
+  an equivalent definite rendering); a gloss with no `the.` prefix means it does not — regardless of
+  whether a construct/genitive neighbor just needed one, regardless of what a sibling occurrence of the
+  same lexeme rendered as, and regardless of general plausibility. A compound gloss like `of.the.X` needs
+  BOTH the genitive `of` AND the article `the` in the same span (`רַגְלֵ֣י` in Joshua 4:9, gloss
+  `of.the.feet`, needs `of the feet` — a case this file's own genitive-of fix did not yet fully realize,
+  since it only supplied `the feet`, dropping the `of`). When correcting or confirming ANY occurrence
+  that touches definiteness, re-read that occurrence's own gloss line before deciding — do not carry a
+  decision over from the previous occurrence you just reviewed.

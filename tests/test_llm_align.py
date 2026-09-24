@@ -89,6 +89,87 @@ def test_lemma_only_shown_when_it_differs_from_the_surface():
     assert "Βίβλος <" not in text                       # lemma βίβλος == surface up to case
 
 
+def test_construct_state_shows_a_hard_gram_tag():
+    """HebToken.state (spine's own structured morphology, not gloss text) surfaces as a [construct] tag —
+    the hard signal that replaced the unreliable gloss `of.` marker (see PROMPT_VERSION's v8/v9 changelog)."""
+    heb = [tok(0, "אֲרוֹן", "H0727", "hbo:0727", gloss="ark")]
+    heb[0].state = "construct"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[construct]" in render_verse_suffix(p)
+
+
+def test_determined_state_shows_a_hard_gram_tag():
+    heb = [tok(0, "אֲרוֹן", "H0727", "hbo:0727", gloss="ark")]
+    heb[0].state = "determined"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[determined]" in render_verse_suffix(p)
+
+
+def test_absolute_state_shows_no_gram_tag():
+    heb = [tok(0, "אֲרוֹן", "H0727", "hbo:0727", gloss="ark")]
+    heb[0].state = "absolute"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    text = render_verse_suffix(p)
+    assert "[construct]" not in text and "[determined]" not in text
+
+
+def test_no_state_shows_no_gram_tag():
+    text = render_verse_suffix(packet())                # default tok() leaves state=None
+    assert "[construct]" not in text and "[determined]" not in text
+
+
+def test_greek_case_shows_only_the_marked_values():
+    heb = [tok(0, "Θεοῦ", "G2316", "grc:2316", gloss="of.God")]
+    heb[0].case_ = "genitive"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[genitive]" in render_verse_suffix(p)
+    heb[0].case_ = "nominative"                          # the default, unmarked case — no tag
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[" not in render_verse_suffix(p).split("SOURCE:")[1].split("TARGET:")[0]
+
+
+def test_greek_tam_and_person_combine_in_one_bracket():
+    heb = [tok(0, "ἐγεννήθη", "G1080", "grc:1080", gloss="was.born")]
+    heb[0].tense, heb[0].voice, heb[0].mood = "aorist", "passive", "indicative"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[passive·aorist]" in render_verse_suffix(p)   # mood=indicative is the default — omitted
+
+
+def test_person_and_number_combine_into_a_compact_tag():
+    heb = [tok(0, "ἐκάλεσα", "G2564", "grc:2564", gloss="i.called")]
+    heb[0].person, heb[0].number = "first", "singular"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[1sg]" in render_verse_suffix(p)
+
+
+def test_degree_shows_comparative_and_superlative():
+    heb = [tok(0, "μείζων", "G3187", "grc:3187", gloss="greater")]
+    heb[0].degree = "comparative"
+    p = packet(heb=heb, decide=[0], allowed=[1], soft=[], taken=[], resolved={})
+    assert "[comparative]" in render_verse_suffix(p)
+
+
+def test_construct_chain_partners_shown_across_scattered_members():
+    """construct_group cross-references OTHER listed h ids sharing the group, even when not adjacent —
+    the case `state` alone (Phase 1) can't signal on its own."""
+    heb = [tok(0, "אֲרוֹן", "H0727", "hbo:0727", gloss="ark"),
+           tok(1, "זָהָב", "H2091", "hbo:2091", gloss="gold", content=False),
+           tok(2, "בְּרִית", "H1285", "hbo:1285", gloss="the.covenant")]
+    heb[0].state = "construct"
+    heb[0].construct_group = "cg1"
+    heb[2].construct_group = "cg1"
+    p = packet(heb=heb, decide=[0, 2], allowed=[1, 2], soft=[], taken=[], resolved={},
+               toks=["gold", "ark", "of", "the", "covenant"])
+    text = render_verse_suffix(p)
+    assert "{construct-chain: h2}" in text
+    assert "{construct-chain: h0}" in text
+
+
+def test_no_construct_group_shows_no_cross_reference():
+    text = render_verse_suffix(packet())
+    assert "construct-chain" not in text
+
+
 def test_non_content_rows_only_shown_for_full():
     assert " fn" not in render_verse_suffix(packet("gap"))
     p = packet("full", resolved={}, taken=[], decide=[0, 1, 2], allowed=[0, 2, 3, 4, 6], soft=[1, 5])
@@ -116,6 +197,21 @@ def test_verify_suffix_shows_the_proposal():
     p = packet("verify", decide=[2], proposed={2: ([4, 5], 0.6)}, resolved={0: [0]}, taken=[0])
     text = render_verse_suffix(p)
     assert "PROPOSED -> t4 t5 (score 0.6)" in text
+
+
+def test_neighbourhood_context_shows_a_neighbor_construct_tag():
+    """The rectum of a construct chain needs a supplied 'of' because of the PRECEDING word's state, not
+    its own — so the context line must show a neighbor's [construct] tag, not just the DECIDE word's own."""
+    heb = [tok(0, "אֲרוֹן", "H0727", "hbo:0727", gloss="ark"),
+           tok(1, "בְּרִית", "H1285", "hbo:1285", gloss="the.covenant")]
+    heb[0].state = "construct"
+    m = packet("lexeme-grouped", heb=heb, decide=[1], allowed=[2], soft=[], taken=[], resolved={0: [0]},
+               toks=["the", "ark", "of", "the", "covenant"], seeds={}, meta={})
+    g = Packet(strategy="lexeme-grouped", ref=0, book="", ch=0, v=0, label="", toks=[], heb=[],
+               decide=[], allowed=[], soft=[], taken=[], lexeme="hbo:1285",
+               seeds={"hbo:1285": []}, meta={"hbo:1285": {}}, members=[m])
+    text = render_suffix(g)
+    assert "אֲרוֹן->the [construct]" in text and "[בְּרִית]" in text
 
 
 def test_lexeme_suffix_groups_verses_and_shows_context():

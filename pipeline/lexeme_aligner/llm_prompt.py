@@ -23,8 +23,41 @@ from typing import Iterable
 from lexeme_aligner.eflomal_align import _longest_contiguous
 from lexeme_aligner.hebrew_source import HebToken
 
-PROMPT_VERSION = "llm-align-v5"      # v5: SEEDS caveat — a seed's majority reflects frequency, not this
+PROMPT_VERSION = "llm-align-v10"     # v5: SEEDS caveat — a seed's majority reflects frequency, not this
                                       # occurrence's grammatical role (found diagnosing hin's postposition bug)
+                                      # v6: the gloss's own the./of./'s marker is a hard per-occurrence signal
+                                      # (found diagnosing an eng lexeme-verify regression on Joshua construct
+                                      # nouns — a source-side fact, not English-specific, so it's a shared rule)
+                                      # v7: extended the same gloss-marker rule to all five compositional
+                                      # families a whole-spine scan confirmed (subject pronoun ~44.5k, TAM
+                                      # auxiliary ~14k, indefinite article ~8.1k, possessive suffix ~4.8k,
+                                      # on top of the./of. already in v6) — matches all five Grambank
+                                      # RISK_RULES categories with a concrete per-occurrence gloss signature
+                                      # v8: v7 caused a real regression (verified: genitive-of category flipped
+                                      # from 17/17 correct to 0/13 correct on a re-run) — MACULA's `of.` gloss
+                                      # marker is NOT consistently applied to every construct-chain rectum
+                                      # (same word, same grammatical role, glosses `of.the.covenant` in one
+                                      # verse and plain `the.covenant` in another), unlike the./a./pronoun/
+                                      # auxiliary/possessive markers, which are reliable wherever checked. v8
+                                      # demotes `of.` to a confirming-not-required signal; construct/genitive
+                                      # relations are judged from the verse's own two-word structure instead
+                                      # v9: Phase 1 of the structured-morphology follow-up (scoped 2026-09-24)
+                                      # — hebrew_source.py now reads the spine's own `state` column
+                                      # (construct/absolute/determined, 100% filled, OT-only) into
+                                      # HebToken.state; a SOURCE row now shows a hard `[construct]`/
+                                      # `[determined]` tag from this structured field when populated, ahead
+                                      # of the gloss-text `of.` marker's own confirmed unreliability (v8)
+                                      # v10: Phases 2-4 of the same follow-up — Greek case/tense/voice/mood,
+                                      # person+number, comparative/superlative degree, and construct_group
+                                      # (a second, independent construct signal, lets a SOURCE row list
+                                      # every OTHER listed id in its construct chain even when not
+                                      # adjacent — verified live: Joshua 3:3's "ark of the covenant of
+                                      # Jehovah your God" links 4 ids under one group). All verified
+                                      # directly against the live spine before shipping (Matthew 1:1's
+                                      # genitive chain all tagged [genitive]; Matthew 1:16's "was born"
+                                      # tagged [passive·aorist·3sg], matching eng.md's own cited example).
+                                      # Not yet re-verified against a real LLM run (held for a later,
+                                      # combined verification pass rather than spending on Joshua again).
 
 STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "lexeme-verify", "verify")
 SEEDED = ("full", "gap-seeded", "lexeme-grouped", "lexeme-verify")   # strategies carrying whole-language hints
@@ -227,20 +260,60 @@ only the source words the packet lists after `DECIDE:`. Everything else in the p
 5. Do not add a function word merely because it is adjacent. An article, preposition or auxiliary belongs to
    the span only when the source word itself carries that meaning (a genitive rendered `of the`, an inflected
    verb rendered with an auxiliary).
-6. If the only available positions are function words, answer `unrepresented`.
-7. Names: align to the target's rendering of the name; a name may span several words. A transliteration is
+6. The gloss is often compositional and states the source word's own grammar directly — a checked, spine-wide
+   convention, not a guess:
+   - `the.X` / `[the].X` — grammatically definite. `a.X` / `an.X` — grammatically indefinite. Reliable:
+     when present (or absent) on a given occurrence, trust it over a sibling occurrence's rendering.
+   - `he.X` / `they.X` / `it.X` / `you.X` / `i.X` / `she.X` / `we.X` — the verb's subject is carried only by
+     its own inflection, with no separate source word for the pronoun. Reliable the same way.
+   - `will.X` / `[is].X` / `[was].X` / `[are].X` / `[were].X` / `[am].X` / `have.X` / `has.X` / `may.X` /
+     `let.X` — tense, aspect, or mood carried by the verb's own inflection, with no separate source word.
+     Reliable the same way.
+   - `his.X` / `your.X` / `my.X` / `their.X` / `its.X` — a possessive carried by a pronominal suffix on the
+     noun itself, with no separate source word. Reliable the same way.
+   - `of.X` / `(of).X` / `from.X` — CONFIRMS a genitive/construct/ablative relation when present, but its
+     ABSENCE does not rule one out: unlike the four markers above, this one is not consistently applied to
+     every construct-chain rectum. The same Hebrew word in the same grammatical role (the governed second
+     member of a two-word construct phrase, e.g. "the ark of the covenant") can gloss as `of.the.covenant`
+     in one verse and plain `the.covenant` in another. A `[construct]` tag on a SOURCE row (a hard signal
+     from the spine's own structured grammar, not gloss text — see below) is authoritative and does not
+     have this inconsistency — it marks that word as the governed HEAD of a two-word construct phrase,
+     which needs your target's own supplied definiteness/possessive; the following word is what usually
+     needs the supplied `of`. When no `[construct]` tag is available (an untagged Hebrew build), judge a
+     construct/genitive relation from the verse's own two-word structure (is this word governed by an
+     adjacent noun, per rule 14) instead — do not strip a construct-rectum's `of` (or a construct-head's
+     supplied `the`/possessive) just because the gloss lacks an explicit `of.` prefix.
+   A gloss with none of the four reliable markers above carries none of that grammar. When this target
+   language marks the matching category with a separate word, particle, or affix (case marking, TAM
+   auxiliaries, articles, possession, subject indexing — the categories a Grambank-informed CAUTION note
+   may flag above), check THIS occurrence's own gloss and construction before deciding whether it belongs
+   to the span. This is a per-occurrence fact about the source word, not a lexeme-wide convention — trust
+   it over what a neighboring occurrence needed, over what another occurrence of the same lexeme rendered as, and over
+   general plausibility.
+7. A bracketed tag on a SOURCE row, e.g. `[genitive]`, `[passive·aorist·3sg]`, `[construct]`, is the SAME
+   kind of hard, structured signal as rule 6's gloss markers, but sourced from the spine's own
+   morphology, not gloss wording — Greek case (`[genitive]`/`[dative]`/`[vocative]`; nominative/accusative
+   are the unmarked default and carry no tag), verb tense/voice/mood (`[passive]`, `[participle]`,
+   `[subjunctive]`, ...; active voice and indicative mood are the unmarked default), person+number
+   (`[3sg]`, `[1pl]`, ...), and comparative/superlative degree. These never have rule 6's `of.`-marker
+   inconsistency — trust them outright. A `{{construct-chain: h5,h7}}` annotation lists every OTHER listed
+   source id sharing this word's construct chain, even when they are not adjacent in this verse's word
+   order — use it to see a chain's full membership (a chain can run longer than two words, e.g. "ark of
+   the covenant of Jehovah your God" links four source ids) instead of guessing from proximity alone.
+8. If the only available positions are function words, answer `unrepresented`.
+9. Names: align to the target's rendering of the name; a name may span several words. A transliteration is
    given when known.
-8. Light words ("be", "have", "say", "do", "all", "one") are often expressed by inflection or by a word another
+10. Light words ("be", "have", "say", "do", "all", "one") are often expressed by inflection or by a word another
    source word already holds. If the rendering is taken or absent, answer `unrepresented`. That is a normal,
    correct answer.
-9. Prefer `unrepresented` to a guess. A wrong alignment is worse than none.
-10. `noncompositional`: only when two or more listed source words are rendered by one fused expression that
+11. Prefer `unrepresented` to a guess. A wrong alignment is worse than none.
+12. `noncompositional`: only when two or more listed source words are rendered by one fused expression that
     cannot be split. Give each of them the same span and mark each `noncompositional`.
-11. A target position belongs to at most one source word, except inside a noncompositional group.
-12. Decide from THIS verse's meaning and word order, not only from the seeds.
-13. `note`: at most 15 words. When you chose between two readings, name the one you rejected. Empty is fine
+13. A target position belongs to at most one source word, except inside a noncompositional group.
+14. Decide from THIS verse's meaning and word order, not only from the seeds.
+15. `note`: at most 15 words. When you chose between two readings, name the one you rejected. Empty is fine
     when the answer is clear.
-14. Output only the JSON object the schema requires. No prose, no code fences.
+16. Output only the JSON object the schema requires. No prose, no code fences.
 """
 
 _STRATEGY = {
@@ -446,10 +519,68 @@ def _strong_lexeme(tok: HebToken) -> str:
     return f"{s} {lx}".strip()
 
 
-def _source_row(tok: HebToken, state: str, pos: str | None) -> str:
+# Only the "marked"/actionable values get a tag — the unmarked default (Hebrew `absolute` state, Greek
+# `nominative`/`accusative` case, `indicative` mood, `active` voice) is the common case and would bloat
+# every row for no decision-relevant signal, the same reasoning `_gram_tag`'s `state` handling already
+# used in Phase 1. `tense` has no single unmarked default worth omitting, so every Greek tense shows.
+_CASE_TAGS = {"genitive", "dative", "vocative"}
+_MOOD_TAGS = {"participle", "infinitive", "imperative", "subjunctive", "optative"}
+_VOICE_TAGS = {"passive", "middle", "middlepassive"}
+_PERSON_ABBR = {"first": "1", "second": "2", "third": "3"}
+_NUMBER_ABBR = {"singular": "sg", "plural": "pl", "dual": "du"}
+
+
+def _gram_tag(tok: HebToken) -> str:
+    """Compact per-occurrence grammar tag from the spine's own STRUCTURED morphology, not gloss text — a
+    hard signal a translator's own gloss wording can't misrepresent. Rule 6's changelog (see
+    PROMPT_VERSION) documents why this matters: MACULA's compositional gloss marks a construct-chain
+    relation with an `of.` prefix only about half the time even for the identical word in the identical
+    grammatical role, so a model trusting the gloss alone flips construct decisions back and forth. These
+    structured fields are 100% filled where the spine build has them and never lie this way.
+    Phase 1: Hebrew construct/determined state. Phase 2/3: Greek case/tense/voice/mood, person+number
+    (a hard backup for the gloss's own he./they./will./[is]./etc. markers), comparative/superlative degree.
+    Several can co-occur on one token (a Greek participle is both a mood and can carry a case), joined by
+    `·` in one bracket."""
+    tags = []
+    if tok.state == "construct":
+        tags.append("construct")
+    elif tok.state == "determined":
+        tags.append("determined")
+    if tok.case_ in _CASE_TAGS:
+        tags.append(tok.case_)
+    if tok.mood in _MOOD_TAGS:
+        tags.append(tok.mood)
+    if tok.voice in _VOICE_TAGS:
+        tags.append(tok.voice)
+    if tok.tense:
+        tags.append(tok.tense)
+    if tok.person in _PERSON_ABBR:
+        tags.append(_PERSON_ABBR[tok.person] + _NUMBER_ABBR.get(tok.number or "", ""))
+    if tok.degree:
+        tags.append(tok.degree)
+    return " [" + "·".join(tags) + "]" if tags else ""
+
+
+def _construct_partners(heb: Iterable[HebToken], tok: HebToken) -> str:
+    """This token's OTHER construct-chain members (bcv-query's `construct_group`, a second independent
+    construct signal alongside `state`) — shown directly so the model doesn't have to infer a chain's
+    membership from verse-adjacency, which fails for a SCATTERED (non-contiguous) chain. `state` alone
+    only signals "this token is a construct head/rectum," not WHICH other listed tokens it links to."""
+    if not tok.construct_group:
+        return ""
+    partners = [t.idx for t in heb if t.idx != tok.idx and t.construct_group == tok.construct_group]
+    return " {construct-chain: " + ",".join(f"h{i}" for i in partners) + "}" if partners else ""
+
+
+def _source_row(tok: HebToken, state: str, pos: str | None, heb: Iterable[HebToken] = ()) -> str:
+    # NOTE: the `state` parameter here is the row's trailing status string ("resolved -> t4", "DECIDE",
+    # ...) — an existing, unrelated meaning predating HebToken.state (the spine's construct/absolute
+    # grammar, rendered below via `_gram_tag`). Kept as-is rather than renamed to avoid an unrelated diff
+    # across every call site.
     lemma = f" <{tok.lemma}>" if tok.lemma and tok.lemma.lower() != tok.surface.lower() else ""
     gloss = f' "{tok.gloss_en[:_MAX_GLOSS]}"' if tok.gloss_en else ""
-    return f"  h{tok.idx} {tok.surface}{lemma} {_strong_lexeme(tok)}{' ' + pos if pos else ''}{gloss}{state}".rstrip()
+    return (f"  h{tok.idx} {tok.surface}{lemma} {_strong_lexeme(tok)}{' ' + pos if pos else ''}"
+            f"{_gram_tag(tok)}{_construct_partners(heb, tok)}{gloss}{state}").rstrip()
 
 
 def _fmt_pos(ts: Iterable[int]) -> str:
@@ -525,7 +656,7 @@ def render_verse_suffix(p: Packet) -> str:
             state = "  fn"
         else:
             continue
-        lines.append(_source_row(tok, state, p.meta.get(tok.lexeme or "", {}).get("pos")))
+        lines.append(_source_row(tok, state, p.meta.get(tok.lexeme or "", {}).get("pos"), p.heb))
     lines += ["TARGET:", _target_line(p), "DECIDE: " + ", ".join(f"h{h}" for h in p.decide)]
     if p.seeds:
         present = _present(p)
@@ -551,7 +682,7 @@ def render_full_verse_suffix(p: Packet) -> str:
     for tok in p.heb:
         ev = p.resolved.get(tok.idx)
         state = f"  DECIDE  (aligner proposed -> {_fmt_pos(ev)})" if ev else "  DECIDE"
-        lines.append(_source_row(tok, state, p.meta.get(tok.lexeme or "", {}).get("pos")))
+        lines.append(_source_row(tok, state, p.meta.get(tok.lexeme or "", {}).get("pos"), p.heb))
     lines += ["TARGET:", _target_line(p), "DECIDE: " + ", ".join(f"h{h}" for h in p.decide)]
     if p.seeds:
         present = _present(p)
@@ -571,11 +702,16 @@ def _neighbourhood(p: Packet, h_idx: int, k: int = 2) -> str:
     if at is None:
         return ""
     def one(t: HebToken) -> str:
+        # A NEIGHBOR's own [construct] tag matters here even though it's not the DECIDE word: the rectum
+        # of a construct chain (e.g. "covenant" in "ark of the covenant") needs a supplied "of" not because
+        # of its OWN state, but because the PRECEDING word is construct-state — the review pass needs to
+        # see that on the neighbor to make the right call for the word actually being reviewed.
+        tag = _gram_tag(t)
         if t.idx == h_idx:
-            return f"[{t.surface}]"
+            return f"[{t.surface}]{tag}"
         ts = p.resolved.get(t.idx)
         got = " ".join(p.toks[j] for j in ts if j < len(p.toks)) if ts else "?"
-        return f"{t.surface}->{got}"
+        return f"{t.surface}->{got}{tag}"
     return " | ".join(one(t) for t in content[max(0, at - k): at + k + 1])
 
 

@@ -293,6 +293,24 @@ def load_grambank_raw(publish_iso: str, path=None) -> dict[str, str] | None:
     return load_grambank(publish_iso, path)
 
 
+_SPANEXT_FLAGS_FILE = Path("config/spanext_flags.json")
+
+
+def load_spanext_flags(publish_iso: str, path: Path | None = None) -> dict[str, bool]:
+    """{"definite_trigger"|"relation_trigger"|"typology_fallback": bool} recommendations recorded for
+    `publish_iso` in `config/spanext_flags.json` — the "measure once, remember it in one line, no code
+    edit" pattern `config/gold_langs.json`/`config/typology/directions.json` already use. {} (all
+    flags default off) for a language with no entry, or if the file doesn't exist at all — never an
+    error. `path` looked up at CALL time (not a default argument) so tests can monkeypatch it, same
+    convention as `load_grambank_raw`'s own `path` parameter."""
+    path = path or _SPANEXT_FLAGS_FILE
+    if not Path(path).exists():
+        return {}
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    entry = doc.get(publish_iso, {})
+    return {k: v for k, v in entry.items() if isinstance(v, bool)}   # skip "_note"/free-text keys
+
+
 # grambank_fetch's "<x>_order" feature-group name -> typology.py's short slot name — the two modules
 # were built at different times with slightly different naming conventions; kept as an explicit table
 # rather than a string-suffix trick so a future feature-group name doesn't silently map to nothing.
@@ -522,8 +540,8 @@ def _chain_neighbor_boundary(members: list, this_idx: int, direction: str, union
 
 def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], out_dir: Path = OUT,
                  methods: tuple[str, ...] = ("eflomal", "gloss"), prior_pack: Path = PRIOR_PACK,
-                 definite_trigger: bool = False, relation_trigger: bool = False,
-                 typology_fallback: bool = False) -> tuple[dict[str, list[dict]], dict]:
+                 definite_trigger: bool | None = None, relation_trigger: bool | None = None,
+                 typology_fallback: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
     """{BOOK: [verse record, ...]} of ONLY the pairs that got widened, plus stats. Never mutates the base
     chain's own jsonl — this is a separate, additive layer (see module docstring). `definite_trigger`:
     Step 1's derived-definiteness additive trigger (`compute_definite`). `relation_trigger`: Step 1's
@@ -531,9 +549,22 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     `state=="construct"` (head) check structurally never reaches. `typology_fallback`: Step 2's
     WALS/lang2vec-backed direction table for languages Grambank doesn't cover — MEASURED net positive
     for spa, net negative for ben/asm (see `analyze_language.analyze`'s own docstring for numbers);
-    a genuine per-language split, not a metric artifact. All three OFF by default, opt-in via
-    `--definite-trigger`/`--relation-trigger`/`--typology-fallback`, until measured per-language
-    (internal-docs/aim1-typology-source-structure-plan.md §4)."""
+    a genuine per-language split, not a metric artifact.
+
+    All three default to `None`, meaning "consult `config/spanext_flags.json` for `publish_iso`,
+    default OFF if it has no entry" — NOT a bare `False` default, so a language nobody has measured
+    yet gets today's conservative behavior automatically, while one that HAS been measured and found
+    to benefit (e.g. hin's `relation_trigger`) gets that remembered without anyone needing to pass a
+    CLI flag by hand every run. Passing an explicit `True`/`False` (Python call or `--flag`/`--no-flag`
+    on the CLI) always overrides the config, for a one-off experiment without editing it."""
+    flags = load_spanext_flags(publish_iso)
+    if definite_trigger is None:
+        definite_trigger = flags.get("definite_trigger", False)
+    if relation_trigger is None:
+        relation_trigger = flags.get("relation_trigger", False)
+    if typology_fallback is None:
+        typology_fallback = flags.get("typology_fallback", False)
+
     lex_pos, _ = load_priors(prior_pack)
     grambank_raw = load_grambank_raw(publish_iso)
     stats: collections.Counter = collections.Counter()
@@ -786,16 +817,21 @@ def main(argv=None) -> int:
                     help="base-chain methods to read pairs from (comma-sep)")
     ap.add_argument("--prior-pack", type=Path, default=PRIOR_PACK)
     ap.add_argument("--out", type=Path, default=OUT)
-    ap.add_argument("--definite-trigger", action="store_true",
+    # BooleanOptionalAction (not plain store_true) so omitting the flag gives None — "consult
+    # config/spanext_flags.json for this language" — distinct from an explicit --no-... override.
+    ap.add_argument("--definite-trigger", action=argparse.BooleanOptionalAction, default=None,
                     help="Step 1's derived-definiteness additive trigger (compute_definite) — "
-                         "opt-in, off by default until measured")
-    ap.add_argument("--relation-trigger", action="store_true",
+                         "default: consult config/spanext_flags.json (off if no entry); "
+                         "--definite-trigger/--no-definite-trigger force it either way")
+    ap.add_argument("--relation-trigger", action=argparse.BooleanOptionalAction, default=None,
                     help="Step 1's Correction 1 fix — extend the Hebrew possessor (rela==rec) "
-                         "additively — opt-in, off by default until measured")
-    ap.add_argument("--typology-fallback", action="store_true",
+                         "additively — default: consult config/spanext_flags.json (on for hin, "
+                         "measured); --relation-trigger/--no-relation-trigger force it either way")
+    ap.add_argument("--typology-fallback", action=argparse.BooleanOptionalAction, default=None,
                     help="Step 2's WALS/lang2vec direction table for languages Grambank doesn't "
-                         "cover — measured net positive for spa, net negative for ben/asm; opt-in "
-                         "per language until a quality gate exists (see analyze_language.analyze)")
+                         "cover — default: consult config/spanext_flags.json (on for spa, off for "
+                         "ben/asm, all measured); --typology-fallback/--no-typology-fallback force "
+                         "it either way")
     a = ap.parse_args(argv)
 
     books = _books(a)

@@ -773,3 +773,77 @@ def test_extend_spans_relation_trigger_respects_chain_boundary(tmp_path, monkeyp
     assert stats["extended_possessor"] == 1
     pairs = {p["h_idx"]: p for p in by_book["MAT"][0]["pairs"]}
     assert 1 in pairs and 0 not in pairs
+
+
+# --- load_spanext_flags / config-driven flag resolution (per-language reuse mechanism) --------------------
+def test_load_spanext_flags_reads_a_languages_entry(tmp_path):
+    fp = tmp_path / "spanext_flags.json"
+    fp.write_text('{"hin": {"relation_trigger": true, "_note": "measured, kept"}}', encoding="utf-8")
+    assert se.load_spanext_flags("hin", path=fp) == {"relation_trigger": True}
+
+
+def test_load_spanext_flags_skips_free_text_keys(tmp_path):
+    fp = tmp_path / "spanext_flags.json"
+    fp.write_text('{"ben": {"typology_fallback": false, "_note": "not a bool, must be skipped"}}',
+                 encoding="utf-8")
+    assert se.load_spanext_flags("ben", path=fp) == {"typology_fallback": False}
+
+
+def test_load_spanext_flags_missing_language_is_empty(tmp_path):
+    fp = tmp_path / "spanext_flags.json"
+    fp.write_text('{"hin": {"relation_trigger": true}}', encoding="utf-8")
+    assert se.load_spanext_flags("xyz", path=fp) == {}
+
+
+def test_load_spanext_flags_missing_file_is_empty(tmp_path):
+    assert se.load_spanext_flags("hin", path=tmp_path / "nope.json") == {}
+
+
+def test_extend_spans_consults_config_when_flag_not_explicitly_passed(tmp_path, monkeypatch):
+    """The core reuse mechanism: a language recorded with relation_trigger=true in the config gets it
+    automatically, with NO CLI flag / explicit Python argument needed."""
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT",
+               [{"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:rectum", "H1", [1])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB074": "0", "GB075": "1"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "case_marking", "pos": "noun", "prompt_hint": "..."}]})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("MAT", 1, 1, ["a", "RECTUM", "ka", "d"],
+                      [_FakeTok(0, "lx:rectum", rela="rec")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init(has_phrase=True))
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "ka"})())
+    flags_fp = tmp_path / "flags.json"
+    flags_fp.write_text('{"fake": {"relation_trigger": true}}', encoding="utf-8")
+    monkeypatch.setattr(se, "_SPANEXT_FLAGS_FILE", flags_fp)
+
+    # NOTE: relation_trigger is NOT passed at all — must come from the config file.
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
+    assert stats["extended_possessor"] == 1
+
+
+def test_extend_spans_explicit_false_overrides_a_true_config_entry(tmp_path, monkeypatch):
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT",
+               [{"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:rectum", "H1", [1])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB074": "0", "GB075": "1"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "case_marking", "pos": "noun", "prompt_hint": "..."}]})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("MAT", 1, 1, ["a", "RECTUM", "ka", "d"],
+                      [_FakeTok(0, "lx:rectum", rela="rec")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init(has_phrase=True))
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "ka"})())
+    flags_fp = tmp_path / "flags.json"
+    flags_fp.write_text('{"fake": {"relation_trigger": true}}', encoding="utf-8")
+    monkeypatch.setattr(se, "_SPANEXT_FLAGS_FILE", flags_fp)
+
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path,
+                                     relation_trigger=False)      # explicit override beats the config
+    assert stats.get("extended_possessor", 0) == 0

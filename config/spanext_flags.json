@@ -1,0 +1,26 @@
+{
+ "_doc": "Per-language recommendations for span_extension.py's opt-in flags (definite_trigger, relation_trigger, typology_fallback) — Step 1/2 of internal-docs/aim1-typology-source-structure-plan.md. Every flag defaults to OFF (same as no entry at all here); a language gets `true` for a flag only once someone has actually scored it against real gold and found the flag worth keeping — never added speculatively. This is the SAME 'measure once, remember it in one line, no code edit' pattern config/gold_langs.json and config/typology/directions.json already use. `span_extension.extend_spans`'s own function-level defaults are `None` (meaning 'consult this file'); passing an explicit True/False as a Python arg or CLI flag always overrides whatever is recorded here, for a one-off experiment without touching the config. See span_extension.py's own module docstring for the full measured numbers behind every entry below — this file only records the VERDICT, not the evidence.",
+ "spa": {
+  "typology_fallback": true,
+  "_note": "measured 2026-09-24 (whole Bible, Clear gold, WITH the identity guard): net positive on the conflict-aware ledger, 4,435 improvements vs 3,561 real conflicts. Aggregate F1 still reads as a drop (.774->.729) because most of the reported 'regression' is the gold-unclaimed-article metric artifact documented in span_extension.py's fra section, not a real quality loss — see that module's own docstring, not this note, for the full account."
+ },
+ "ben": {
+  "typology_fallback": false,
+  "_note": "measured 2026-09-24 (whole Bible, Clear gold, WITH the identity guard): still net negative on the conflict-aware ledger, 87 improvements vs 217 real conflicts (down from 427/1,355 before the guard — an ~84% reduction in harm, but not a flip to positive). Kept OFF; revisit if the pronoun-stealing gap span_extension.py documents ever gets a further fix."
+ },
+ "asm": {
+  "typology_fallback": false,
+  "_note": "measured 2026-09-24 (whole Bible, Clear gold, WITH the identity guard): same pattern as ben, smaller scale (115 vs 258 real conflicts before the guard). Kept OFF."
+ },
+ "hin": {
+  "relation_trigger": true,
+  "_note": "measured 2026-09-24 (whole OT, Clear gold, isolated to the possessor-only pairs, WITH the chain-boundary fix): a small, real, incomplete improvement — 47 correct / 76 real conflict / 41 gold-unclaimed / 137 no-gold-link, vs 47/79/43/142 without the chain-boundary fix. Kept ON since it measured no worse than off and is the one place this session found ANY positive signal for the construct-chain problem; the harder cases (neither chain member aligned yet) are still unresolved — see span_extension.py's own docstring.",
+  "definite_trigger": false,
+  "typology_fallback": false,
+  "_definite_note": "not applicable to hin — Hindi has no article_order direction at all (GB022/023 both 0), so definite_trigger has nothing to fire on regardless of this setting."
+ },
+ "eng": {
+  "definite_trigger": false,
+  "_note": "measured 2026-09-24 (whole OT, Clear gold): aggregate F1 unchanged (.646->.646); of 401 triggered pairs, 391 had no checkable gold link at all and 0 of the remaining 10 were correct — no evidence of value as built, plausibly because the proper-name rule in compute_definite dominates its output. Kept OFF."
+ }
+}

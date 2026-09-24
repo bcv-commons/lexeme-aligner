@@ -209,6 +209,47 @@ default off**; the mechanism and its tests are kept (a correct implementation of
 case a language or a conflict-aware metric someday shows it earns its keep, same "kept, not proven"
 status as `possession_affix`'s wiring.
 
+THE CANDIDATE-WORD IDENTITY GUARD (built + measured 2026-09-24, SHIPPED unconditionally — see
+`build_surface_identity`/`_has_strong_identity` for the mechanism, and `_IDENTITY_SHARE_MAX`'s own
+comment for the volume-rule variant that was tried and rejected). Applies UNIVERSALLY inside
+`_try_extend`, to every trigger (pos-tag, struct, possessor, definite) alike — it can only ever REFUSE
+a grab an existing gate already decided to attempt, never invent a new one.
+
+MEASURED, real Clear gold, whole Bible where available, comparing the SAME configuration with vs
+without the guard (nothing else changed):
+  fra (articles + case_marking): F1 .8206 -> .8300 (+0.0094), exact_span 36,566 -> 37,692 — a real,
+    if partial, improvement (fra's own convention still caps how far F1 can rise — see §5.2b above;
+    the guard fixes the STEALING, not the gold-labeling artifact, and the two are separate problems).
+  ben (typology_fallback): F1 .597 -> .597 (unchanged) but the conflict-aware breakdown moved from
+    427 improvements / 1,355 real conflicts to 87 / 217 — an 84% reduction in extension VOLUME and
+    the same proportional reduction in real conflicts. Net ledger still negative (87 < 217) but the
+    absolute harm shrank by ~86%.
+  asm (typology_fallback): F1 .557 -> .557, exact_span drop shrank from -167 to -38 pairs.
+  hin (relation_trigger, whole OT, isolated to the 311/301 possessor-only pairs): 47 correct / 79
+    conflict / 43 gold-unclaimed / 142 no-gold-link -> 47 / 76 / 41 / 137 with the chain-boundary fix
+    (`_chain_neighbor_boundary`) added — only a marginal improvement (3 fewer conflicts of 79); the
+    boundary heuristic only fires when a NEIGHBORING chain member already has ITS OWN alignment, which
+    turned out to overlap heavily with what the pre-existing "already claimed" check already caught —
+    the harder cases (neither chain member aligned yet) aren't reached by this specific fix. Recorded
+    honestly as a small, real, incomplete improvement, not a solved problem.
+  eng (already-shipped articles + case_marking, sanity check the guard doesn't cost anything where the
+    extension was already correct): F1 .667 -> .666, precision .864 -> .866 — a wash, as expected
+    (English's own extensions were already largely correct; the guard has little to refuse there).
+
+REAL FALSE-POSITIVE FOUND AND FIXED BEFORE SHIPPING: the FIRST cut of this guard also tried a second,
+volume-only rule ("total count >= 100 regardless of share" — meant to catch a pronoun like তিনি/সে,
+which never concentrates on one lexeme since its referent changes every occurrence, so it fails the
+share rule but still racks up high volume). MEASURED to regress hin NT's own already-shipped
+case_marking win, F1 .627 -> .622 — Hindi's genuine core postpositions (का 375, की 528, के 1,970
+single-word content alignments) are JUST AS high-volume as Bengali's pronouns, because Hindi
+grammaticalizes genitive/dative with a free postposition word used on nearly every qualifying noun,
+not a bound suffix. Same statistical shape, opposite ground truth, across two unrelated languages —
+no single volume threshold can tell them apart. Reverted immediately (see `_IDENTITY_SHARE_MAX`'s own
+comment for the full account) rather than shipped with a known regression. Consequence: Bengali/
+Assamese's pronoun-stealing problem above is measurably IMPROVED (the share rule alone still catches
+some cases) but NOT fully solved by this session's work — a genuine open gap, stated plainly rather
+than papered over.
+
 Ships as its OWN opt-in method layer (`align_spanext_<iso>_<BOOK>.jsonl`), the same additive-union
 precedent as `residual`/`llm` (compact_align.py's LAYER_METHODS, export_lex.py's `_METHODS`) — never
 touches the base chain's own eflomal/gloss files, and a consumer that ignores it keeps today's exact
@@ -352,6 +393,133 @@ def _books(a) -> list[str]:
             else [b.upper() for b in (a.book or ["MAT"])])
 
 
+# --- candidate-word identity guard (the "does this word already belong to something else" fix) ---------
+# Thresholds: a candidate must have LESS than SHARE_MAX of its own occurrences tied to one specific
+# lexeme, OR fewer than MIN_COUNT total occurrences to say anything reliable at all, to be accepted as a
+# free-floating function word. Untuned first cut (documented as such — see module docstring for the
+# real-data measurement this was built to fix): 0.5/5 means "at least half its occurrences are one
+# specific lexeme's rendering, with enough evidence (5+) to trust that" blocks a grab; a word spread
+# thinly across many different lexemes' occurrences, or too rare to say anything, passes through
+# unchanged (identical behavior to before this guard existed).
+_IDENTITY_SHARE_MAX = 0.5
+_IDENTITY_MIN_COUNT = 5
+# TRIED, NOT KEPT: a second "high total volume alone (regardless of share) means pronoun, block it"
+# rule. Motivation was real — a pronoun's referent changes every occurrence (তিনি "he/she" points at a
+# different specific person each time), so it spreads thinly across many content lexemes and never
+# trips the share rule above, yet still racks up far more confident content-word alignments than a
+# genuine Bengali light case-marker (কে "acc." 9, র "gen." 51, এর "gen." 50) ever does — measured on
+# real ben_irv data, তিনি (343)/তারা (242)/এবং (250)/তার (121)/সে (184) all well above a volume=100 cut.
+# REJECTED after checking hin: Hindi's own GENUINE, already-shipped-and-measured core postpositions
+# (case_marking's whole reason to exist) — का (375), की (528), के (1,970) — are JUST AS high-volume as
+# Bengali's pronouns, for the opposite reason: Hindi marks genitive/dative with a free postposition
+# word used on nearly every qualifying noun, not a bound suffix, so real per-language volume reflects
+# how that language grammaticalizes case marking, not whether a word carries independent meaning — the
+# same statistical signature (high volume, low-moderate share) covers both "harmless, essential
+# postposition" and "pronoun that should be blocked," and no single volume threshold can tell them
+# apart. Confirmed by measurement, not just reasoning: adding this rule regressed hin NT's own already-
+# shipped case_marking win, F1 .627->.622 (whole-Bible OT+NT baseline this session, .518, would have
+# dropped too) — reverted immediately rather than shipped. `_has_strong_identity` uses ONLY the share
+# rule below; Bengali/Assamese's pronoun-stealing problem is therefore only PARTIALLY fixed by this
+# module (see its own MEASURED section) — a real, open gap, not solved by this session's work.
+
+
+def build_surface_identity(unioned: dict[int, dict[int, dict]], lexeme_of: dict[int, dict[int, str]],
+                           verse_toks: dict[int, list[str]]) -> dict[str, tuple[str, float, int]]:
+    """{target word (lowercased) -> (dominant lexeme, its share of this word's occurrences, total
+    occurrences)} — the SAME type-level dictionary `export_lex.py` publishes as `aligned_lex`
+    (surface/lexeme/count/share, `share = count / sum over that surface`), computed here directly from
+    the SAME already-completed base-chain output `extend_spans` already has in memory (`unioned`) —
+    no new alignment run, no new export file, no dependency on `export_lex` having been run first. Only
+    SINGLE-WORD alignments count towards a word's identity (`len(t_idx) == 1`): a multi-word span's
+    member words share credit for one lexeme by construction, which would wrongly inflate an
+    innocent function word's apparent "identity" if it ever appears as the SECOND word of some
+    unrelated two-word rendering.
+
+    WHY THIS EXISTS (found this session, real Clear gold, three unrelated languages): a candidate
+    grabbed by `_try_extend` was frequently a word that already had its OWN strong, specific identity
+    tied to a DIFFERENT source lexeme, not the free grammatical particle the trigger assumed it was —
+    French "ses" (a possessive pronoun rendering Greek autos/G0846) stolen from the noun it modifies;
+    Bengali তিনি/তারা/এবং (pronouns, "and") stolen the same way. Checked: genuine bare postpositions/
+    articles do NOT accumulate a dominant single-lexeme identity this way (they attach to whichever
+    content word needs marking, spreading their counts across many different lexemes) — that asymmetry
+    is what makes this check discriminate rather than just add noise. Used as a UNIVERSAL guard inside
+    `_try_extend`, applying to every trigger (pos-tag, struct, possessor, definite) alike, not gated
+    behind any of the opt-in flags — it can only ever REFUSE a grab the existing gates already decided
+    to attempt, never invent a new one, so it's additive-safe by construction the same way every other
+    mechanism in this module is required to be."""
+    counts: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for ref, verse in unioned.items():
+        toks = verse_toks.get(ref)
+        if not toks:
+            continue
+        for h_idx, p in verse.items():
+            if not p.get("content"):
+                continue
+            t_idx = p.get("t_idx") or []
+            if len(t_idx) != 1:
+                continue                                      # multi-word spans don't attribute identity
+            lexeme = lexeme_of.get(ref, {}).get(h_idx)
+            if not lexeme:
+                continue
+            pos = t_idx[0]
+            if 0 <= pos < len(toks):
+                counts[toks[pos].lower()][lexeme] += 1
+    identity: dict[str, tuple[str, float, int]] = {}
+    for word, c in counts.items():
+        total = sum(c.values())
+        lexeme, n = c.most_common(1)[0]
+        identity[word] = (lexeme, n / total, total)
+    return identity
+
+
+def _has_strong_identity(word: str, surface_identity: dict[str, tuple[str, float, int]],
+                         current_lexeme: str | None) -> bool:
+    """True if `word` already belongs to some OTHER lexeme strongly enough that grabbing it for
+    `current_lexeme`'s span would very likely be a mistake — see `build_surface_identity`'s own
+    docstring. A word whose own dominant identity IS `current_lexeme` is never blocked (that's not a
+    steal, whatever the reason it correlates)."""
+    entry = surface_identity.get(word.lower())
+    if not entry:
+        return False
+    lexeme, share, total = entry
+    if lexeme == current_lexeme:
+        return False
+    return total >= _IDENTITY_MIN_COUNT and share >= _IDENTITY_SHARE_MAX   # one dominant lexeme ("ses" -> autos)
+
+
+def _chain_neighbor_boundary(members: list, this_idx: int, direction: str, unioned_verse: dict
+                             ) -> int | None:
+    """Correction 1's own remaining bug (Step 1's docstring, "root cause: multi-member construct
+    chains"): a chain of 3+ linked nouns can have the SAME postposition-shaped candidate slot
+    adjacent to more than one member, and the naive "grab whatever's adjacent and unclaimed" rule
+    sometimes attaches it to the WRONG neighbor. Fix: for `this_idx` (a member of `members`, already
+    sorted by spine order — the chain's own real word order), find its immediate NEIGHBOR in the
+    SAME direction being searched, and return that neighbor's own nearest already-aligned target
+    position as a hard boundary — the current occurrence may not claim a candidate on or past it,
+    since that position belongs to (or is closer to) the neighbor's own span. Returns None (no
+    restriction) when there's no neighbor on that side within the chain, or the neighbor itself
+    isn't aligned to anything yet (nothing to bound against — the ordinary unclaimed/is_function
+    checks still apply)."""
+    pos_in_chain = next((i for i, t in enumerate(members) if t.idx == this_idx), None)
+    if pos_in_chain is None:
+        return None
+    if direction == "before":
+        if pos_in_chain == 0:
+            return None
+        neighbor = members[pos_in_chain - 1]
+        neighbor_pair = unioned_verse.get(neighbor.idx)
+        if neighbor_pair and neighbor_pair.get("t_idx"):
+            return max(neighbor_pair["t_idx"])                # may not claim <= this position
+    else:
+        if pos_in_chain == len(members) - 1:
+            return None
+        neighbor = members[pos_in_chain + 1]
+        neighbor_pair = unioned_verse.get(neighbor.idx)
+        if neighbor_pair and neighbor_pair.get("t_idx"):
+            return min(neighbor_pair["t_idx"])                # may not claim >= this position
+    return None
+
+
 def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], out_dir: Path = OUT,
                  methods: tuple[str, ...] = ("eflomal", "gloss"), prior_pack: Path = PRIOR_PACK,
                  definite_trigger: bool = False, relation_trigger: bool = False,
@@ -448,6 +616,10 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # entirely, so this is tracked separately rather than folded into struct_of.
     rela_of: dict[int, dict[int, str | None]] = {}
     definite_of: dict[int, dict[int, bool]] = {}          # ref -> h_idx -> definite (Step 1, Hebrew-only)
+    # ref -> construct_group id -> [HebToken, ...] in spine order: the chain a possessor/rectum belongs
+    # to, in the order its own members actually appear — the fix for the multi-member chain-order bug
+    # (see `_chain_neighbor_boundary`'s own docstring below).
+    groups_of: dict[int, dict[str, list]] = {}
     verse_toks: dict[int, list[str]] = {}
     for r in recs:
         ref = encode(r.book, r.ch, r.v)
@@ -456,6 +628,11 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         struct_of[ref] = {t.idx: (t.state, t.case_) for t in r.heb}
         rela_of[ref] = {t.idx: t.rela for t in r.heb}
         definite_of[ref] = compute_definite(r.heb, lex_pos, heb.assimilated_after_idx(r.book, r.ch, r.v))
+        groups: dict[str, list] = collections.defaultdict(list)
+        for t in r.heb:
+            if t.construct_group:
+                groups[t.construct_group].append(t)
+        groups_of[ref] = {g: sorted(members, key=lambda t: t.idx) for g, members in groups.items()}
     has_struct = heb.has_state or heb.has_case
     has_definite_signal = heb.has_state or heb.has_assimilated_articles
     has_relation_signal = heb.has_phrase                    # rela lands with phrase_id (OT-only)
@@ -485,6 +662,10 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                         if p.get("t_idx") and p["h_idx"] not in verse:
                             verse[p["h_idx"]] = p
 
+    # Corpus-wide, single-word identity guard — see build_surface_identity's own docstring. Built ONCE
+    # from the SAME base-chain data already loaded above (no new alignment run, no export dependency).
+    surface_identity = build_surface_identity(unioned, lexeme_of, verse_toks)
+
     out: dict[str, list[dict]] = collections.defaultdict(list)
     for ref, verse in unioned.items():
         toks = verse_toks.get(ref)
@@ -506,13 +687,19 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
             # them in trial order; `sides_used` is the actual one-per-side cap.
             extensions: list[tuple[str, str, int]] = []          # (direction, stat_label, candidate)
             sides_used: set[str] = set()
+            this_lexeme = lexeme_of.get(ref, {}).get(p["h_idx"])
 
-            def _try_extend(direction: str, stat_label: str) -> bool:
+            def _try_extend(direction: str, stat_label: str, boundary: int | None = None) -> bool:
                 if direction in sides_used:
                     return False
                 cur = sorted(t_idx + [c for _, _, c in extensions])
                 c = cur[0] - 1 if direction == "before" else cur[-1] + 1
-                if 0 <= c < len(toks) and c not in claimed and stop.is_function(toks[c]):
+                if boundary is not None:
+                    # _chain_neighbor_boundary: may not claim ON OR PAST the neighbor's own span.
+                    if (direction == "before" and c <= boundary) or (direction == "after" and c >= boundary):
+                        return False
+                if (0 <= c < len(toks) and c not in claimed and stop.is_function(toks[c])
+                        and not _has_strong_identity(toks[c], surface_identity, this_lexeme)):
                     extensions.append((direction, stat_label, c))
                     sides_used.add(direction)
                     return True
@@ -548,7 +735,17 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                 # matters for postpositional ones (hin OT — the untested half of the shipped hin win,
                 # which was measured on NT/Greek, where `case_` already marks the possessor directly).
                 if rela_of.get(ref, {}).get(p["h_idx"]) == "rec":
-                    _try_extend(case_marking_direction, "possessor")
+                    # Chain-order fix: if this rectum is part of a multi-member construct_group, don't
+                    # let its candidate search cross into a NEIGHBORING member's own already-aligned
+                    # span — see _chain_neighbor_boundary's own docstring (the "wrong link in the
+                    # chain" bug found on real hin OT data).
+                    boundary = None
+                    for members in groups_of.get(ref, {}).values():
+                        if any(t.idx == p["h_idx"] for t in members):
+                            boundary = _chain_neighbor_boundary(members, p["h_idx"],
+                                                                case_marking_direction, verse)
+                            break
+                    _try_extend(case_marking_direction, "possessor", boundary=boundary)
             if definite_trigger and article_order_direction and has_definite_signal:
                 # Step 1 (C'): derived definiteness (compute_definite) as an ADDITIVE trigger, parallel
                 # to case_marking's structured-signal path above — fires even when the lexeme's own POS

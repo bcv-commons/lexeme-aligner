@@ -611,3 +611,165 @@ def test_extend_spans_skips_when_neither_grambank_nor_typology_has_anything(tmp_
                                      typology_fallback=True)
     assert by_book == {}
     assert "skipped" in stats
+
+
+# --- build_surface_identity / _has_strong_identity (the candidate-word identity guard) --------------------
+def test_build_surface_identity_dominant_lexeme_and_share():
+    unioned = {
+        1: {0: pair(0, "lx:autos", "G1", [5]), 1: pair(1, "lx:noun", "H1", [3, 4])},
+        2: {0: pair(0, "lx:autos", "G1", [2])},
+        3: {0: pair(0, "lx:autos", "G1", [7])},
+    }
+    lexeme_of = {1: {0: "lx:autos", 1: "lx:noun"}, 2: {0: "lx:autos"}, 3: {0: "lx:autos"}}
+    verse_toks = {1: ["a", "b", "c", "ses", "x", "ses", "y"],
+                 2: ["a", "b", "ses"],
+                 3: ["a", "b", "c", "d", "e", "f", "g", "ses"]}
+    identity = se.build_surface_identity(unioned, lexeme_of, verse_toks)
+    assert identity["ses"] == ("lx:autos", 1.0, 3)
+
+
+def test_build_surface_identity_excludes_multi_word_spans():
+    # a 2-word span never attributes identity to either of its member words.
+    unioned = {1: {0: pair(0, "lx:noun", "H1", [3, 4])}}
+    lexeme_of = {1: {0: "lx:noun"}}
+    verse_toks = {1: ["a", "b", "c", "tempat", "pengirikan"]}
+    identity = se.build_surface_identity(unioned, lexeme_of, verse_toks)
+    assert "tempat" not in identity and "pengirikan" not in identity
+
+
+def test_build_surface_identity_spread_across_many_lexemes_has_low_share():
+    # a genuine function word attaches to MANY different lexemes -> low share for any one.
+    unioned = {i: {0: pair(0, f"lx:noun{i}", "H1", [0])} for i in range(10)}
+    lexeme_of = {i: {0: f"lx:noun{i}"} for i in range(10)}
+    verse_toks = {i: ["ki", "x"] for i in range(10)}
+    identity = se.build_surface_identity(unioned, lexeme_of, verse_toks)
+    lexeme, share, total = identity["ki"]
+    assert total == 10 and share == 0.1                     # spread evenly -> no dominant identity
+
+
+def test_has_strong_identity_blocks_a_different_lexemes_word():
+    identity = {"ses": ("lx:autos", 1.0, 10)}
+    assert se._has_strong_identity("ses", identity, current_lexeme="lx:disciples") is True
+
+
+def test_has_strong_identity_allows_when_identity_matches_current_lexeme():
+    identity = {"ses": ("lx:autos", 1.0, 10)}
+    assert se._has_strong_identity("ses", identity, current_lexeme="lx:autos") is False
+
+
+def test_has_strong_identity_allows_below_count_threshold():
+    identity = {"rare": ("lx:x", 1.0, 2)}                    # only 2 occurrences — not enough evidence
+    assert se._has_strong_identity("rare", identity, current_lexeme="lx:other") is False
+
+
+def test_has_strong_identity_allows_below_share_threshold():
+    identity = {"ki": ("lx:x", 0.3, 10)}                      # spread thin — genuine function word shape
+    assert se._has_strong_identity("ki", identity, current_lexeme="lx:other") is False
+
+
+def test_has_strong_identity_allows_a_pronoun_with_shifting_referent_despite_high_volume():
+    """A volume-only ("high total, regardless of share") second rule was tried and REJECTED — it
+    regressed Hindi's own already-shipped case_marking win, since Hindi's genuine postpositions are
+    JUST AS high-volume as a pronoun whose referent changes every occurrence (see the module's own
+    _IDENTITY_SHARE_MAX comment for the full measurement). Only the share rule is live: a word this
+    common but this spread across lexemes (low share) must stay allowed."""
+    identity = {"সে": ("grc:1510", 0.12, 184)}                # low share, high volume -> NOT blocked
+    assert se._has_strong_identity("সে", identity, current_lexeme="lx:other") is False
+
+
+def test_has_strong_identity_allows_low_share_low_volume_case_marker():
+    identity = {"র": ("hbo:3117", 0.31, 51)}                  # low share AND low volume -> genuine marker
+    assert se._has_strong_identity("র", identity, current_lexeme="lx:other") is False
+
+
+def test_has_strong_identity_unknown_word_is_allowed():
+    assert se._has_strong_identity("unknown", {}, current_lexeme="lx:other") is False
+
+
+def test_extend_spans_identity_guard_blocks_a_steal(tmp_path, monkeypatch):
+    """The integration case this whole guard exists for: "ses disciples" — "ses" already has a strong
+    identity as autos/G0846 elsewhere in the SAME corpus, so possession_affix must NOT grab it."""
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT", [
+        {"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+         "pairs": [pair(0, "lx:autos", "G1", [0]), pair(1, "lx:autos", "G1", [4]),
+                  pair(2, "lx:autos", "G1", [7]), pair(3, "lx:autos", "G1", [10]),
+                  pair(4, "lx:autos", "G1", [13]),                     # 5 confirmed single-word "ses"
+                  pair(5, "lx:disciples", "H1", [16])]}])              # the noun to extend
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:disciples": "noun"}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB432": "1", "GB065": "1"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "possession_affix", "pos": "noun", "prompt_hint": "..."}]})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("MAT", 1, 1, ["ses", "b", "c", "d", "ses", "e", "f", "ses", "g", "h", "ses",
+                                    "i", "j", "ses", "k", "l", "disciples"],
+                      [_FakeTok(i, "lx:autos") for i in range(5)] + [_FakeTok(5, "lx:disciples")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init())
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "ses"})())
+
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
+    assert by_book == {}                                      # blocked — "ses" belongs to lx:autos
+    assert stats.get("extended_noun", 0) == 0
+
+
+# --- _chain_neighbor_boundary (the multi-member construct-chain fix) -------------------------------------
+def test_chain_neighbor_boundary_blocks_crossing_into_the_previous_members_span():
+    a = _FakeTok(0, "lx:a", construct_group="g1")
+    b = _FakeTok(1, "lx:b", construct_group="g1")
+    members = [a, b]
+    unioned_verse = {0: {"t_idx": [2, 3]}}                     # member a already claims target 2-3
+    boundary = se._chain_neighbor_boundary(members, this_idx=1, direction="before", unioned_verse=unioned_verse)
+    assert boundary == 3                                       # member b may not claim <= 3
+
+
+def test_chain_neighbor_boundary_blocks_crossing_into_the_next_members_span():
+    a = _FakeTok(0, "lx:a", construct_group="g1")
+    b = _FakeTok(1, "lx:b", construct_group="g1")
+    members = [a, b]
+    unioned_verse = {1: {"t_idx": [5]}}                        # member b already claims target 5
+    boundary = se._chain_neighbor_boundary(members, this_idx=0, direction="after", unioned_verse=unioned_verse)
+    assert boundary == 5                                       # member a may not claim >= 5
+
+
+def test_chain_neighbor_boundary_none_at_the_end_of_the_chain():
+    a = _FakeTok(0, "lx:a", construct_group="g1")
+    b = _FakeTok(1, "lx:b", construct_group="g1")
+    members = [a, b]
+    assert se._chain_neighbor_boundary(members, this_idx=1, direction="after", unioned_verse={}) is None
+    assert se._chain_neighbor_boundary(members, this_idx=0, direction="before", unioned_verse={}) is None
+
+
+def test_chain_neighbor_boundary_none_when_neighbor_unaligned():
+    a = _FakeTok(0, "lx:a", construct_group="g1")
+    b = _FakeTok(1, "lx:b", construct_group="g1")
+    members = [a, b]
+    assert se._chain_neighbor_boundary(members, this_idx=1, direction="before", unioned_verse={}) is None
+
+
+def test_extend_spans_relation_trigger_respects_chain_boundary(tmp_path, monkeypatch):
+    """A 2-member construct_group where the FIRST member already claims the only candidate slot the
+    naive rule would have handed to the SECOND member — the boundary must block it."""
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT",
+               [{"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:first", "H1", [1]), pair(1, "lx:second", "H2", [2])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB074": "0", "GB075": "1"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "case_marking", "pos": "noun", "prompt_hint": "..."}]})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("MAT", 1, 1, ["a", "FIRST", "SECOND", "ka", "d"],
+                      [_FakeTok(0, "lx:first", rela="rec", construct_group="g1"),
+                       _FakeTok(1, "lx:second", rela="rec", construct_group="g1")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init(has_phrase=True))
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "ka"})())
+
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path,
+                                     relation_trigger=True)
+    # "second" (member 1, idx 2) can grab "ka" (idx 3) forward — no boundary on that side (last in chain).
+    # "first" (member 0, idx 1) would also want "ka" forward, but member 1's own span (idx 2) bounds it.
+    assert stats["extended_possessor"] == 1
+    pairs = {p["h_idx"]: p for p in by_book["MAT"][0]["pairs"]}
+    assert 1 in pairs and 0 not in pairs

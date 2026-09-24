@@ -42,16 +42,33 @@ from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES, _OUT as
 # polarity "any_one" (default): flagged when ANY listed Grambank feature is "1" — the language HAS this
 # category, so a free word for it is plausible. polarity "not_all_one": flagged unless EVERY listed
 # feature is "1" — the language's marking is INCOMPLETE (partial or absent), so a free word may still be
-# needed to fill the gap. NOTE the first cut of this rule tried "all_zero" (flag only when every feature
-# is exactly "0") and it was WRONG: Grambank's GB089/090 record whether a suffix/prefix indexing the
-# subject exists AT ALL, not whether it's rich enough to license dropping the pronoun — English is coded
-# GB089=1 (its bare 3rd-singular "-s" counts) even though that one suffix can't replace "he/I/you/they" in
-# the other five person/number slots, so "all_zero" never fired for English, the exact case that motivated
-# this rule. Checked real values 2026-09-23: arb is the ONLY gold language with GB089=1 AND GB090=1 (full
+# needed to fill the gap. polarity "all_zero": flagged only when EVERY listed feature is exactly "0" — the
+# language has NONE of this marking morphologically, so a free word is the ONLY way to express it. NOTE
+# the first cut of the subject-marking rule (now `subject_indexing`) tried "all_zero" and it was WRONG
+# THERE: Grambank's GB089/090 record whether a suffix/prefix indexing the subject exists AT ALL, not
+# whether it's rich enough to license dropping the pronoun — English is coded GB089=1 (its bare
+# 3rd-singular "-s" counts) even though that one suffix can't replace "he/I/you/they" in the other five
+# person/number slots, so "all_zero" never fired for English, the exact case that motivated that rule.
+# Checked real values 2026-09-23: arb is the ONLY gold language with GB089=1 AND GB090=1 (full
 # suffix+prefix paradigm) — and arb's own gap evidence (this session) genuinely has no subject-pronoun
 # undershoot at all. eng/hin/por/fra all have at most one of the two "1" and all show a real, measured
 # need for a free subject-marking word (eng confirmed directly: ~8% of gold-undershot verbs were a bare
-# subject pronoun). "not_all_one" is the polarity that matches this pattern.
+# subject pronoun). "not_all_one" is the polarity that matches THAT pattern (richness, not existence).
+#
+# `possession_affix` (GB430-433) LOOKS like a different shape from subject_indexing: those four features
+# record whether possession CAN be marked by ANY prefix/suffix at all (plain existence), not a graded
+# richness scale — so "all_zero" (no affixal possession at all -> a free possessive word is the ONLY
+# option) looked like the right fit, unlike for subject_indexing's "not_all_one". TRIED as "all_zero" and
+# MEASURED, whole-Bible real Clear gold, isolated via an A/B against the already-shipped
+# case_marking/articles triggers (2026-09-24): hin F1 .5508->.5516 (+0.0008, noise) with precision
+# .7399->.7328 (-0.0071, past the -0.005 bar); fra F1 .8274->.8059 (-0.0215) with precision
+# .7795->.7417 (-0.0380) — a clear loss, on top of fra's OWN pos-tag `articles` trigger already being a
+# large regression before this change even applies (see span_extension.py's docstring for that separate
+# finding). REVERTED to "any_one" (the original polarity, below) — a wash-to-loss on both languages
+# tested, not the win Step 0 of internal-docs/aim1-typology-source-structure-plan.md hoped for. The
+# "all_zero" polarity branch itself stays implemented and tested (a generically useful, correct concept
+# for a plain-existence Grambank category) but is currently unused by any RISK_RULES entry — same
+# "kept, not registered as an active trigger" precedent as subject_indexing's reverted derivation.
 RISK_RULES = [
     ("case_marking", ("name", "noun"), 0.05,
      "oblique non-pronominal case marking (GB072) — check whether a name/noun ever needs a following "
@@ -118,36 +135,70 @@ def multiword_rates(iso: str, out_dir: Path, lex_pos: dict[str, str], method: st
     return {pos: tuple(v) for pos, v in counts.items()}
 
 
+# Step 2 (typology.py) fallback: which typology.py SLOT stands in for this risk's existence check when
+# Grambank itself doesn't flag it (missing entirely — the ~51% of published languages with no Grambank
+# coverage at all — or present but this specific direction pair is 0/0, e.g. hin has no articles at
+# all). Only the three DIRECTION-bearing risks map to a slot; subject_indexing/tam_auxiliary/tam_affix
+# have no typology.py equivalent and stay Grambank-only, same as before Step 2.
+_TYPOLOGY_EXISTENCE_SLOT = {"case_marking": "adposition", "articles": "article",
+                           "possession_affix": "possessor"}
+
+
 def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = PRIOR_PACK,
-           method: str = "eflomal") -> dict:
-    """The phase-1 report: Grambank coverage, per-POS multi-word rates, and any risk/anomaly matches."""
+           method: str = "eflomal", use_typology: bool = False) -> dict:
+    """The phase-1 report: Grambank coverage, per-POS multi-word rates, and any risk/anomaly matches.
+    `use_typology`: Step 2's typology-table existence fallback (see `_TYPOLOGY_EXISTENCE_SLOT`) — OFF
+    by default. MEASURED 2026-09-24 (real Clear gold, whole Bible, conflict-aware breakdown — see
+    typology.py's own docstring): net POSITIVE for spa (4,440 improvements vs 3,705 real conflicts)
+    but net NEGATIVE for ben/asm (427 vs 1,355; 115 vs 258) — a genuine, language-dependent quality
+    split, not a metric artifact (unlike the fra/spa gold-unclaimed pattern — these Bengali/Assamese
+    conflicts are ~92% real steals, root-caused to the SAME broad `stop.is_function` candidate check
+    grabbing pronouns/conjunctions instead of genuine postpositions/genitive markers). Opt-in until a
+    per-language quality gate exists; pass `use_typology=True` (or `span_extension`'s
+    `--typology-fallback`) to enable it for a language you've separately verified."""
     lex_pos, _ = load_priors(prior_pack)
     grambank = load_grambank(publish_iso)
     rates = multiword_rates(iso, out_dir, lex_pos, method)
 
     findings = []
-    if grambank is not None:
-        for risk_key, pos_tags, threshold, description, polarity, prompt_hint in RISK_RULES:
-            feature_ids = GRAMBANK_FEATURES.get(risk_key, [])
+    for risk_key, pos_tags, threshold, description, polarity, prompt_hint in RISK_RULES:
+        feature_ids = GRAMBANK_FEATURES.get(risk_key, [])
+        flagged, matched_ids = False, []
+        if grambank is not None:
             if polarity == "not_all_one":
                 flagged = bool(feature_ids) and not all(grambank.get(f) == "1" for f in feature_ids)
                 matched_ids = [f for f in feature_ids if grambank.get(f) != "1"]
+            elif polarity == "all_zero":
+                flagged = bool(feature_ids) and all(grambank.get(f) == "0" for f in feature_ids)
+                matched_ids = list(feature_ids)
             else:
                 flagged = any(grambank.get(f) == "1" for f in feature_ids)
                 matched_ids = [f for f in feature_ids if grambank.get(f) == "1"]
-            if not flagged:
+        if not flagged and use_typology and risk_key in _TYPOLOGY_EXISTENCE_SLOT:
+            # Grambank was silent (absent for this language entirely, or present but 0/0 for this
+            # specific pair) — fall back to the pre-built typology table, which only ever carries a
+            # direction from a source whose agreement with Grambank was measured at >=90% (typology.py's
+            # own docstring). A resolved direction from a validated source stands in for "this category
+            # exists"; this is what makes case_marking/articles/possession_affix reachable at all for
+            # the ~51% of published languages Grambank itself never covers (spa/ben/asm — Step 2's own
+            # target languages).
+            from lexeme_aligner import typology
+            slot = _TYPOLOGY_EXISTENCE_SLOT[risk_key]
+            if typology.direction(publish_iso, slot) is not None:
+                flagged, matched_ids = True, [f"typology:{slot}"]
+        if not flagged:
+            continue
+        for pos in pos_tags:
+            mw, total = rates.get(pos, (0, 0))
+            if total == 0:
                 continue
-            for pos in pos_tags:
-                mw, total = rates.get(pos, (0, 0))
-                if total == 0:
-                    continue
-                rate = mw / total
-                if rate < threshold:
-                    findings.append({
-                        "risk": risk_key, "pos": pos, "multiword": mw, "total": total,
-                        "rate": round(rate, 4), "grambank_ids": matched_ids,
-                        "description": description, "prompt_hint": prompt_hint,
-                    })
+            rate = mw / total
+            if rate < threshold:
+                findings.append({
+                    "risk": risk_key, "pos": pos, "multiword": mw, "total": total,
+                    "rate": round(rate, 4), "grambank_ids": matched_ids,
+                    "description": description, "prompt_hint": prompt_hint,
+                })
     return {
         "iso": iso, "publish_iso": publish_iso, "method": method,
         "grambank_covered": grambank is not None,

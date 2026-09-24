@@ -13,6 +13,7 @@ the pragmatic id-bridge from advanced-docs/aligner-plan.md §Design gotchas.
 """
 from __future__ import annotations
 
+import collections
 import sqlite3
 import unicodedata
 from dataclasses import dataclass, field
@@ -232,6 +233,28 @@ class HebrewSource:
         # missing hbo.db must not be fatal — connect only when the file is present.
         self.hbo = (sqlite3.connect(f"file:{hbo_db}?mode=ro", uri=True)
                     if Path(hbo_db).exists() else None)
+
+        # `spine_assimilated_articles` — a COMPANION TABLE (book, chapter, verse, after_idx, lemma,
+        # gloss, strong), not a spine_words column: a Hebrew preposition can phonologically SWALLOW the
+        # definite article (a vowel-pointing change, no separate consonant), so the article never gets
+        # its own spine row — `after_idx` names the preposition token it hid inside; the definite noun
+        # is `after_idx + 1`. Kept out of `spine_words` deliberately (splicing it in would shift `idx`
+        # for every later token in an affected verse, and idx is a published, pinned join key). Loaded
+        # once, whole table (6,435 rows spine-wide — trivial), keyed by (book, chapter, verse) since a
+        # verse only ever has a handful of these. Table may not exist on an older/alternate spine build
+        # (e.g. rp2018) — probed via sqlite_master, not assumed.
+        tables = {r[0] for r in self.spine.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        self.has_assimilated_articles = "spine_assimilated_articles" in tables
+        self._assimilated_after: dict[tuple[str, int, int], set[int]] = collections.defaultdict(set)
+        if self.has_assimilated_articles:
+            for book, ch, v, after_idx in self.spine.execute(
+                    "SELECT book, chapter, verse, after_idx FROM spine_assimilated_articles"):
+                self._assimilated_after[(book, ch, v)].add(after_idx)
+
+    def assimilated_after_idx(self, book: str, chapter: int, verse: int) -> set[int]:
+        """`{after_idx}` for this verse — the definite noun immediately follows each one (idx+1). Empty
+        set (not an error) when `has_assimilated_articles` is False or this verse has none."""
+        return self._assimilated_after.get((book, chapter, verse), set())
 
     def chapters(self, book: str) -> list[int]:
         return [r[0] for r in self.spine.execute(

@@ -26,6 +26,10 @@ pipeline/vendor/grambank/
 pipeline/vendor/bsb/
 # copied-in bcv-commons/strongs datasets (gold attestations, gloss priors)
 pipeline/vendor/resources/
+# amikael/HELFI fetched copy (Step G0 gold expansion) — pinned commit in config/PROVENANCE.txt
+pipeline/vendor/helfi/
+# WALS CLDF snapshot (Step 2 typology table) — pinned tag in config/PROVENANCE.txt
+pipeline/vendor/wals/
 # prior-pack pulled from bcv-commons/prior-pack (HF, CC-BY) — bulk parquet + HF cache git-ignored;
 # manifest.json + README.md stay tracked as the version pin (see config/PROVENANCE.txt)
 pipeline/vendor/prior-pack/*.parquet

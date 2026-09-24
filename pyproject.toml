@@ -22,6 +22,10 @@ ingest = ["usfmtc"]                       # USFM/USX → USJ conversion (source 
 publish = ["pyarrow", "huggingface_hub"]  # Parquet export + push lexeme-alignments to a HF dataset
 validate = ["pyarrow", "snowballstemmer"] # karnbibeln_diff test — read Parquet + Swedish stemming
 llm = ["anthropic>=1.0"]                  # opt-in LLM-alignment experiment (llm_align.py) — API route only; the `claude -p` route needs nothing
+gold = ["pysword", "pyarrow"]             # sword_source.py (Step G0 gold expansion) — reads SWORD/CrossWire modules
+typology = ["lang2vec", "setuptools<81"]  # typology.py (Step 2) — lang2vec still imports the deprecated
+                                          # pkg_resources module; setuptools>=81 dropped it (real conflict,
+                                          # found 2026-09-24, not hypothetical — pin until lang2vec updates)
 
 [project.scripts]
 lexeme-align = "lexeme_aligner.run_pilot:main"

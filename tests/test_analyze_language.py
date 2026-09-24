@@ -82,6 +82,65 @@ def test_analyze_end_to_end_flags_risk_only_when_grambank_says_so(tmp_path, monk
     assert not any(f["risk"] == "case_marking" for f in fra_report["findings"])   # same rate, feature off
 
 
+def test_all_zero_polarity_flags_only_when_every_feature_is_zero(tmp_path, monkeypatch):
+    """The `all_zero` polarity branch itself, exercised via a synthetic risk key — NOT possession_affix,
+    which tried this polarity and measured a wash-to-loss on real hin/fra gold, and was reverted to
+    `any_one` (see analyze_language.py's RISK_RULES comment and span_extension.py's docstring). The
+    mechanism stays implemented and tested for a future category it might actually fit."""
+    import lexeme_aligner.analyze_language as al
+
+    monkeypatch.setattr(al, "RISK_RULES", al.RISK_RULES + [
+        ("synthetic_all_zero", ("noun",), 0.05, "test-only all_zero rule.", "all_zero", "n/a"),
+    ])
+    grambank_fp = write_grambank(tmp_path, {
+        "hin_like": {"GBsyn1": "0", "GBsyn2": "0"},    # all zero -> flagged
+        "eng_like": {"GBsyn1": "0", "GBsyn2": "1"},    # one "1" -> NOT flagged
+    })
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES_FILE", grambank_fp)
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES", dict(al.GRAMBANK_FEATURES, synthetic_all_zero=["GBsyn1", "GBsyn2"]))
+
+    # Same underlying shape for both: 100 noun pairs, only 2 multi-word (2% — below threshold).
+    records = [{"ref": 1, "pairs": [pair(i, "lx:noun", [i]) for i in range(98)] +
+                                   [pair(98, "lx:noun", [98, 99]), pair(99, "lx:noun", [100, 101])]}]
+    write_align(tmp_path, "hin_edition", "eflomal", "MAT", records)
+    write_align(tmp_path, "eng_edition", "eflomal", "MAT", records)
+    lex_pos_fp = tmp_path / "unused"
+    monkeypatch.setattr(al, "load_priors", lambda _pp: ({"lx:noun": "noun"}, {}))
+
+    hin_report = al.analyze("hin_edition", "hin_like", out_dir=tmp_path, prior_pack=lex_pos_fp)
+    eng_report = al.analyze("eng_edition", "eng_like", out_dir=tmp_path, prior_pack=lex_pos_fp)
+
+    assert any(f["risk"] == "synthetic_all_zero" and f["pos"] == "noun" for f in hin_report["findings"])
+    assert not any(f["risk"] == "synthetic_all_zero" for f in eng_report["findings"])
+
+
+def test_all_zero_polarity_does_not_flag_on_missing_feature_data(tmp_path, monkeypatch):
+    import lexeme_aligner.analyze_language as al
+
+    monkeypatch.setattr(al, "RISK_RULES", al.RISK_RULES + [
+        ("synthetic_all_zero", ("noun",), 0.05, "test-only all_zero rule.", "all_zero", "n/a"),
+    ])
+    # GBsyn2 absent entirely (partial coverage) — must NOT be treated as an implicit "0".
+    grambank_fp = write_grambank(tmp_path, {"partial": {"GBsyn1": "0"}})
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES_FILE", grambank_fp)
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES", dict(al.GRAMBANK_FEATURES, synthetic_all_zero=["GBsyn1", "GBsyn2"]))
+    records = [{"ref": 1, "pairs": [pair(i, "lx:noun", [i]) for i in range(98)] +
+                                   [pair(98, "lx:noun", [98, 99]), pair(99, "lx:noun", [100, 101])]}]
+    write_align(tmp_path, "partial_edition", "eflomal", "MAT", records)
+    monkeypatch.setattr(al, "load_priors", lambda _pp: ({"lx:noun": "noun"}, {}))
+
+    report = al.analyze("partial_edition", "partial", out_dir=tmp_path, prior_pack=tmp_path / "unused")
+    assert not any(f["risk"] == "synthetic_all_zero" for f in report["findings"])
+
+
+def test_possession_affix_stays_any_one_polarity_in_production():
+    """Regression guard: `all_zero` was tried for possession_affix and measured a wash-to-loss on real
+    Clear gold (hin, fra whole Bible) — reverted. Fails loudly if someone re-flips it without re-measuring."""
+    import lexeme_aligner.analyze_language as al
+    entry = next(r for r in al.RISK_RULES if r[0] == "possession_affix")
+    assert entry[4] == "any_one"
+
+
 def test_analyze_without_grambank_coverage_reports_no_findings(tmp_path, monkeypatch):
     import lexeme_aligner.analyze_language as al
     monkeypatch.setattr(al, "GRAMBANK_FEATURES_FILE", tmp_path / "does-not-exist.json")
@@ -90,3 +149,60 @@ def test_analyze_without_grambank_coverage_reports_no_findings(tmp_path, monkeyp
                [{"ref": 1, "pairs": [pair(0, "lx:name", [0])]}])
     report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused")
     assert report["grambank_covered"] is False and report["findings"] == []
+
+
+def test_analyze_falls_back_to_typology_when_grambank_is_none(tmp_path, monkeypatch):
+    """Step 2: a language absent from Grambank entirely still gets flagged for a direction-bearing
+    risk (case_marking/articles/possession_affix) if the typology table resolves a direction for it."""
+    import lexeme_aligner.analyze_language as al
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES_FILE", tmp_path / "does-not-exist.json")   # no Grambank
+    monkeypatch.setattr(al, "load_priors", lambda _pp: ({"lx:name": "name"}, {}))
+    records = [{"ref": 1, "pairs": [pair(i, "lx:name", [i]) for i in range(98)] +
+                                   [pair(98, "lx:name", [98, 99]), pair(99, "lx:name", [100, 101])]}]
+    write_align(tmp_path, "xyz_edition", "eflomal", "MAT", records)
+
+    import lexeme_aligner.typology as ty
+    monkeypatch.setattr(ty, "direction",
+                        lambda iso, slot, path=ty._OUT: "before" if slot == "adposition" else None)
+
+    report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused",
+                        use_typology=True)
+    assert report["grambank_covered"] is False                     # still correctly reports no Grambank
+    assert any(f["risk"] == "case_marking" and f["grambank_ids"] == ["typology:adposition"]
+              for f in report["findings"])
+
+
+def test_analyze_typology_fallback_off_by_default(tmp_path, monkeypatch):
+    """use_typology defaults False — a Grambank-absent language must NOT be flagged via the typology
+    table unless explicitly opted in (measured net-negative for 2 of 3 languages tested)."""
+    import lexeme_aligner.analyze_language as al
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES_FILE", tmp_path / "does-not-exist.json")
+    monkeypatch.setattr(al, "load_priors", lambda _pp: ({"lx:name": "name"}, {}))
+    records = [{"ref": 1, "pairs": [pair(i, "lx:name", [i]) for i in range(98)] +
+                                   [pair(98, "lx:name", [98, 99]), pair(99, "lx:name", [100, 101])]}]
+    write_align(tmp_path, "xyz_edition", "eflomal", "MAT", records)
+    import lexeme_aligner.typology as ty
+    monkeypatch.setattr(ty, "direction",
+                        lambda iso, slot, path=ty._OUT: "before" if slot == "adposition" else None)
+
+    report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused")
+    assert not any(f["risk"] == "case_marking" for f in report["findings"])
+
+
+def test_analyze_typology_fallback_still_requires_the_rate_anomaly(tmp_path, monkeypatch):
+    """The typology fallback only supplies EXISTENCE — the empirical rate-anomaly threshold still has
+    to hold, same as the Grambank path; a healthy (non-anomalous) multiword rate must NOT be flagged."""
+    import lexeme_aligner.analyze_language as al
+    monkeypatch.setattr(al, "GRAMBANK_FEATURES_FILE", tmp_path / "does-not-exist.json")
+    monkeypatch.setattr(al, "load_priors", lambda _pp: ({"lx:name": "name"}, {}))
+    # 50% multi-word — well above the 0.05 anomaly threshold, a healthy rate.
+    records = [{"ref": 1, "pairs": [pair(i, "lx:name", [i, i + 1000]) for i in range(50)] +
+                                   [pair(i, "lx:name", [i]) for i in range(50, 100)]}]
+    write_align(tmp_path, "xyz_edition", "eflomal", "MAT", records)
+
+    import lexeme_aligner.typology as ty
+    monkeypatch.setattr(ty, "direction",
+                        lambda iso, slot, path=ty._OUT: "before" if slot == "adposition" else None)
+
+    report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused")
+    assert not any(f["risk"] == "case_marking" for f in report["findings"])

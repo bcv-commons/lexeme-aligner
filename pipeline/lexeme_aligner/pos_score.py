@@ -41,7 +41,7 @@ from lexeme_aligner.benchmark import norm_surface
 from lexeme_aligner.config import OUT, RESOURCES
 from lexeme_aligner.refs import BOOK_NUMBERS
 from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
-from lexeme_aligner.usj_source import read_verses, strip_marks, tokenize
+from lexeme_aligner.usj_source import _split_unspaced, read_verses, strip_marks, tokenize
 
 _APOS = "'’ʼ"
 
@@ -53,7 +53,16 @@ def _isw(c: str) -> bool:
 
 def clear_tokens(text: str) -> list[str]:
     """Clear-Bible's target tokenization of `text` (see module docstring). Token i corresponds to
-    `target_id` index i+1."""
+    `target_id` index i+1.
+
+    CJK fix (2026-09-24, found building `sword_source.py`'s Chinese gold support): a Han/Hiragana/
+    Katakana script has no spaces, so the plain `_isw` word-run scan below glues an entire clause into
+    ONE token ("神创造天地" -> one 5-character token) — `map_positions` then maps that single clear
+    token onto ALL 5 of our own per-character `tokenize()` positions as a set, so a gold row anchored
+    to just one character (e.g. "神" alone) would wrongly inherit the whole clause's positions. Every
+    word RUN this function finds now goes through `usj_source._split_unspaced` (the same CJK/Myanmar
+    splitter `tokenize()` itself uses) before being appended — a no-op for every non-CJK/Myanmar script
+    (Latin/Cyrillic/Indic/Arabic/… all return unchanged), so no existing gold language's numbers move."""
     t = strip_marks(text)
     toks: list[str] = []
     i, n = 0, len(t)
@@ -76,7 +85,7 @@ def clear_tokens(text: str) -> list[str]:
                     j += 1
                     while j < n and _isw(t[j]):
                         j += 1
-            toks.append(t[i:j].replace(" ", ""))
+            toks.extend(_split_unspaced(t[i:j].replace(" ", "")))
             i = j
         else:
             toks.append(c)

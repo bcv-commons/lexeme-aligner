@@ -4,16 +4,40 @@ lexeme-spine.db — LEXEME-anchored backbone (the current spine; spine_words tab
     (Hebrew equivalence-canonicalized for spine.db parity). Adds gloss + role columns.
   sources: Clear-Bible/macula-greek@main (Nestle1904) + macula-hebrew@main (WLC)
   pin: spine_meta.macula_spine_sha256 = 9a1f8bd524c2783d20034bfdcbcffc2fadb78e74e9c1b6cd6c84bc9e758b1e71
-    (re-pinned 2026-09-23, was a3dbc0bbe95e19e0b45b5dbc533ae4b82eb61d66f1f0e817c87bb8628ac5d0ac — bump
-    fulfills internal-docs/bcv-query-wishlist.md #3/#3b: adds `head_idx` (syntactic head token, per
-    occurrence — confirmed populated, e.g. JOS 1:14) and `construct_group` (a construct/phrase-unit
-    chain id shared by every token in the unit, e.g. "06-Jos-001-lowfat-cg25" — confirmed on that same
-    verse) plus a new `phrase_role` column (s/v/o/pp/adv-style tags) not originally asked for but in the
-    same delivery. NOT YET WIRED into HebToken/hebrew_source.py — same "forward-compatible, zero-code-
-    change drop-in whenever it lands" pattern as `is_superscription`/`sense` before it; wiring is a
-    separate follow-up. Word count/row count for a given verse is UNCHANGED by this bump — the
-    still-open wishlist #10 (assimilated/hidden definite article as its own token) was NOT part of this
-    delivery; Joshua 1:14 still has 35 rows, not 36.)
+    — UNCHANGED across the 2026-09-23 deliveries below: this tracks the underlying MACULA TSV *source*
+    data, which didn't change; only new DERIVED columns/tables were added on top of it. The actual
+    DISTRIBUTED FILE hash (pipeline/lexeme-spine.db itself, verified via sha256sum) is
+    4bfd0cdd0a4eed93c5f14fe073f7c96f25ccd07073dc4888c6f9c4fc4c882125 as of the second 2026-09-23
+    delivery below — use THIS one to identify the exact file, not the source-tracking spine_meta value.
+  2026-09-23 deliveries (internal-docs/bcv-query-wishlist.md #3/#3b/#10), both verified against real
+  data, not taken on faith:
+    (1) `head_idx` (the row's clause verb's idx, same verse; NULL if the row IS that verb — a stated
+        simplification, not a full dependency parse) and `phrase_role` (v/s/o/o2/p/pp/adv) — built from
+        MACULA Hebrew's lowfat XML (WLC/lowfat/, a separate treebank product from the flat TSV, not
+        previously ingested); 266,393/415,872 OT tokens covered. Greek NOT covered (no lowfat
+        distribution for macula-greek). Confirmed populated on JOS 1:14 directly.
+        Also `construct_group` (a second, independent construct-chain id from the lowfat tree's own
+        `rule="NPofNP"` grouping, 115,925 tokens) — NOTE bcv-query's own reply says construct-chain
+        grouping was ALREADY fully answerable before this from `state='construct'` + `phrase_id` +
+        `rela='rec'` (shipped 2026-07); this column is a cross-check, not a new capability.
+    (2) `spine_assimilated_articles` — a NEW COMPANION TABLE (book, chapter, verse, after_idx, lemma,
+        gloss, strong), 6,435 rows, fulfilling wishlist #10 (the phonologically-assimilated Hebrew
+        article — a preposition+noun that in the written text hides the definite article as a vowel-
+        pointing change, no separate consonant). Deliberately NOT spliced into spine_words as a new row
+        (book,chapter,verse,idx) is a published, pinned join key and splicing would shift idx for every
+        later token in an affected verse — a companion table pointing at `after_idx` avoids that.
+        Confirmed directly: JOS 1:14 -> (after_idx=8, lemma=הַ, gloss=the, strong=1886a), exactly the
+        preposition token (idx 8, "בָּ" "in") independently identified diagnosing the Joshua comparison
+        artifact's reconciliation gap (see internal-docs/llm-align-experiment-plan.md).
+  NONE of head_idx/phrase_role/construct_group/spine_assimilated_articles are wired into HebToken/
+  hebrew_source.py yet — same "forward-compatible, zero-code-change drop-in whenever it lands" pattern
+  as `is_superscription`/`sense` before them; wiring (and, for spine_assimilated_articles specifically,
+  fixing the Joshua comparison artifact's "no reliable comparison" fallback verses now that the missing
+  token is actually available) is a separate, not-yet-started follow-up.
+  Also surfaced, unused: `macula-spine.db`'s own `frames` table (verb_key/role/arg_key, PropBank-style
+  A0/A1/A2 argument labels, 109,540 Hebrew rows, CC-BY — NOT MARBLE-blocked, distinct from the blocked
+  sense-gloss data) — ingested by their own parser but never surfaced through OUR spine; a candidate for
+  future semantic-frame work, not something we asked for or need to ask for again.
   contract: docs/data-contracts.md §1. Provided out-of-band; gitignored (*.db).
 
 rp2018-spine.db — ALTERNATE NT spine, Robinson-Pierpont 2018 Byzantine Textform  [ALIGNER_SPINE_DB]
@@ -212,3 +236,41 @@ occurrence_align/ (resources/, gitignored) — gbt_align.py + bsb_align.py write
   gbt's `suffix_pending` category confirmed (via BSB's authoritative `elided` marker, independently
   of the earlier eflomal/gloss/merge cross-check) as ~94% gloss-project incompleteness, not genuine
   elision — do not treat as an authoritative "no content" signal.
+
+pipeline/vendor/helfi/ — amikael/HELFI (Hebrew-Greek-Finnish Parallel Bible Corpus, LREC 2020),
+  fetched 2026-09-24 for Step G0 (internal-docs/aim1-typology-source-structure-plan.md). Pin:
+  github.com/amikael/HELFI commit 534d29f870869027d87680c7586540aed20ae8d4. Fetched ONLY the
+  `Finnish1938/fi-FABC-2020m3-HELFI-alignment/`, `Hebrew1008/`, `Greek1904/` directories (text +
+  alignment link numbers, CC-BY-4.0/PD) — deliberately NOT `Finnish1938/fi-FABC-2020m3-AIKA-
+  morphology/`, which is CC-BY-NC-ND-4.0 and a materially stricter license (see
+  `helfi_source.py`'s own docstring for the full per-part breakdown). Parsed by `helfi_source.py`
+  into a new `fin_helfi` USJ edition (`pipeline/work/ingest-cache/usj-fin_helfi/`, gitignored,
+  regenerable) and a gold parquet (`method=helfi`, gitignored, vendor-only per the resources/
+  convention). Whole-Bible eflomal+gloss run against it; scored F1 .806 / 87.5% positional health
+  vs the HELFI gold — registered as `fin` in `config/gold_langs.json`.
+
+pipeline/vendor/resources/strongs/attestations/{fra,spa,cmn,rus}.parquet gained a SECOND `base_text`
+  each (2026-09-24, Step G0), extracted from SWORD/CrossWire Strong's-tagged modules by
+  `sword_source.py` — fra=Segond1910 (FreSegond1910), spa=RV1909 (SpaRV1909), cmn=ChiUns (NEW gold
+  language, no prior gold), rus=RusVZh (GBF format, NT only). fra/spa/rus modules carry
+  `DistributionLicense=Copyrighted; Permission to distribute granted to CrossWire` — used VENDOR-ONLY,
+  never published (same posture as the karnbibeln lexicon); ChiUns is genuinely Public Domain. All
+  four gitignored under the existing `pipeline/vendor/resources/` rule. GerLeoNA28 (Leonberger,
+  German NT) was fetched for inspection but is CC-BY-NC-ND-4.0 and deliberately NOT parsed or used —
+  a stricter license than the others, left excluded per an explicit owner decision.
+
+pipeline/vendor/wals/ — WALS (World Atlas of Language Structures) CLDF release, Step 2 of
+  internal-docs/aim1-typology-source-structure-plan.md, fetched 2026-09-24. Pin:
+  github.com/cldf-datasets/wals tag v2020.5 (`cldf/{values,codes,languages,parameters}.csv` only —
+  `examples.csv`/`sources.bib`/media/genealogy files not needed, not fetched). CC-BY-4.0 (Dryer &
+  Haspelmath, eds., WALS Online, Max Planck Institute for Evolutionary Anthropology). Gitignored;
+  regenerable from the pinned tag via `typology.py`. Consumed by `typology.py` for adposition/
+  possessor/subject-verb/object-verb order (85A/86A/82A/83A) — WALS has NO article-order parameter
+  (37A/38A give article TYPE, not position; checked and confirmed no substitute exists).
+
+lang2vec / URIEL syntax_knn (pip package, not vendored — the ~10MB wheel carries its own feature
+  data) — Step 2. CC-BY-SA-4.0 (Littell et al. 2017, aclanthology.org/E17-2002); consumed via
+  `typology.py`'s `lang2vec_direction_batch`, `[typology]` extra in pyproject.toml. Real packaging
+  conflict found and pinned around 2026-09-24: `pip install lang2vec` pulls `setuptools>=81`, which
+  dropped the `pkg_resources` module lang2vec's own code still imports — `setuptools<81` pinned
+  alongside it in the same extra.

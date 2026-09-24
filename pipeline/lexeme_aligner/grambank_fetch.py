@@ -60,7 +60,14 @@ FEATURES = {
     "subject_indexing": ["GB089", "GB090"],          # S by suffix/enclitic, S by prefix/proclitic
     "agent_indexing": ["GB091", "GB092"],            # A argument, same question
     # construct/genitive -> is there morphological case, or must an adposition carry it ("son OF x")?
-    "case_marking": ["GB070", "GB072"],              # core args, oblique NPs
+    # CORRECTION 2 (Step 1, internal-docs/aim1-typology-source-structure-plan.md §2.3/§4, 2026-09-24):
+    # GB070/072 alone (morphological case) wrongly gated this OFF for eng/fra/por — all GB072=0 (no
+    # case) yet all render a genitive with a directional adposition ("of"/"de", GB074=1) — the largest
+    # Clear-gold languages never got the genitive-adposition trigger at all. Direction (GB074/075), not
+    # morphological case, is the real precondition — added here under the SAME "any_one" polarity (fire
+    # if EITHER a real case system OR a directional adposition exists); hin/arb (already GB070/072=1)
+    # are unaffected, eng/fra/por (GB074=1, GB070/072=0) now correctly flag.
+    "case_marking": ["GB070", "GB072", "GB074", "GB075"],  # core args, oblique NPs, OR a directional adposition
     # definite noun -> does the language spell out an article ("THE sons")?
     "articles": ["GB020", "GB021", "GB022", "GB023"],
     # possessed noun -> affixed possession, or a free possessive word ("HIS house")?
@@ -81,14 +88,28 @@ FEATURES = {
     # follows, e.g. "house his"), or 3 (both orders occur/free) — needs its own direction helper, not
     # direction_for()'s before_id/after_id pair convention.
     "possession_order": ["GB065"],
+    # Clause-level verb POSITION (GB131 verb-initial, GB133 verb-final; GB132 verb-medial is
+    # deliberately excluded — SVO and OVS are both "medial" and put the subject on OPPOSITE sides of
+    # the verb, so GB132 alone can never resolve subject_verb/object_verb order; a medial language
+    # correctly gets neither GB131 nor GB133 = "1" and this pair resolves to None, not a guess).
+    # These SAME two codes serve BOTH `subject_verb` and `object_verb` (typology.py, Step 2): a
+    # verb-final clause puts subject AND object before the verb; verb-initial puts both after — one
+    # pair, two slots. Registered for typology.py's LITERAL verb-position table entry only — kept
+    # deliberately separate from the REJECTED "subject_order" proxy below (a DIFFERENT use: guessing
+    # subject-PRONOUN position from verb order for span_extension's subject_indexing trigger, measured
+    # a wash and never shipped). Using GB131/133 for what they actually encode is not the same claim.
+    "subject_verb_order": ["GB133", "GB131"],   # [0]=verb-final (S before V), [1]=verb-initial (S after V)
+    "object_verb_order": ["GB133", "GB131"],    # same codes — verb-final: O before V; verb-initial: O after V
 }
-# TRIED 2026-09-24, not kept: a "subject_order" direction (GB133 verb-final=before, GB131 verb-initial=
-# after — Grambank has no dedicated subject-pronoun-position or auxiliary-order feature; checked the full
-# parameter list) derived a plausible before/after direction and matched textbook typology (hin SOV->
-# before, arb VSO->after), but adding it to span_extension's subject_indexing category measured a WASH on
-# real Clear gold (hin whole NT: F1 unchanged .627->.627, exact_span/precision slightly worse) — see
-# span_extension.py's module docstring for the full comparison. Not registered here to avoid dead code a
-# reader would reasonably assume is in active use.
+# TRIED 2026-09-24, not kept AS A SUBJECT-PRONOUN-POSITION PROXY: a "subject_order" direction (GB133
+# verb-final=before, GB131 verb-initial=after — Grambank has no dedicated subject-pronoun-position or
+# auxiliary-order feature; checked the full parameter list) derived a plausible before/after direction
+# and matched textbook typology (hin SOV->before, arb VSO->after), but adding it to span_extension's
+# subject_indexing category measured a WASH on real Clear gold (hin whole NT: F1 unchanged .627->.627,
+# exact_span/precision slightly worse) — see span_extension.py's module docstring for the full
+# comparison. NOT re-added there. `subject_verb_order`/`object_verb_order` above are a DIFFERENT,
+# later (Step 2) use of the same two codes for their literal, undisputed meaning (clause-level
+# subject/object-verb word order, not a subject-pronoun-drop proxy) — see typology.py.
 _ALL = {f for fs in FEATURES.values() for f in fs}
 
 

@@ -3,10 +3,20 @@
  "_edition_doc": "Each entry may be a bare backend string (legacy) or {gold, edition, base_text}. `edition` is the ingest-cache tag (pipeline/work/ingest-cache/usj-<edition>) that IS the translation the gold was built against, and `base_text` is Clear's own name for it. THIS MATTERS: scoring requires the SAME translation the gold describes, and most of these languages have many ingested editions — picking by book-count or alphabetically silently scores one Bible against another Bible's gold. Live case (2026-08-31): spa was scored on spa_bes instead of spa_r09 and gap-fill precision read 10.9%; against the right edition it is 54.8%. Resolve with contest_rule.gold_edition(iso), never by globbing.",
  "_gbt_doc": "`gold: gbt` = globalbibletools occurrence alignment (CC0), extracted by gbt_align.py to pipeline/work/occurrence_align/gbt_<iso>.jsonl. LOOSER than Clear: gbt's gold is a gloss PHRASE per source word and it glosses its OWN target text, not the edition we align — positional agreement with Clear where both exist is eng 83.9% / hin 63.4% / spa 61.7%. Use gbt for A/B-ing our own variants and for reach, NEVER to compare absolute scores against a Clear language.\nCHECK COVERAGE BEFORE TRUSTING A LANGUAGE: `gbt_align --coverage` reports usable rows. The raw jsonl row count is SOURCE WORDS and is ~448k for every language regardless of whether the gloss project has any target text at all — measured 2026-09-01, only eng/spa/por/hin exceed 50k usable rows, while amh/kan/mal/tgl/tpi have under 2k and were removed from this file again after being added on the row count alone. `gbt_usable_rows` / `gbt_greek_rows` below are the measured numbers; Greek rows are what an NT-only test can use.\nThese four are listed because each has a Grambank feature no usable Clear gold language has (GB117=0 no copula / GB250=0 no transitive 'have'), which is what the docs/pipeline-overview.md #4 gate needs to validate. They are INERT until aligned — every consumer auto-skips a language with no align_* jsonl. tam is the only real GB117=0 candidate (4,854 Greek rows); tel/njm are OT-heavy and cannot test a Greek copula.\nSEPARATELY VALUABLE: gbt_rus has 38,969 Greek rows and Clear's rus gold is QUARANTINED for being positionally scrambled — gbt is an independent reference that could rehabilitate rus as a gold language. Not wired up here; see the _quarantine note.",
  "_quarantine": "rus WAS quarantined for BAD GOLD (not a fixable alignment issue): Clear's RUSSYN gold is itself positionally mis-aligned — ~57% of its per-verse strong->word pairings are wrong (EXO 1:1: H3478/Israel->'вошли'/came). Verse boundaries agree 100%, and our aggregate strong->surface is correct, so it is an intra-verse scramble no versification remap can reach.\nREHABILITATED 2026-09-01 by switching rus to `gold: gbt`. The gold-health diagnostic (positional agreement vs lexical agreement; a large gap means the gold's per-verse word choice is wrong even though its overall vocabulary is right) run on the SAME rus alignment against both golds:\n    vs CLEAR gold: positional 38.7%  lexical 66.4%  GAP 27.7pt  <- scrambled (reproduces the 2026-07 diagnosis)\n    vs GBT   gold: positional 54.5%  lexical 56.0%  GAP  1.5pt  <- HEALTHY\nSo the defect is Clear's, exactly as diagnosed, and globalbibletools' independent CC0 occurrence alignment is a sound reference for the same language. rus rejoins the gold set for NT work only. Its absolute score is not comparable to a Clear language's (see _gbt_doc). Clear's rus parquet is kept on disk; re-check if Clear ever reships a corrected rus.\nNOT the cause, checked and ruled out 2026-09-01: a spine mismatch. rus_syn is textual_basis verdict `tr` (carries all 15 diagnostic verses incl. all 4 TR-only), while Clear's rus gold is keyed to SBLGNT — but re-aligning rus against the TR spine moved the gap 27.7 -> 27.9pt, i.e. nothing. And 8 of the 10 Clear gold editions are `tr` (arb/asm/ben/fra/hin/por/rus/spa), several of which score fine, so the TR/critical mismatch is not what makes rus special.",
+ "_sword_doc": "`gold: sword` = a SWORD/CrossWire Strong's-tagged module, extracted by sword_source.py into pipeline/vendor/resources/strongs/attestations/<iso>.parquet with method=sword. Score with `pos_score --gold-method sword` (contest_rule's GOLD-backend consumers that switch on \"clear\"/\"gbt\" explicitly — gold_health, the phase2/trust_profile pipeline — do not yet handle \"sword\" and skip these languages rather than crash; generalizing them is an explicit follow-up, not done as of 2026-09-24). cmn's ChiUns text is IDENTICAL to the already-ingested/aligned cmn_cu1 edition (verified) so no new ingest/alignment was needed.",
  "arb": {
   "base_text": "AVD",
   "edition": "arb_vdv",
   "gold": "clear"
+ },
+ "cmn": {
+  "base_text": "ChiUns",
+  "edition": "cmn_cu1",
+  "gold": "sword",
+  "gold_links": 257300,
+  "verses_mapped": "30996/31007",
+  "positional_health": 0.822,
+  "note": "NEW gold language (2026-09-24), no Grambank features flagged (isolating: no case/articles/possession-affixes) — a clean negative control for span_extension's typology gates. DistributionLicense=Public Domain."
  },
  "asm": {
   "base_text": "IRV",
@@ -22,6 +32,16 @@
   "base_text": "BSB",
   "edition": "engbsb",
   "gold": "clear"
+ },
+ "fin": {
+  "base_text": "HELFI",
+  "edition": "fin_helfi",
+  "gold": "helfi",
+  "gold_links": 203439,
+  "verses_mapped": "29560/29560",
+  "positional_health": 0.875,
+  "link_f1": 0.806,
+  "note": "NEW gold language + NEW edition (2026-09-24) — Finnish 1933/1938, morpheme-level alignment via helfi_source.py (github.com/amikael/HELFI, CC-BY-4.0 alignment data over PD text; the AIKA Finnish-side morphology directory is CC-BY-NC-ND and deliberately NOT used). 15 grammatical cases, no articles (GB020-023 all 0) — a case_marking/possession_affix positive test the eng/fra/hin set can't provide. Ingest + eflomal/gloss run are ours (pipeline/work/ingest-cache/usj-fin_helfi), not reused from an existing edition."
  },
  "fra": {
   "base_text": "LSG",
@@ -61,7 +81,12 @@
   "gbt_greek_rows": 38969,
   "gbt_usable_rows": 38969,
   "gold": "gbt",
-  "note": "NT ONLY (gbt rus has zero Hebrew rows). Rehabilitated 2026-09-01 — see _quarantine."
+  "note": "NT ONLY (gbt rus has zero Hebrew rows). Rehabilitated 2026-09-01 — see _quarantine.",
+  "second_source_sword": {
+   "base_text": "RusVZh", "gold_method": "sword", "format": "gbf",
+   "gold_links": 56418, "positional_health": 0.847, "link_f1": 0.857,
+   "note": "vendor-only (CrossWire-restricted license, see sword_source.py docstring), NT only. A THIRD independent reference (Clear/scrambled, gbt/CC0, now RusVZh/vendor-only) all agreeing our alignment is healthy (.847 positional here vs gbt's .545) further corroborates the _quarantine diagnosis: the defect is Clear's gold specifically. Score with pos_score --base-text RusVZh --gold-method sword."
+  }
  },
  "spa": {
   "base_text": "RV09",

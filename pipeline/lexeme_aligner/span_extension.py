@@ -729,12 +729,19 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                     # _chain_neighbor_boundary: may not claim ON OR PAST the neighbor's own span.
                     if (direction == "before" and c <= boundary) or (direction == "after" and c >= boundary):
                         return False
-                if (0 <= c < len(toks) and c not in claimed and stop.is_function(toks[c])
-                        and not _has_strong_identity(toks[c], surface_identity, this_lexeme)):
-                    extensions.append((direction, stat_label, c))
-                    sides_used.add(direction)
-                    return True
-                return False
+                if not (0 <= c < len(toks) and c not in claimed and stop.is_function(toks[c])):
+                    return False                                 # never reached the identity check at all
+                # Reached the identity guard: every candidate that clears the ordinary checks (a real
+                # stopword, unclaimed, in bounds) is counted here — `identity_checked_<label>` is the
+                # denominator, `identity_blocked_<label>` the numerator, for `diagnose()`'s block-rate
+                # report (a language-relative signal, not a fixed rule — see that function's docstring).
+                stats[f"identity_checked_{stat_label}"] += 1
+                if _has_strong_identity(toks[c], surface_identity, this_lexeme):
+                    stats[f"identity_blocked_{stat_label}"] += 1
+                    return False
+                extensions.append((direction, stat_label, c))
+                sides_used.add(direction)
+                return True
 
             # Try each flagged (direction, risk) for this pos IN ORDER, falling through when one's own
             # candidate position isn't valid for THIS occurrence (already claimed, or not a function
@@ -804,6 +811,90 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     return dict(out), dict(stats)
 
 
+def diagnose(iso: str, publish_iso: str, usj_dir: Path, books: list[str], out_dir: Path = OUT,
+            methods: tuple[str, ...] = ("eflomal", "gloss"), prior_pack: Path = PRIOR_PACK,
+            top_n: int = 15) -> dict:
+    """Pre-flight, gold-free TRIAGE report for a HUMAN deciding a `config/spanext_flags.json` entry for
+    `publish_iso` — explicitly NOT an automatic classifier, and never itself writes to that file. Built
+    after two attempts at an automatic per-word or per-language cutoff both failed against real gold:
+    a flat volume threshold regressed hin's shipped `relation_trigger` win (see `_IDENTITY_SHARE_MAX`'s
+    own comment), and a language-relative percentile version was never even shipped because it can't
+    separate cases either — Hindi's own busiest postposition (के, 1,970 single-word content-alignment
+    occurrences) has the SAME low-share/high-volume shape as Bengali's problem pronoun (তিনি), for the
+    opposite underlying reason (one is a free particle correctly attaching to whatever noun needs it;
+    the other's referent genuinely changes every occurrence). No number alone tells the two apart —
+    that judgment call is what this function hands to a human, with the two pieces of evidence that
+    were actually used to make every verdict already recorded in `config/spanext_flags.json`:
+
+      (1) `block_rates` — per trigger label, `identity_blocked_<label> / identity_checked_<label>`
+          (the counters `_try_extend` tracks) with EVERY opt-in trigger forced ON for this call only
+          (`definite_trigger`/`relation_trigger`/`typology_fallback` all `True`) so every mechanism's
+          behavior is visible regardless of what `spanext_flags.json` currently records for this
+          language — this function never reads or writes that file, and never touches disk (no
+          `align_spanext_*` files are written here, unlike `main()`'s normal run). A near-zero rate
+          means the identity guard rarely finds anything to catch; the ben/asm net-negative pattern
+          correlated with a much higher rate on the trigger(s) actually in play for those languages.
+      (2) `top_high_volume_stopwords` — this language's own `StopwordFilter` words, ranked by how
+          often each occurs as a single-word content alignment (`build_surface_identity`'s own
+          counts), with its dominant lexeme and share. Hand-checking a handful of the highest-volume
+          rows against a gloss or gold is exactly the check that told के and তিনি apart this session;
+          this table exists so that check doesn't require re-deriving `surface_identity` by hand
+          each time.
+
+    Read both together, then decide the same way every existing `spanext_flags.json` entry was decided
+    — by spot-checking real rows, not by any threshold this function itself applies."""
+    lex_pos, _ = load_priors(prior_pack)
+    heb = HebrewSource()
+    recs = build_corpus(books, usj_dir, heb, remap=remapper(iso, str(usj_dir)))
+    lexeme_of: dict[int, dict[int, str]] = {}
+    verse_toks: dict[int, list[str]] = {}
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        verse_toks[ref] = list(r.toks)
+        lexeme_of[ref] = {t.idx: t.lexeme for t in r.heb}
+
+    unioned: dict[int, dict[int, dict]] = collections.defaultdict(dict)
+    for m in methods:
+        for fp in tag_files(out_dir, m, iso):
+            with fp.open(encoding="utf-8") as fh:
+                for line in fh:
+                    rec = json.loads(line)
+                    ref = rec["ref"]
+                    verse = unioned[ref]
+                    for p in rec["pairs"]:
+                        if p.get("t_idx") and p["h_idx"] not in verse:
+                            verse[p["h_idx"]] = p
+
+    surface_identity = build_surface_identity(unioned, lexeme_of, verse_toks)
+    stop = StopwordFilter(publish_iso, str(usj_dir))
+    rows = []
+    for word in stop.words:
+        entry = surface_identity.get(word.lower())
+        if entry:
+            lexeme, share, total = entry
+            rows.append({"word": word, "total": total, "share": round(share, 3), "lexeme": lexeme})
+    rows.sort(key=lambda r: -r["total"])
+
+    _by_book, stats = extend_spans(iso, publish_iso, usj_dir, books, out_dir, methods, prior_pack,
+                                   definite_trigger=True, relation_trigger=True, typology_fallback=True)
+    block_rates = {}
+    for key, checked in stats.items():
+        if not key.startswith("identity_checked_"):
+            continue
+        label = key[len("identity_checked_"):]
+        blocked = stats.get(f"identity_blocked_{label}", 0)
+        block_rates[label] = {"checked": checked, "blocked": blocked,
+                              "rate": round(blocked / checked, 4) if checked else None}
+
+    return {
+        "iso": iso,
+        "publish_iso": publish_iso,
+        "block_rates": block_rates,
+        "top_high_volume_stopwords": rows[:top_n],
+        "n_stopwords_with_identity": len(rows),
+    }
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True, help="base-chain edition tag (align_<method>_<iso>_*.jsonl)")
@@ -832,10 +923,19 @@ def main(argv=None) -> int:
                          "cover — default: consult config/spanext_flags.json (on for spa, off for "
                          "ben/asm, all measured); --typology-fallback/--no-typology-fallback force "
                          "it either way")
+    ap.add_argument("--diagnose", action="store_true",
+                    help="pre-flight TRIAGE report only (block rates + top high-volume stopwords) — "
+                         "writes nothing, does not consult or update config/spanext_flags.json; see "
+                         "diagnose()'s own docstring for how to read it")
+    ap.add_argument("--top-n", type=int, default=15, help="--diagnose: how many stopword rows to print")
     a = ap.parse_args(argv)
 
     books = _books(a)
     methods = tuple(m.strip() for m in a.methods.split(","))
+    if a.diagnose:
+        report = diagnose(a.iso, a.publish_iso, a.usj_dir, books, a.out, methods, a.prior_pack, a.top_n)
+        print(json.dumps(report, indent=1, ensure_ascii=False))
+        return 0
     by_book, stats = extend_spans(a.iso, a.publish_iso, a.usj_dir, books, a.out, methods, a.prior_pack,
                                   definite_trigger=a.definite_trigger,
                                   relation_trigger=a.relation_trigger,

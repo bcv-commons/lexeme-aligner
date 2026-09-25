@@ -12,8 +12,10 @@ Aligns the FULL corpus in one call, then we symmetrize fwd+rev with grow-diag-fi
 from __future__ import annotations
 
 import collections
+import json
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 from eflomal import Aligner
 
@@ -36,7 +38,21 @@ def _parse(line: str) -> set[tuple[int, int]]:
 
 def _grow_diag_final_and(fwd, rev, n_src, n_trg):
     """Standard Moses/fast_align symmetrization. Intersection (high precision) grown along the
-    diagonal from the union, then final-and adds union points whose BOTH ends are still free."""
+    diagonal from the union, then final-and adds union points whose BOTH ends are still free.
+
+    Iterates `sorted(...)` snapshots, not the bare `set`s, at both tie-break points (the growth
+    loop's own `aligned` and the final-and pass over `union`) — found and fixed while building Step
+    3's `save_links`/`load_links` replay harness (internal-docs/aim1-typology-source-structure-
+    plan.md): TWO Python sets with IDENTICAL CONTENT can still iterate in different orders depending
+    on their construction/insertion history (confirmed live: replaying an eflomal run's own SAVED
+    fwd/rev — logically the same sets — produced a different winner for a genuine tie, RUT 2:1's
+    h_idx=3, one run keeping target 20 and the other target 21, both members of `fwd` with no `rev`
+    partner at all). That silently broke the harness's whole reason to exist ("a post-training-only
+    change becomes a deterministic offline A/B") for any verse with an unresolved tie, not just the
+    replay path — the SAME nondeterminism was already latent in two back-to-back ordinary runs over
+    identical fwd/rev input, just never noticed because eflomal itself is unseeded anyway (§5.3) and
+    a `.venv/bin/python` process's own hash randomization was never suspected as a SECOND, independent
+    noise source. Sorting makes the tie-break canonical (lowest (s, t) wins) instead of incidental."""
     inter = fwd & rev
     union = fwd | rev
     aligned = set(inter)
@@ -46,7 +62,7 @@ def _grow_diag_final_and(fwd, rev, n_src, n_trg):
     added = True
     while added:
         added = False
-        for (s, t) in list(aligned):
+        for (s, t) in sorted(aligned):
             for ds, dt in NEIGH:
                 ns, nt = s + ds, t + dt
                 if 0 <= ns < n_src and 0 <= nt < n_trg and (ns, nt) in union \
@@ -55,7 +71,7 @@ def _grow_diag_final_and(fwd, rev, n_src, n_trg):
                     src_al.add(ns)
                     trg_al.add(nt)
                     added = True
-    for (s, t) in union:
+    for (s, t) in sorted(union):
         if s not in src_al and t not in trg_al:
             aligned.add((s, t))
             src_al.add(s)
@@ -173,7 +189,24 @@ class EflomalAligner:
         self.n_reassigned = 0
         self.n_scatter_dropped = 0
 
-    def run(self, recs, norm, priors_pairs=None) -> None:
+    def run(self, recs, norm, priors_pairs=None, fertility_priors: dict[str, tuple[int, float]] | None = None,
+           save_links: Path | str | None = None, load_links: Path | str | None = None) -> None:
+        """`fertility_priors`: Step 3's `fertility_priors.build_fertility_priors()` output — `{anchor:
+        (fert, alpha)}` written as `FERF <anchor> <fert> <alpha>` lines alongside any `LEX` priors, in
+        the SAME priors file (eflomal's `read_priors` accepts both line types together). Shapes the
+        model's own fertility distribution per source TYPE; never touches allocation directly the way
+        `_content_priority`/`_longest_contiguous` do below — a genuinely different, upstream lever.
+
+        `save_links`/`load_links` (the plan's harness, "also unlocks Step 4"): persist or replay the
+        RAW per-verse forward/reverse link sets eflomal itself produces, BEFORE symmetrization —
+        keyed by `(book, chapter, verse)`, one JSON object per line. `load_links` skips calling eflomal
+        entirely (no training, no priors file, deterministic) and replays saved links instead, so a
+        POST-training-only change (a new symmetrization variant, `_content_priority`, `contiguous_only`)
+        becomes a deterministic offline A/B — only a change that touches training itself (new LEX/FERF
+        priors, a different anchor/target form) needs an actual eflomal rerun. `save_links` and
+        `load_links` are mutually exclusive; passing `load_links` makes `norm`/`priors_pairs`/
+        `fertility_priors` irrelevant to the (skipped) training step, though `norm` still shapes
+        `trg_lines`/`meta` here for consistency with a fresh run over the same corpus."""
         src_lines, trg_lines, meta = [], [], []
         tgt_form = (lambda w: norm.stem(w)) if self.stem else (lambda w: norm.forms(w)[0])
         for rec in recs:
@@ -185,25 +218,45 @@ class EflomalAligner:
             trg_lines.append(" ".join(tgt_form(w) for w in rec.toks))
             meta.append((rec.book, rec.ch, rec.v, src_toks, rec.toks))
 
-        with tempfile.NamedTemporaryFile("w+", suffix=".src") as sf, \
-             tempfile.NamedTemporaryFile("w+", suffix=".trg") as tf, \
-             tempfile.NamedTemporaryFile("w+", suffix=".pri") as pf, \
-             tempfile.NamedTemporaryFile("r", suffix=".fwd") as ff, \
-             tempfile.NamedTemporaryFile("r", suffix=".rev") as rf:
-            sf.write("\n".join(src_lines) + "\n"); sf.flush(); sf.seek(0)
-            tf.write("\n".join(trg_lines) + "\n"); tf.flush(); tf.seek(0)
-            priors_input = None
-            if priors_pairs:
-                # eflomal lexical prior format: "LEX\tsrcword\ttrgword\talpha" (weight last)
-                for s, t, c in priors_pairs:
-                    pf.write(f"LEX\t{s}\t{t}\t{float(c)}\n")
-                pf.flush(); pf.seek(0)
-                priors_input = pf
-            Aligner().align(sf, tf, links_filename_fwd=ff.name, links_filename_rev=rf.name,
-                            priors_input=priors_input, quiet=True)
-            fwds = [_parse(l) for l in ff]
-            rf.seek(0)
-            revs = [_parse(l) for l in rf]
+        if load_links:
+            saved: dict[tuple, dict] = {}
+            with Path(load_links).open(encoding="utf-8") as fh:
+                for line in fh:
+                    row = json.loads(line)
+                    key = (row["book"], row["chapter"], row["verse"])
+                    saved[key] = {"fwd": {tuple(p) for p in row["fwd"]},
+                                 "rev": {tuple(p) for p in row["rev"]}}
+            fwds = [saved.get((book, ch, v), {}).get("fwd", set()) for book, ch, v, _, _ in meta]
+            revs = [saved.get((book, ch, v), {}).get("rev", set()) for book, ch, v, _, _ in meta]
+        else:
+            with tempfile.NamedTemporaryFile("w+", suffix=".src") as sf, \
+                 tempfile.NamedTemporaryFile("w+", suffix=".trg") as tf, \
+                 tempfile.NamedTemporaryFile("w+", suffix=".pri") as pf, \
+                 tempfile.NamedTemporaryFile("r", suffix=".fwd") as ff, \
+                 tempfile.NamedTemporaryFile("r", suffix=".rev") as rf:
+                sf.write("\n".join(src_lines) + "\n"); sf.flush(); sf.seek(0)
+                tf.write("\n".join(trg_lines) + "\n"); tf.flush(); tf.seek(0)
+                priors_input = None
+                if priors_pairs or fertility_priors:
+                    # eflomal lexical prior format: "LEX\tsrcword\ttrgword\talpha" (weight last)
+                    for s, t, c in (priors_pairs or ()):
+                        pf.write(f"LEX\t{s}\t{t}\t{float(c)}\n")
+                    # "FERF\tsrcword\tfert\talpha" — Step 3's fertility prior (see docstring above)
+                    for a, (fert, alpha) in (fertility_priors or {}).items():
+                        pf.write(f"FERF\t{a}\t{int(fert)}\t{float(alpha)}\n")
+                    pf.flush(); pf.seek(0)
+                    priors_input = pf
+                Aligner().align(sf, tf, links_filename_fwd=ff.name, links_filename_rev=rf.name,
+                                priors_input=priors_input, quiet=True)
+                fwds = [_parse(l) for l in ff]
+                rf.seek(0)
+                revs = [_parse(l) for l in rf]
+
+            if save_links:
+                with Path(save_links).open("w", encoding="utf-8") as out:
+                    for (book, ch, v, _, _), fwd, rev in zip(meta, fwds, revs):
+                        out.write(json.dumps({"book": book, "chapter": ch, "verse": v,
+                                             "fwd": sorted(fwd), "rev": sorted(rev)}) + "\n")
 
         for i, (book, ch, v, src_toks, toks) in enumerate(meta):
             fwd = fwds[i] if i < len(fwds) else set()

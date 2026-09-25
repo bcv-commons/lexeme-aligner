@@ -31,6 +31,28 @@ def test_gdfa_final_and_gives_a_free_slot_to_whoever_is_free():
     assert (1, 1) in sym
 
 
+def test_gdfa_tie_break_is_order_independent(monkeypatch):
+    """Found live while building Step 3's save_links/load_links replay harness: TWO Python sets with
+    IDENTICAL CONTENT but different construction/insertion history can iterate in different orders,
+    so an unresolved tie in the final-and pass (a source token with two fwd-only candidate targets,
+    no rev partner at all) used to pick a different winner depending on incidental set layout —
+    breaking the harness's whole "deterministic offline A/B" premise. Constructs the SAME fwd content
+    two different ways (a literal set vs. one built by adding elements in reverse order, which can
+    produce a different internal table layout even for equal small-int-tuple sets) and requires an
+    identical winner either way."""
+    n_src, n_trg = 4, 25
+    fwd_a = {(2, 0), (3, 20), (3, 21), (5, 7)}
+    fwd_b = set()
+    for pair in reversed(sorted(fwd_a)):               # different insertion order, same final content
+        fwd_b.add(pair)
+    assert fwd_a == fwd_b
+    rev = {(2, 0), (5, 7)}                              # no rev partner for source 3 -> genuine tie
+    sym_a, _ = _grow_diag_final_and(fwd_a, rev, n_src, n_trg)
+    sym_b, _ = _grow_diag_final_and(fwd_b, rev, n_src, n_trg)
+    assert sym_a == sym_b
+    assert (3, 20) in sym_a and (3, 21) not in sym_a    # canonical: lowest (s, t) wins the tie
+
+
 # ── _content_priority ──────────────────────────────────────────────────────────────────
 
 def test_reassigns_a_noncontent_held_slot_to_an_unaligned_content_token():

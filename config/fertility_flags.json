@@ -1,0 +1,18 @@
+{
+ "_doc": "Per-language recommendation for run_pilot.py's --fertility-priors (Step 3, internal-docs/aim1-typology-source-structure-plan.md). Defaults to OFF/no entry; a language gets an entry only once measured against real whole-Bible Clear gold, the same 'measure once, remember it in one line, no code edit' pattern as config/spanext_flags.json / config/gold_langs.json / config/typology/directions.json. run_pilot's own --fertility-priors/--no-fertility-priors and --fertility-lambda always override an entry here for a one-off experiment.",
+ "hin": {
+  "enabled": true,
+  "lambda": 2.0,
+  "_note": "measured 2026-09-24, whole Bible vs Clear gold. lambda swept {0.5,1,2} on hin per the plan: all three clear the noise floor (2x baseline-replicate spread; eflomal F1 spread 0.0003, +gloss 0.0002) with exact_span up. lambda=2 gives the largest gain: eflomal F1 .5421->.5487 (Delta+0.0066), exact_span 36714.5->36862 (+147.5); +gloss F1 .5423->.5489 (Delta+0.0066), exact 36746.5->36911 (+164.5). VALIDATED against both plan controls at the same evidence scale (~7125 anchors, lambda=2): a typology-BLIND null prior gives a BIGGER F1 gain (+0.0098) but exact_span DOWN (-285.5) -- pure recall inflation that fails the plan's own exact_span-up bar; an inverted placebo (same weight, wrong anchors) gives only +0.0013 (~1/5 the real prior's gain). Confirms the typology-conditioned PLACEMENT is doing the work, not generic FERF regularization."
+ },
+ "eng": {
+  "enabled": true,
+  "lambda": 2.0,
+  "_note": "measured 2026-09-24, whole Bible vs Clear gold, lambda=2 (fixed from hin's own sweep, not independently swept -- see the plan's own sequencing). eflomal F1 .6114->.6150 (Delta+0.0036, noise floor 0.0004), exact_span 53757->54043 (+286); +gloss F1 .61305->.6168 (Delta+0.00375, noise floor 0.0006), exact 54123.5->54438 (+314.5). Clean win, both bars cleared well past the noise floor -- same mechanism as hin (eng has both a free-adposition side for case_marking AND a free-article side for definiteness, so both signal channels apply)."
+ },
+ "arb": {
+  "enabled": false,
+  "lambda": 2.0,
+  "_note": "measured 2026-09-24, whole Bible vs Clear gold, lambda=2: WASH, inside the noise floor on both scoring conditions (eflomal F1 .87275->.8729, Delta+0.00015 vs floor 0.0010; +gloss F1 .87415->.8744, Delta+0.00025 vs floor 0.0006). Not a loss -- flat, not worth the extra alignment-time complexity. Plausible unconfirmed hypothesis: arb already has GB070/072=1 (real morphological case), so its genitive/dative marking may already be adequately signaled without extra target fertility -- not verified, just a candidate reason not to spend more time here."
+ }
+}

@@ -847,3 +847,57 @@ def test_extend_spans_explicit_false_overrides_a_true_config_entry(tmp_path, mon
     by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path,
                                      relation_trigger=False)      # explicit override beats the config
     assert stats.get("extended_possessor", 0) == 0
+
+
+# --- diagnose() (pre-flight triage report, not an automatic classifier) ----------------------------------
+def test_diagnose_reports_block_rate_and_top_stopwords(tmp_path, monkeypatch):
+    """diagnose() surfaces both signals a human needs: the block rate (from forcing every opt-in
+    trigger on) and a ranked list of this language's own stopwords that already carry a strong
+    single-word identity — reusing the exact "ses" steal scenario the identity guard itself is
+    tested against, so a fully-blocked trigger shows rate 1.0 and "ses" tops the stopword table."""
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT", [
+        {"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+         "pairs": [pair(0, "lx:autos", "G1", [0]), pair(1, "lx:autos", "G1", [4]),
+                  pair(2, "lx:autos", "G1", [7]), pair(3, "lx:autos", "G1", [10]),
+                  pair(4, "lx:autos", "G1", [13]),
+                  pair(5, "lx:disciples", "H1", [16])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:disciples": "noun"}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB432": "1", "GB065": "1"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "possession_affix", "pos": "noun", "prompt_hint": "..."}]})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        # "before"-direction candidate for "disciples" (idx 16) is position 15 — placed as another
+        # "ses" so the identity guard actually reaches (and blocks) it; the 5 pair()-attributed "ses"
+        # occurrences at 0/4/7/10/13 are what give it its strong lx:autos identity in the first place.
+        _FakeVerseRec("MAT", 1, 1, ["ses", "b", "c", "d", "ses", "e", "f", "ses", "g", "h", "ses",
+                                    "i", "j", "ses", "k", "ses", "disciples"],
+                      [_FakeTok(i, "lx:autos") for i in range(5)] + [_FakeTok(5, "lx:disciples")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init())
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"words": {"ses"},
+                                                        "is_function": lambda self, w: w == "ses"})())
+
+    report = se.diagnose("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
+    assert report["block_rates"]["noun"] == {"checked": 1, "blocked": 1, "rate": 1.0}
+    top = report["top_high_volume_stopwords"]
+    assert top[0] == {"word": "ses", "total": 5, "share": 1.0, "lexeme": "lx:autos"}
+    assert report["n_stopwords_with_identity"] == 1
+
+
+def test_diagnose_handles_no_flagged_language_gracefully(tmp_path, monkeypatch):
+    """No findings at all -> extend_spans returns its own early skip; diagnose() must not crash on the
+    resulting stats dict having no identity_checked_/identity_blocked_ keys."""
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB074": "0", "GB075": "0"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": []})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init())
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"words": set(),
+                                                        "is_function": lambda self, w: False})())
+
+    report = se.diagnose("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
+    assert report["block_rates"] == {}
+    assert report["top_high_volume_stopwords"] == []

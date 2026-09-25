@@ -316,6 +316,54 @@ def main() -> int:
     ap.add_argument("--anchor", choices=["strong", "lexeme"], default="strong",
                     help="eflomal source-side key: strong (rollup) or lexeme (finer, separates homonyms)")
     ap.add_argument("--out", type=Path, default=OUT)
+    # Step 3 harness (internal-docs/aim1-typology-source-structure-plan.md): saved/replayed raw
+    # eflomal links, so a post-training-only change becomes a deterministic offline A/B.
+    ap.add_argument("--eflomal-save-links", type=Path, default=None,
+                    help="Step 3 harness: persist this run's raw per-verse eflomal fwd/rev links "
+                         "(pre-symmetrization) to this jsonl path")
+    ap.add_argument("--eflomal-load-links", type=Path, default=None,
+                    help="Step 3 harness: replay previously saved links instead of re-running eflomal "
+                         "(deterministic; --eflomal-priors/--fertility-priors/--eflomal-stem etc. have "
+                         "no effect on the skipped training step)")
+    ap.add_argument("--tag-suffix", default=None,
+                    help="Step 3: write this run's output under align_<method>_<iso>.<suffix>_<BOOK>.jsonl "
+                         "instead of the plain <iso> tag, so a variant run coexists with the baseline "
+                         "files instead of overwriting them. Only affects OUTPUT naming — corpus "
+                         "loading, versification, Grambank/gloss-priors lookups all still use --iso/"
+                         "--publish-iso unchanged. Gloss output (unaffected by an eflomal-only change) "
+                         "is hardlinked from the existing plain-tag files under the suffixed tag so "
+                         "spanext+eflomal+gloss can be scored without re-running gloss.")
+    ap.add_argument("--fertility-priors", action=argparse.BooleanOptionalAction, default=None,
+                    help="Step 3 (A): seed eflomal with FERF fertility priors from "
+                         "fertility_priors.build_fertility_priors() (typology-conditioned per-anchor "
+                         "expected fertility). MEASURED 2026-09-24 (whole Bible, Clear gold): real win "
+                         "for hin/eng (clears the noise floor with exact_span up, validated against both "
+                         "controls below), wash for arb — see config/fertility_flags.json for the full "
+                         "numbers. Default: consult that file (off if no entry); --fertility-priors/"
+                         "--no-fertility-priors force it either way. Mutually exclusive with --null-prior")
+    ap.add_argument("--fertility-lambda", type=float, default=None,
+                    help="Step 3: lambda weight on the fertility prior's alpha (pseudo-count). Default: "
+                         "consult config/fertility_flags.json's recorded value, else 1.0. The plan's own "
+                         "sweep {0.5, 1, 2} on hin picked 2.0 (config/fertility_flags.json)")
+    ap.add_argument("--fertility-invert", action="store_true",
+                    help="Step 3 placebo control: apply the real prior's weights to anchors the real "
+                         "typology signals did NOT flag, instead of the ones they did — isolates "
+                         "'the prior helps because of WHERE it's placed' from 'any prior here regularizes'. "
+                         "MEASURED on hin: +0.0013 F1, ~1/5 the real prior's +0.0066 — confirms placement matters")
+    ap.add_argument("--fertility-typology-fallback", action="store_true",
+                    help="Step 3: fall back to Step 2's WALS/lang2vec typology table when Grambank has "
+                         "nothing for this language (mirrors span_extension's --typology-fallback, but "
+                         "is its own, separately-measured decision — UNMEASURED so far, no language needs it "
+                         "yet since hin/arb/eng all have Grambank coverage)")
+    ap.add_argument("--null-prior", action="store_true",
+                    help="Step 3 control (ii): a flat, typology-BLIND fertility prior on the most "
+                         "frequent anchor types ('just align more function words') — the control that "
+                         "tells a real typology-conditioned win apart from generic FERF regularization. "
+                         "MEASURED on hin: a BIGGER F1 gain (+0.0098) than the real prior but exact_span "
+                         "DOWN (-285.5) — pure recall inflation, fails the plan's own exact_span-up bar. "
+                         "Mutually exclusive with --fertility-priors")
+    ap.add_argument("--null-prior-fraction", type=float, default=1.0,
+                    help="Step 3: fraction of anchor TYPES (by descending frequency) --null-prior flags")
     args = ap.parse_args()
     publish_iso = args.publish_iso or args.iso
     books = (OT_BOOKS + NT_BOOKS if args.all else OT_BOOKS if args.ot else NT_BOOKS if args.nt
@@ -408,12 +456,41 @@ def main() -> int:
                    for r in recs if r.toks])
         runs["stat"] = run_method(recs, lambda r: ibm.decode(r.heb, r.toks, norm),
                                   args.iso, "stat", args.out)
+    eflomal_out_iso = f"{args.iso}.{args.tag_suffix}" if args.tag_suffix else args.iso
     if want["eflomal"]:
         from lexeme_aligner.eflomal_align import EflomalAligner
         prior_pairs = (_eflomal_priors(recs, GlossPriors(args.lang_name, args.iso), args.iso, norm)
                        if args.eflomal_priors else None)
         if prior_pairs:
             print(f"[pilot] eflomal priors: {len(prior_pairs)} gloss anchors", file=sys.stderr)
+        fert_priors = None
+        from lexeme_aligner import fertility_priors as fertmod
+        fert_flags = fertmod.load_fertility_flags(publish_iso)
+        use_fertility = (args.fertility_priors if args.fertility_priors is not None
+                         else fert_flags.get("enabled", False))
+        fert_lambda = (args.fertility_lambda if args.fertility_lambda is not None
+                       else fert_flags.get("lambda", 1.0))
+        if use_fertility and args.null_prior:
+            raise SystemExit("--fertility-priors (or config/fertility_flags.json's enabled=true for "
+                             f"{publish_iso}) and --null-prior are mutually exclusive controls — pass "
+                             "--no-fertility-priors to run the null-prior control for this language")
+        if use_fertility or args.null_prior:
+            if args.null_prior:
+                fert_priors = fertmod.build_null_prior(recs, anchor=args.anchor,
+                                                       lam=fert_lambda,
+                                                       fraction=args.null_prior_fraction)
+                print(f"[pilot] Step 3 CONTROL (null prior): {len(fert_priors)} anchor(s) flagged "
+                      f"typology-blind, fraction={args.null_prior_fraction}", file=sys.stderr)
+            else:
+                from lexeme_aligner.config import PRIOR_PACK
+                from lexeme_aligner.gapfill import load_priors as _load_priors_pack
+                lex_pos, _ = _load_priors_pack(PRIOR_PACK)
+                fert_priors = fertmod.build_fertility_priors(
+                    recs, publish_iso, lex_pos, heb, anchor=args.anchor, lam=fert_lambda,
+                    invert=args.fertility_invert, typology_fallback=args.fertility_typology_fallback)
+                print(f"[pilot] Step 3 fertility priors: {len(fert_priors)} anchor(s) flagged"
+                      f"{' (INVERTED placebo)' if args.fertility_invert else ''}, "
+                      f"lambda={fert_lambda}", file=sys.stderr)
         eflo = EflomalAligner(anchor=args.anchor, stem=args.eflomal_stem,
                               content_only=args.eflomal_content_only,
                               content_priority=args.eflomal_content_priority,
@@ -421,14 +498,23 @@ def main() -> int:
                               displace_weak=args.eflomal_displace_weak)
         if args.eflomal_stem:
             print(f"[pilot] #2 eflomal: aligning on STEMMED target tokens", file=sys.stderr)
-        eflo.run(recs, norm, priors_pairs=prior_pairs)
+        if args.eflomal_load_links:
+            print(f"[pilot] Step 3 harness: replaying saved links from {args.eflomal_load_links} "
+                  f"(eflomal itself is NOT invoked)", file=sys.stderr)
+        eflo.run(recs, norm, priors_pairs=prior_pairs, fertility_priors=fert_priors,
+                save_links=args.eflomal_save_links, load_links=args.eflomal_load_links)
+        if args.eflomal_save_links:
+            print(f"[pilot] Step 3 harness: raw links saved → {args.eflomal_save_links}", file=sys.stderr)
         if args.eflomal_content_priority:
             print(f"[pilot] #1 content-priority: {eflo.n_reassigned} target position(s) reassigned "
                   f"from a non-content to an otherwise-unaligned content source token", file=sys.stderr)
-        runs["eflomal"] = run_method(recs, lambda r: eflo.decode(r), args.iso, "eflomal", args.out)
+        runs["eflomal"] = run_method(recs, lambda r: eflo.decode(r), eflomal_out_iso, "eflomal", args.out)
+
+    if args.tag_suffix and want["eflomal"] and not want["gloss"]:
+        _link_gloss_under_suffix(args.iso, eflomal_out_iso, args.out)
 
     for tag, results in runs.items():
-        report = write_report(results, args.iso, tag, args.out)
+        report = write_report(results, eflomal_out_iso if tag == "eflomal" else args.iso, tag, args.out)
         hc, al, hi = _totals(results)
         print(f"[{tag}] overall content coverage {100*al/max(1,hc):.1f}% "
               f"(hi-conf {100*hi/max(1,hc):.1f}%)  → {report}", file=sys.stderr)
@@ -439,6 +525,38 @@ def main() -> int:
             print(f"   {tag:9} {100*al/max(1,hc):5.1f}%   (hi-conf {100*hi/max(1,hc):.1f}%)",
                   file=sys.stderr)
     return 0
+
+
+def _link_gloss_under_suffix(iso: str, suffixed_iso: str, out_dir: Path) -> None:
+    """Step 3's `--tag-suffix`: gloss output doesn't depend on an eflomal-time change (FERF priors,
+    saved-link replay, ...), so an eflomal-only variant run reuses the EXISTING plain-tag gloss files
+    under the suffixed tag (hardlink, falling back to copy across filesystems) instead of re-running
+    gloss redundantly — `spanext+eflomal+gloss` can then be scored against the variant with no extra
+    compute. A no-op (with a stderr note) if the plain-tag gloss files don't exist yet."""
+    import shutil
+
+    from lexeme_aligner.align_files import tag_files
+    src_files = tag_files(out_dir, "gloss", iso)
+    if not src_files:
+        print(f"[pilot] Step 3: no existing align_gloss_{iso}_*.jsonl(.gz) to link under "
+              f"{suffixed_iso} — run --method gloss for {iso} first if spanext+eflomal+gloss scoring "
+              f"is needed", file=sys.stderr)
+        return
+    linked = 0
+    for src in src_files:
+        book = src.stem.rsplit("_", 1)[-1]
+        suffix = ".jsonl.gz" if src.name.endswith(".gz") else ".jsonl"
+        dest = out_dir / f"align_gloss_{suffixed_iso}_{book}{suffix}"
+        if dest.exists():
+            continue
+        try:
+            import os
+            os.link(src, dest)
+        except OSError:
+            shutil.copyfile(src, dest)
+        linked += 1
+    print(f"[pilot] Step 3: linked {linked} gloss file(s) from {iso} → {suffixed_iso} "
+          f"({len(src_files) - linked} already present)", file=sys.stderr)
 
 
 def _eflomal_priors(recs, priors, iso, norm) -> list[tuple[str, str, int]]:

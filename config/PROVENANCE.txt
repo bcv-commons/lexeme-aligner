@@ -274,3 +274,16 @@ lang2vec / URIEL syntax_knn (pip package, not vendored — the ~10MB wheel carri
   conflict found and pinned around 2026-09-24: `pip install lang2vec` pulls `setuptools>=81`, which
   dropped the `pkg_resources` module lang2vec's own code still imports — `setuptools<81` pinned
   alongside it in the same extra.
+
+pipeline/vendor/bsb/tables/ — BSB Translation Tables, the Berean Standard Bible publisher's MASTER
+  interlinear (https://bereanbible.com/bsb_tables.tsv; everything in BSB-publishing/bsb-data-output's
+  base/display/ and per-book tsvs above is a lossy derivative of it). One tsv, 85,525,373 bytes, utf-8-sig,
+  23 columns, 754,647 rows (39 OT books Hebrew then 27 NT books Greek, sorted by BSB Sort; 311,021 rows are
+  sort-key-only padding, kept). Fetched 2026-09-25 by lexeme_aligner/bsb_tables.py --fetch; pin (sha256
+  09bbee6f9fe4fa22b5df28e8a9ffa99bf9c33435f4eb8c47c2dc221d855d35cb, date, license text) in the sidecar
+  bsb_tables.pin.json next to it. License, as read from https://berean.bible/licensing.htm at fetch time:
+  "The Berean Bible and Majority Bible texts are officially placed into the public domain as of April 30,
+  2023." — carried as CC0-1.0 in full-align attribution (the same text BSB-publishing distributes as CC0).
+  Gitignored under the existing pipeline/vendor/bsb/ rule; regenerable via --fetch. Consumed by
+  bsb_tables.py into full-align rows (docs/architecture.md §4) with every column kept as data and the
+  reverse direction (--emit-tsv) round-tripping exactly; output staged under pipeline/work/full-align-bsb/.

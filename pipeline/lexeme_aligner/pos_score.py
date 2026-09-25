@@ -134,6 +134,9 @@ class GoldVerse:
     surfaces: dict[tuple[str, int], str] = field(default_factory=dict)     # (strong, k) -> re-derived surface
     claimed: set[int] = field(default_factory=set)                          # every target position the gold aligns
     ambiguous: set[str] = field(default_factory=set)                        # strongs whose k could not be trusted
+    # (strong, k) -> (the gold's own source_id, its raw target_ids) — kept verbatim so a converter
+    # (gold_to_fullalign.py) can carry the source's ids through; scoring never reads these.
+    raw: dict[tuple[str, int], tuple[str, list[str]]] = field(default_factory=dict)
 
 
 def _book_file(usj_dir: Path, book: str) -> Path:
@@ -181,6 +184,7 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
         # gold source tokens in verse order -> k-th occurrence of each Strong's; a source token may link to
         # several target ids (several rows with the same source_id)
         per_source: dict[str, tuple[str, set[int]]] = {}
+        raw_tids: dict[str, list[str]] = collections.defaultdict(list)
         for r in links:
             idx = int(r["target_id"][-3:]) - 1
             if idx >= len(mapping):
@@ -188,6 +192,7 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
                 continue
             s = per_source.setdefault(r["source_id"], (r["strong"], set()))
             s[1].update(mapping[idx])
+            raw_tids[r["source_id"]].append(r["target_id"])
         gv = GoldVerse(ref)
         seen: collections.Counter = collections.Counter()
         for sid in sorted(per_source, key=lambda x: int(x[-3:])):
@@ -199,6 +204,7 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
                 continue
             gv.links[(strong, k)] = pos
             gv.surfaces[(strong, k)] = " ".join(toks[p] for p in sorted(pos))
+            gv.raw[(strong, k)] = (sid, sorted(raw_tids[sid]))
             gv.claimed |= pos
             stats["links"] += 1
         gold[ref] = gv

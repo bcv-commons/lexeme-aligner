@@ -1,17 +1,19 @@
 # Architecture — the five data structures
 
-**Status:** naming decision, 2026-09-25. This document lays down the names used **going forward** for
-the five data structures this repo produces or consumes. Existing code, config files and published
-datasets keep their current names for now — nothing has been renamed. Each section below says what
+**Status:** naming decision, 2026-09-25; gram-struct generator built the same day (`gram_struct.py`);
+full-align's record, layout and gold-conversion path settled the same day (§4). This document lays
+down the names used **going forward** for the five data structures this repo produces or consumes.
+Existing code, config files and published datasets keep their current names for now — nothing has
+been renamed. Each section below says what
 the structure *is*, what it looks like today, where it lives, what feeds it, what consumes it, and what
 is still undecided. Where a section describes a target rather than something that exists, it says so.
 
 | name going forward | what it is | current name(s) in code / on disk | shape |
 |---|---|---|---|
 | **lex-lexicon** | type-level lexicon: what renders each source lexeme, across a whole language | `publish/lexeme-alignments`, `senses_attested`, `aligned_mwe`, `target-stopwords`, `target-morphology`, `cross-lingual-span-profile` (all live on HF under `bcv-commons/`) | per **language** (editions pooled) |
-| **gram-struct** | per-language grammatical/typological facts, in ONE internal structure regardless of where they came from | not yet one thing — spread over `config/grambank/`, `config/typology/`, `config/constituent_order/`, `config/spanext_flags.json`, `config/fertility_flags.json`, `config/llm_conventions/` | per **language** (a fact sheet, not text data) |
-| **gram-align** | per-verse, position-level alignment from the statistical chain | `publish/compact-alignments` (HF `bcv-commons/compact-alignments`), `compact_align.py` | per **edition** |
-| **full-align** | gram-align plus what an LLM pass adds on top of it | `llm_align.py` output (`align_llm_<tag>_<BOOK>.jsonl`), not published | per **edition** |
+| **gram-struct** | per-language grammatical/typological facts, in ONE internal structure regardless of where they came from | generated: `gram_struct.py --build` → `config/gram_struct/` (gitignored) from `config/grambank/`, `config/typology/`, `config/constituent_order/`, `config/spanext_flags.json`, `config/fertility_flags.json`, `config/llm_conventions/` — nothing reads the merged view yet | per **language** (a fact sheet, not text data) |
+| **gram-align** | per-verse, position-level alignment from the statistical chain, compact | `publish/compact-alignments` (HF `bcv-commons/compact-alignments`), `compact_align.py` | per **edition** |
+| **full-align** | the complete per-edition alignment as provenance-tagged rows: statistical layer + manual (gold) layer + LLM layer | `align_<method>_<tag>_<BOOK>.jsonl` (statistical), `align_llm_<tag>_<BOOK>.jsonl` (LLM), the gold parquets under `pipeline/vendor/resources/strongs/attestations/` (manual) — not yet one artifact, not published | per **edition** |
 | **edition-struct** | per-edition facts about one *text*: where it came from, what it is, how to read it | not yet one thing — spread over `config/pins/`, `textual_basis.json`, `text_strip_rules.json`, `versification.json`, `language_editions.json`, `legacy_bare_iso_tags.json` | per **edition** (a fact sheet, not text data) |
 
 Two are *language*-shaped (lex-lexicon, gram-struct), three are *edition*-shaped (gram-align, full-align,
@@ -31,7 +33,8 @@ statistics plus external typology, read by both alignment structures.
    (one per-EDITION fact sheet:   statistical chain per edition  --->  gram-align   (compact, positional)
     provider · pin · versification ·                                        |
     textual basis · strip rules · books)                                    v   + LLM pass (residue / verify / full)
-                                                                        full-align
+                                                                        full-align  <--- manual gold, converted to the
+                                                                       (rows, 3 layers)    same rows (Clear · SWORD · HELFI · gbt)
 ```
 
 ---
@@ -82,8 +85,14 @@ the one place the two alignment structures look to learn *how this language rend
 (which side a postposition sits, whether there are articles, whether a verb needs a free subject
 pronoun, whether fertility priors help, …).
 
-**This does not exist as one thing yet.** What exists is a set of separately-started files that are
-all gram-struct-shaped; gram-struct is the design that collects them. Superset, today:
+**Status: the merged view is generated, nothing reads it yet.** `python -m lexeme_aligner.gram_struct
+--build` (built 2026-09-25, `tests/test_gram_struct.py`) writes the four provenance partitions and the
+merged per-language file into `config/gram_struct/` — **gitignored, regenerated from committed inputs,
+never hand-edited**. First real build over the 1,629 published languages: external 963 · imputed 279 ·
+derived 57 · measured 12 · merged 1,128; **501 published languages have no source at all and get no
+file** (the honest coverage gap, recorded in `_coverage.json`). Every existing reader still reads the
+separately-started files below; folding readers over to the merged view is additive, one at a time.
+Superset of inputs, today:
 
 | file today | what it holds | provenance | keyed by |
 |---|---|---|---|
@@ -104,40 +113,92 @@ catalog (`language_editions.json`, `sources.json`, `pins/`, `dbt_catalog/`) and 
 (`light_lexemes.json`, `hebrew_lexeme_strong.json`, `greek_morph_strong.json`, `canonical_index/`) are
 neither.
 
-**Target shape (proposal, not built).** One file per language, `config/gram_struct/<iso>.json`, every
-fact carrying its own provenance so a consumer can gate on it:
+**Relationship to Grambank — borrow the taxonomy and the codes, not the format.** Grambank (v1.0,
+**CC-BY-4.0**; Glottolog, used for the Glottocode→ISO mapping, likewise) is the largest single input
+and more of it will be pulled in over time. But its atomic unit is a yes/no question per language
+(`GB074 "Are there prepositions?" = 0/1/?`) and what every consumer here reads is a *slot with a value*
+(`adposition: before | after | null`). Every slot folds two to four Grambank questions into one answer
+(GB074+GB075 → adposition direction; GB020–023 → article existence *and* order; GB131/133 → verb
+position) and `direction_for` / `typology.py` exist precisely to do that folding once, with the
+ambiguous cases (`both = 1` → `null`) handled in one place. A Grambank-lookalike schema would push
+that logic back out into every consumer. It also cannot carry the other sources natively: WALS 86A is
+three-valued, lang2vec is a probability, `constituent_order` is a rate over *n* observations, a
+mechanism verdict is a human-measured boolean. So: **two layers, never merged** — the raw snapshots
+stay exactly as vendored (`config/grambank/features.json` keeps Grambank's own codes and `0/1/2/3/?`
+semantics; WALS and lang2vec likewise), and gram-struct is the derived, slot-shaped layer above them.
+Every fact that came from Grambank cites its codes (`"codes": ["GB074", "GB075"]`) so it is auditable
+back to the codebook, and slots reuse Grambank's own names and domain grouping (nominal / verbal /
+clause) wherever a slot maps onto its questions — adding the next Grambank feature is then a same-
+shaped one-line addition, and new vocabulary is invented only for what Grambank does not have (rates,
+verdicts, `null`-as-fact).
+
+**Publication is planned, so the layout is publication-shaped from the start.** gram-struct is
+internal config today and will very likely be published. Three license classes then coexist in it:
+Grambank/WALS-derived facts are CC-BY-4.0 (attribution only); lang2vec-derived facts are
+**CC-BY-SA-4.0** (share-alike — the owner decision already keeps them in their own file with their own
+license line); our own derived statistics and measured verdicts follow the repo's precedent for
+derived alignment data, **CC0-1.0** (`constituent_order/README.md`). Nothing NC-licensed (taggedPBC)
+ever enters it. To keep licensing a *directory boundary* rather than a per-fact filter — and to publish
+the layer that is actually new (the fused, provenance-tagged slot view plus alignment-derived facts
+nobody else has) rather than re-ship Grambank's and WALS's own cells — the target layout is one
+dataset partitioned by provenance class:
+
+```
+gram-struct/
+  README.md                 # dataset card: one license line per partition
+  external/<iso>.json       # CC-BY-4.0    Grambank/WALS-derived slots, source codes cited
+  imputed/<iso>.json        # CC-BY-SA-4.0 lang2vec-derived slots ONLY, physically apart
+  derived/<iso>.json        # CC0-1.0      our alignment statistics (order profile, rates, block rates)
+  measured/<iso>.json       # CC0-1.0      mechanism verdicts — dated, gold named, human-recorded
+```
+
+The internal convenience view, `config/gram_struct/<iso>.json`, is the **merge of the four partitions,
+built by `gram_struct.py` and never hand-edited** (the merge asserts no key is set by two partitions),
+so the internal file and the publishable partitions cannot
+drift. Its shape (what the generator writes; values are hin's real ones — `multiword_rates` is the one
+key not emitted yet, because `analyze_language.analyze()` never persists them):
 
 ```json
 {
   "iso": "hin",
-  "adposition":   {"direction": "after",  "source": "grambank",   "confidence": 1.0},
-  "article":      {"direction": null,     "source": "grambank",   "confidence": 1.0},
-  "possessor":    {"direction": "after",  "source": "grambank",   "confidence": 1.0},
-  "subject_verb": {"direction": "before", "source": "grambank",   "confidence": 1.0},
-  "case_marking":       {"present": true,  "source": "grambank"},
-  "subject_indexing":   {"present": false, "source": "grambank"},
-  "possession_affix":   {"present": false, "source": "grambank"},
-  "constituent_order":  {"source": "derived", "n_verses": 20819, "pair_order_kept": {"Pred>Subj": 0.44, "...": 0}},
-  "multiword_rates":    {"source": "derived", "name": 0.031, "noun": 0.052, "verb": 0.081},
+  "adposition":   {"direction": "after",  "source": "grambank", "codes": ["GB074","GB075"], "confidence": 1.0},
+  "article":      {"direction": null,     "source": "grambank", "codes": ["GB022","GB023"], "confidence": 1.0},
+  "possessor":    {"direction": "before", "source": "grambank", "codes": ["GB065"],         "confidence": 1.0},
+  "subject_verb": {"direction": "before", "source": "grambank", "codes": ["GB133","GB131"], "confidence": 1.0},
+  "case_marking":     {"present": true,  "source": "grambank", "codes": ["GB070","GB072","GB074","GB075"]},
+  "subject_indexing": {"present": false, "source": "grambank", "codes": ["GB089","GB090"]},
+  "possession_affix": {"present": false, "source": "grambank", "codes": ["GB430","GB431","GB432","GB433"]},
+  "constituent_order": {"source": "derived", "n_verses": 20819, "content_sha256": "…",
+                        "pair_order_kept": {"Pred>Subj": 0.44}},
+  "multiword_rates":   {"source": "derived", "content_sha256": "…", "name": 0.031, "noun": 0.052, "verb": 0.081},
   "mechanisms": {
-    "spanext.relation_trigger": {"enabled": true,  "source": "measured", "note": "…"},
-    "spanext.definite_trigger": {"enabled": false, "source": "measured"},
-    "fertility_priors":         {"enabled": true,  "lambda": 2.0, "source": "measured"}
+    "spanext.relation_trigger":  {"enabled": true,  "source": "measured", "date": "2026-09-24", "gold": "clear/IRVHin"},
+    "spanext.definite_trigger":  {"enabled": false, "source": "measured", "date": "2026-09-24", "gold": "clear/IRVHin"},
+    "spanext.typology_fallback": {"enabled": false, "source": "measured", "date": "2026-09-24", "gold": "clear/IRVHin"},
+    "fertility_priors":          {"enabled": true,  "lambda": 2.0, "source": "measured", "date": "2026-09-24", "gold": "clear/IRVHin"}
   },
   "conventions_md": "config/llm_conventions/hin.md"
 }
 ```
 
-Rules the proposal is meant to encode, all already in force informally:
-- **provenance on every fact** — `grambank` / `wals` / `lang2vec` / `derived` / `measured` / `manual`,
-  so a consumer can say "external or derived only, never a mechanism verdict";
+Rules the layout encodes — all already in force informally, made contractual because the file will be
+read by people outside this repo:
+- **provenance on every fact** — `grambank` / `wals` / `lang2vec` / `derived` / `measured` / `manual`
+  — is a hard requirement, not a nicety: it is what lets a publisher split or drop by license class
+  mechanically, and what lets a consumer say "external or derived only, never a mechanism verdict";
 - **direction from typology, existence from evidence** — a fact saying *which side* comes from a
   typology source; a fact saying *this language actually undershoots here* comes from our own data
-  (the audit), and the two are separate keys;
-- **mechanism verdicts are recorded, never inferred** — `mechanisms.*` entries exist only after a
-  human has measured against gold (the `spanext_flags.json` / `fertility_flags.json` rule); no field
-  in this file is ever computed from other fields in it automatically;
-- **`null` is a real value** — "no article direction" (hin) is a fact, distinct from "unknown".
+  (the audit); separate keys, separate partitions;
+- **mechanism verdicts are recorded, never inferred** — `measured/*` entries exist only after a human
+  has scored against gold (the `spanext_flags.json` / `fertility_flags.json` rule), carry the date and
+  the gold they were scored against, and no field anywhere in the file is computed from other fields
+  in it;
+- **`null` is a value, absence is "unknown"** — `"article": {"direction": null, "source": "grambank"}`
+  (hin genuinely has no article direction) is a different published statement from the key being
+  absent (no source covers this language for this slot); consumers gate on the difference;
+- **`derived` changes on every re-alignment, `measured` must not** — derived partitions carry the
+  same `content_sha256` discipline as the other published datasets, so a republish that moves a rate
+  is visible, while a measured verdict only changes when someone re-measures and re-dates it.
 
 **Feeds:** gram-align (the statistical chain reads it at `span_extension`, `gapfill`, and — since
 Step 3 — at eflomal time via fertility priors) and full-align (the LLM prompt already carries
@@ -146,8 +207,9 @@ Step 3 — at eflomal time via fertility priors) and full-align (the LLM prompt 
 **Consumes:** external typology snapshots (vendored, pinned in `config/PROVENANCE.txt`) and lex-lexicon.
 
 **Open:** whether the derived-order profile is worth extending to the remaining slots the way Östling
-2015 did (the plan's Step 2 "empirical source (D)", not built); how to version a per-language file whose
-`derived` half changes on every re-alignment while its `measured` half must not.
+2015 did (the plan's Step 2 "empirical source (D)", not built); whether `config/llm_conventions/<iso>.md`
+(hand-written prose, `manual` provenance) is published alongside `measured/` or stays internal —
+it is the one part of gram-struct a downstream aligner would want and the one part that is not data.
 
 ---
 
@@ -173,9 +235,10 @@ languages; `docs/compact-alignments.md` is the format reference):
   "what is actually aligned" definition used everywhere else;
 - the manifest records per language → per edition → books, source/license pointer, `tokenizer_version`.
 
-**What it does *not* carry today:** per-span `method` or score (the union is flattened), and any
-function-word alignment (only content lexemes get an ordinal). Both are deliberate compactness choices;
-whether full-align should restore them is an open question in §4.
+**What it does *not* carry:** per-span `method` or score (the union is flattened), and any
+function-word alignment (only content lexemes get an ordinal). Both are deliberate compactness choices,
+and both are exactly what full-align (§4) restores — which is why full-align is a row format and
+gram-align stays the compact string: two shapes for two jobs, not one format with a flag.
 
 **Feeds:** full-align (it is the base the LLM pass reads and extends); the reverse-check / QA tooling;
 any "show me verse X in translation Y" consumer.
@@ -187,11 +250,21 @@ that chain), the canonical index.
 
 ## 4. full-align
 
-**What it is.** gram-align plus what an LLM pass adds on top of it for the same edition: fills for the
-residue the statistical chain left unaligned, re-checked decisions where the chain was unsure, and —
-where a language has one — the grammatical conventions the LLM was given to reach them. Opt-in per
-edition, paid per verse; never a precondition for gram-align or lex-lexicon to exist (the default chain
-must keep working for languages with no LLM coverage at all — `gapfill_align.py`'s mission note).
+**What it is.** The *complete* per-edition alignment, as provenance-tagged **rows** (not the compact
+string), in up to three layers for the same text:
+1. **statistical** — the base chain's own rows (`eflomal`/`gloss`/`spanext`/`gapfill`), the same
+   decisions gram-align flattens, here with `method`, score and function-word links kept;
+2. **manual** — gold: a human-made per-occurrence alignment of the same edition (Clear, SWORD tags,
+   HELFI, gbt), converted into the *identical* record so it is no longer a separate format per source
+   — "gold" is a **role** a consumer assigns from the attribution, not a distinct data shape;
+3. **model** — what an LLM pass adds: fills for the residue the chain left unaligned, re-checked
+   decisions where the chain was unsure (`verify`), or a whole-verse reference (`full`). Opt-in per
+   edition, paid per verse; never a precondition for the other two layers or for gram-align/lex-lexicon
+   to exist (the default chain must keep working for languages with no LLM coverage at all —
+   `gapfill_align.py`'s mission note).
+Any layer may be absent; an edition with only layer 1 is a valid full-align, and so is one with only
+layer 2. The layers are never merged into one another: agreement between them is a *derived* signal a
+consumer computes, exactly the additive-union rule lex-lexicon already follows.
 
 **What exists today** (`llm_align.py`, `llm_prompt.py`, `llm_providers.py`, `llm_report.py`;
 experiment design in `internal-docs/llm-align-experiment-plan.md`; not published anywhere):
@@ -208,27 +281,127 @@ experiment design in `internal-docs/llm-align-experiment-plan.md`; not published
 - provenance is preserved: a `verify` decision that overrides an eflomal pair is a new row with
   `method="llm"`, the eflomal row is not rewritten.
 
-**Undecided — the one real design question:** does full-align *include* gram-align's rows, or only
-the LLM's delta?
+**Settled 2026-09-25 — include, rows, attribution.** The include-vs-delta question is closed by the
+manual layer: gold needs per-row provenance and carries function-word links, neither of which the
+compact string can hold, so full-align is the row format and it *includes* every layer for the edition
+(one download answers "show me this verse fully aligned, and by whom"). The duplication of gram-align's
+bytes is accepted; gram-align stays the small download for readers who want positions only.
 
-- *Include* (a complete per-edition alignment, LLM rows layered on statistical ones): one download
-  answers "show me this verse fully aligned"; provenance stays per row (`method`), so a consumer can
-  still filter back to the statistical layer; it duplicates gram-align's bytes for every edition that
-  has an LLM pass.
-- *Delta only* (just the LLM rows, applied on top of gram-align by the reader): smaller, no
-  duplication, but a consumer needs both files and the union rule (`pos_score.union` is first-wins,
-  LLM listed first) to reconstruct anything.
+**The record.** The base chain's existing pair record (`run_pilot`/`gapfill` shape), unchanged, plus
+one `attribution` block. `method` remains the *how* axis and keeps lex-lexicon's vocabulary —
+`eflomal` / `gloss` / `spanext` / `gapfill` / `llm` / `manual` / `transfer` (Clear's own parquet already
+uses `manual` and `transfer`) — so no new `gold` value is invented; who did it and under what terms is
+the attribution's job:
 
-Today's on-disk reality is the delta (`align_llm_*` beside `align_eflomal_*` / `align_gloss_*` /
-`align_gapfill_*`, unioned at scoring time). Nothing downstream depends on either answer yet; the
-choice can wait for the first edition that is actually published in this form. Whichever it is, the
-compact string format of §3 is not sufficient for it as-is — it has no per-span provenance, and a
-full-align consumer will need to tell an LLM decision from a statistical one.
+```json
+{"h_idx": 3, "lexeme": "grc:0011", "strong": "G0011", "t_idx": [0, 1], "target": "अबराहम से",
+ "content": true, "method": "manual", "score": null,
+ "attribution": {"source": "clear", "kind": "manual", "base_text": "IRVHin", "license": "CC-BY-4.0",
+                 "source_ids": ["n40001002003"], "target_ids": [4000100200, 4000100201]}}
+```
 
-**Feeds:** nothing yet (unpublished; measured only against gold).
+- statistical rows: `{"source": "lexeme-aligner", "kind": "statistical", "license": "CC0-1.0"}`;
+- model rows: `{"source": "anthropic/claude-sonnet-5", "kind": "model", "prompt_version": 11, "strategy": "verify"}`;
+- manual rows keep the gold source's own raw ids (`source_ids` / `target_ids`) so nothing the source
+  knows is lost — including the occurrence ambiguity the conversion could not resolve (see below),
+  and HELFI's morpheme boundaries for fin as an extra `morphemes` field.
 
-**Consumes:** gram-align (as base and as `verify` pool), gram-struct (source tags, conventions),
-lex-lexicon (seed renderings), and an LLM provider.
+**Layout — partitioned by attribution so license is a directory boundary** (the same move as
+gram-struct's partitions), per edition, per book, Parquet:
+
+```
+full-align/<iso>/<edition>/statistical/<BOOK>.parquet              CC0-1.0
+full-align/<iso>/<edition>/manual/<base_text>/<BOOK>.parquet       the gold source's license (Clear CC-BY-4.0 · ChiUns PD · HELFI CC-BY-4.0 · gbt CC0)
+full-align/<iso>/<edition>/llm/<cell>/<BOOK>.parquet               CC0-1.0
+manifest.json                                                      per edition: layers present, per-layer license + attribution,
+                                                                   coverage (verses mapped / refused / ambiguous), gold health
+```
+
+The `<base_text>` and `<cell>` levels were not in the first draft of this layout; the first real build
+forced them — one edition can carry several golds (fra: LSG + Segond1910; rus: RUSSYN + RusVZh; spa:
+RV09 + RV1910; eng: BSB + gbt) and hin alone has 14 LLM cells (strategy × model × prompt version), and
+layers must never be merged, so each gets its own directory.
+
+**Built 2026-09-25** (`gold_to_fullalign.py`, `tests/test_gold_to_fullalign.py`; one additive field on
+`pos_score.GoldVerse.raw` so the gold's own ids survive the conversion — scoring never reads it). First
+`--all-gold` run: **15 languages, 2,053 Parquet files, 300 MB under `publish/full-align/`** (bulk
+gitignored, `manifest.json` + `README.md` tracked) plus **17 MB under `pipeline/work/full-align/`** for
+the three vendor-only golds. No edition lacked base-chain output. Three things did not map onto the
+spec as written and are recorded rather than papered over: (1) **gbt is a gloss layer, not a positional
+one** — its rows keep the gloss in `target` and get a `t_idx` only where the gloss phrase matches our
+edition's text uniquely (spa 109k of 316k; hun 4k of 13k), the rest carry `t_idx: null`; (2) HELFI's
+morpheme boundaries are not recoverable from the attestation parquet (the word projection already
+happened in `helfi_source.py`), so the planned `morphemes` field is not emitted until that module
+keeps them; (3) `gold_health` had to be generalized inside the converter because `contest_rule`'s is
+Clear-hardcoded — the generalized one should move back into `contest_rule`. Per-edition health ranges
+from .96 (YLT, AVD) down to .567 (por/JFA11, `transfer`) and .385 (rus/RUSSYN, published
+`quarantined: true` as decided above).
+
+The edition tag is the *same* tag the statistical run uses — a gold edition is not a different edition,
+it is another layer on the same text. The manifest's gold-health gate (`contest_rule`'s positional-vs-
+lexical agreement) is recorded per manual partition, not used to hide one: Clear's rus (RUSSYN, ~57% of
+per-verse pairings positionally wrong) is published *as data* with `health` and `quarantined: true`
+rather than silently omitted — but never counted as gold by anything in this repo.
+
+**Gold inventory → what converts** (from `config/gold_langs.json` and the attestation parquets):
+
+| gold source | languages / editions | per-occurrence? | publishable? |
+|---|---|---|---|
+| Clear manual | arb (AVD **+ ONAV**), asm, ben, eng (BSB **+ YLT**), fra LSG, hau, hin, spa RV09 | yes, positional | CC-BY-4.0 |
+| Clear transfer | por JFA11 | yes, machine-projected (`method: transfer`) | CC-BY-4.0 |
+| Clear rus | RUSSYN | yes — **defective**, published quarantined | CC-BY-4.0 |
+| SWORD | cmn ChiUns | yes | PD ✓ — spa RV1909 / fra Segond1910 / rus RusVZh are CrossWire-restricted: **vendor-only, never published** |
+| HELFI | fin | yes, morpheme-level → word | CC-BY-4.0 (alignment data only; the AIKA morphology dir is NC-ND and unused) |
+| gbt | hun, njm, tam, tel, rus-NT (+ thin eng/spa/por/hin) | gloss phrase per source word | CC0 |
+| karnbibeln lexicon | swe, swk | **no** — a type-level dictionary | stays lex-lexicon-shaped gold; cannot be a full-align layer |
+
+Twelve publishable per-occurrence gold editions across eleven languages; three stay internal; two are
+not alignments at all.
+
+**Conversion mechanics** — this is what `pos_score.load_gold` already does at scoring time, made
+persistent instead of discarded: each gold row's `(verse, strong, k-th occurrence in verse)` resolves
+to the spine token, which supplies `h_idx` *and the MACULA lexeme* (every gold is bare Strong's; the
+spine lookup is the crosswalk, no id map needed); `target_id` maps to our token positions through the
+Clear-tokenization reconstruction over our own edition text (validated 98.6–100% per language). gbt
+differs only on the target side (its source ids are MACULA ids → `h_idx` directly; its targets are its
+own text's ids → text match). The known losses are reported in the manifest, never silent: **refused
+verses** (tokenization mismatch — hin 3,640 of 29,019, 12.5%), **ambiguous verses** (a Strong's
+occurring a different number of times on the two sides — hin 7,406 links), and rows whose target falls
+outside our text. Module: `gold_to_fullalign.py` (in progress); the same health gate as `gold_langs.json`.
+
+**What this captures that nothing in the repo keeps today:** function-word links (Clear tags them,
+gram-align drops them), the ONAV and YLT second-edition golds, HELFI's morpheme boundaries, gbt's
+`kind` (1:1 / 1:many / suffix_pending), and Clear's raw `source_id`s.
+
+**Round-trip source: the BSB Translation Tables** (`bsb_tables.py`, built 2026-09-25). The Berean
+Standard Bible's master interlinear (`https://bereanbible.com/bsb_tables.tsv`, 85.5 MB, 23 columns, one
+table — 39 OT books Hebrew then 27 NT books Greek, sorted by BSB Sort; Public Domain per
+berean.bible/licensing.htm, pinned by sha256 in `pipeline/vendor/bsb/tables/bsb_tables.pin.json` +
+`config/PROVENANCE.txt`) is upstream of everything in `bsb-data-output`, whose `display/` JSON keeps
+only `[text, strong]` pairs. The rule here is **every column is kept as data; only HTML tags are
+replaced by their structured meaning**: the three sort keys (they *are* the alignment — source order
+vs English order), the base word and its textual-witness brackets (`{TR} ⧼RP⧽ (WH) 〈NE〉 [NA] ‹SBL›
+[[ECM]]` — edition-struct's textual-basis input), transliteration, short parsing plus one short→long
+table (3,819 entries; 5 non-function exceptions reported, not forced), the English span with its
+spaces verbatim, punctuation / quotes / spacing / end-text, headings as `{tag, class, text}`,
+cross-references as reference lists, `Par` as `{tag, class}` (so `span red` = red-letter is kept),
+footnotes with italics markers, and the **311,021 sort-key-only padding rows out of 754,647 — kept as
+rows**, because dropping them makes the file irreproducible. Output is a second manual layer for
+`engbsb` (`attribution.source: "bsb-tables"`, CC0) with a `bsb` extension object, plus a source-side
+sidecar keyed by spine `h_idx` (translit / parsing / base / witnesses) so those facts are reusable
+without going through the alignment. First build: OT 22,883 of 23,145 verses target-mapped (128
+refused), NT 7,936 of 7,957 (4 refused); 22,009 OT and 777 NT BSB source rows found no spine token
+(`source_none`, reported, not guessed). **Reverse direction exists** (`--emit-tsv`, experimental):
+regenerates all 23 columns; the round-trip test on a 3,239-row sample is byte-exact on every column,
+HTML included. Staged under `pipeline/work/full-align-bsb/` until it is folded into
+`publish/full-align/eng/engbsb/manual/BSB-tables/`.
+
+**Feeds:** any consumer wanting a verse fully aligned with provenance; agreement-between-layers
+confidence; the gold side of every scorer in this repo, once they read it (they read the attestation
+parquets today).
+
+**Consumes:** the statistical chain's `align_*` rows, the gold parquets / gbt jsonl, gram-struct (source
+tags, conventions), lex-lexicon (seed renderings), and an LLM provider for layer 3.
 
 ---
 

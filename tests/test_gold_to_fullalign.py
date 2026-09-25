@@ -158,3 +158,22 @@ def test_llm_cells_excludes_mock(tmp_path):
                  "align_llm_hinirv.full.sonnet5.cli_ROM.jsonl.gz", "align_llm_other.full.x_MAT.jsonl"):
         (tmp_path / name).write_text("", encoding="utf-8")
     assert gf.llm_cells("hinirv", tmp_path) == ["hinirv.full.sonnet5.cli", "hinirv.verify.sonnet5.cli"]
+
+
+# --- foreign-owned partitions survive a regeneration of the language (bsb_tables.py's BSB-tables) ----------
+def test_carry_over_foreign_partitions_keeps_owned_entries_and_never_overrides_new_ones():
+    from lexeme_aligner.gold_to_fullalign import carry_over_foreign_partitions
+    prev = {"editions": {"engbsb": {"layers": {"manual": {
+        "BSB": {"source": "clear", "rows": 1},                              # ours — regenerated, not carried
+        "BSB-tables": {"source": "bsb-tables", "owner": "bsb_tables", "rows": 3}}}}}}
+    new = {"editions": {"engbsb": {"layers": {"manual": {"BSB": {"source": "clear", "rows": 2}},
+                                              "statistical": {"rows": 9}}}}}
+    out = carry_over_foreign_partitions(prev, new)
+    manual = out["editions"]["engbsb"]["layers"]["manual"]
+    assert manual["BSB"] == {"source": "clear", "rows": 2}                 # new wins for our own partitions
+    assert manual["BSB-tables"]["owner"] == "bsb_tables"                   # foreign one carried over
+    assert out["editions"]["engbsb"]["layers"]["statistical"] == {"rows": 9}
+    assert carry_over_foreign_partitions(None, {"editions": {}}) == {"editions": {}}
+    # an edition that vanished from the new report still keeps its foreign partition
+    out2 = carry_over_foreign_partitions(prev, {"editions": {}})
+    assert set(out2["editions"]["engbsb"]["layers"]["manual"]) == {"BSB-tables"}

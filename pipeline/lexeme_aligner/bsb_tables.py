@@ -39,15 +39,28 @@ Mapping onto our own coordinates (both reported, never guessed):
           tokens is REFUSED (all its rows get `t_idx = None`) and counted.
 
 Reverse direction (`--emit-tsv`, experimental): regenerates all 23 columns from the records + the parsing
-table. The build reports a round-trip on a fixed sample against the raw rows: exact on the 19 non-HTML
-columns, tag-stripped/whitespace-collapsed on Hdg/Crossref/Par/End text (and the exact rate on those too).
+table. The build reports a round-trip on a fixed sample against the raw rows, going THROUGH the written
+Parquet (read back, not in-memory): exact on the 19 non-HTML columns, exact and tag-stripped/whitespace-
+collapsed rates on Hdg/Crossref/Par/End text.
+
+Where it lands (docs/architecture.md §4, the published full-align layout): `--build` writes DIRECTLY into
+`publish/full-align/eng/engbsb/manual/BSB-tables/<BOOK>.parquet` (a second manual partition beside Clear's
+`manual/BSB/`), the per-spine-token sidecar under `.../BSB-tables/sidecar/<BOOK>.parquet`, and
+`parsing_table.json` + `layer_manifest.json` next to them; then it MERGES its partition entry into
+`publish/full-align/manifest.json` (atomic re-read/update/replace — `gold_to_fullalign.py` owns that file
+and carries partitions marked `owner: "bsb_tables"` over when it regenerates a language) and regenerates
+the dataset card through `gold_to_fullalign.write_card`, so there is exactly one README writer.
+`pipeline/work/full-align-bsb/` was the staging tree of the first build; `--out-dir` still accepts it.
+The `bsb` column is a proper nested Parquet struct (`bsb_struct_type()`): lists of structs where the
+source was a list, structs where a dict, `*_unparsed` string siblings for the rare HTML a parser here
+could not account for — never JSON-in-a-string.
 
 License: berean.bible/licensing.htm — "The Berean Bible and Majority Bible texts are officially placed
 into the public domain as of April 30, 2023." (read at fetch time, recorded in the pin sidecar); the same
 text is distributed by BSB-publishing as CC0-1.0, which is what attribution carries.
 
     python -m lexeme_aligner.bsb_tables --fetch
-    python -m lexeme_aligner.bsb_tables --build            # all 66 books → pipeline/work/full-align-bsb/
+    python -m lexeme_aligner.bsb_tables --build            # all 66 books → publish/full-align/eng/engbsb/manual/BSB-tables/
     python -m lexeme_aligner.bsb_tables --emit-tsv GEN --out /tmp/GEN.tsv
 """
 from __future__ import annotations
@@ -69,9 +82,17 @@ URL = "https://bereanbible.com/bsb_tables.tsv"
 VENDOR_DIR = Path("pipeline/vendor/bsb/tables")
 VENDOR_TSV = VENDOR_DIR / "bsb_tables.tsv"
 PIN_FILE = VENDOR_DIR / "bsb_tables.pin.json"
-OUT_DIR = Path("pipeline/work/full-align-bsb")
+OUT_DIR = Path("publish/full-align")                # the published full-align root (docs/architecture.md §4)
+STAGING_DIR = Path("pipeline/work/full-align-bsb")   # the first build's staging tree — still accepted via --out-dir
 USJ_DIR = Path("pipeline/work/ingest-cache/usj-engbsb")
 EDITION = "engbsb"
+LANG = "eng"
+PARTITION = "BSB-tables"                             # manual/<partition>/ — beside Clear's manual/BSB/
+OWNER = "bsb_tables"                                 # manifest marker gold_to_fullalign.py carries over on rerun
+
+
+def layer_dir(out_dir: Path = OUT_DIR) -> Path:
+    return out_dir / LANG / EDITION / "manual" / PARTITION
 LICENSE_STATEMENT = ("The Berean Bible and Majority Bible texts are officially placed into the public "
                      "domain as of April 30, 2023.")
 
@@ -501,17 +522,142 @@ def _spine_by_verse(books: list[str], usj_dir: Path):
     return out
 
 
+# --- Parquet schema: the `bsb` extension as a real nested struct ---------------------------------------
+def bsb_struct_type():
+    """Explicit Arrow type for the `bsb` column. A parsed HTML column is a struct/list-of-structs; the rare
+    row an HTML parser here could not account for keeps the raw cell in the `*_unparsed` string sibling
+    (the structured field is null then) — one type per field, no JSON-in-a-string anywhere."""
+    import pyarrow as pa
+    tagcls = pa.struct([("tag", pa.string()), ("cls", pa.string())])
+    return pa.struct([
+        ("heb_sort", pa.string()), ("grk_sort", pa.string()), ("bsb_sort", pa.string()),   # strings: "8132.5" exists
+        ("verse_num", pa.int32()), ("language", pa.string()),
+        ("base", pa.string()), ("base_variants", pa.string()), ("translit", pa.string()),
+        ("parsing", pa.string()), ("parsing_long", pa.string()),      # per-row override only, else null (table)
+        ("str_heb", pa.string()), ("str_grk", pa.string()), ("verse_id", pa.string()),
+        ("hdg", pa.struct([("tag", pa.string()), ("cls", pa.string()), ("text", pa.string())])),
+        ("hdg_unparsed", pa.string()),
+        ("crossref", pa.list_(pa.struct([("text", pa.string()), ("href", pa.string())]))),
+        ("crossref_unparsed", pa.string()),
+        ("par", pa.list_(tagcls)), ("par_unparsed", pa.string()),
+        ("space", pa.string()), ("beg_q", pa.string()), ("text", pa.string()), ("pnc", pa.string()),
+        ("end_q", pa.string()),
+        ("footnotes", pa.string()), ("footnotes_unparsed", pa.string()),
+        ("end_text", pa.list_(pa.struct([("text", pa.string()), ("close", pa.string())]))),
+        ("end_text_unparsed", pa.string()),
+        ("strong_suffix", pa.string()), ("kind", pa.string()),
+    ])
+
+
+def record_schema():
+    import pyarrow as pa
+    return pa.schema([
+        ("ref", pa.int64()), ("book", pa.string()), ("chapter", pa.int32()), ("verse", pa.int32()),
+        ("h_idx", pa.list_(pa.int32())), ("h_idx_key", pa.int32()), ("lexeme", pa.string()), ("strong", pa.string()),
+        ("t_idx", pa.list_(pa.int32())), ("target", pa.string()), ("content", pa.bool_()),
+        ("method", pa.string()), ("score", pa.float64()),
+        ("attribution", pa.struct([("source", pa.string()), ("kind", pa.string()), ("base_text", pa.string()),
+                                   ("license", pa.string()), ("pin_sha256", pa.string()), ("match", pa.string())])),
+        ("bsb", bsb_struct_type()),
+    ])
+
+
+def sidecar_schema():
+    import pyarrow as pa
+    return pa.schema([
+        ("ref", pa.int64()), ("h_idx", pa.int32()), ("keyed", pa.bool_()), ("bsb_sort", pa.string()),
+        ("base", pa.string()), ("base_variants", pa.string()), ("translit", pa.string()), ("parsing", pa.string()),
+        ("strong", pa.string()), ("strong_suffix", pa.string()),
+    ])
+
+
+def _split(v):
+    """parsed value → (structured, unparsed_raw)."""
+    if isinstance(v, dict) and "unparsed" in v:
+        return None, v["unparsed"]
+    return v, None
+
+
+def to_struct(r: dict, parsing_table: dict[str, str]) -> dict:
+    """A parsed row (parse_row/read_rows shape) → the `bsb` struct value."""
+    hdg, hdg_u = _split(r["hdg"])
+    cr, cr_u = _split(r["crossref"])
+    par, par_u = _split(r["par"])
+    et, et_u = _split(r["end_text"])
+    fn, fn_u = _split(r["footnotes"])
+    return {
+        "heb_sort": r["heb_sort"], "grk_sort": r["grk_sort"], "bsb_sort": r["bsb_sort"],
+        "verse_num": r["verse_num"], "language": r["language"],
+        "base": r["base"], "base_variants": r["base_variants"], "translit": r["translit"],
+        "parsing": r["parsing"], "parsing_long": parsing_long_override(r, parsing_table),
+        "str_heb": r["str_heb"], "str_grk": r["str_grk"], "verse_id": r["verse_id"],
+        "hdg": hdg, "hdg_unparsed": hdg_u,
+        "crossref": cr, "crossref_unparsed": cr_u,
+        "par": par, "par_unparsed": par_u,
+        "space": r["space"], "beg_q": r["beg_q"], "text": r["text"], "pnc": r["pnc"], "end_q": r["end_q"],
+        "footnotes": fn, "footnotes_unparsed": fn_u,
+        "end_text": None if et is None else [{"text": g.get("text"), "close": g.get("close")} for g in et],
+        "end_text_unparsed": et_u,
+        "strong_suffix": r["strong_suffix"], "kind": r["kind"],
+    }
+
+
+def from_struct(b: dict) -> dict:
+    """Inverse of to_struct: the struct value (as pyarrow's to_pylist returns it) → the row shape emit_row reads."""
+    def join(v, u):
+        return {"unparsed": u} if u is not None else v
+    et = b["end_text"]
+    end_text = None if et is None else [({"close": g["close"]} if g.get("close") is not None else {"text": g["text"]})
+                                        for g in et]
+    r = {k: b[k] for k in KEYS if k not in HTML_KEYS + ("footnotes",)}       # incl. parsing_long = override/None
+    r["hdg"] = join(b["hdg"], b["hdg_unparsed"])
+    r["crossref"] = join(b["crossref"], b["crossref_unparsed"])
+    r["par"] = join(b["par"], b["par_unparsed"])
+    r["end_text"] = join(end_text, b["end_text_unparsed"])
+    r["footnotes"] = join(b["footnotes"], b["footnotes_unparsed"])
+    r["strong_suffix"], r["kind"] = b["strong_suffix"], b["kind"]
+    return r
+
+
+def _none_breakdown(none_rows: list[dict]) -> dict:
+    """The `source_none` gap, documented not gated: BSB source rows (per testament) that found no spine token,
+    by parsing category, by witness-bracketing (a word present only in another Greek witness has no
+    Nestle1904 spine token to map to), by Strong's presence, and by book."""
+    out = {}
+    for test in ("OT", "NT"):
+        rows = [r for r in none_rows if r["_test"] == test]
+        out[test] = {
+            "rows": len(rows),
+            "witness_bracketed": sum(r["base_variants"] != r["base"] for r in rows),
+            "no_strong": sum(not (r["str_heb"] if test == "OT" else r["str_grk"]).strip() for r in rows),
+            "by_parsing_top15": collections.Counter(r["parsing"] or "(blank)" for r in rows).most_common(15),
+            "by_book_top10": collections.Counter(r["book"] for r in rows).most_common(10),
+        }
+    return out
+
+
+def _sha256(fp: Path) -> str:
+    return hashlib.sha256(fp.read_bytes()).hexdigest()
+
+
 def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj_dir: Path = USJ_DIR,
           sample_refs: tuple[tuple[str, int], ...] = (("GEN", 1), ("GEN", 2), ("MAT", 1), ("LUK", 18), ("PSA", 23))
           ) -> dict:
+    """Parse the pinned TSV, map onto our coordinates, write the partition (rows + sidecar + parsing table +
+    layer_manifest.json) under `layer_dir(out_dir)`, verify the round trip THROUGH the written Parquet on the
+    sample chapters, then merge the partition entry into `<out_dir>/manifest.json` (if that is a full-align
+    manifest) and regenerate the card. Returns the layer manifest (the merged entry lives in its `entry`)."""
     import pyarrow as pa
     import pyarrow.parquet as pq
     pin = load_pin()
     rows_all = list(read_rows(tsv))
     parsing_table, exceptions = build_parsing_table(rows_all)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "parsing_table.json").write_text(json.dumps(parsing_table, ensure_ascii=False, indent=1) + "\n",
-                                                encoding="utf-8")
+    ldir = layer_dir(out_dir)
+    sdir = ldir / "sidecar"
+    ldir.mkdir(parents=True, exist_ok=True)
+    sdir.mkdir(parents=True, exist_ok=True)
+    (ldir / "parsing_table.json").write_text(json.dumps(parsing_table, ensure_ascii=False, indent=1) + "\n",
+                                             encoding="utf-8")
     stats: collections.Counter = collections.Counter()
     stats["rows_total"] = len(rows_all)
     stats["rows_empty"] = sum(r["kind"] == "empty" for r in rows_all)
@@ -527,9 +673,13 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
             by_book[r["book"]].append(r)
         else:
             stats["rows_no_verse_id"] += 1
-    manifest_books = {}
+    files, sidecar_files = {}, {}
     per_testament: dict[str, collections.Counter] = {"OT": collections.Counter(), "NT": collections.Counter()}
-    round_trip = {"rows": 0, "exact_non_html": 0, "exact_html": 0, "normalized_html": 0, "diff_examples": []}
+    round_trip = {"rows": 0, "exact_non_html": 0, "exact_html": 0, "normalized_html": 0, "diff_examples": [],
+                  "through_parquet": True}
+    none_rows: list[dict] = []
+    nh = [i for i, k in enumerate(KEYS) if k not in HTML_KEYS]
+    hi = [i for i, k in enumerate(KEYS) if k in HTML_KEYS]
     for book in books:
         brows = by_book.get(book)
         if not brows:
@@ -560,7 +710,10 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
             for r in sorted(vrows, key=lambda r: sort_key(r["bsb_sort"])):
                 s = smap.get(r["bsb_sort"], {"h_idx_key": None, "h_idx": [], "match": "empty" if r["kind"] == "empty" else "none"})
                 if r["kind"] != "empty" and r["base"].strip():
+                    bt["source_rows"] += 1
                     bt[f"source_{s['match']}"] += 1
+                    if s["match"] == "none":
+                        none_rows.append(dict(r, _test=test))
                 key_tok = sp_tokens.get(s["h_idx_key"]) if s["h_idx_key"] is not None else None
                 t_idx = None if tmap is None else tmap.get(r["bsb_sort"], [])
                 if r["kind"] != "empty" and r["text"].strip():
@@ -577,9 +730,7 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
                     "attribution": {"source": "bsb-tables", "kind": "manual", "base_text": "BSB",
                                     "license": "CC0-1.0", "pin_sha256": pin.get("sha256"),
                                     "match": s["match"]},
-                    "bsb": {k: r[k] for k in KEYS if k != "parsing_long"}
-                           | {"parsing_long": parsing_long_override(r, parsing_table),
-                              "strong_suffix": r["strong_suffix"], "kind": r["kind"]},
+                    "bsb": to_struct(r, parsing_table),
                 })
                 if key_tok is not None:
                     for idx in s["h_idx"]:
@@ -588,60 +739,110 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
                                         "base_variants": r["base_variants"], "translit": r["translit"],
                                         "parsing": r["parsing"], "strong": r["strong"],
                                         "strong_suffix": r["strong_suffix"]})
-        for sub, data in (("manual-bsb-tables", records), ("source-sidecar", sidecar)):   # noqa
-            d = out_dir / "eng" / EDITION / sub
-            d.mkdir(parents=True, exist_ok=True)
-            pq.write_table(pa.Table.from_pylist(_json_safe(data)), d / f"{book}.parquet", compression="zstd")
-        manifest_books[book] = {"rows": len(records), "sidecar_rows": len(sidecar)}
-        # round trip on the sample chapters
-        for sb, sch in sample_refs:
-            if sb != book:
-                continue
-            for r in brows:
-                if r["chapter"] != sch:
+        fp = ldir / f"{book}.parquet"
+        pq.write_table(pa.Table.from_pylist(records, schema=record_schema()), fp, compression="zstd")
+        sfp = sdir / f"{book}.parquet"
+        pq.write_table(pa.Table.from_pylist(sidecar, schema=sidecar_schema()), sfp, compression="zstd")
+        files[book] = {"rows": len(records), "content_sha256": _sha256(fp)}
+        sidecar_files[book] = {"rows": len(sidecar), "content_sha256": _sha256(sfp)}
+        # round trip on the sample chapters — THROUGH the written parquet, not the in-memory rows
+        chapters = {sch for sb, sch in sample_refs if sb == book}
+        if chapters:
+            raw_by_sort = {r["bsb_sort"]: r["_raw"] for r in brows if r["chapter"] in chapters}
+            back = pq.read_table(fp).to_pylist()
+            for rec in back:
+                orig = raw_by_sort.get(rec["bsb"]["bsb_sort"])
+                if orig is None or rec["chapter"] not in chapters:
                     continue
-                regen = emit_row(dict(r, parsing_long=parsing_long_override(r, parsing_table)), parsing_table)
-                orig = r["_raw"]
+                regen = emit_row(from_struct(rec["bsb"]), parsing_table)
                 round_trip["rows"] += 1
-                nh = [i for i, k in enumerate(KEYS) if k not in HTML_KEYS]
                 if all(regen[i] == orig[i] for i in nh):
                     round_trip["exact_non_html"] += 1
                 elif len(round_trip["diff_examples"]) < 5:
-                    round_trip["diff_examples"].append({"bsb_sort": r["bsb_sort"], "diff": [
+                    round_trip["diff_examples"].append({"bsb_sort": rec["bsb"]["bsb_sort"], "diff": [
                         (KEYS[i], orig[i], regen[i]) for i in nh if regen[i] != orig[i]]})
-                hi = [i for i, k in enumerate(KEYS) if k in HTML_KEYS]
                 if all(regen[i] == orig[i] for i in hi):
                     round_trip["exact_html"] += 1
                 if all(_norm_html(regen[i]) == _norm_html(orig[i]) for i in hi):
                     round_trip["normalized_html"] += 1
-    manifest = {
-        "edition": EDITION, "language": "eng", "source": "bsb-tables", "url": URL, "pin": pin,
-        "license": "CC0-1.0", "license_statement": LICENSE_STATEMENT,
-        "layers": {"manual-bsb-tables": "full-align rows (docs/architecture.md §4) + `bsb` extension",
-                   "source-sidecar": "per spine token: translit / parsing / base / witness brackets"},
-        "stats": dict(stats), "per_testament": {k: dict(v) for k, v in per_testament.items()},
-        "parsing_table": {"entries": len(parsing_table), "non_function": [(k, sorted(v)) for k, v in exceptions]},
-        "round_trip_sample": round_trip, "books": manifest_books,
-        "reverse_direction": "experimental — `--emit-tsv <BOOK>` regenerates all 23 columns from the records",
+    pt = {k: dict(v) for k, v in per_testament.items()}
+    entry = {
+        "source": "bsb-tables", "owner": OWNER, "kind": "manual", "gold_method": "manual",
+        "license": "CC0-1.0", "license_statement": LICENSE_STATEMENT, "url": URL,
+        "pin": {k: pin.get(k) for k in ("sha256", "bytes", "fetched", "license_source")},
+        "publishable": True, "quarantined": False, "quarantine_reason": None,
+        "health": None,
+        "health_note": "the publisher's own interlinear tagging; no positional-vs-lexical health is computed for "
+                       "it (contest_rule's gold_health is Clear-shaped) — coverage below is the honesty record",
+        "rows": sum(f["rows"] for f in files.values()), "files": files,
+        "sidecar": {"rows": sum(f["rows"] for f in sidecar_files.values()), "files": sidecar_files,
+                    "path": f"{PARTITION}/sidecar/<BOOK>.parquet",
+                    "note": "one row per spine token that a BSB row was attached to (keyed or by adjacency): "
+                            "translit / parsing / base / witness brackets — reusable without the alignment"},
+        "coverage": {
+            "rows": sum(f["rows"] for f in files.values()), "rows_empty": stats["rows_empty"],
+            "verses": sum(v.get("verses", 0) for v in pt.values()),
+            "verses_mapped": sum(v.get("verses_target_mapped", 0) for v in pt.values()),
+            "verses_refused": sum(v.get("verses_target_refused", 0) for v in pt.values()),
+            "verses_no_spine": sum(v.get("verses_no_spine", 0) for v in pt.values()),
+            "source_rows": sum(v.get("source_rows", 0) for v in pt.values()),
+            "source_strong": sum(v.get("source_strong", 0) for v in pt.values()),
+            "source_fused": sum(v.get("source_fused", 0) for v in pt.values()),
+            "source_positional": sum(v.get("source_positional", 0) for v in pt.values()),
+            "source_none": sum(v.get("source_none", 0) for v in pt.values()),
+            "target_rows": sum(v.get("target_rows", 0) for v in pt.values()),
+            "target_rows_positioned": sum(v.get("target_rows_positioned", 0) for v in pt.values()),
+            "per_testament": pt,
+        },
+        "source_none_breakdown": _none_breakdown(none_rows),
+        "stats": dict(stats),
+        "parsing_table": {"file": f"{PARTITION}/parsing_table.json", "entries": len(parsing_table),
+                          "non_function": [(k, sorted(v)) for k, v in exceptions]},
+        "round_trip_sample": round_trip,
+        "reverse_direction": "experimental — `python -m lexeme_aligner.bsb_tables --emit-tsv <BOOK>` regenerates "
+                             "all 23 columns from the records + parsing_table.json",
+        "contract": {
+            "padding_rows": "rows with bsb.kind == 'empty' are the file's sort-key-only padding (kept for "
+                            "reversibility) — filter them for alignment use",
+            "spans_keep_spaces": "`target` (= BSB version cell) keeps its leading/trailing spaces verbatim — "
+                                 "strip() for clean text",
+            "h_idx_is_a_list": "BSB tags whole words, MACULA splits prefixes/suffixes — h_idx_key is the keyed "
+                               "token, h_idx every token attached to the row",
+            "witness_brackets": "bsb.base_variants carries {TR} ⧼RP⧽ (WH) 〈NE〉 [NA] ‹SBL› [[ECM]]; a word present "
+                                "only in another witness has no Nestle1904 spine token (attribution.match = none)",
+        },
     }
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n",
-                                           encoding="utf-8")
-    return manifest
+    layer_manifest = {"edition": EDITION, "language": LANG, "partition": PARTITION, "entry": entry}
+    (ldir / "layer_manifest.json").write_text(json.dumps(layer_manifest, ensure_ascii=False, indent=1) + "\n",
+                                              encoding="utf-8")
+    merge_into_manifest(out_dir, entry)
+    return layer_manifest
 
 
-def _json_safe(rows: list[dict]) -> list[dict]:
-    """pyarrow infers struct types from values; a column that is a dict in some rows and a list in others
-    (crossref/par: list normally, {'unparsed': …} on failure) must be one type — serialize those as JSON strings."""
-    out = []
-    for r in rows:
-        r = dict(r)
-        if "bsb" in r:
-            b = dict(r["bsb"])
-            for k in HTML_KEYS + ("footnotes",):
-                b[k] = json.dumps(b[k], ensure_ascii=False) if b[k] is not None else None
-            r["bsb"] = b
-        out.append(r)
-    return out
+def merge_into_manifest(out_dir: Path, entry: dict) -> bool:
+    """Update `<out_dir>/manifest.json` (a full-align manifest, owned by gold_to_fullalign.py) with this
+    partition under languages.eng.editions.engbsb.layers.manual[PARTITION], atomically (tmp + os.replace),
+    then regenerate the card through the ONE README writer. Returns False (no-op) when there is no
+    full-align manifest at `out_dir` — e.g. the old staging tree — in which case a minimal one is written
+    so the tree is still self-describing."""
+    import os
+    mf = out_dir / "manifest.json"
+    if mf.exists():
+        m = json.loads(mf.read_text(encoding="utf-8"))
+        if "languages" not in m:
+            m = {"languages": {}}
+    else:
+        m = {"languages": {}}
+    lang = m["languages"].setdefault(LANG, {"editions": {}})
+    ed = lang.setdefault("editions", {}).setdefault(EDITION, {"layers": {}})
+    ed.setdefault("layers", {}).setdefault("manual", {})[PARTITION] = entry
+    m.setdefault("layout", "<iso>/<edition>/{statistical,manual/<base_text>,llm/<cell>}/<BOOK>.parquet")
+    tmp = mf.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(m, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, mf)
+    from lexeme_aligner.gold_to_fullalign import write_card
+    write_card(out_dir, m, internal=False)
+    return True
 
 
 def _norm_html(s: str) -> str:
@@ -652,14 +853,11 @@ def _norm_html(s: str) -> str:
 def emit_tsv_for_book(book: str, out_dir: Path = OUT_DIR, dest: Path | None = None) -> list[list[str]]:
     """Regenerate the 23-column rows for `book` from the parquet records + parsing table (experimental)."""
     import pyarrow.parquet as pq
-    table = json.loads((out_dir / "parsing_table.json").read_text(encoding="utf-8"))
-    recs = pq.read_table(out_dir / "eng" / EDITION / "manual-bsb-tables" / f"{book}.parquet").to_pylist()
-    rows = []
-    for rec in sorted(recs, key=lambda x: sort_key(x["bsb"]["bsb_sort"])):
-        b = dict(rec["bsb"])
-        for k in HTML_KEYS + ("footnotes",):
-            b[k] = json.loads(b[k]) if b[k] is not None else None
-        rows.append(emit_row(b, table))          # b["parsing_long"] is the per-row override or None
+    ldir = layer_dir(out_dir)
+    table = json.loads((ldir / "parsing_table.json").read_text(encoding="utf-8"))
+    recs = pq.read_table(ldir / f"{book}.parquet").to_pylist()
+    rows = [emit_row(from_struct(rec["bsb"]), table)
+            for rec in sorted(recs, key=lambda x: sort_key(x["bsb"]["bsb_sort"]))]
     if dest:
         with dest.open("w", encoding="utf-8", newline="") as fh:
             fh.write("\t".join(COLUMNS) + "\n")
@@ -676,8 +874,10 @@ def main(argv=None) -> int:
     ap.add_argument("--build", action="store_true")
     ap.add_argument("--book", action="append")
     ap.add_argument("--emit-tsv", metavar="BOOK")
-    ap.add_argument("--out", type=Path)
-    ap.add_argument("--out-dir", type=Path, default=OUT_DIR)
+    ap.add_argument("--out", type=Path, help="--emit-tsv: where to write the regenerated tsv")
+    ap.add_argument("--out-dir", type=Path, default=OUT_DIR,
+                    help=f"full-align root to write the partition under (default {OUT_DIR}; the first build's "
+                         f"staging tree {STAGING_DIR} is still accepted)")
     a = ap.parse_args(argv)
     if a.fetch:
         pin = fetch()
@@ -686,8 +886,11 @@ def main(argv=None) -> int:
     if a.build:
         books = [b.upper() for b in a.book] if a.book else OT_BOOKS + NT_BOOKS
         m = build(books, out_dir=a.out_dir)
-        print(json.dumps({k: m[k] for k in ("stats", "per_testament", "parsing_table", "round_trip_sample")},
-                         ensure_ascii=False, indent=1))
+        e = m["entry"]
+        print(json.dumps({k: e[k] for k in ("rows", "coverage", "source_none_breakdown", "parsing_table",
+                                            "round_trip_sample")}, ensure_ascii=False, indent=1))
+        print(f"[bsb_tables] → {layer_dir(a.out_dir)} ({len(e['files'])} book file(s)); manifest merged into "
+              f"{a.out_dir / 'manifest.json'}", file=sys.stderr)
     if a.emit_tsv:
         rows = emit_tsv_for_book(a.emit_tsv.upper(), out_dir=a.out_dir, dest=a.out)
         print(f"[bsb_tables] {len(rows)} rows regenerated for {a.emit_tsv.upper()}"

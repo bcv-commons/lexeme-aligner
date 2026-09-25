@@ -546,6 +546,80 @@ def all_gold_isos(gold_langs: Path = GOLD_LANGS, res_dir: Path = RESOURCES) -> l
     return sorted(isos)
 
 
+def carry_over_foreign_partitions(prev: dict | None, new: dict) -> dict:
+    """Manual partitions written by ANOTHER module (manifest entry carries `owner`, e.g. bsb_tables.py's
+    `BSB-tables`) survive this converter regenerating the same language: they are copied from the previous
+    manifest entry into `new` unless `new` already has a partition of that name. Keeps one manifest file with
+    two writers from fighting — this module owns the file, other writers own their own entries."""
+    if not prev:
+        return new
+    for ed, old in prev.get("editions", {}).items():
+        foreign = {bt: m for bt, m in old.get("layers", {}).get("manual", {}).items() if m.get("owner")}
+        if not foreign:
+            continue
+        layers = new.setdefault("editions", {}).setdefault(ed, {"layers": {}}).setdefault("layers", {})
+        manual = layers.setdefault("manual", {})
+        for bt, m in foreign.items():
+            manual.setdefault(bt, m)
+    return new
+
+
+def _bsb_tables_sections(manifest: dict) -> list[str]:
+    """README section(s) for any `source == "bsb-tables"` manual partition present in the manifest (written by
+    bsb_tables.py); rendered from the manifest entry so the card never drifts from the data."""
+    lines: list[str] = []
+    for iso, L in manifest.get("languages", {}).items():
+        for ed, e in L.get("editions", {}).items():
+            for part, m in e.get("layers", {}).get("manual", {}).items():
+                if m.get("source") != "bsb-tables":
+                    continue
+                cov, br, rt = m.get("coverage", {}), m.get("source_none_breakdown", {}), m.get("round_trip_sample", {})
+                pt = cov.get("per_testament", {})
+                lines += ["", f"## `{iso}/{ed}/manual/{part}/` — the BSB Translation Tables layer",
+                          "The Berean Standard Bible publisher's master interlinear (`bsb_tables.tsv`, "
+                          f"{m.get('license')}, pinned sha256 `{(m.get('pin') or {}).get('sha256', '')[:12]}…`), "
+                          "converted so that **every column is kept as data; only HTML tags are replaced by "
+                          "their structured meaning** (`bsb` is a nested struct: `hdg`, `crossref[]`, `par[]`, "
+                          "`end_text[]`, `footnotes` with `*italics*`, `*_unparsed` siblings for the rare cell a "
+                          "parser could not account for). A second manual partition beside Clear's `BSB` for the "
+                          "same edition — two annotators' conventions side by side, never merged.",
+                          "", "Contract for this partition:",
+                          f"- {m.get('contract', {}).get('padding_rows', '')}",
+                          f"- {m.get('contract', {}).get('spans_keep_spaces', '')}",
+                          f"- {m.get('contract', {}).get('h_idx_is_a_list', '')}",
+                          f"- {m.get('contract', {}).get('witness_brackets', '')}",
+                          f"- `sidecar/<BOOK>.parquet`: {m.get('sidecar', {}).get('note', '')}",
+                          f"- reverse direction: {m.get('reverse_direction', '')}; round trip on a "
+                          f"{rt.get('rows', 0)}-row sample through the written Parquet — exact on the 19 non-HTML "
+                          f"columns {rt.get('exact_non_html', 0)}/{rt.get('rows', 0)}, exact on the 4 HTML columns "
+                          f"{rt.get('exact_html', 0)}/{rt.get('rows', 0)}.",
+                          "", "Coverage (documented, not gated):",
+                          "| testament | verses | target-mapped | refused | source rows | keyed | fused | positional | **no spine token** |",
+                          "|---|---|---|---|---|---|---|---|---|"]
+                for t in ("OT", "NT"):
+                    v = pt.get(t, {})
+                    lines.append(f"| {t} | {v.get('verses', 0):,} | {v.get('verses_target_mapped', 0):,} | "
+                                 f"{v.get('verses_target_refused', 0):,} | {v.get('source_rows', 0):,} | "
+                                 f"{v.get('source_strong', 0):,} | {v.get('source_fused', 0):,} | "
+                                 f"{v.get('source_positional', 0):,} | **{v.get('source_none', 0):,}** |")
+                lines += ["", "`source_none` — BSB source rows with no spine token (`attribution.match = none`), "
+                              "where they come from:"]
+                for t in ("OT", "NT"):
+                    b = br.get(t, {})
+                    n = b.get("rows", 0) or 1
+                    top = ", ".join(f"`{p}` {c:,}" for p, c in b.get("by_parsing_top15", [])[:8])
+                    books = ", ".join(f"{bk} {c:,}" for bk, c in b.get("by_book_top10", [])[:6])
+                    lines.append(f"- **{t}**: {b.get('rows', 0):,} rows — witness-bracketed "
+                                 f"{b.get('witness_bracketed', 0):,} ({100 * b.get('witness_bracketed', 0) / n:.0f}%), "
+                                 f"no Strong's {b.get('no_strong', 0):,}; top parsing: {top}; top books: {books}.")
+                lines += ["", "Reading of the table: the OT gap is concentrated in Psalms (superscription/verse-"
+                              "numbering offsets between BSB and the Hebrew spine) and Daniel (the Aramaic "
+                              "chapters, whose Strong's numbering differs), none of it witness-related; the NT "
+                              "gap is small and a large share of it is words present only in another Greek "
+                              "witness (`base_variants` brackets) that a Nestle1904 spine has no token for."]
+    return lines
+
+
 def write_card(out: Path, manifest: dict, internal: bool) -> None:
     lines = ["# full-align" + (" (internal, vendor-only partitions)" if internal else ""), "",
              "The complete per-edition alignment as provenance-tagged rows, in up to three layers for the same "
@@ -570,6 +644,8 @@ def write_card(out: Path, manifest: dict, internal: bool) -> None:
              "mismatch), ambiguous links (Strong's occurrence counts differ between gold and spine — excluded), "
              "links beyond text, punctuation-only links.", "",
              f"Languages: {len(manifest['languages'])} · generated by `python -m lexeme_aligner.gold_to_fullalign`."]
+    if not internal:
+        lines += _bsb_tables_sections(manifest)
     (out / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -616,6 +692,7 @@ def main(argv=None) -> int:
         for k in ("unconverted", "skipped"):
             if k in rep:
                 pub[k] = rep[k]
+        pub = carry_over_foreign_partitions(manifests[a.out]["languages"].get(iso), pub)
         manifests[a.out]["languages"][iso] = pub
         if internal["editions"]:
             manifests[a.internal_out]["languages"][iso] = internal

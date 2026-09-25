@@ -393,8 +393,19 @@ without going through the alignment. First build: OT 22,883 of 23,145 verses tar
 refused), NT 7,936 of 7,957 (4 refused); 22,009 OT and 777 NT BSB source rows found no spine token
 (`source_none`, reported, not guessed). **Reverse direction exists** (`--emit-tsv`, experimental):
 regenerates all 23 columns; the round-trip test on a 3,239-row sample is byte-exact on every column,
-HTML included. Staged under `pipeline/work/full-align-bsb/` until it is folded into
-`publish/full-align/eng/engbsb/manual/BSB-tables/`.
+HTML included (and a full-book `--emit-tsv RUT` is byte-exact on all 2,144 rows). **Folded into
+`publish/full-align/eng/engbsb/manual/BSB-tables/`** (66 row files, 21.5 MB, 754,647 rows; `sidecar/`
+66 files, 551,533 rows; `parsing_table.json`) beside Clear's `manual/BSB/` — the same edition now has
+two independent manual annotators, plus gbt. The `bsb` extension is a proper 30-field Parquet struct
+(`hdg: struct<tag,cls,text>`, `crossref: list<struct<text,href>>`, `par: list<struct<tag,cls>>`,
+`end_text: list<struct<text,close>>`, each with an `*_unparsed` sibling for the handful of rows the
+HTML parser could not structure: 33 headings, 18 par, 31 footnotes, 4 crossrefs), not JSON strings.
+The `source_none` rows were broken down before folding rather than after: OT 22,009 of 305,494 source
+rows (7.2%) — concentrated in PSA 7,067 / DAN 3,605 / EZR 1,213, i.e. superscription-and-verse-offset
+and Aramaic, **0% witness-bracketed**, 2.8% with no Strong's; NT 777 of 138,131 (0.6%), **38% of them
+witness-bracketed** (words present only in a witness our Nestle1904 spine lacks). The README section
+for the layer is rendered from the manifest by `gold_to_fullalign.py` (one README writer), which also
+learned to carry a partition it does not own across its own reruns.
 
 **Feeds:** any consumer wanting a verse fully aligned with provenance; agreement-between-layers
 confidence; the gold side of every scorer in this repo, once they read it (they read the attestation

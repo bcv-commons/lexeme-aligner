@@ -3395,6 +3395,893 @@
         "quarantined": false,
         "source": "clear"
        },
+       "BSB-tables": {
+        "contract": {
+         "h_idx_is_a_list": "BSB tags whole words, MACULA splits prefixes/suffixes — h_idx_key is the keyed token, h_idx every token attached to the row",
+         "padding_rows": "rows with bsb.kind == 'empty' are the file's sort-key-only padding (kept for reversibility) — filter them for alignment use",
+         "spans_keep_spaces": "`target` (= BSB version cell) keeps its leading/trailing spaces verbatim — strip() for clean text",
+         "witness_brackets": "bsb.base_variants carries {TR} ⧼RP⧽ (WH) 〈NE〉 [NA] ‹SBL› [[ECM]]; a word present only in another witness has no Nestle1904 spine token (attribution.match = none)"
+        },
+        "coverage": {
+         "per_testament": {
+          "NT": {
+           "source_fused": 361,
+           "source_none": 777,
+           "source_positional": 1476,
+           "source_rows": 138131,
+           "source_strong": 135517,
+           "target_rows": 138125,
+           "target_rows_positioned": 115888,
+           "verses": 7957,
+           "verses_no_spine": 17,
+           "verses_target_mapped": 7936,
+           "verses_target_refused": 4
+          },
+          "OT": {
+           "source_fused": 1496,
+           "source_none": 22009,
+           "source_positional": 11277,
+           "source_rows": 305494,
+           "source_strong": 270712,
+           "target_rows": 302998,
+           "target_rows_positioned": 266724,
+           "verses": 23145,
+           "verses_no_spine": 134,
+           "verses_target_mapped": 22883,
+           "verses_target_refused": 128
+          }
+         },
+         "rows": 754647,
+         "rows_empty": 311021,
+         "source_fused": 1857,
+         "source_none": 22786,
+         "source_positional": 12753,
+         "source_rows": 443625,
+         "source_strong": 406229,
+         "target_rows": 441123,
+         "target_rows_positioned": 382612,
+         "verses": 31102,
+         "verses_mapped": 30819,
+         "verses_no_spine": 151,
+         "verses_refused": 132
+        },
+        "files": {
+         "1CH": {
+          "content_sha256": "db33edafa0641796442ab6fa40384f012c97b58d4c1f096a3a287e0b1487bb38",
+          "rows": 20165
+         },
+         "1CO": {
+          "content_sha256": "95e282268ff5d66309bf48e7dbeb9396ba5a5534bf9147d79af99311fd951211",
+          "rows": 11208
+         },
+         "1JN": {
+          "content_sha256": "a9fee3c58a7618bcabae3a16616e9a3ea24c9cee222997d3fc5424cb2c417309",
+          "rows": 3191
+         },
+         "1KI": {
+          "content_sha256": "648ae215099b7e6cb5c21ef80f5b5d61e1670a2ea0000e53e7e408562edc93c6",
+          "rows": 21300
+         },
+         "1PE": {
+          "content_sha256": "482ca6b146d97381514a71267ed47f89e98deebea48dfb289abfcdfc4bd74149",
+          "rows": 2735
+         },
+         "1SA": {
+          "content_sha256": "1dcf61d4554066129d8217219245eb460000d2caf864481308fa2371a3cb8d91",
+          "rows": 21364
+         },
+         "1TH": {
+          "content_sha256": "8de2b825316fb38c6627c3bfb3cbad1b8da5373f5996d2684a1d59470c880c00",
+          "rows": 2371
+         },
+         "1TI": {
+          "content_sha256": "98ecf130c563e6f7a303997aee2ce37f076254930aa914933278e1c5e7e6d703",
+          "rows": 2722
+         },
+         "2CH": {
+          "content_sha256": "965591855c63fa7e72e00e3be5677d4fc2072b7cb3a4b3f8a7b5ae1c21c8ad9d",
+          "rows": 21532
+         },
+         "2CO": {
+          "content_sha256": "16a25a12d1f3335eb8c150c17d7d172928802806533162bb7df69e502ac78550",
+          "rows": 7047
+         },
+         "2JN": {
+          "content_sha256": "e4c08afb4dbe75f5ea83c9fcf2f2cf551acc6a54ac836bf753a8d1a20c256a34",
+          "rows": 375
+         },
+         "2KI": {
+          "content_sha256": "4ec765c2924b9811c0be7e18098fef7f4e784fd7f1d2b194d1ae8d043378d933",
+          "rows": 19470
+         },
+         "2PE": {
+          "content_sha256": "7d36b8a882a6af707675cf2085deaab8d3895de7536ed1e0e3d66164e777524c",
+          "rows": 1712
+         },
+         "2SA": {
+          "content_sha256": "13f135a8dfa63173d03cd4472deb8750e312074251bee8c7782e472ccadd0ebd",
+          "rows": 17989
+         },
+         "2TH": {
+          "content_sha256": "ac518fbb8416eccf9db37622a44f7de1d065d50c28c19c01277edc47d5f470ae",
+          "rows": 1294
+         },
+         "2TI": {
+          "content_sha256": "1d1e307bde2728695251c32a1ebd8c6794e82eee1a640a5ce796fcc34edca5cf",
+          "rows": 2069
+         },
+         "3JN": {
+          "content_sha256": "1728291f4ffbcbe4281835487490b0b5f655f6ef6e0d02a7cdb111ce6a39fbb4",
+          "rows": 359
+         },
+         "ACT": {
+          "content_sha256": "8abfc03577eae6c505df402e9cfe26f3b8a973efce6ebdb2018dae48d408a06a",
+          "rows": 28529
+         },
+         "AMO": {
+          "content_sha256": "c71996d671115dea4f98e48de9d894251edde88a0e47611d1fe9b686396f7eba",
+          "rows": 3502
+         },
+         "COL": {
+          "content_sha256": "dafae628f955df1a8e8edcfb276b88d23ef3a48fe13b4b6a7c7535c519ab7a2d",
+          "rows": 2534
+         },
+         "DAN": {
+          "content_sha256": "e4d5e9a271277b621e62543c0cdf2619c64bf908fb0b4bd4bc93c472940f9ca4",
+          "rows": 9489
+         },
+         "DEU": {
+          "content_sha256": "ff01eb537801a8136f5c2dc20f9512787936523fe0b385359e097638ddc2a346",
+          "rows": 23884
+         },
+         "ECC": {
+          "content_sha256": "405239060d64d7b8af1b353faad970060226ebd5169a067b219cb4b31f6b4a68",
+          "rows": 5207
+         },
+         "EPH": {
+          "content_sha256": "a0509e77893db61435ded4cf7071bee06ba848340bf78e3db0d586261eeb7df0",
+          "rows": 3973
+         },
+         "EST": {
+          "content_sha256": "9b960f6e2145dec306c82414ea3b5e27da465592fb539a702c7550a0d286726f",
+          "rows": 4715
+         },
+         "EXO": {
+          "content_sha256": "24264cfd2d6c4bc20c928ad360afe734e0a8815c1827caa28b4c36274dd5a08b",
+          "rows": 28843
+         },
+         "EZK": {
+          "content_sha256": "208d64dc56f84dafda786efafa88639bed628491d19bb6ba4135fa7dece29bf8",
+          "rows": 31460
+         },
+         "EZR": {
+          "content_sha256": "d3fad19832267243266a6ea7a30fb2bdf7a5db2bb82c415c81a92eebda693d86",
+          "rows": 6553
+         },
+         "GAL": {
+          "content_sha256": "6848c28d0706b76d6673fcc1ecfa5d861f4892f8a03bc722768df1d1ed001ef4",
+          "rows": 3721
+         },
+         "GEN": {
+          "content_sha256": "ed52d32168c350c3cb3fc025f9904fac62f27874d36d871a7199ba46f14377d2",
+          "rows": 35943
+         },
+         "HAB": {
+          "content_sha256": "a8a50c1b5ea3335ec05d509fc09fe001cae20555cd5cc3ed9044f0e1d92d739a",
+          "rows": 1231
+         },
+         "HAG": {
+          "content_sha256": "fe32ac34d38abcedffe639dcfd0a62768cc0d90451686931cb4b2d2f55bc3b78",
+          "rows": 980
+         },
+         "HEB": {
+          "content_sha256": "eb9ba489b39bd10ad3607e2451c88b73720ced28f2f011c47ad3ed1aa5e931fa",
+          "rows": 7990
+         },
+         "HOS": {
+          "content_sha256": "d7692ca5015661865e90ba76ef6594d4b8dbe56b4e3e876b81b90eea86b76498",
+          "rows": 4351
+         },
+         "ISA": {
+          "content_sha256": "39a3067c7c44d2568b67e2ce2e1e244851ce82c3e8efae81b26d43ba09ffe388",
+          "rows": 29851
+         },
+         "JAS": {
+          "content_sha256": "7e464402f70b612ad3236c60d48244127061efad43310ea5e7d60cd805080d15",
+          "rows": 2823
+         },
+         "JDG": {
+          "content_sha256": "e54242d2d27a219ead288ecced4b11d18fa3959d97963716432e8f36389dcb70",
+          "rows": 16065
+         },
+         "JER": {
+          "content_sha256": "3466733698b46f6c09353482d7f0a3deff5e2bd969fed17ffde9708575496a10",
+          "rows": 35474
+         },
+         "JHN": {
+          "content_sha256": "2bdf5271d2e088f2e03038a20ee8f81c6716e84fef9da3a3ddf68b479db95539",
+          "rows": 24450
+         },
+         "JOB": {
+          "content_sha256": "0131b3b9fb078961be1e657a61d8f62280e8325c0dc71d13a9e184c2c04b9811",
+          "rows": 19043
+         },
+         "JOL": {
+          "content_sha256": "9d5213a0b3a7bccd129d9996d6d16e54675b743355b160c4bbc24c0047c92043",
+          "rows": 1687
+         },
+         "JON": {
+          "content_sha256": "05ccce9902cb7db200f33c9391cce461298b739d19e2b260411fe731b89733f5",
+          "rows": 1168
+         },
+         "JOS": {
+          "content_sha256": "6e5794335b8c6478bce794f5e16431dd79aff9fa280a3beb3845a86b19224472",
+          "rows": 16631
+         },
+         "JUD": {
+          "content_sha256": "3cb787690abea7cb718ac4c07206475f5f3cd2bb050445f6d109a72d49d42a85",
+          "rows": 710
+         },
+         "LAM": {
+          "content_sha256": "d1a016a2ab6e8d1a23ff1a57b657440f21514780b66b5b44ada69fff5453ad4a",
+          "rows": 3082
+         },
+         "LEV": {
+          "content_sha256": "d686d4f80b33d7bf70aadc5ce85606349ba76b5bda2d9d1913d2b1afb8dc4d26",
+          "rows": 20540
+         },
+         "LUK": {
+          "content_sha256": "7b2e35a12ce93b21370ef0e997031c7f93df0382e87578136b5194b3242a6bbf",
+          "rows": 31018
+         },
+         "MAL": {
+          "content_sha256": "3c630060aa8df72098dcbba640b76f98f279149dbe040e2bccf793bcf0d59333",
+          "rows": 1426
+         },
+         "MAT": {
+          "content_sha256": "345d1beceeba21fdfecc992ae3df944ce516370f793df65e15254d187009e015",
+          "rows": 29083
+         },
+         "MIC": {
+          "content_sha256": "fa2df76f700e7a8cd411ecd475bb760d87fbd1bcd422216e1e4c5d09ed1e1586",
+          "rows": 2446
+         },
+         "MRK": {
+          "content_sha256": "fdfb3322ca87c05c775e17f8f0b37defbd1c2508f432477e40a65ccb6660de01",
+          "rows": 18066
+         },
+         "NAM": {
+          "content_sha256": "bc0574412f1aaa10398e62504c23376d5302fd4f9c6250d1c763d8c4271f3fb6",
+          "rows": 1028
+         },
+         "NEH": {
+          "content_sha256": "6ba0a2f070f228c58d4bc7b432f66891e156ec104e08206004f5c71807a01d83",
+          "rows": 9373
+         },
+         "NUM": {
+          "content_sha256": "08ca997db005ac10d23b820b58dfaf14515dadba9afee82a96c75382ce002041",
+          "rows": 29293
+         },
+         "OBA": {
+          "content_sha256": "83546668e775eb3a3d1cfcfa4757e622160515c5d4a13cb58344ae1c438b25b1",
+          "rows": 501
+         },
+         "PHM": {
+          "content_sha256": "1dc3a5f4171a51995768313744e321a86a89f6607ab588b30fdfb0cd4d8a3353",
+          "rows": 585
+         },
+         "PHP": {
+          "content_sha256": "7cb30f0a3c1d7dae71fa4df963ff6985f976ab3991c9dc92d9ba25f4538e2702",
+          "rows": 2671
+         },
+         "PRO": {
+          "content_sha256": "d2e1edb1895b7237649470bcff57e073fd77853d10976a6124c0916254946b0f",
+          "rows": 16065
+         },
+         "PSA": {
+          "content_sha256": "e2d961e7cb8ae05cf57d186fa56018597eec4d0980d58fc4714a2c7d6c73c397",
+          "rows": 44196
+         },
+         "REV": {
+          "content_sha256": "522d3a4b055af710a97bfc891c9fd01d7b3a1f6a9f2d668e7c22da507d8eaa32",
+          "rows": 13896
+         },
+         "ROM": {
+          "content_sha256": "e971344b59cfa92d4b40ac74bf98ddf40a404dc0b6e287136e4ffd22f88df0b1",
+          "rows": 11450
+         },
+         "RUT": {
+          "content_sha256": "aead74c0e2ee0de4ef776cf0c84e804cbee85fe4b2be62de9694a12c61d8bccb",
+          "rows": 2144
+         },
+         "SNG": {
+          "content_sha256": "9d60d53aa76bc5e29da9a0994d564549e75e6e15d401a2f7a774dabbc2241516",
+          "rows": 2420
+         },
+         "TIT": {
+          "content_sha256": "8d8e0067aded2e5e327bdd22a44d9f8df1026673094fe29ac68af9ae43f25c69",
+          "rows": 1119
+         },
+         "ZEC": {
+          "content_sha256": "17eca6db872e6de95b4e236d38a3d1ac94b08917b3a103a7e79745b75daf2bf3",
+          "rows": 5238
+         },
+         "ZEP": {
+          "content_sha256": "b4fef01369d541389d46ff1fd791ff5f36d4798c0239ef813b3fa1e6f510439d",
+          "rows": 1297
+         }
+        },
+        "gold_method": "manual",
+        "health": null,
+        "health_note": "the publisher's own interlinear tagging; no positional-vs-lexical health is computed for it (contest_rule's gold_health is Clear-shaped) — coverage below is the honesty record",
+        "kind": "manual",
+        "license": "CC0-1.0",
+        "license_statement": "The Berean Bible and Majority Bible texts are officially placed into the public domain as of April 30, 2023.",
+        "owner": "bsb_tables",
+        "parsing_table": {
+         "entries": 3819,
+         "file": "BSB-tables/parsing_table.json",
+         "non_function": [
+          [
+           "Adv",
+           [
+            "Adverb",
+            "Adverb - Superlative"
+           ]
+          ],
+          [
+           "Prep | 1cs",
+           [
+            "",
+            "Preposition | first person common singular"
+           ]
+          ],
+          [
+           "N-msc | 1cs",
+           [
+            "Noun - masculine singular construct | first person common singular",
+            "Preposition | first person common singular"
+           ]
+          ],
+          [
+           "PPro-A2P",
+           [
+            "",
+            "Personal / Possessive Pronoun - Accusative 2nd Person Plural"
+           ]
+          ],
+          [
+           "Heb",
+           [
+            "Hebrew Word",
+            "Hebrew Word "
+           ]
+          ]
+         ]
+        },
+        "pin": {
+         "bytes": 85525373,
+         "fetched": "2026-09-25",
+         "license_source": "https://berean.bible/licensing.htm",
+         "sha256": "09bbee6f9fe4fa22b5df28e8a9ffa99bf9c33435f4eb8c47c2dc221d855d35cb"
+        },
+        "publishable": true,
+        "quarantine_reason": null,
+        "quarantined": false,
+        "reverse_direction": "experimental — `python -m lexeme_aligner.bsb_tables --emit-tsv <BOOK>` regenerates all 23 columns from the records + parsing_table.json",
+        "round_trip_sample": {
+         "diff_examples": [],
+         "exact_html": 3239,
+         "exact_non_html": 3239,
+         "normalized_html": 3239,
+         "rows": 3239,
+         "through_parquet": true
+        },
+        "rows": 754647,
+        "sidecar": {
+         "files": {
+          "1CH": {
+           "content_sha256": "25a824fef67144810da7060d90fcd94f9b229cc342514e321f621bbede2315f8",
+           "rows": 14652
+          },
+          "1CO": {
+           "content_sha256": "4dacbfb678b486c077999383eb4aa999330ed8ed0e746b3055b91e4ac8f61fd7",
+           "rows": 6796
+          },
+          "1JN": {
+           "content_sha256": "40d1aa7e1105cb81300db92f54a40e0b908732191e111c72fa621bffe4798e40",
+           "rows": 2131
+          },
+          "1KI": {
+           "content_sha256": "155867fbf5e2ceaa70fbd4abfac15673c237027313203e04b9bc51fbd566de29",
+           "rows": 18459
+          },
+          "1PE": {
+           "content_sha256": "1dcb0f65f4aaf2d9e9bd528ca111a7ab9a6319cf1ec25d2973274a9cb6b55bb2",
+           "rows": 1670
+          },
+          "1SA": {
+           "content_sha256": "2cb72dc1742c55d94af599818521b31ee8b9daec9098e18f9dd4ed24bc85ef38",
+           "rows": 18888
+          },
+          "1TH": {
+           "content_sha256": "defd1a806dceb525f377b2cf25d785903a49967c1b6fbd8f3d96e072f3af961a",
+           "rows": 1470
+          },
+          "1TI": {
+           "content_sha256": "46eed4f215dfa70af39844da1e8c58a539e4bc4bd1c4cd2fbf635d0d87568831",
+           "rows": 1586
+          },
+          "2CH": {
+           "content_sha256": "b6c872376a0295162d9bc155e47204d57369f37a10768a741540893b7e98c6e9",
+           "rows": 19709
+          },
+          "2CO": {
+           "content_sha256": "b5cbb9b38fb15890541699b65e5049e2e485cb1729733385c7bdc74352a77171",
+           "rows": 4450
+          },
+          "2JN": {
+           "content_sha256": "0ee28fb59d25f19e1ce68178daa0ea253108b97f16b630359580315553d2e652",
+           "rows": 245
+          },
+          "2KI": {
+           "content_sha256": "81411847e01b01180d1bec2e500bfc95256da7d86dcc28760443d15ad33f132b",
+           "rows": 17612
+          },
+          "2PE": {
+           "content_sha256": "eee25a42d39f0bda879109ed980a61642d686d8de31c211e6b024592e473ce9d",
+           "rows": 1095
+          },
+          "2SA": {
+           "content_sha256": "7aac498db1580b99c4efa3653f739aaa7ee4a2cfdc89e2f6056b8c44489ef187",
+           "rows": 15624
+          },
+          "2TH": {
+           "content_sha256": "2dae7d7aba8ffd2440951fba645c315802a7c4d3f037dc5d4fb7bac8bffd425b",
+           "rows": 819
+          },
+          "2TI": {
+           "content_sha256": "e1f8bdc2a2046a1f27d0ffc99d68fbc759ba6a1ab646727e085d035a39d26bbe",
+           "rows": 1236
+          },
+          "3JN": {
+           "content_sha256": "a8a25ed9128eab6fbc31ec4712d540fb916b93b3ee80c3c6e54b478802b54b8e",
+           "rows": 208
+          },
+          "ACT": {
+           "content_sha256": "ced9c36ce44add6b4979f7e81b6be87cc1d370253a6b246ae5cb261a508c4c3f",
+           "rows": 18200
+          },
+          "AMO": {
+           "content_sha256": "b279263ade8ad06ba1044e319340e12390f9d99e676d71495b5d4751d66b8201",
+           "rows": 2846
+          },
+          "COL": {
+           "content_sha256": "5a49fafb372f985d99c90e51969efcb42b03807be2b8b70b8cc21aa22d8c415a",
+           "rows": 1570
+          },
+          "DAN": {
+           "content_sha256": "dd917e17fedf0aaaed38cf521ced30c5ee7eaa207461f15732f66d8290271083",
+           "rows": 3665
+          },
+          "DEU": {
+           "content_sha256": "cb1ddb77424c4018daa911ba7b3c87133224c6cbf11ae76322be6d11daebeebb",
+           "rows": 20384
+          },
+          "ECC": {
+           "content_sha256": "76a23cff72067de80f8fad01433de586457f6499538a7a5fef2acf2dc5800c15",
+           "rows": 4053
+          },
+          "EPH": {
+           "content_sha256": "999ebb952ef31cb0d4d3cd341d50279f454434d63b1e94b193fbcbf0785af482",
+           "rows": 2418
+          },
+          "EST": {
+           "content_sha256": "56caac70c29fcd251db36d18fee0360cce15cc444d2aa47c0ee8bf14f2329058",
+           "rows": 4671
+          },
+          "EXO": {
+           "content_sha256": "0bfea9c7cae60eb7747a323a45ae6c38d3437491d3afea959ac4de65d0783629",
+           "rows": 23664
+          },
+          "EZK": {
+           "content_sha256": "90b0219b25784db0b1954434a8b8127008b0c606f2a2b293b943a268331585a0",
+           "rows": 26848
+          },
+          "EZR": {
+           "content_sha256": "37533e43bb67814c87ce4e1da6e326ecf0fc5f34b7d7d6641b310382ebfa1456",
+           "rows": 3860
+          },
+          "GAL": {
+           "content_sha256": "faec446f554b708a9162cad3c41b478207a13197a11b0933231194b9b84f7a11",
+           "rows": 2222
+          },
+          "GEN": {
+           "content_sha256": "f8482baaeb00cc90d2009cd8c4f71a2c31764fb96e3237bbc38f41bb9020a4aa",
+           "rows": 29596
+          },
+          "HAB": {
+           "content_sha256": "af7b2d7bece7de3663efa11cc8e91bf1bf57a699c0d4d269bd5268773ed6bc90",
+           "rows": 954
+          },
+          "HAG": {
+           "content_sha256": "b60bdd049ae9c8f519290faf9e3bbb65d325337966f468595c6dbe3638e55b48",
+           "rows": 873
+          },
+          "HEB": {
+           "content_sha256": "66b83c4cee68dfed740a6a151fe754d7e0d60ca1e2e8a098d6b069fd74e3d101",
+           "rows": 4930
+          },
+          "HOS": {
+           "content_sha256": "713d870be47d1482ae3daa41e2b9dca2cb60de6b434e3e73fa9d90b31072d71d",
+           "rows": 2525
+          },
+          "ISA": {
+           "content_sha256": "6271be9baafdc7e0f34660ee989e6b18067d0b53ff5be42d658972e80e3dee25",
+           "rows": 23480
+          },
+          "JAS": {
+           "content_sha256": "087367484c7bee94f6932585d35ee9d8a015abb4ae63e3f23eea5f1cb7660c91",
+           "rows": 1726
+          },
+          "JDG": {
+           "content_sha256": "f27cb9be8330cac7edc7dff027eb8bf64f73df111543fbcd35c4c466a880e780",
+           "rows": 14382
+          },
+          "JER": {
+           "content_sha256": "8f73b2c7154de380762f14ec142000d3120e75b5a401f42c3fb78fa68184a874",
+           "rows": 30430
+          },
+          "JHN": {
+           "content_sha256": "97463bf4560cbfdf6c004855d7b77d7e352bf489e7f548be4f19f6f00dc904b6",
+           "rows": 15341
+          },
+          "JOB": {
+           "content_sha256": "3ed913ac3bf76d32b6b1940e447f42f2eabec01b6b5fd30c8cb4f9ffade658dd",
+           "rows": 11537
+          },
+          "JOL": {
+           "content_sha256": "a9c1c7a1347c1ea526b42f5474ca6da41cea097fe5c5e422fc797f367be25540",
+           "rows": 894
+          },
+          "JON": {
+           "content_sha256": "c8877cfde4a586178608dc4af95d00371464ac523c18e6fc7a5e4ccfee3e53d7",
+           "rows": 852
+          },
+          "JOS": {
+           "content_sha256": "625b21ddd9b00bd71e46308fa88a270533a3077125dba653b78c04bcfd94d86e",
+           "rows": 14952
+          },
+          "JUD": {
+           "content_sha256": "623447759cc4614e867e6fc28d25177725904fb92558448bec374a32eb14d073",
+           "rows": 453
+          },
+          "LAM": {
+           "content_sha256": "7e8fea74e58e77fdb9bda6bfc322b8e045ca23c887ccbf3c293ca68ccd351129",
+           "rows": 2129
+          },
+          "LEV": {
+           "content_sha256": "a2987cf2204f92f33ba8df03a42e5d3fcae4a8d344ef04d7d62c41fc5492c3d6",
+           "rows": 17237
+          },
+          "LUK": {
+           "content_sha256": "ac13dccdba7b66c24d850f7d478e7cc5a96319071b35b664029917511e098406",
+           "rows": 19076
+          },
+          "MAL": {
+           "content_sha256": "561d72e008d0f19788c47f5620c88690cf7417fa033f50e1c603fb71ea79f3f1",
+           "rows": 1114
+          },
+          "MAT": {
+           "content_sha256": "ceadda15e338ac78ecff0174e55c1a327ede298cc7083a53b7089f63371d025c",
+           "rows": 18024
+          },
+          "MIC": {
+           "content_sha256": "b29507b1e20d64304f74345452f5d2644e34b7ceea33853bca3c5c1067e701b1",
+           "rows": 1834
+          },
+          "MRK": {
+           "content_sha256": "c8023be69a5bd29a8868f5a957ebd00a5509b4cab1f4d6198e21253928e67db6",
+           "rows": 11034
+          },
+          "NAM": {
+           "content_sha256": "b0c089da3aeb6b365665aada77c1d24f8e5be82e677aa1ff9fe46c44cad9c30b",
+           "rows": 563
+          },
+          "NEH": {
+           "content_sha256": "da2d66519e82097b1caa1a7574c4cca2a0e8cdcb89f6400fa6e21d5c6ee5440f",
+           "rows": 7276
+          },
+          "NUM": {
+           "content_sha256": "7bdede0d8c4cb5f4d2f20f7d30393d9af7bf6b4e00daf70159a569f069e67c96",
+           "rows": 23178
+          },
+          "OBA": {
+           "content_sha256": "2d9f8c7488d9b30a938092096249dd5e2960dee28331e3a2e5a36c52e3d94d16",
+           "rows": 410
+          },
+          "PHM": {
+           "content_sha256": "7e16162a15eeccb13aaf6d363dde4701f159ed132240700202e7a56ee23642a8",
+           "rows": 335
+          },
+          "PHP": {
+           "content_sha256": "d45220da23e69b29b96f8e0da301d001113903f5c950d8a427c8d64651fe496d",
+           "rows": 1627
+          },
+          "PRO": {
+           "content_sha256": "8f0f3ea8fb6e736545fbbf85b48bfc8dda955f1974d4ca234f07d31e2947c124",
+           "rows": 9297
+          },
+          "PSA": {
+           "content_sha256": "550aef11308df959cabe47b95bbf84f9a3dba59f0ecd7a9e8b8c18637e54fc4f",
+           "rows": 17965
+          },
+          "REV": {
+           "content_sha256": "b01b053856cafc01816295c882d54ca0cc07e04b83e744736b5e466629f185fa",
+           "rows": 9785
+          },
+          "ROM": {
+           "content_sha256": "2f482d9633e11ac5922431dbfdd22cf9864427033ebb7708d85b309ab602ed50",
+           "rows": 7083
+          },
+          "RUT": {
+           "content_sha256": "bc041eedea892404937f8ca648b1b31144adc848a2f0dae1876744d058e58c8b",
+           "rows": 1854
+          },
+          "SNG": {
+           "content_sha256": "f4b34b34157332a6f1eaeb1fa44cf4356a7cde1d127734cee8caeb379fc0d9c2",
+           "rows": 1640
+          },
+          "TIT": {
+           "content_sha256": "09c5f8ea2cc5a2ef59c4e33261b4c04d85e755bdd7609b7bb588da7d64c72904",
+           "rows": 656
+          },
+          "ZEC": {
+           "content_sha256": "6cc58035851089c27a007f9446d4cae908cf539de95c57ae784fcd8393a94d8d",
+           "rows": 4343
+          },
+          "ZEP": {
+           "content_sha256": "20dc0a8192db12ebcc0206f09ab9af716621b9751c863c6ee449b9e5078690a6",
+           "rows": 1097
+          }
+         },
+         "note": "one row per spine token that a BSB row was attached to (keyed or by adjacency): translit / parsing / base / witness brackets — reusable without the alignment",
+         "path": "BSB-tables/sidecar/<BOOK>.parquet",
+         "rows": 551533
+        },
+        "source": "bsb-tables",
+        "source_none_breakdown": {
+         "NT": {
+          "by_book_top10": [
+           [
+            "MAT",
+            121
+           ],
+           [
+            "JHN",
+            108
+           ],
+           [
+            "LUK",
+            106
+           ],
+           [
+            "ACT",
+            106
+           ],
+           [
+            "MRK",
+            74
+           ],
+           [
+            "REV",
+            45
+           ],
+           [
+            "2CO",
+            32
+           ],
+           [
+            "ROM",
+            30
+           ],
+           [
+            "1CO",
+            21
+           ],
+           [
+            "1TH",
+            17
+           ]
+          ],
+          "by_parsing_top15": [
+           [
+            "Conj",
+            121
+           ],
+           [
+            "V-AIA-3S",
+            77
+           ],
+           [
+            "Prep",
+            46
+           ],
+           [
+            "Adv",
+            26
+           ],
+           [
+            "V-AMA-2S",
+            22
+           ],
+           [
+            "Art-GMS",
+            21
+           ],
+           [
+            "Art-NMS",
+            17
+           ],
+           [
+            "N-NMS",
+            16
+           ],
+           [
+            "PPro-GM3S",
+            16
+           ],
+           [
+            "N-GMS",
+            14
+           ],
+           [
+            "Art-AMS",
+            13
+           ],
+           [
+            "V-AIA-3P",
+            13
+           ],
+           [
+            "PPro-DM3S",
+            12
+           ],
+           [
+            "Art-AFS",
+            10
+           ],
+           [
+            "Art-GFS",
+            10
+           ]
+          ],
+          "no_strong": 0,
+          "rows": 777,
+          "witness_bracketed": 295
+         },
+         "OT": {
+          "by_book_top10": [
+           [
+            "PSA",
+            7067
+           ],
+           [
+            "DAN",
+            3605
+           ],
+           [
+            "EZR",
+            1213
+           ],
+           [
+            "1CH",
+            920
+           ],
+           [
+            "DEU",
+            881
+           ],
+           [
+            "EXO",
+            664
+           ],
+           [
+            "NEH",
+            608
+           ],
+           [
+            "1KI",
+            586
+           ],
+           [
+            "2SA",
+            577
+           ],
+           [
+            "HOS",
+            522
+           ]
+          ],
+          "by_parsing_top15": [
+           [
+            "N-proper-ms",
+            1111
+           ],
+           [
+            "N-ms",
+            962
+           ],
+           [
+            "Prep",
+            812
+           ],
+           [
+            "N-msc",
+            659
+           ],
+           [
+            "Pro-r",
+            505
+           ],
+           [
+            "N-mp",
+            445
+           ],
+           [
+            "Conj",
+            442
+           ],
+           [
+            "Adv",
+            393
+           ],
+           [
+            "N-msd",
+            373
+           ],
+           [
+            "N-fs",
+            301
+           ],
+           [
+            "V-Qal-Perf-3ms",
+            285
+           ],
+           [
+            "V-Qal-Imperf-3ms",
+            277
+           ],
+           [
+            "Art | N-ms",
+            272
+           ],
+           [
+            "Adv-NegPrt",
+            247
+           ],
+           [
+            "Prep | 3ms",
+            242
+           ]
+          ],
+          "no_strong": 619,
+          "rows": 22009,
+          "witness_bracketed": 0
+         }
+        },
+        "stats": {
+         "rows_empty": 311021,
+         "rows_greek": 217701,
+         "rows_hebrew": 529439,
+         "rows_total": 754647,
+         "unparsed_crossref": 4,
+         "unparsed_footnotes": 31,
+         "unparsed_hdg": 33,
+         "unparsed_par": 18
+        },
+        "url": "https://bereanbible.com/bsb_tables.tsv"
+       },
        "gbt": {
         "coverage": {
          "content_rows": 239317,

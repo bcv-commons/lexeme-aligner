@@ -185,3 +185,63 @@ def test_map_target_refuses_when_spans_do_not_tile_our_tokens():
     rows = [bt.parse_row(_cells(bsb_sort="1", base="a", str_heb="1", text=" In the beginning "))]
     assert bt.map_target(rows, ["In", "the", "beginning", "God"]) is None      # our token left over
     assert bt.map_target(rows, ["In", "the"]) is None                          # span longer than our text
+
+
+# --- the `bsb` nested struct: lossless through pyarrow, no JSON-in-a-string --------------------------------
+def _struct_round_trip(cells, table):
+    import pyarrow as pa
+    r = bt.parse_row(cells)
+    rec = {"ref": 1001001, "book": "GEN", "chapter": 1, "verse": 1, "h_idx": [0], "h_idx_key": 0,
+           "lexeme": "hbo:7225", "strong": r["strong"], "t_idx": [0], "target": r["text"], "content": True,
+           "method": "manual", "score": None,
+           "attribution": {"source": "bsb-tables", "kind": "manual", "base_text": "BSB", "license": "CC0-1.0",
+                           "pin_sha256": "x", "match": "strong"},
+           "bsb": bt.to_struct(r, table)}
+    t = pa.Table.from_pylist([rec], schema=bt.record_schema())        # explicit schema, must not raise
+    back = t.to_pylist()[0]["bsb"]
+    return bt.emit_row(bt.from_struct(back), table), t
+
+
+def test_bsb_struct_round_trips_parsed_html_through_pyarrow():
+    table = {"Prep-b | N-fs": "Preposition-b | Noun - feminine singular"}
+    cells = _cells(base="בְּרֵאשִׁ֖ית", base_variants="בְּרֵאשִׁ֖ית", translit="bə·rê·šîṯ", parsing="Prep-b | N-fs",
+                   parsing_long="Preposition-b | Noun - feminine singular", str_heb="7225", verse_id="Genesis 1:1",
+                   hdg=HDG, crossref=XREF, par="<p class=|reg|><span class=|red|>", text=" In the beginning ",
+                   footnotes="a <i>b</i>", end_text="’</span>”", beg_q="“", pnc=".")
+    regen, t = _struct_round_trip(cells, table)
+    assert regen == cells
+    b = t.column("bsb").type
+    assert str(b.field("crossref").type).startswith("list<")            # a real list<struct>, not a string
+    assert str(b.field("hdg").type).startswith("struct<")
+
+
+def test_bsb_struct_keeps_unparsed_html_in_the_sibling_field_and_round_trips():
+    cells = _cells(base="x", str_heb="1", hdg="<div>odd</div>", crossref="<b>weird</b>", text=" x ")
+    regen, t = _struct_round_trip(cells, {})
+    assert regen == cells
+    back = t.to_pylist()[0]["bsb"]
+    assert back["hdg"] is None and back["hdg_unparsed"] == "<div>odd</div>"
+    assert back["crossref"] is None and back["crossref_unparsed"] == "<b>weird</b>"
+
+
+def test_bsb_struct_empty_padding_row_round_trips():
+    cells = _cells(heb_sort="8", bsb_sort="8")
+    regen, t = _struct_round_trip(cells, {})
+    assert regen == cells and t.to_pylist()[0]["bsb"]["kind"] == "empty"
+
+
+def test_merge_into_manifest_updates_atomically_and_regenerates_card(tmp_path, monkeypatch):
+    import json
+    root = tmp_path / "full-align"
+    root.mkdir()
+    (root / "manifest.json").write_text(json.dumps({"languages": {"eng": {"editions": {"engbsb": {"layers": {
+        "manual": {"BSB": {"source": "clear"}}, "statistical": {"rows": 1}}}}}}}), encoding="utf-8")
+    entry = {"source": "bsb-tables", "owner": "bsb_tables", "license": "CC0-1.0", "rows": 3, "coverage": {},
+             "contract": {}, "sidecar": {}, "round_trip_sample": {}, "source_none_breakdown": {}, "pin": {}}
+    assert bt.merge_into_manifest(root, entry) is True
+    m = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    manual = m["languages"]["eng"]["editions"]["engbsb"]["layers"]["manual"]
+    assert manual["BSB"] == {"source": "clear"} and manual["BSB-tables"]["owner"] == "bsb_tables"
+    assert m["languages"]["eng"]["editions"]["engbsb"]["layers"]["statistical"] == {"rows": 1}
+    assert not (root / "manifest.json.tmp").exists()
+    assert "BSB Translation Tables layer" in (root / "README.md").read_text(encoding="utf-8")

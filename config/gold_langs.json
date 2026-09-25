@@ -19,14 +19,16 @@
   "note": "NEW gold language (2026-09-24), no Grambank features flagged (isolating: no case/articles/possession-affixes) — a clean negative control for span_extension's typology gates. DistributionLicense=Public Domain."
  },
  "asm": {
-  "base_text": "IRV",
+  "base_text": "IRVAsm",
   "edition": "asm_irv",
-  "gold": "clear"
+  "gold": "clear",
+  "_note": "base_text was recorded as bare 'IRV' — the attestation parquet's own base_text column is actually 'IRVAsm', so every pos_score run against this entry silently filtered out all gold rows (0/0 verses mapped, f1=0.0 unconditionally). Found and fixed 2026-09-25 while running roadmap M1 (fertility priors)."
  },
  "ben": {
-  "base_text": "IRV",
+  "base_text": "IRVBen",
   "edition": "ben_irv",
-  "gold": "clear"
+  "gold": "clear",
+  "_note": "same bug as asm (base_text was bare 'IRV', parquet's real value is 'IRVBen') — found and fixed 2026-09-25 while running roadmap M1."
  },
  "eng": {
   "base_text": "BSB",

@@ -11,13 +11,17 @@ def _w(path, obj):
     return path
 
 
-def _build(tmp_path, *, features=None, directions=None, constituent=None, spanext=None,
-           fertility=None, gold=None, conventions=None, isos):
+def _build(tmp_path, *, features=None, directions=None, constituent=None, derived_input=None,
+           spanext=None, fertility=None, gold=None, conventions=None, isos):
     out = tmp_path / "out"
     cdir = tmp_path / "constituent_order"
     cdir.mkdir()
     for iso, doc in (constituent or {}).items():
         _w(cdir / f"{iso}.json", doc)
+    didir = tmp_path / "derived_input"
+    didir.mkdir()
+    for iso, doc in (derived_input or {}).items():
+        _w(didir / f"{iso}.json", doc)
     conv = tmp_path / "conventions"
     conv.mkdir()
     for iso, text in (conventions or {}).items():
@@ -27,6 +31,7 @@ def _build(tmp_path, *, features=None, directions=None, constituent=None, spanex
         features_file=_w(tmp_path / "features.json", {"languages": features or {}}),
         directions_file=_w(tmp_path / "directions.json", directions or {}),
         constituent_dir=cdir,
+        derived_input_dir=didir,
         spanext_file=_w(tmp_path / "spanext.json", spanext or {}),
         fertility_file=_w(tmp_path / "fertility.json", fertility or {}),
         gold_file=_w(tmp_path / "gold.json", gold or {}),
@@ -191,3 +196,43 @@ def test_coverage_counts_slots_by_source(tmp_path):
                                 "c": {"adposition": {"direction": "after", "source": "lang2vec", "confidence": 0.9}}})
     assert cov["slots"]["adposition"] == {"grambank": 1, "wals": 1, "lang2vec": 1, "null": 0}
     assert cov["grambank_direction_mismatch"] == 0
+
+
+# --- D0 (derive_typology.py's derived_input/) ------------------------------------------------------------
+def test_derived_input_slot_reaches_the_derived_partition_and_the_merge_when_no_external(tmp_path):
+    di = {"possessor": {"direction": "before", "source": "derived", "n": 200, "rate": 0.2}}
+    out, cov = _build(tmp_path, isos=["xx"], derived_input={"xx": di})
+    der = _read(out, "derived", "xx.json")
+    assert der["possessor"] == di["possessor"]
+    merged = _read(out, "xx.json")
+    assert merged["possessor"] == di["possessor"]
+
+
+def test_external_slot_shadows_the_same_derived_slot_without_raising(tmp_path):
+    di = {"possessor": {"direction": "after", "source": "derived", "n": 200, "rate": 0.8}}
+    out, cov = _build(tmp_path, isos=["xx"],
+                      features={"xx": {"GB065": "1"}},                # external possessor = "before"
+                      derived_input={"xx": di})
+    merged = _read(out, "xx.json")
+    assert merged["possessor"]["source"] == "grambank"                # external wins the merge
+    der = _read(out, "derived", "xx.json")
+    assert der["possessor"] == di["possessor"]                        # but derived's own value survives
+    assert cov["derived_shadowed_by_external_or_imputed"]["possessor"] == 1
+
+
+def test_derived_input_audit_facts_join_the_derived_partition_without_slot_keys(tmp_path):
+    di = {"audit": {"multiword_rates": {"noun": {"multi_word": 3, "total": 10}},
+                    "constituent_order": {"n": 5}}}   # a duplicate the constituent_order/ file already covers
+    out, _ = _build(tmp_path, isos=["xx"],
+                    constituent={"xx": {"verses_measured": 1}},
+                    derived_input={"xx": di})
+    der = _read(out, "derived", "xx.json")
+    assert der["audit"] == {"multiword_rates": {"noun": {"multi_word": 3, "total": 10}}}
+    assert "constituent_order" in der and der["constituent_order"]["verses_measured"] == 1
+
+
+def test_derived_input_gate_failed_meta_is_kept_in_the_derived_partition(tmp_path):
+    di = {"_derived_meta": {"reason": "alignment_quality", "gate": {"passed": False}}}
+    out, _ = _build(tmp_path, isos=["xx"], derived_input={"xx": di})
+    der = _read(out, "derived", "xx.json")
+    assert der["_derived_meta"] == di["_derived_meta"]

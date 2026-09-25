@@ -127,7 +127,21 @@ def _has_article_side(grambank: dict[str, str], iso: str | None) -> bool:
 
 
 def _subject_indexing_incomplete(grambank: dict[str, str]) -> bool:
+    """True only when Grambank ACTUALLY SAYS neither subject-indexing code is "1" — never when the
+    language simply has no Grambank entry for this feature at all. Bug found + left unfixed by
+    roadmap M1 (2026-09-25, `config/fertility_flags.json`'s cmn note): the original one-line version
+    (`not any(grambank.get(c) == "1" for c in codes)`) returns True for an EMPTY `grambank` dict too
+    (`.get(c)` on a missing key is `None`, so `None == "1"` is False for every code, same as a
+    confirmed-absent result) — silently treating "no data" as "confirmed no subject indexing" for
+    every Grambank-uncovered language. This inflated the finite_verb relation's flagged-anchor count
+    identically for spa/ben/asm (~7,125-7,126 anchors each, matching cmn's GENUINELY Grambank-derived
+    count) purely from missing data, not a real typological fact. Fixed by checking for the codes'
+    PRESENCE as keys first — a language with real Grambank rows for these codes (hin, cmn) behaves
+    exactly as before; one with none at all (spa/ben/asm, or any other Grambank-uncovered language)
+    now correctly returns False (unknown → don't flag) instead of a false-confident True."""
     codes = GRAMBANK_FEATURES["subject_indexing"]
+    if not any(c in grambank for c in codes):
+        return False
     return not any(grambank.get(c) == "1" for c in codes)
 
 

@@ -10,7 +10,13 @@ four provenance partitions so licensing is a directory boundary (§2 "Publicatio
                                       or WALS (from config/typology/directions.json), plus existence
                                       facts computed with analyze_language.RISK_RULES' own polarities.
   imputed/<iso>.json    CC-BY-SA-4.0  lang2vec-sourced direction slots from directions.json, kept apart.
-  derived/<iso>.json    CC0-1.0       config/constituent_order/<iso>.json, sha256-pinned.
+  derived/<iso>.json    CC0-1.0       config/constituent_order/<iso>.json (sha256-pinned) plus, since
+                                      roadmap D0 (2026-09-25, derive_typology.py), possessor/
+                                      subject_verb/object_verb slots + audit.* facts computed straight
+                                      from the language's own eflomal(+gloss) alignments. A direction
+                                      slot here is SHADOWED (not an error) by the same slot in
+                                      external/ or imputed/ — external > derived per slot, per D0 —
+                                      but the derived value is still written to this partition file.
   measured/<iso>.json   CC0-1.0       config/spanext_flags.json + config/fertility_flags.json verdicts,
                                       dated, gold named; conventions_md path when one exists.
   <iso>.json                          the merge of the four — no key may come from two partitions.
@@ -43,6 +49,7 @@ PARTITIONS = ("external", "imputed", "derived", "measured")
 _FEATURES_FILE = Path("config/grambank/features.json")
 _DIRECTIONS_FILE = typology._OUT
 _CONSTITUENT_DIR = Path("config/constituent_order")
+_DERIVED_INPUT_DIR = Path("config/gram_struct/derived_input")   # derive_typology.py's own output (D0)
 _SPANEXT_FLAGS = Path("config/spanext_flags.json")
 _FERTILITY_FLAGS = Path("config/fertility_flags.json")
 _GOLD_LANGS = Path("config/gold_langs.json")
@@ -165,19 +172,40 @@ def build_imputed(iso: str, directions: dict, external: dict, stats: collections
 
 
 # ── derived ───────────────────────────────────────────────────────────────────────────────────────
-def build_derived(iso: str, constituent_dir: Path = _CONSTITUENT_DIR) -> dict:
+def build_derived(iso: str, constituent_dir: Path = _CONSTITUENT_DIR,
+                  derived_input_dir: Path = _DERIVED_INPUT_DIR) -> dict:
+    """`config/constituent_order/<iso>.json` (the canonical, standalone-published artifact) PLUS,
+    since roadmap item D0 (2026-09-25, `derive_typology.py`), the possessor/subject_verb/object_verb
+    slots and `audit.*` facts derive_typology.py computed from the SAME eflomal(+gloss) alignments.
+    `derive_typology.py` also refreshes `config/constituent_order/<iso>.json` itself (so this
+    function's first half only grows in coverage, never regresses) and writes its OWN copy of that
+    same profile under `derived_input/<iso>.json`'s `audit.constituent_order` — popped here to avoid
+    duplicating the same data at two keys in one partition file."""
+    rec_out: dict = {}
     fp = Path(constituent_dir) / f"{iso}.json"
-    if not fp.exists():
-        return {}
-    doc = _load_json(fp)
-    rec = {"source": "derived", "content_sha256": _sha256(fp)}
-    for key in ("tag", "verses_measured", "pair_order_kept", "function_drift"):
-        if key in doc:
-            rec[key] = doc[key]
-    # TODO(multiword_rates): the per-POS multiword-rate audit is analyze_language.analyze()'s
-    # `rates`, computed from a language's out/ jsonl on every run and never persisted; it joins this
-    # partition once analyze() writes it somewhere pinned.
-    return {"constituent_order": rec}
+    if fp.exists():
+        doc = _load_json(fp)
+        rec = {"source": "derived", "content_sha256": _sha256(fp)}
+        for key in ("tag", "verses_measured", "pair_order_kept", "function_drift"):
+            if key in doc:
+                rec[key] = doc[key]
+        rec_out["constituent_order"] = rec
+
+    di_fp = Path(derived_input_dir) / f"{iso}.json"
+    if di_fp.exists():
+        di = _load_json(di_fp)
+        for slot in ("possessor", "subject_verb", "object_verb"):
+            if slot in di:
+                rec_out[slot] = di[slot]
+        if "audit" in di:
+            audit = dict(di["audit"])
+            audit.pop("constituent_order", None)          # already the canonical key above
+            if audit:
+                rec_out["audit"] = audit
+        meta = di.get("_derived_meta")
+        if meta and meta.get("reason") == "alignment_quality":
+            rec_out["_derived_meta"] = meta
+    return rec_out
 
 
 # ── measured ──────────────────────────────────────────────────────────────────────────────────────
@@ -229,12 +257,24 @@ def build_measured(iso: str, spanext: dict, fertility: dict, gold_langs: dict,
 
 
 # ── merge / build ─────────────────────────────────────────────────────────────────────────────────
-def merge_partitions(iso: str, parts: dict[str, dict]) -> dict:
-    """external -> imputed -> derived -> measured; a key set by two partitions is a build error."""
+def merge_partitions(iso: str, parts: dict[str, dict], stats: collections.Counter | None = None) -> dict:
+    """external -> imputed -> derived -> measured; a key set by two partitions is a build error —
+    EXCEPT `derived` losing a direction-slot key (possessor/subject_verb/object_verb/adposition/
+    article) it shares with `external`/`imputed`, per D0's own rule ("external > derived per slot, but
+    a derived value is always written" — internal-docs/aim1-typology-source-structure-plan.md §4R):
+    the earlier partition's value wins the MERGED view silently, while the derived value itself is
+    never lost — it stays in `derived/<iso>.json`'s own partition file (`build_derived`'s return),
+    which every language always gets written regardless of what the merge does with it. Any OTHER
+    unexpected collision (e.g. `measured` vs `external`, which should never happen by construction)
+    still raises, so this exception cannot silently mask a genuine build bug elsewhere."""
     merged: dict = {"iso": iso}
     for name in PARTITIONS:
         for key, value in parts.get(name, {}).items():
             if key in merged:
+                if name == "derived" and key in typology.SLOTS:
+                    if stats is not None:
+                        stats[f"derived_shadowed:{key}"] += 1
+                    continue
                 raise ValueError(f"{iso}: key {key!r} set by two partitions (second: {name})")
             merged[key] = value
     return merged
@@ -252,6 +292,7 @@ def language_set(all_isos: bool, grambank_langs: dict, directions: dict, constit
 
 def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Path = _FEATURES_FILE,
           directions_file: Path = _DIRECTIONS_FILE, constituent_dir: Path = _CONSTITUENT_DIR,
+          derived_input_dir: Path = _DERIVED_INPUT_DIR,
           spanext_file: Path = _SPANEXT_FLAGS, fertility_file: Path = _FERTILITY_FLAGS,
           gold_file: Path = _GOLD_LANGS, conventions_dir: Path = _CONVENTIONS_DIR,
           manifest: Path = _PUBLISHED_MANIFEST, isos: list[str] | None = None) -> dict:
@@ -273,7 +314,7 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
             "external": build_external(iso, grambank_langs.get(iso), directions, stats),
         }
         parts["imputed"] = build_imputed(iso, directions, parts["external"], stats)
-        parts["derived"] = build_derived(iso, constituent_dir)
+        parts["derived"] = build_derived(iso, constituent_dir, derived_input_dir)
         parts["measured"] = build_measured(iso, spanext, fertility, gold_langs, conventions_dir)
         for name in PARTITIONS:
             if parts[name]:                                   # never write an empty per-language file
@@ -281,7 +322,7 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
                     json.dumps(parts[name], indent=1, ensure_ascii=False, sort_keys=True) + "\n",
                     encoding="utf-8")
                 written[name] += 1
-        merged = merge_partitions(iso, parts)
+        merged = merge_partitions(iso, parts, stats)
         if len(merged) > 1:
             (out_dir / f"{iso}.json").write_text(
                 json.dumps(merged, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
@@ -296,6 +337,9 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
                           "absent": stats.get(f"existence:{g}:absent", 0)} for g in _EXISTENCE_GROUPS},
         "grambank_direction_mismatch": stats.get("grambank_direction_mismatch", 0),
         "grambank_direction_table_only": stats.get("grambank_direction_table_only", 0),
+        "derived_shadowed_by_external_or_imputed": {
+            slot: stats.get(f"derived_shadowed:{slot}", 0) for slot in typology.SLOTS
+            if stats.get(f"derived_shadowed:{slot}", 0)},
         "measured_date": _MEASURED_DATE,
     }
     (out_dir / "_coverage.json").write_text(json.dumps(coverage, indent=1) + "\n", encoding="utf-8")

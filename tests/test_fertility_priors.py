@@ -61,6 +61,23 @@ def test_finite_verb_not_flagged_when_subject_indexing_present(monkeypatch):
     assert priors == {}
 
 
+def test_finite_verb_not_flagged_when_grambank_has_no_coverage_at_all(monkeypatch):
+    """Regression (roadmap M1, 2026-09-25): an EMPTY grambank dict (no coverage at all — spa/ben/asm)
+    must NOT be treated the same as a confirmed GB089=GB090=0 result. Before the fix, `.get(c) == "1"`
+    on missing keys silently returned the same "incomplete" verdict as real confirmed-absent data,
+    inflating the finite_verb flag identically across every Grambank-uncovered language."""
+    monkeypatch.setattr(fp, "load_grambank_raw", lambda iso, path=None: {})
+    recs = [_Rec("MAT", 1, 1, [tok(0, "G1", person="3")])]
+    priors = fp.build_fertility_priors(recs, "fake", {}, _FakeHeb())
+    assert priors == {}
+
+
+def test_subject_indexing_incomplete_distinguishes_absent_from_confirmed_zero():
+    assert fp._subject_indexing_incomplete({}) is False          # no Grambank coverage -> unknown
+    assert fp._subject_indexing_incomplete({"GB089": "0", "GB090": "0"}) is True   # confirmed incomplete
+    assert fp._subject_indexing_incomplete({"GB089": "1"}) is False               # confirmed present
+
+
 def test_multiple_relations_on_the_same_anchor_combine_increments_and_alpha(monkeypatch):
     combined = {**HAS_ADP, **SUBJ_INCOMPLETE}
     monkeypatch.setattr(fp, "load_grambank_raw", lambda iso, path=None: combined)

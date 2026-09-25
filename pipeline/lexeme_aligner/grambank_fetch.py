@@ -100,6 +100,38 @@ FEATURES = {
     # a wash and never shipped). Using GB131/133 for what they actually encode is not the same claim.
     "subject_verb_order": ["GB133", "GB131"],   # [0]=verb-final (S before V), [1]=verb-initial (S after V)
     "object_verb_order": ["GB133", "GB131"],    # same codes — verb-final: O before V; verb-initial: O after V
+
+    # Roadmap X1 (internal-docs/aim1-typology-source-structure-plan.md §4R, 2026-09-25): the remaining
+    # free-word-existence facts the fertility prior (Step 3) and future span rules need — same "does
+    # this relation cost the target an extra token" question as the groups above, just for relations
+    # Step 3 doesn't yet gate on. Registered here (existence data, `any_one`-style polarity where
+    # relevant) but NOT yet wired into fertility_priors.py/analyze_language.RISK_RULES — that wiring is
+    # a separate, gold-measured decision per the Step 1.6/3 precedent, not automatic just because the
+    # fact exists. All codes confirmed present in the vendored `grambank_parameters.csv` (2026-09-25).
+    "plural_word": ["GB318"],                # free plural-marking element in the NP
+    "negation_particle": ["GB298", "GB299"], # free negation: inflecting "auxiliary verb" / non-inflecting particle
+    "voice_particle": ["GB302", "GB303"],    # free passive / antipassive marker
+    "tam_particle": ["GB519", "GB520", "GB521"],  # free (non-inflecting) mood/aspect/tense particle —
+                                                   # distinct from tam_auxiliary (GB119-121, an inflecting
+                                                   # auxiliary VERB) and tam_affix (bound marking) above
+    "copula": ["GB117"],                     # copula for predicate nominals
+    "existential": ["GB126"],                # existential verb ("there is")
+    "reflexive_reciprocal": ["GB305", "GB306"],  # phonologically independent reflexive / reciprocal pronoun
+    "possessive_pronoun": ["GB313"],         # special adnominal possessive pronouns (not regular genitive)
+    "comparative": ["GB276"],                # non-bound comparative degree marker
+    "question_particle": ["GB262", "GB263", "GB264"],  # polar-interrogative particle: initial/final/other position
+    "complementizer": ["GB421", "GB422"],    # preposed / postposed complementizer (verbs of thinking/knowing)
+    # NP-order features: each code is its own multi-valued ORDER parameter (not a binary existence pair
+    # like the direction groups above), so direction_for()'s before/after convention does not apply
+    # as-is — registered for a future typology.py NP-order slot, not consumed anywhere yet.
+    "np_order": ["GB024", "GB025", "GB193", "GB203"],  # numeral+N, demonstrative+N, property-word+N, quantifier+N
+    "relative_clause_order": ["GB327", "GB328"],  # relative clause may follow / precede the noun
+    "negation_clause_edge": ["GB137", "GB138"],   # standard negation marked clause-finally / clause-initially
+    "verb_complexity": ["GB118", "GB122", "GB123", "GB158"],  # serial verbs, verb compounding, light-verb
+                                                               # constructions, verb reduplication
+    "agreement": ["GB170", "GB171", "GB172", "GB185", "GB186", "GB198"],  # gender/number agreement on
+                                                                          # property word, demonstrative,
+                                                                          # article, numeral
 }
 # TRIED 2026-09-24, not kept AS A SUBJECT-PRONOUN-POSITION PROXY: a "subject_order" direction (GB133
 # verb-final=before, GB131 verb-initial=after — Grambank has no dedicated subject-pronoun-position or

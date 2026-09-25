@@ -146,6 +146,82 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
     return covered_h, taken_t, anchors, strong_surf, target_pos
 
 
+_PHRASE_CONFIDENCE_MARGIN = 0.20
+
+
+def compute_order_stats(recs, anchors) -> dict:
+    """Raw construct-order / cross-phrase function-order statistics from the taken pool (`anchors`,
+    eflomal+gloss's own aligned target positions) — extracted from `main()`'s own inline computation
+    (2026-09-25, roadmap item D0, internal-docs/aim1-typology-source-structure-plan.md §4R) so
+    `derive_typology.py` can persist these into `derived/<iso>.json` without re-deriving them or
+    duplicating the confidence-gate logic. Deliberately UNGATED here (every pair with n > 0 is
+    returned) — `main()` below applies the SAME gold-anchored filtering it always has (n >= 50 /
+    n >= 100, deviation-from-0.5 >= `_PHRASE_CONFIDENCE_MARGIN`) to its own local `phrase_confident`/
+    `func_order`, so this refactor changes nothing about gap-fill's own behavior; a caller wanting a
+    different bar (or the raw numbers, as `derive_typology.py` does) reads `rec_after_n`/`func_order_n`
+    directly instead of re-filtering by hand.
+
+    Returns `{"rec_after_rate": float|None (None below n=50), "rec_after_n": int, "func_order":
+    {(fa, fb): rate}, "func_order_n": {(fa, fb): n}}`. `(fa, fb)` pairs are BHSA function codes
+    (Subj/Pred/Objc/...) in HEBREW SOURCE order (phrases sorted by minimum member `idx`); the rate is
+    P(target keeps that source order) — see the docstrings this function's body was extracted from,
+    kept verbatim below, for the full rationale."""
+    # Mechanism C — learn this language's construct-order from the taken pool: for every phrase where
+    # BOTH the head (rela=NA) and a construct-governed dependent (rela=rec) are already aligned, does
+    # the dependent's target come after the head's? Hebrew is head-first; most targets preserve that
+    # ("fils d'Israël"), some don't — one number per language, learned from data we already have,
+    # steering which side of the mate's span phrase-anchored placement prefers. None below 50
+    # observations (sparse → order-preserving default inside align_gap).
+    rec_after = rec_total = 0
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        anch = anchors.get(ref)
+        if not anch:
+            continue
+        by_phrase: dict = {}
+        for t in r.heb:
+            if getattr(t, "phrase_id", None) and t.strong and t.is_content:
+                by_phrase.setdefault(t.phrase_id, []).append(t)
+        for toks_ in by_phrase.values():
+            heads = [t for t in toks_ if t.rela == "NA" and t.idx in anch]
+            deps = [t for t in toks_ if t.rela == "rec" and t.idx in anch]
+            for hd in heads:
+                for dp in deps:
+                    rec_total += 1
+                    rec_after += anch[dp.idx] > anch[hd.idx]
+    rec_after_rate = (rec_after / rec_total) if rec_total >= 50 else None
+
+    # Step 2/Track A — order-aware phrase placement: generalize past within-phrase construct chains
+    # (mechanism C above) to CROSS-phrase BHSA function order (Subj/Pred/Objc/...), for gap tokens whose
+    # own phrase has no aligned member at all (previously a dead end — see phrase_coherence.py's
+    # "no-mate" bucket). Same pair-order math as constituent_order.py's pair_order_kept, computed inline
+    # here (not imported — that module's profile() re-derives anchors/recs from scratch, wasteful when
+    # gapfill already has them). Same conservative confidence gate as rec_after_rate (deviation from 0.5
+    # >=0.20, gold-anchored to hin's weakest-confirmed 0.203) — PLUS a higher per-pair sample floor
+    # (n>=100, not 50) since there are dozens of function pairs, not one global number, so more room for
+    # a lucky/unlucky small-n pair to clear the deviation bar by chance.
+    func_pair_counts: dict = collections.defaultdict(lambda: [0, 0])   # (fa,fb) -> [kept, total]
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        anch = anchors.get(ref)
+        if not anch:
+            continue
+        by_phrase_fn: dict = {}
+        for t in r.heb:
+            if t.phrase_id and t.function and t.strong and t.is_content and t.idx in anch:
+                fn, src, tgts = by_phrase_fn.get(t.phrase_id, (t.function, t.idx, []))
+                tgts.append(anch[t.idx])
+                by_phrase_fn[t.phrase_id] = (fn, min(src, t.idx), tgts)
+        phrases = sorted((src, fn, sum(tgts) / len(tgts)) for fn, src, tgts in by_phrase_fn.values())
+        for (src_a, fa, ta), (src_b, fb, tb) in zip(phrases, phrases[1:]):
+            cell = func_pair_counts[(fa, fb)]
+            cell[1] += 1
+            cell[0] += ta < tb
+    return {"rec_after_rate": rec_after_rate, "rec_after_n": rec_total,
+           "func_order": {pair: k / n for pair, (k, n) in func_pair_counts.items() if n > 0},
+           "func_order_n": {pair: n for pair, (k, n) in func_pair_counts.items()}}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
@@ -276,71 +352,18 @@ def main() -> int:
         except SystemExit as e:
             print(f"[gapfill] #4 cross-edition vocab unavailable ({e}) — skipping that prior", file=sys.stderr)
     filler = GapFiller()
-    # Mechanism C — learn this language's construct-order from the taken pool: for every phrase where
-    # BOTH the head (rela=NA) and a construct-governed dependent (rela=rec) are already aligned, does
-    # the dependent's target come after the head's? Hebrew is head-first; most targets preserve that
-    # ("fils d'Israël"), some don't — one number per language, learned from data we already have,
-    # steering which side of the mate's span phrase-anchored placement prefers. None below 50
-    # observations (sparse → order-preserving default inside align_gap).
-    rec_after = rec_total = 0
-    for r in recs:
-        ref = encode(r.book, r.ch, r.v)
-        anch = anchors.get(ref)
-        if not anch:
-            continue
-        by_phrase: dict = {}
-        for t in r.heb:
-            if getattr(t, "phrase_id", None) and t.strong and t.is_content:
-                by_phrase.setdefault(t.phrase_id, []).append(t)
-        for toks_ in by_phrase.values():
-            heads = [t for t in toks_ if t.rela == "NA" and t.idx in anch]
-            deps = [t for t in toks_ if t.rela == "rec" and t.idx in anch]
-            for hd in heads:
-                for dp in deps:
-                    rec_total += 1
-                    rec_after += anch[dp.idx] > anch[hd.idx]
-    rec_after_rate = (rec_after / rec_total) if rec_total >= 50 else None
-    # Confidence gate (gold-validated 2026-07-25, see internal-docs/): phrase-tier gold precision falls
-    # off a CLIFF, not a slope — languages within ~0.01 of a coin-flip rate (swe_fol 0.489/swk 0.488)
-    # scored 0.8-1.2%; every language at >=0.20 deviation scored double-digit (hin 0.203->17.1%, the
-    # WEAKEST confirmed positive). Nothing observed in between. Anchored to that weakest confirmed
-    # positive rather than a midpoint — deliberately conservative: a language with a real but smaller
-    # deviation gets disabled by default until more gold data confirms it, rather than risk trusting
-    # noise (magnitude ALSO doesn't predict precision cleanly above the cliff — spa 0.337->7.6% underperformed
-    # hin's 0.203->17.1% — so this is an on/off gate, not a dial). Disables the WHOLE last-resort phrase
-    # mechanism below threshold (not just the direction default), per the swe/swk finding.
-    _PHRASE_CONFIDENCE_MARGIN = 0.20
+    # Construct-order (mechanism C) + cross-phrase function-order (Step 2/Track A) statistics —
+    # extracted into `compute_order_stats()` (2026-09-25, D0) so `derive_typology.py` can reuse the
+    # same raw numbers; see that function's own docstring for the full rationale. The confidence gate
+    # below is UNCHANGED (gold-validated 2026-07-25: a CLIFF at |rate-0.5| >= 0.20, anchored to hin's
+    # weakest confirmed positive 0.203 — see the function's docstring for the swe/swk/hin/spa numbers).
+    order_stats = compute_order_stats(recs, anchors)
+    rec_after_rate = order_stats["rec_after_rate"]
     phrase_confident = rec_after_rate is not None and abs(rec_after_rate - 0.5) >= _PHRASE_CONFIDENCE_MARGIN
     phrase_enabled = phrase_confident and not args.no_phrase
-
-    # Step 2/Track A — order-aware phrase placement: generalize past within-phrase construct chains
-    # (mechanism C above) to CROSS-phrase BHSA function order (Subj/Pred/Objc/...), for gap tokens whose
-    # own phrase has no aligned member at all (previously a dead end — see phrase_coherence.py's
-    # "no-mate" bucket). Same pair-order math as constituent_order.py's pair_order_kept, computed inline
-    # here (not imported — that module's profile() re-derives anchors/recs from scratch, wasteful when
-    # gapfill already has them). Same conservative confidence gate as rec_after_rate (deviation from 0.5
-    # >=0.20, gold-anchored to hin's weakest-confirmed 0.203) — PLUS a higher per-pair sample floor
-    # (n>=100, not 50) since there are dozens of function pairs, not one global number, so more room for
-    # a lucky/unlucky small-n pair to clear the deviation bar by chance.
-    func_pair_counts: dict = collections.defaultdict(lambda: [0, 0])   # (fa,fb) -> [kept, total]
-    for r in recs:
-        ref = encode(r.book, r.ch, r.v)
-        anch = anchors.get(ref)
-        if not anch:
-            continue
-        by_phrase_fn: dict = {}
-        for t in r.heb:
-            if t.phrase_id and t.function and t.strong and t.is_content and t.idx in anch:
-                fn, src, tgts = by_phrase_fn.get(t.phrase_id, (t.function, t.idx, []))
-                tgts.append(anch[t.idx])
-                by_phrase_fn[t.phrase_id] = (fn, min(src, t.idx), tgts)
-        phrases = sorted((src, fn, sum(tgts) / len(tgts)) for fn, src, tgts in by_phrase_fn.values())
-        for (src_a, fa, ta), (src_b, fb, tb) in zip(phrases, phrases[1:]):
-            cell = func_pair_counts[(fa, fb)]
-            cell[1] += 1
-            cell[0] += ta < tb
-    func_order = ({pair: k / n for pair, (k, n) in func_pair_counts.items()
-                  if n >= 100 and abs(k / n - 0.5) >= _PHRASE_CONFIDENCE_MARGIN}
+    func_order = ({pair: rate for pair, rate in order_stats["func_order"].items()
+                  if order_stats["func_order_n"][pair] >= 100
+                  and abs(rate - 0.5) >= _PHRASE_CONFIDENCE_MARGIN}
                  if phrase_confident and not args.no_func_order else {})
 
     # Step 4/Track A — morphology agreement prior: the SAME Strong's can render as different target
@@ -381,7 +404,7 @@ def main() -> int:
           f"cross-edition lexeme-vocab entries "
           f"(#4, {'weighted count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if args.cross_edition_weighted else 'tiered strict-overlay count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if not args.no_cross_edition_tiered else 'hi_conf-only (bare, --no-cross-edition-tiered)'}, "
           f"from iso={args.cross_edition_iso or publish_iso}) · "
-          f"construct-order: {rec_after}/{rec_total} dep-after-head "
+          f"construct-order: {order_stats['rec_after_n']} dep/head pair(s) observed "
           f"(rate={'%.2f' % rec_after_rate if rec_after_rate is not None else 'sparse, default'}) · "
           f"phrase prior: {'enabled' if phrase_enabled else 'DISABLED (below confidence gate)' if not phrase_confident and not args.no_phrase else 'disabled (--no-phrase)'} · "
           f"cross-phrase func-order: {len(func_order)} confident pair(s) · "

@@ -1,104 +1,108 @@
 {
  "function_drift": {
   "Adju": {
-   "mean_drift": 0.0068,
-   "n": 80
+   "mean_drift": -0.0239,
+   "n": 79
   },
   "Cmpl": {
-   "mean_drift": -0.0037,
-   "n": 215
+   "mean_drift": 0.0005,
+   "n": 224
+  },
+  "Loca": {
+   "mean_drift": 0.0012,
+   "n": 32
   },
   "Objc": {
-   "mean_drift": -0.0004,
-   "n": 252
+   "mean_drift": -0.0007,
+   "n": 270
   },
   "PreC": {
-   "mean_drift": 0.0192,
-   "n": 197
+   "mean_drift": 0.0268,
+   "n": 210
   },
   "Pred": {
-   "mean_drift": 0.0008,
-   "n": 690
+   "mean_drift": 0.0138,
+   "n": 681
   },
   "Subj": {
-   "mean_drift": 0.0374,
-   "n": 425
+   "mean_drift": 0.0456,
+   "n": 437
   },
   "Time": {
-   "mean_drift": -0.0326,
-   "n": 78
+   "mean_drift": -0.0207,
+   "n": 80
   }
  },
  "pair_order_kept": {
   "Cmpl>Pred": {
-   "kept": 68,
-   "rate": 0.829,
-   "total": 82
+   "kept": 71,
+   "rate": 0.798,
+   "total": 89
   },
   "Objc>Pred": {
-   "kept": 59,
-   "rate": 0.843,
-   "total": 70
+   "kept": 62,
+   "rate": 0.838,
+   "total": 74
   },
   "PreC>Pred": {
+   "kept": 38,
+   "rate": 0.927,
+   "total": 41
+  },
+  "PreC>Subj": {
    "kept": 29,
    "rate": 0.879,
    "total": 33
   },
-  "PreC>Subj": {
-   "kept": 29,
-   "rate": 0.935,
-   "total": 31
-  },
   "Pred>Cmpl": {
-   "kept": 64,
-   "rate": 0.865,
-   "total": 74
+   "kept": 58,
+   "rate": 0.806,
+   "total": 72
   },
   "Pred>Objc": {
-   "kept": 109,
-   "rate": 0.901,
-   "total": 121
+   "kept": 116,
+   "rate": 0.879,
+   "total": 132
   },
   "Pred>PreC": {
-   "kept": 35,
-   "rate": 0.946,
+   "kept": 33,
+   "rate": 0.892,
    "total": 37
   },
   "Pred>Pred": {
-   "kept": 69,
-   "rate": 0.896,
-   "total": 77
+   "kept": 71,
+   "rate": 0.887,
+   "total": 80
   },
   "Pred>Subj": {
-   "kept": 244,
-   "rate": 0.917,
-   "total": 266
+   "kept": 234,
+   "rate": 0.911,
+   "total": 257
   },
   "Subj>Cmpl": {
-   "kept": 51,
-   "rate": 0.895,
-   "total": 57
+   "kept": 54,
+   "rate": 0.885,
+   "total": 61
   },
   "Subj>Objc": {
-   "kept": 43,
-   "rate": 0.768,
+   "kept": 46,
+   "rate": 0.821,
    "total": 56
   },
   "Subj>PreC": {
-   "kept": 73,
-   "rate": 0.785,
-   "total": 93
+   "kept": 83,
+   "rate": 0.83,
+   "total": 100
   },
   "Subj>Pred": {
-   "kept": 77,
-   "rate": 0.786,
-   "total": 98
+   "kept": 66,
+   "rate": 0.717,
+   "total": 92
   },
   "Time>Pred": {
-   "kept": 45,
-   "rate": 0.978,
-   "total": 46
+   "kept": 47,
+   "rate": 1.0,
+   "total": 47
   }
  },
  "tag": "mxbpkf",

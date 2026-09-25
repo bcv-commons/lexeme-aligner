@@ -89,16 +89,49 @@ pronoun, whether fertility priors help, …).
 --build` (built 2026-09-25, `tests/test_gram_struct.py`) writes the four provenance partitions and the
 merged per-language file into `config/gram_struct/` — **gitignored, regenerated from committed inputs,
 never hand-edited**. First real build over the 1,629 published languages: external 963 · imputed 279 ·
-derived 57 · measured 12 · merged 1,128; **501 published languages have no source at all and get no
-file** (the honest coverage gap, recorded in `_coverage.json`). Every existing reader still reads the
-separately-started files below; folding readers over to the merged view is additive, one at a time.
-Superset of inputs, today:
+derived 57 (`config/constituent_order/<iso>.json` only) · measured 12 · merged 1,128; 501 published
+languages had no source at all. **Roadmap item D0** (§4R of the plan; `derive_typology.py`, built
+2026-09-25) then persisted the statistics the pipeline already computes for every language into
+`derived/`, gated by alignment quality (≥0.80 eflomal coverage, ≥0.40 per-occurrence hi-conf share,
+≥3,000 aligned verses, gold health ≥0.6 where a gold exists — never a mechanism verdict, never
+`spanext`/`gapfill`/`residual`/`llm` output, only `eflomal`+`gloss`): of all 1,629, **262 failed the
+gate** (get a `_derived_meta`-only stub with the reason, no facts), **1,367 passed**, of which **273
+had enough OT phrase data to derive ≥1 real slot** (possessor / subject_verb / object_verb from
+`gapfill`'s `rec_after_rate`/`func_order`, refactored out of `gapfill.main()`'s own inline computation
+into a reusable `compute_order_stats()`) and the remaining 1,094 (mostly NT-only languages, which this
+OT-only pass cannot give a slot to) still got their audit facts (`multiword_rates`) persisted.
+`config/constituent_order/<iso>.json` itself grew from 62 files to **301** as a side effect (D0's own
+scope target was "~181"; the real gate passed more languages than estimated). Net after D0: **derived
+273 with a real slot · merged 1,179 · 450 published languages still have no gram-struct fact at all**
+(down from 501). **First derived-vs-Grambank agreement numbers, whole corpus** (not the 18-language
+gold sample — every published language with both a derived and an external/imputed direction for the
+slot): **possessor (GB065) 99/111 = 89.2%, subject_verb (GB131/133) 50/54 = 92.6%, object_verb
+(GB131/133) 73/79 = 92.4%** — two of three clear the plan's ≥90% bar on a real sample size; possessor
+sits just under it (see `internal-docs/review-2026-09-25/derived_typology.md` for the
+expected-accuracy literature this is tested against).
+
+**Roadmap item D1** (Greek-first slots, same day, extending `derive_typology.py`) then reached the
+1,211 NT-only languages for the first time. Of its four planned slots, only `adposition`/
+`adposition_word` shipped — `article_word`, `possessive_word`, and `negation` **failed their own
+mandatory known-answer check** (hin, which has no articles by Grambank, read as 76% "has articles")
+and were withheld entirely rather than published flagged `experimental` as a workaround; a known-
+answer failure means the selector is wrong, not that the fact is merely uncertain. `adposition` passed
+its known-answer check on eng/hin/arb/fra/spa/fin/cmn/rus (hin correctly postpositional at a 79.2%
+after-rate; fin correctly ambiguous, matching Grambank's own GB074=GB075=1 coding) and reached every
+gate-passed language with an NT: **derived 273→1,367 with a real slot, merged 1,179→1,543, no
+gram-struct fact at all 450→86** — the largest single coverage jump in this whole roadmap, from one
+slot. A real bug was found and fixed mid-build: the anchors D0 already used silently drop non-content
+pairs, but all four D1 markers (prepositions, articles, pronouns, negators) are non-content by
+definition, so the first implementation produced near-uniform garbage for every language — fixed with
+a from-scratch anchor scan that keeps them. The withheld three slots (and X3's kin prior, still
+unbuilt) are what the remaining 86 need next. Every existing reader still reads the separately-started files below; folding readers
+over to the merged view is additive, one at a time. Superset of inputs, today:
 
 | file today | what it holds | provenance | keyed by |
 |---|---|---|---|
 | `config/grambank/features.json` | 27 Grambank features per ISO (`GB074`, `GB075`, …) | external (Grambank, vendored, pinned) | iso → feature code → `"0"/"1"` |
 | `config/typology/directions.json` | 5 direction slots (`adposition`, `article`, `possessor`, `subject_verb`, `object_verb`) each `{direction, source, confidence}` | Grambank > WALS > lang2vec, each source validated ≥90% against Grambank before use (`typology.py`) | iso → slot |
-| `config/constituent_order/<iso>.json` | `pair_order_kept`, `function_drift` — how the language reorders BHSA phrase functions | **derived from our own alignments** (`constituent_order.py`), OT-only | iso (62 files) |
+| `config/constituent_order/<iso>.json` | `pair_order_kept`, `function_drift` — how the language reorders BHSA phrase functions | **derived from our own alignments** (`constituent_order.py`, refreshed by `derive_typology.py`), OT-only | iso (301 files, was 62) |
 | `config/spanext_flags.json` | per-language verdicts for span_extension's opt-in triggers | **measured against gold** by a human, recorded once | iso → flag → bool |
 | `config/fertility_flags.json` | per-language `enabled` / `lambda` for eflomal fertility priors | measured against gold, recorded once | iso → `{enabled, lambda}` |
 | `config/llm_conventions/<iso>.md` | free-text grammar notes fed to the LLM prompt (postpositions, auxiliaries, light verbs, name spelling) | hand-written from real examples; `analyze_language.py` proposes candidates | iso (9 files) |

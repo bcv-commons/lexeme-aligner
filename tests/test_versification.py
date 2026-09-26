@@ -108,3 +108,67 @@ def test_remapper_maps_kjv_ref_to_hebrew_superscription_offset():
 
 def test_remapper_is_identity_for_protestant():
     assert vf.remapper_for_scheme("protestant") is None
+
+
+# --- 2026-09-26: real exact tables for vul/rso + the catm->hebrew bug fix, from real bcv-commons/bibles
+# data (config/bibles_vrs/) — see versification.py's own module docstring for the full comparison this
+# was based on (catm==org exactly, org/orgw are subsets of our own hebrew.tsv, vul/rso are genuinely
+# distinct from each other and from our own lxx.tsv).
+def test_cdn_table_catm_maps_to_hebrew_not_septuagint():
+    # regression test for a real bug found and fixed 2026-09-26: catm was wrongly bucketed with the
+    # lxx/septuagint family, but catm's real data is byte-identical to org's, which is hebrew-family.
+    assert vf._CDN_TABLE["catm"] == "hebrew"
+
+
+def test_cdn_table_org_and_orgw_still_map_to_hebrew():
+    assert vf._CDN_TABLE["org"] == "hebrew"
+    assert vf._CDN_TABLE["orgw"] == "hebrew"
+
+
+def test_cdn_table_vul_and_rso_have_their_own_distinct_tables():
+    assert vf._CDN_TABLE["vul"] == "vul"
+    assert vf._CDN_TABLE["rso"] == "rso"
+    assert vf._CDN_TABLE["vul"] != vf._CDN_TABLE["rso"]
+
+
+def test_cdn_table_lxx_keeps_its_own_existing_table_unchanged():
+    assert vf._CDN_TABLE["lxx"] == "lxx"
+
+
+def test_vul_reverse_table_loads_real_data():
+    rev = vf.load_reverse("vul")
+    assert len(rev) > 2000                              # real table, not empty/stub
+
+
+def test_rso_reverse_table_loads_real_data():
+    rev = vf.load_reverse("rso")
+    assert len(rev) > 3000
+
+
+def test_vul_and_rso_tables_are_not_identical():
+    # a real, verified finding: vul (2845 rows) and rso (4132 rows) share only 2647 rows — genuinely
+    # distinct schemes, not aliases of one another.
+    vul = vf.load_reverse("vul")
+    rso = vf.load_reverse("rso")
+    shared = set(vul) & set(rso)
+    disagree = sum(1 for k in shared if vul[k] != rso[k])
+    assert disagree > 0                                  # real disagreements exist, not a coincidence
+
+
+def test_rso_gives_a_genuinely_different_remap_than_the_old_lxx_fallback_for_some_verses():
+    # before this fix, rso silently resolved through our own lxx.tsv (the "septuagint" table); now it
+    # has its own real table. Confirm the two tables really do disagree on at least one real verse —
+    # this is what makes wiring in the dedicated table meaningful rather than a no-op relabeling.
+    old = vf.load_reverse("septuagint")
+    new = vf.load_reverse("rso")
+    shared = set(old) & set(new)
+    disagreements = [k for k in shared if old[k] != new[k]]
+    assert len(disagreements) > 50                       # real finding: 82 disagreements, not ~0
+
+
+def test_remapper_for_scheme_rso_uses_the_new_dedicated_table():
+    f = vf.remapper_for_scheme("rso")
+    assert f is not None
+    # a real disagreement verse found during verification: KJV PSA 10:8 differs between old/new tables
+    old_f = vf.remapper_for_scheme("septuagint")
+    assert f("PSA", 10, 8) != old_f("PSA", 10, 8)

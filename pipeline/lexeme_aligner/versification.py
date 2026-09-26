@@ -11,11 +11,40 @@ verse-count-per-chapter structure against the 7 CDN `/_vrs/` schemes (pinned in 
 then mapping the best-matching CDN scheme to the best *available* aligner diff table. This replaces trusting
 a label — the CDN's own labels can mismatch what a source actually delivers (helloAO rus_syn is labelled
 `vul` but its structure matches `rso`/`lxx`). `data/versification.json` remains only as a manual override /
-fallback when no USJ is available. Exact `vul`/`orgw`/`rso` tables don't exist (CDN .vrs are structure-only),
-so we map to the closest exact table we hold — which is Psalm-exact in every case we ship:
-  org, orgw            → hebrew  (Hebrew superscription; hebrew.tsv reproduces their Psalter exactly)
-  lxx, vul, rso, catm  → septuagint (LXX Psalm renumbering; lxx.tsv, ≤6 single-verse Psalm residuals)
-  eng                  → protestant (identity)
+fallback when no USJ is available.
+
+EXACT TABLES (updated 2026-09-26 from real bcv-commons/bibles data, `config/bibles_vrs/` — see
+config/PROVENANCE.txt): fetched the real per-verse crosswalk for all 6 non-eng CDN schemes
+(`cdn.bibel.wiki/_vrs/map/<scheme>-to-eng.json`) and diffed them directly against each other and against
+our own existing `hebrew.tsv`/`lxx.tsv` (both already TVTMS-sourced, NOT the crude approximation this
+docstring previously implied) before changing anything:
+  - `catm` and `org` are BYTE-IDENTICAL (1965/1965 rows shared) — `org`'s data is in turn a full subset of
+    our own `hebrew.tsv` (1965/1965 shared, 0 org-only rows). This means the PREVIOUS `catm -> septuagint`
+    mapping below was a REAL BUG, found and fixed here: `catm` belongs with `hebrew`, not `septuagint`.
+  - `orgw` (1861 rows) is a full subset of `org`/`catm` (1861/1861 shared) — also `hebrew`-family,
+    unchanged from before.
+  - `vul` (2845 rows) and `rso` (4132 rows) are NEITHER identical to each other (2647 shared) NOR subsets
+    of our own `lxx.tsv` — genuinely distinct schemes, now given their own exact tables (`vul.tsv`,
+    `rso.tsv`, built directly from the real bcv-commons/bibles data, same TSV shape as hebrew/lxx).
+  - `lxx` itself: RESOLVED 2026-09-26, root cause confirmed by bcv-query (the actual maintainer of this
+    table's build pipeline — "shoresh versification.build", the same pipeline that produces hebrew.tsv):
+    our 5386-row lxx.tsv was a pre-2026-07-14 snapshot; bcv-query's commit 5cb5852 ("de-garble Greek-
+    addition books") deliberately deleted 854 rows for Esther/Daniel Greek-addition content (Additions
+    A-F, Song of the Three, Susanna, Bel) after finding TVTMS carries multiple INCOMPATIBLE layouts for
+    those books that a naive filter had been conflating into garbled mappings. Confirmed real and NOT a
+    narrow Apocrypha-only concern: our own (pre-fix) table's DAN rows landed in chapters 3/4/6 — inside
+    canonical Daniel, not just non-canonical appendix material (ch.3 is where the Song of the Three
+    splices into the middle of the canonical chapter, between vv.23-24). bcv-query exported their
+    current, already-fixed 4532-row table directly (dated 2026-07-14, same source path as hebrew.tsv);
+    verified it is an EXACT STRICT SUBSET of our old table (4532/4532 shared, 0 new/different rows) —
+    a pure, safe removal, not a reconciliation with any residual ambiguity. Swapped in.
+  org, orgw       → hebrew     (Hebrew superscription; hebrew.tsv, verified superset of real org data)
+  catm            → hebrew     (bug fix, 2026-09-26 — was wrongly `septuagint`; catm == org exactly)
+  lxx             → lxx        (RE-PULLED 2026-09-26 from bcv-query, 5386->4532 rows, Esther/Daniel
+                    Greek-addition rows removed — see above)
+  vul             → vul        (new exact table, 2845 rows, from real bcv-commons/bibles data)
+  rso             → rso        (new exact table, 4132 rows, from real bcv-commons/bibles data)
+  eng             → protestant (identity)
 """
 from __future__ import annotations
 
@@ -29,15 +58,18 @@ _VERSIF = Path("config/versification.json")            # manual override / fallb
 _REG_DIR = Path("pipeline/vendor/versification/schemes")   # our exact diff tables (hebrew.tsv, lxx.tsv)
 _VRS_DIR = Path("pipeline/vendor/versification/vrs")        # pinned CDN structure schemes (*.vrs)
 
-_SCHEME_FILE = {"septuagint": "lxx", "lxx": "lxx", "hebrew": "hebrew"}  # aligner label → tsv basename
+_SCHEME_FILE = {"septuagint": "lxx", "lxx": "lxx", "hebrew": "hebrew",
+               "vul": "vul", "rso": "rso"}  # aligner label → tsv basename
 _IDENTITY = {"protestant", "kjv", ""}
 
-# CDN scheme (from a .vrs fingerprint) → the aligner label / diff table to use. Multiple CDN schemes share
-# a table: we only hold exact tables for hebrew + lxx, and both are Psalm-exact for their family.
+# CDN scheme (from a .vrs fingerprint) → the aligner label / diff table to use. `org`/`orgw`/`catm` share
+# `hebrew.tsv` (verified 2026-09-26: catm==org exactly, orgw and org are both real subsets of hebrew.tsv's
+# own, larger TVTMS-sourced coverage). `vul`/`rso` now have their own exact tables (neither is a subset of
+# our `lxx.tsv` or of each other). `lxx` keeps its own existing table.
 _CDN_TABLE = {
     "eng": "protestant",
-    "org": "hebrew", "orgw": "hebrew",
-    "lxx": "septuagint", "vul": "septuagint", "rso": "septuagint", "catm": "septuagint",
+    "org": "hebrew", "orgw": "hebrew", "catm": "hebrew",
+    "lxx": "lxx", "vul": "vul", "rso": "rso",
 }
 # Protestant-canon OT books — the only place schemes diverge (NT is identical across all schemes).
 _PROT_OT = frozenset(

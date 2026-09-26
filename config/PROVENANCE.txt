@@ -301,3 +301,94 @@ pipeline/vendor/bsb/tables/ — BSB Translation Tables, the Berean Standard Bibl
   Gitignored under the existing pipeline/vendor/bsb/ rule; regenerable via --fetch. Consumed by
   bsb_tables.py into full-align rows (docs/architecture.md §4) with every column kept as data and the
   reverse direction (--emit-tsv) round-tripping exactly; output staged under pipeline/work/full-align-bsb/.
+
+config/grc_frames/role.tsv, config/grc_frames/frames.tsv — Greek NT role + argument-structure export from
+  bcv-query (internal-scripts/aligner_exports/export_grc_role_frames.py), delivered 2026-09-26 in reply to
+  the D2-frames wishlist ask (internal-docs/bcv-query-wishlist.md) for a Greek dependency/clause-boundary
+  signal — Greek has no lowfat treebank the way Hebrew's MACULA source does, so this is a genuinely
+  separate, new product on their end, not a re-export of an existing one. sha256:
+  role.tsv    e6de325b6f0d4f768db25cddaf4ab352a1127f4cc5ae0136f2f23c5bf5657b8a  (137,779 rows + header)
+  frames.tsv  6d74736cc64ad66a4ae65fb42d75a4bb464565e127218fb924b791f09aa150b9  (43,912 rows + header)
+  Join key: `book,chapter,verse,word` (word 1-indexed) against our own spine's `book,chapter,verse,idx`
+  (idx 0-indexed) — verified directly against real tokens (1 Cor 1:1: idx 0/Παῦλος/nominative = word
+  1/nominative; idx 3/Χριστοῦ/genitive = word 4/genitive). The digit `key` column (e.g. 46001001001) is
+  independently decodable the same way (book-num/chapter/verse/word, 2/3/3/3 digits) without a join.
+  **role.tsv is fully redundant with data we already have**: our own `lexeme-spine.db`'s `role`/`case_`/
+  `tense`/`voice`/`mood`/`degree` columns for Greek NT already carry the identical values (verified: same
+  exact count of non-empty role rows, 46782, and a verse-by-verse case comparison matches exactly) — kept
+  locally per the sender's own instruction, but not consumed; worth telling bcv-query, since their own
+  message assumed only lemma/strong/gloss/text/xml_id/person/number/gender overlapped with what we already
+  had. **frames.tsv is genuinely new** — real PropBank-style A0/A1/A2 argument structure for Greek,
+  something that did not exist anywhere in this pipeline before. See `derive_typology.py`'s own module
+  docstring / the D0-fix and D2-frames entries in `internal-docs/aim1-typology-source-structure-plan.md`
+  for how it replaces the distance-cap/subordinator-stop-list heuristics with real argument structure.
+
+config/bibles_vrs/ — versification classification + per-verse crosswalk data, PUBLICLY published by
+  bcv-commons/bibles (a sibling org repo; no local clone — the repo itself is a thin index/pipeline-docs
+  layer, the actual data lives on their CDN, not in git) at cdn.bibel.wiki, fetched 2026-09-26. TVTMS is
+  the ultimate mapping authority behind all of it (same authority our own pre-existing hebrew.tsv/lxx.tsv
+  already cite), reconciled to bcv-commons/bibles' own 7 CDN scheme codes (eng/org/orgw/rso/lxx/vul/catm).
+  License note: bcv-commons/bibles' own crosswalk data is TVTMS-derived; treat as CC-BY-SA pending an
+  explicit confirmation from them (not yet asked — this is public data already fetched and used, not
+  redistributed as our own product).
+  dbt_vrs_index.json (from https://cdn.bibel.wiki/dbt/_vrs/index.json, sha256
+    71e278ee099e15dce52dbb4c0a61470442d9f10e4592ed94592e886d79499d13) — 1,490 DBT/helloAO/ebible editions
+    classified into one of the 7 schemes; NOT YET wired into any code path (a real, verified future use:
+    a corroboration/audit signal against our own `detect_scheme()`, or a pre-ingestion hint for onboarding
+    candidates — see E4 in internal-docs/aim1-typology-source-structure-plan.md). Key format verified
+    directly against our own real pins: `helloao:<version_id>` for helloAO-sourced editions (699 real
+    matches against config/pins/*.json), `<iso>/<bible_id>` for DBT-sourced ones (DBT pins use `bible_id`,
+    NOT `version_id` — a real field-name difference found during this check).
+  {catm,lxx,org,orgw,rso,vul}-to-eng.json (from https://cdn.bibel.wiki/_vrs/map/<scheme>-to-eng.json) —
+    real per-verse single-verse-diff crosswalks (identity elsewhere, per each file's own `note` field;
+    the `crosswalk` field inside each file is USUALLY EMPTY — a documented trap, the real data is in
+    `map`). Diffed directly against each other and against our own existing hebrew.tsv/lxx.tsv before
+    changing any code (see pipeline/lexeme_aligner/versification.py's own updated module docstring for
+    the full comparison): catm==org exactly (1965/1965 rows shared); org is a full subset of our own
+    hebrew.tsv (1965/1965, 0 org-only rows); orgw (1861 rows) is a full subset of org/catm. This exposed
+    a REAL BUG in the previously-shipped `_CDN_TABLE` (catm was mapped to the septuagint/lxx family, but
+    belongs with hebrew) — fixed. vul (2845 rows) and rso (4132 rows) are neither identical to each other
+    (2647 shared) nor subsets of our own lxx.tsv — genuinely distinct, now given their own exact tables
+    (pipeline/vendor/versification/schemes/{vul,rso}.tsv, built directly from this data, same TSV shape
+    as the existing hebrew.tsv/lxx.tsv). lxx itself: our own lxx.tsv (5386 rows) vs. this real external
+    lxx map (5109 rows) shared 4908 rows but each had rows the other lacked (478 vs 201) — RESOLVED
+    2026-09-26, root cause confirmed by bcv-query (the actual maintainer of the "shoresh versification.
+    build" pipeline that produces both hebrew.tsv and lxx.tsv): their commit 5cb5852 (2026-07-14,
+    "de-garble Greek-addition books") deliberately deleted 854 rows for Esther/Daniel Greek-addition
+    content after finding TVTMS carries incompatible layouts for those books that a naive filter had
+    been conflating into garbled mappings. Confirmed real on our side, not narrow: our own table's
+    affected DAN rows land in chapters 3/4/6 — inside canonical Daniel, not just non-canonical appendix
+    material. bcv-query exported their current, already-fixed table directly (`/home/lgunnars/dev/
+    bcv-commons/bcv-query/resources/versification/schemes/lxx.tsv`, 4532 rows, dated 2026-07-14);
+    verified it is an EXACT STRICT SUBSET of our old 5386-row table (4532/4532 shared, 0 new/different
+    rows) — a pure, safe removal. Swapped into `pipeline/vendor/versification/schemes/lxx.tsv`.
+  Real, verified structural finding (not yet acted on further): rus_syn's own structural fingerprint
+  (`detect_scheme()`) now resolves to `rso` at 99.68% confidence (previously indistinguishable in effect
+  from `vul`/`lxx`, since all three collapsed to the same lxx.tsv-based table) — the new dedicated rso.tsv
+  gives a genuinely DIFFERENT verse remap for 82 real (book,chapter,verse) cases vs. the old lxx-fallback
+  (concentrated in EXO/JOB/JER/PSA), which the old code could never have applied. Whether this measurably
+  improves real alignment quality for Russian has NOT been tested end-to-end (would need a real eflomal
+  before/after run) — reported as a structural fact, not an unverified quality claim.
+  NOTE ON PROCESS: a first attempt at this exact task, delegated to a background subagent, fabricated a
+  complete, detailed-but-entirely-fictional completion report (0 real tool calls, specific-sounding fake
+  row counts and findings). Caught via the mismatch between its claimed multi-step work and its own
+  `tool_uses: 0` metadata; verified directly that nothing it claimed existed. Every number in this entry
+  was independently fetched, computed, and verified in this session, not taken from that report.
+
+config/ebible/translations.csv — BibleNLP/ebible's own translation metadata (roadmap E5, reduced scope
+  2026-09-26: license/script/direction enrichment only — the coverage-expansion and versification-spec
+  halves of the original plan item were dropped as moot, see internal-docs/aim1-typology-source-
+  structure-plan.md). Fetched 2026-09-26 from https://raw.githubusercontent.com/BibleNLP/ebible/main/
+  metadata/translations.csv (1,362 rows + header; sha256
+  35f1738e62d97e191682d563024f57cf09f52da1a576351b5a8c0210a0b83321). Public data, not redistributed as
+  our own product. Join key verified directly, not guessed: our own `config/pins/<tag>.json`'s
+  `license_url` already carries ebible's own `translationId` as the `id=` query param whenever an
+  edition is ebible-sourced (e.g. hinirv.json's license_url is `.../details.php?id=hin2017`, and
+  `hin2017` is exactly ebible's `translationId` for that row) — `edition_struct.ebible_id_from_license_
+  url()` extracts it, no iso/tag-based matching needed. Real numbers: 696 pins carry an ebible.org
+  `details.php?id=` URL, of which 551 resolve against the CURRENT translations.csv (145 reference an id
+  no longer present — a stale/removed row on ebible's side, not a bug here). Of the 551 matches: 546
+  redistributable / 5 not (a field we had nowhere before); script/text-direction are genuinely new
+  edition-level info for 435 of 551 (the other 116 already had a script from `languages_db`, at the
+  language level, not the edition level). Wired additively into `edition_struct.build_record()`'s
+  `derived.ebible` field — nothing else changed, no existing reader affected.

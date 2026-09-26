@@ -169,7 +169,8 @@ def test_build_writes_one_file_per_pin_plus_coverage(tmp_path):
                    helloao_file=tmp_path / "absent-helloao.json",
                    textual_basis_file=tmp_path / "absent-tb.json",
                    text_strip_file=tmp_path / "absent-ts.json",
-                   languages_db=tmp_path / "absent.db")
+                   languages_db=tmp_path / "absent.db",
+                   ebible_csv=tmp_path / "absent-ebible.csv")
     assert cov["editions"] == 2
     assert cov["resolved_iso"] == 1
     assert cov["unresolved_iso"] == 1
@@ -180,3 +181,106 @@ def test_build_writes_one_file_per_pin_plus_coverage(tmp_path):
 
 def test_build_degrades_gracefully_when_sibling_db_absent(tmp_path):
     assert es.load_scripts(tmp_path / "nope.db") == {}
+
+
+# --- roadmap E5 (reduced scope, 2026-09-26): ebible translations.csv license/script/direction ---------
+def test_ebible_id_from_license_url_extracts_the_real_join_key():
+    # verified directly against real data: hinirv.json's own license_url carries ebible's translationId
+    url = "https://ebible.org/Scriptures/details.php?id=hin2017"
+    assert es.ebible_id_from_license_url(url) == "hin2017"
+
+
+def test_ebible_id_from_license_url_none_for_a_non_ebible_url():
+    assert es.ebible_id_from_license_url("https://cdn.bibel.wiki/pkf/ind/app-config.json") is None
+    assert es.ebible_id_from_license_url(None) is None
+
+
+def test_load_ebible_translations_keys_by_translation_id(tmp_path):
+    csv_fp = tmp_path / "translations.csv"
+    csv_fp.write_text(
+        "languageCode,translationId,Redistributable,Copyright,textDirection,script\n"
+        "hin,hin2017,True,Copyright (C) 2017 Bridge,ltr,Devanagari\n",
+        encoding="utf-8")
+    out = es.load_ebible_translations(csv_fp)
+    assert set(out) == {"hin2017"}
+    assert out["hin2017"]["Redistributable"] == "True"
+
+
+def test_load_ebible_translations_degrades_to_empty_when_absent(tmp_path):
+    assert es.load_ebible_translations(tmp_path / "nope.csv") == {}
+
+
+def test_build_record_adds_real_ebible_enrichment_when_license_url_matches():
+    pin = {"provider": "bible.helloao.org", "version_id": "HINIRV", "name": "n",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=hin2017",
+          "sha256": "s", "books": 66, "language_name": "Hindi"}
+    ebible = {"hin2017": {"Redistributable": "True",
+                         "Copyright": "Copyright (C) 2017 Bridge Connectivity Solutions",
+                         "textDirection": "ltr", "script": "Devanagari"}}
+    rec = es.build_record("hinirv", pin, {}, {}, {}, {}, {}, ebible)
+    assert rec["derived"]["ebible"] == {
+        "license": "Copyright (C) 2017 Bridge Connectivity Solutions",
+        "redistributable": True, "script": "Devanagari", "text_direction": "ltr",
+        "translation_id": "hin2017", "source": "ebible-translations-csv"}
+
+
+def test_build_record_ebible_is_none_when_license_url_does_not_match_any_row():
+    pin = {"provider": "p", "version_id": "V", "name": "n",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=zzz9999",
+          "sha256": "s", "books": 1, "language_name": "n"}
+    rec = es.build_record("tag", pin, {}, {}, {}, {}, {}, {"hin2017": {}})
+    assert rec["derived"]["ebible"] is None
+
+
+def test_build_record_ebible_is_none_when_license_url_is_not_an_ebible_url():
+    pin = {"provider": "p", "version_id": "V", "name": "n",
+          "license_url": "https://cdn.bibel.wiki/pkf/ind/app-config.json",
+          "sha256": "s", "books": 1, "language_name": "n"}
+    rec = es.build_record("tag", pin, {}, {}, {}, {}, {}, {"hin2017": {}})
+    assert rec["derived"]["ebible"] is None
+
+
+def test_build_record_ebible_redistributable_false_is_a_real_boolean_not_a_truthy_string():
+    pin = {"provider": "p", "version_id": "V", "name": "n",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=restricted1",
+          "sha256": "s", "books": 1, "language_name": "n"}
+    ebible = {"restricted1": {"Redistributable": "False", "Copyright": "All rights reserved",
+                             "textDirection": "ltr", "script": "Latin"}}
+    rec = es.build_record("tag", pin, {}, {}, {}, {}, {}, ebible)
+    assert rec["derived"]["ebible"]["redistributable"] is False
+
+
+def test_build_writes_has_ebible_coverage_stat(tmp_path):
+    pins = tmp_path / "pins"
+    pins.mkdir()
+    _w(pins / "aaa.json", {"provider": "p", "version_id": "AAA", "name": "n",
+                           "license_url": "https://ebible.org/Scriptures/details.php?id=aaa1",
+                           "sha256": "s", "books": 1, "language_name": "n"})
+    ebible_csv = tmp_path / "translations.csv"
+    ebible_csv.write_text(
+        "translationId,Redistributable,Copyright,textDirection,script\n"
+        "aaa1,True,Copyright X,ltr,Latin\n", encoding="utf-8")
+    out = tmp_path / "out"
+    cov = es.build(pins_dir=pins, out_dir=out, manifest_path=tmp_path / "absent-m.json",
+                   helloao_file=tmp_path / "absent-helloao.json",
+                   textual_basis_file=tmp_path / "absent-tb.json",
+                   text_strip_file=tmp_path / "absent-ts.json",
+                   languages_db=tmp_path / "absent.db", ebible_csv=ebible_csv)
+    assert cov["has_ebible"] == 1
+    assert json.loads((out / "aaa.json").read_text())["derived"]["ebible"]["translation_id"] == "aaa1"
+
+
+def test_real_ebible_csv_and_pins_produce_the_verified_match_count():
+    # not a synthetic test: confirms the real, committed config/ebible/translations.csv actually joins
+    # against our real pins at the count verified during this task (551 real matches).
+    import pathlib
+    if not pathlib.Path("config/ebible/translations.csv").exists():
+        return
+    ebible = es.load_ebible_translations()
+    n = 0
+    for p in pathlib.Path("config/pins").glob("*.json"):
+        d = json.loads(p.read_text())
+        eid = es.ebible_id_from_license_url(d.get("license_url"))
+        if eid and eid in ebible:
+            n += 1
+    assert n == 551

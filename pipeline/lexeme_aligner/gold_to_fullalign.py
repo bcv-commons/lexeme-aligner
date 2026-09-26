@@ -219,11 +219,16 @@ def _book_of(ref: int) -> str:
     return next(b for b, i in BOOK_NUMBERS.items() if i == n)
 
 
-# --- gold health (contest_rule.gold_health's measure, for every gold source) ----------------------------
-def gold_health(gold: dict, eflomal_rows: list[dict], corpus: Corpus) -> dict | None:
+# --- gold health (roadmap F2, 2026-09-25: the computation itself now lives in contest_rule.gold_health;
+# this is a thin adapter from THIS module's own native shapes — {ref: GoldVerse} gold, a list of
+# eflomal pair-dicts — to that function's generic surf_at/agg/ours interface, so the agreement logic
+# is defined in exactly one place instead of two independently-maintained copies) -------------------------
+def gold_health(gold: dict, eflomal_rows: list[dict], corpus: Corpus | None = None) -> dict | None:
     """positional vs lexical agreement of our eflomal rows with this gold over content tokens the gold
-    judges. Same definition as contest_rule.gold_health (hardcoded to Clear there), generalized: a large
-    lexical>>positional gap means the GOLD's per-verse pairing is scrambled (rus), not our alignment."""
+    judges — see `contest_rule.gold_health`'s own docstring for the full definition and the rus lesson
+    it's built on. `corpus` is accepted for backward compatibility with existing callers/tests but
+    unused (it always was — the original local implementation never read it either)."""
+    from lexeme_aligner.contest_rule import gold_health as _gold_health_core
     surf_at: dict[tuple[int, str], set[str]] = collections.defaultdict(set)
     agg: dict[str, set[str]] = collections.defaultdict(set)
     for ref, gv in gold.items():
@@ -231,17 +236,11 @@ def gold_health(gold: dict, eflomal_rows: list[dict], corpus: Corpus) -> dict | 
             ws = {norm_surface(w) for w in surf.split()}
             surf_at[(ref, strong)] |= ws
             agg[strong] |= ws
-    pos = lex = n = 0
-    for r in eflomal_rows:
-        if not r["content"] or not r["strong"] or (r["ref"], r["strong"]) not in surf_at:
-            continue
-        n += 1
-        words = {norm_surface(w) for w in (r["target"] or "").split()}
-        pos += bool(words & surf_at[(r["ref"], r["strong"])])
-        lex += bool(words & agg[r["strong"]])
-    if not n:
-        return None
-    return {"positional": round(pos / n, 4), "lexical": round(lex / n, 4), "gap": round((lex - pos) / n, 4), "n": n}
+    ours = (
+        (r["ref"], r["strong"], {norm_surface(w) for w in (r["target"] or "").split()})
+        for r in eflomal_rows if r["content"] and r["strong"]
+    )
+    return _gold_health_core(dict(surf_at), agg, ours)
 
 
 # --- layers ------------------------------------------------------------------------------------------

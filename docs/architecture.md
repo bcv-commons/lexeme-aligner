@@ -493,7 +493,30 @@ gram-struct answers "how does this *language* render source structure", edition-
 is this *edition* and what do I need to know to align it". Keyed by the **edition tag** (`hinirv`,
 `arb_vdv`, `aaamlt`), never by the bare language iso; it carries the bare iso as a field.
 
-**This does not exist as one thing yet.** What exists is already more scattered than gram-struct's
+**Status: built 2026-09-26 (roadmap E2), the same additive pattern as gram-struct.** `python -m
+lexeme_aligner.edition_struct --build` writes `config/edition_struct/<tag>.json` for all 2,042 pinned
+editions, without changing any existing reader. Real coverage: **1,774 of 2,042 editions get a
+resolved `iso`** (626 from the pin's own field, 1,148 falling back to compact-alignments' reverse
+index; 268 genuinely unresolved — no valid pin `iso` and never aligned/published under any language),
+1,840 get a `textual_basis` verdict, 443 get a script code, 699 get an helloAO cross-reference.
+
+Building it surfaced two real, independent bugs, both found and fixed before the first number was
+trusted: (1) **casing** — `config/pins/` filenames are lowercase (`aaamlt.json`) but compact-
+alignments' own `editions` keys are uppercase (`AAAMLT`); an exact-string join silently resolved only
+929 of a possible 1,726 tags before the fix (the same casing-mismatch class D0 already found and fixed
+in `derive_typology.primary_edition()`, now confirmed as a *recurring* pattern in this codebase, not a
+one-off). (2) **a placeholder masquerading as data** — every one of the 2,042 pins DOES carry its own
+`iso` field, but for **1,416 of them (69%) it is a verbatim copy of the edition's own tag**
+(`aaamlt.json`'s `"iso"` is the literal string `"aaamlt"`, six characters, not the real 3-letter code
+`"aaa"`) — evidently a default some ingest path wrote when it had no real iso to record, not a
+genuine fact. Trusting it uncritically first produced a nonsensical 1,148-way disagreement between the
+pin and compact-alignments (56% of all editions) and `has_script` actually *dropping* as more "iso"
+values resolved, both symptoms of the same root cause. Fixed with a validity guard — a real ISO 639-3
+code is always exactly 3 lowercase letters, and the placeholder class never is (verified: zero
+exceptions across the full pin set) — after which the pin/compact-alignments disagreement count fell
+to exactly 0. 18 tests (`tests/test_edition_struct.py`); 489 total passing.
+
+What exists beyond the merged view is already more scattered than gram-struct's
 inputs, and — the actual problem — inconsistently keyed:
 
 | file today | keyed by | holds |
@@ -514,32 +537,42 @@ mid-project. That is the exact class of defect this repo has already hit twice �
 (`align_files.py`) and the stopword/morphology cache mis-keyed on tag vs iso (commit `a12f871`) — and
 it is the reason edition-struct earns a name even though it adds no new capability.
 
-**Target shape (proposal, not built).** `config/edition_struct/<tag>.json`, pinned facts and derived
-facts side by side, each with provenance:
+**Real shape, as built** (`config/edition_struct/hinirv.json`, in full):
 
 ```json
 {
   "tag": "hinirv",
-  "language": "hin",
-  "primary": true,
-  "source": {"provider": "bible.helloao.org", "version_id": "HINIRV", "name": "इंडियन रिवाइज्ड वर्जन",
-             "license_url": "https://ebible.org/Scriptures/details.php?id=hin2017", "sha256": "81164e…"},
-  "books": 66,
-  "versification":  {"scheme": "protestant", "source": "detected"},
-  "textual_basis":  {"verdict": "tr", "source": "diagnostic-verses", "checked": 15, "present": 10, "bracketed": 5},
-  "text_strip":     {"strip_brackets": false, "strip_parens_noise": false, "source": "default"},
-  "verse_ranges":   {"pooled": 0, "source": "derived"},
-  "tokenizer_version": 2,
-  "gold": {"base_text": "IRVHin", "method": "clear"}
+  "iso": "hin",
+  "iso_source": "compact-alignments",
+  "pinned": {"provider": "bible.helloao.org", "version_id": "HINIRV", "name": "इंडियन रिवाइज्ड वर्जन",
+             "license_url": "https://ebible.org/Scriptures/details.php?id=hin2017",
+             "sha256": "81164e0052ad8f5bbf8b8eb290d18653e636bc509faa63331d57c1e12cdbbbd4", "books": 66,
+             "language_name": "Hindi", "helloao": {"id": "HINIRV", "text_direction": "ltr"}},
+  "derived": {"textual_basis": {"verdict": "tr", "checked": 15, "present": 10, "bracketed": 5,
+                                "source": "diagnostic-verses"},
+             "text_strip": {"strip_brackets": false, "strip_parens_noise": false, "source": "default"},
+             "script": {"code": "Deva", "source": "languages_db"}}
 }
 ```
 
-Rules the proposal encodes:
-- **the tag is the key, the iso is a field** — nothing edition-level is ever looked up by bare iso
-  again; `legacy_bare_iso_tags.json` becomes a `primary`/`tag` pair inside each file and retires;
-- **pinned vs derived is explicit** — `sha256`, license, provider, strip rules are pinned (change only
-  on a deliberate re-fetch/decision); versification, verse ranges, tokenizer version, textual basis are
-  derived (recomputed, and the file says from what);
+**Deferred from the original proposal below** (not built in this pass, no capability lost — every
+field a future E2 follow-up would add is either already read from its own existing file by every
+current consumer, or genuinely new work): `versification` (stays in `config/versification.json` /
+`versification.scheme_of()` for now — folding it in is its own small follow-up, not blocking); verse
+ranges and `tokenizer_version` (per-book facts, not naturally a single per-edition scalar — would need
+their own shape, not assumed here); `gold` (already lives in `config/gold_langs.json`, keyed by bare
+iso with its own `edition`/`base_text` fields — duplicating it here was judged not worth the drift
+risk); `primary` (which edition is the pooled default for its language — `config/language_editions.json`
+still owns this). `legacy_bare_iso_tags.json` is UNCHANGED and not yet retired — `iso_source` on each
+record is the more general replacement for what that file narrowly recorded, but nothing has been
+migrated off it yet.
+
+Rules the built version follows:
+- **the tag is the key, the iso is a field** — resolved from the pin's own `iso` when it passes a
+  validity check, else compact-alignments' reverse index, else `null` (never a guess);
+- **pinned vs derived is explicit** — `sha256`, license, provider are pinned (change only on a
+  deliberate re-fetch); `textual_basis`, `text_strip`, `script` are derived (recomputed, and the file
+  says from what source);
 - **versification moves here from `versification.json`** — and when `bcv-commons/bibles` publishes its
   per-text `versification` field, it is sourced from there with `"source": "bibles"`, exactly the
   handover `versification.json`'s own `_doc` already promises;

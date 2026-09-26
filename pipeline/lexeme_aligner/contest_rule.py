@@ -163,33 +163,67 @@ def acc(toks, rule, by="tier"):
     return n, c, ga, ea, orc
 
 
-def gold_health(iso, res, out_dir):
-    """Distinguish a BAD (positionally-shifted) gold from a real alignment miss — the rus lesson.
+def gold_health(surf_at: dict[tuple, set], agg: dict[str, set], ours) -> dict | None:
+    """Roadmap F2 (2026-09-25): the CANONICAL, gold-source-agnostic core — moved here from
+    `gold_to_fullalign.py`'s own local reimplementation (which was itself already a generalization of
+    the Clear-only version this function used to be; see git history / `gold_health_clear` below for
+    that original shape). Works for ANY gold source/method (Clear, SWORD, HELFI, gbt, ...), not just
+    Clear — the whole point of moving it here.
 
-    For positional (clear) gold, measure our eflomal output two ways over content tokens the gold judges:
-      · POSITIONAL — our surface matches the gold AT THAT EXACT VERSE  (gold[(ref, strong)]).
-      · LEXICAL    — our surface is a valid rendering of that strong ANYWHERE (aggregate gold[strong]).
+    Distinguish a BAD (positionally-shifted) gold from a real alignment miss — the rus lesson. Measures
+    OUR alignment two ways over content tokens the gold judges:
+      · POSITIONAL — our surface matches the gold AT THAT EXACT (ref, strong)  (`surf_at`).
+      · LEXICAL    — our surface is a valid rendering of that strong ANYWHERE the gold judges it
+                     (aggregated across every ref, `agg`).
     A large gap (lexical ≫ positional) means our alignment is lexically right but the gold's per-verse
     strong→word pairing is scrambled — i.e. the GOLD is defective, not our alignment (rus: 40% vs 79%,
-    gap 39pt; healthy langs ~1-7pt: arb 97/98, spa 88/95). Returns (pos, lex, gap, n) or None (lexicon
-    gold has no verse dimension, so the gap is undefined and this diagnostic doesn't apply)."""
+    gap 39pt; healthy langs ~1-7pt: arb 97/98, spa 88/95).
+
+    `surf_at`: {(ref, strong): {surface, ...}} — the gold's OWN rendering at that exact position.
+    `agg`: {strong: {surface, ...}} — every surface the gold ever attests for that strong, any ref.
+    `ours`: iterable of `(ref, strong, {our_target_word, ...})` — OUR content-token alignment output
+    ALREADY FILTERED to content tokens with a real strong and non-empty target (callers own that
+    filtering, so this function stays shape-agnostic and never re-derives "is this content" itself).
+    `ref` and `strong` must use the SAME type/formatting on both sides of a caller's own `surf_at`/
+    `ours` pairing (an int ref throughout, or a zero-padded string throughout — either works, they
+    just can't be mixed within one call).
+
+    Returns `{"positional", "lexical", "gap", "n"}` or `None` if `ours` judges nothing the gold covers
+    (e.g. a lexicon gold with no verse dimension — the gap is undefined and this diagnostic doesn't
+    apply)."""
+    pos = lex = n = 0
+    for ref, strong, words in ours:
+        key = (ref, strong)
+        if key not in surf_at:
+            continue
+        n += 1
+        if words & surf_at[key]:
+            pos += 1
+        if words & agg.get(strong, set()):
+            lex += 1
+    if not n:
+        return None
+    return {"positional": round(pos / n, 4), "lexical": round(lex / n, 4),
+           "gap": round((lex - pos) / n, 4), "n": n}
+
+
+def gold_health_clear(iso, res, out_dir) -> dict | None:
+    """Clear-gold entry point — builds this module's own native `surf_at`/`agg`/`ours` shapes
+    (`_gold_clear`'s zero-padded-string refs, `_index`'s own eflomal-output shape) and delegates to
+    the canonical `gold_health` above. `main()`'s own caller; kept as a named function (not inlined)
+    so the adapter logic — normalizing `_index`'s int refs to `_gold_clear`'s zero-padded strings — is
+    documented in exactly one place rather than re-derived at the call site."""
     if GOLD.get(iso) != "clear":
         return None
     gold = _gold_clear(iso, res)                              # {(ref8, strong): {surfaces}}
-    agg = collections.defaultdict(set)
+    agg: dict[str, set] = collections.defaultdict(set)
     for (_ref8, s), surfs in gold.items():
         agg[s] |= surfs
-    pos = lex = n = 0
-    for (ref, _h), (words, _t, strong, _lex) in _index(iso, "eflomal", out_dir).items():
-        key = (f"{ref:08d}", strong)
-        if key not in gold:
-            continue
-        n += 1
-        if any(w in gold[key] for w in words):
-            pos += 1
-        if any(w in agg[strong] for w in words):
-            lex += 1
-    return (pos / n, lex / n, (lex - pos) / n, n) if n else None
+    ours = (
+        (f"{ref:08d}", strong, set(words))
+        for (ref, _h), (words, _t, strong, _lex) in _index(iso, "eflomal", out_dir).items()
+    )
+    return gold_health(dict(gold), agg, ours)
 
 
 def main() -> int:
@@ -214,13 +248,14 @@ def main() -> int:
 
     # GOLD-HEALTH diagnostic (the rus lesson, generalised): for every excluded clear-gold lang, is it
     # BAD GOLD (positionally-shifted reference — lexical ≫ positional) or an unmatchable/low-quality one?
-    health = {iso: gold_health(iso, args.resources, args.out) for iso in LANGS}
+    health = {iso: gold_health_clear(iso, args.resources, args.out) for iso in LANGS}
 
     def _why(iso):
         h = health.get(iso)
-        if h and h[2] >= args.gap_flag:
+        if h and h["gap"] >= args.gap_flag:
             return (f"BAD GOLD — positionally-shifted reference (our align is right: "
-                    f"positional {100*h[0]:.0f}% vs lexical {100*h[1]:.0f}%, gap {100*h[2]:.0f}pt)")
+                    f"positional {100*h['positional']:.0f}% vs lexical {100*h['lexical']:.0f}%, "
+                    f"gap {100*h['gap']:.0f}pt)")
         return "unmatchable / low-quality gold (both positional & lexical low)"
 
     full = rule_from(usable, by="tier")
@@ -231,9 +266,10 @@ def main() -> int:
     if clear_h:
         print("\n=== gold health (clear langs) — positional vs lexical match; big gap ⇒ shifted/bad gold ===")
         print(f"  {'lang':5} {'positional':>10} {'lexical':>8} {'gap':>6}  verdict")
-        for iso, (p, lx, gp, _n) in sorted(clear_h, key=lambda x: -x[1][2]):
-            verdict = "⚠ BAD GOLD (shifted)" if gp >= args.gap_flag else "ok"
-            print(f"  {iso:5} {100*p:>9.0f}% {100*lx:>7.0f}% {100*gp:>5.0f}pt  {verdict}")
+        for iso, h in sorted(clear_h, key=lambda x: -x[1]["gap"]):
+            verdict = "⚠ BAD GOLD (shifted)" if h["gap"] >= args.gap_flag else "ok"
+            print(f"  {iso:5} {100*h['positional']:>9.0f}% {100*h['lexical']:>7.0f}% "
+                 f"{100*h['gap']:>5.0f}pt  {verdict}")
 
     print(f"\n=== disagreement rule — contested accuracy (LOO), {len(usable)} usable gold langs ===")
     if excluded:

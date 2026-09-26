@@ -19,7 +19,12 @@ four provenance partitions so licensing is a directory boundary (§2 "Publicatio
                                       but the derived value is still written to this partition file.
   measured/<iso>.json   CC0-1.0       config/spanext_flags.json + config/fertility_flags.json verdicts,
                                       dated, gold named; conventions_md path when one exists.
-  <iso>.json                          the merge of the four — no key may come from two partitions.
+  kin/<iso>.json        CC-BY-4.0     roadmap X3 (2026-09-25, kin_prior.py): a Glottolog genetic-
+                                      relatedness fallback — the nearest external/imputed-resolved
+                                      relative's direction, for a slot no other partition resolves.
+                                      Lowest priority: structurally can only fill an ABSENT key (never
+                                      a resolved-null), so it can never override anything else.
+  <iso>.json                          the merge of the five — no key may come from two partitions.
 
 Contract (§2): a slot with `"direction": null` and a `source` is a FACT ("Grambank knows both codes
 and they resolve to no single side"); an absent key means UNKNOWN (no source covers it). Existence
@@ -38,16 +43,17 @@ import json
 import sys
 from pathlib import Path
 
-from lexeme_aligner import typology
+from lexeme_aligner import kin_prior, typology, uriel_plus
 from lexeme_aligner.analyze_language import RISK_RULES
 from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES
 from lexeme_aligner.span_extension import _TYPOLOGY_SLOT, direction_for, possession_direction_for
 
 OUT_DIR = Path("config/gram_struct")
-PARTITIONS = ("external", "imputed", "derived", "measured")
+PARTITIONS = ("external", "imputed", "derived", "measured", "kin")
 
 _FEATURES_FILE = Path("config/grambank/features.json")
 _DIRECTIONS_FILE = typology._OUT
+_URIEL_PLUS_FILE = uriel_plus._OUT
 _CONSTITUENT_DIR = Path("config/constituent_order")
 _DERIVED_INPUT_DIR = Path("config/gram_struct/derived_input")   # derive_typology.py's own output (D0)
 _SPANEXT_FLAGS = Path("config/spanext_flags.json")
@@ -161,13 +167,28 @@ def build_external(iso: str, grambank: dict[str, str] | None, directions: dict, 
 
 
 # ── imputed ───────────────────────────────────────────────────────────────────────────────────────
-def build_imputed(iso: str, directions: dict, external: dict, stats: collections.Counter) -> dict:
+def build_imputed(iso: str, directions: dict, external: dict, stats: collections.Counter,
+                  uriel: dict | None = None) -> dict:
+    """lang2vec first, then roadmap I1's URIEL+ pin for its two validated slots only
+    (`uriel_plus.SHIPPED_SLOTS` — adposition/object_verb, each measured to beat lang2vec's own
+    per-slot agreement; see `uriel_plus.py`'s module docstring for the real numbers). URIEL+ can add a
+    slot lang2vec never resolved for this language (a genuine coverage gain — lang2vec's own ISO list
+    does not reach every published language despite its "100% coverage" framing) or REPLACE lang2vec's
+    value for a shipped slot (measured to be the more accurate source there) — it never adds a slot
+    that failed its own >=90%-vs-Grambank gate (possessor/subject_verb/article), and never touches a
+    slot `external` already resolved."""
     out: dict = {}
     for slot, table in directions.get(iso, {}).items():
         if table.get("source") == "lang2vec" and slot not in external:
             out[slot] = {"direction": table["direction"], "source": "lang2vec",
                          "confidence": table.get("confidence")}
             stats[f"slot:{slot}:lang2vec"] += 1
+    for slot, table in (uriel or {}).get(iso, {}).items():
+        if slot in external or slot not in uriel_plus.SHIPPED_SLOTS:
+            continue
+        out[slot] = {"direction": table["direction"], "source": "uriel_plus",
+                     "confidence": table.get("confidence")}
+        stats[f"slot:{slot}:uriel_plus"] += 1
     return out
 
 
@@ -281,10 +302,11 @@ def merge_partitions(iso: str, parts: dict[str, dict], stats: collections.Counte
 
 
 def language_set(all_isos: bool, grambank_langs: dict, directions: dict, constituent_dir: Path,
-                 spanext: dict, fertility: dict, manifest: Path = _PUBLISHED_MANIFEST) -> list[str]:
+                 spanext: dict, fertility: dict, manifest: Path = _PUBLISHED_MANIFEST,
+                 uriel: dict | None = None) -> list[str]:
     if not all_isos:
         return sorted(_load_json(manifest).get("languages", {}))
-    isos = set(grambank_langs) | set(directions)
+    isos = set(grambank_langs) | set(directions) | set(uriel or {})
     isos |= {p.stem for p in Path(constituent_dir).glob("*.json")}
     isos |= {k for k in spanext if not k.startswith("_")} | {k for k in fertility if not k.startswith("_")}
     return sorted(isos)
@@ -295,27 +317,55 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
           derived_input_dir: Path = _DERIVED_INPUT_DIR,
           spanext_file: Path = _SPANEXT_FLAGS, fertility_file: Path = _FERTILITY_FLAGS,
           gold_file: Path = _GOLD_LANGS, conventions_dir: Path = _CONVENTIONS_DIR,
-          manifest: Path = _PUBLISHED_MANIFEST, isos: list[str] | None = None) -> dict:
+          manifest: Path = _PUBLISHED_MANIFEST, isos: list[str] | None = None,
+          kin_db: Path | None = kin_prior.DEFAULT_DB,
+          uriel_plus_file: Path = _URIEL_PLUS_FILE) -> dict:
     grambank_langs = load_grambank_languages(features_file)
     directions = {k: v for k, v in _load_json(directions_file).items() if not k.startswith("_")}
+    uriel = {k: v for k, v in _load_json(uriel_plus_file).items() if not k.startswith("_")}
     spanext = _load_json(spanext_file)
     fertility = _load_json(fertility_file)
     gold_langs = _load_json(gold_file)
     if isos is None:
-        isos = language_set(all_isos, grambank_langs, directions, constituent_dir, spanext, fertility, manifest)
+        isos = language_set(all_isos, grambank_langs, directions, constituent_dir, spanext, fertility,
+                           manifest, uriel)
 
     out_dir = Path(out_dir)
     for name in PARTITIONS:
         (out_dir / name).mkdir(parents=True, exist_ok=True)
     stats: collections.Counter = collections.Counter()
     written = collections.Counter()
+
+    # Roadmap X3: precompute ONCE (not per-language) — first pass builds every language's
+    # external/imputed partition (needed as the pool kin neighbours are drawn from), THEN the kin
+    # index and leave-one-out bands are computed over that whole pool, THEN the main per-language loop
+    # runs with kin available. `kin_db` may be None/missing (sibling repo absent) — degrade to no kin
+    # facts at all, never an error, since this is a fallback source, not a required one.
+    kin_relatedness: dict = {}
+    kin_resolved: dict = {}
+    kin_confidence: dict = {}
+    if kin_db is not None and Path(kin_db).exists():
+        pre_external = {iso: build_external(iso, grambank_langs.get(iso), directions, collections.Counter())
+                        for iso in isos}
+        pre_imputed = {iso: build_imputed(iso, directions, pre_external[iso], collections.Counter(), uriel)
+                       for iso in isos}
+        kin_relatedness = kin_prior.load_relatedness(kin_db)
+        kin_resolved = kin_prior.build_resolved_directions(pre_external, pre_imputed)
+        kin_confidence = kin_prior.leave_one_out(kin_relatedness, kin_resolved)
+
     for iso in isos:
         parts = {
             "external": build_external(iso, grambank_langs.get(iso), directions, stats),
         }
-        parts["imputed"] = build_imputed(iso, directions, parts["external"], stats)
+        parts["imputed"] = build_imputed(iso, directions, parts["external"], stats, uriel)
         parts["derived"] = build_derived(iso, constituent_dir, derived_input_dir)
         parts["measured"] = build_measured(iso, spanext, fertility, gold_langs, conventions_dir)
+        if kin_relatedness:
+            existing_keys = set(merge_partitions(iso, parts)) - {"iso"}
+            parts["kin"] = kin_prior.build_kin(iso, kin_relatedness, kin_resolved, existing_keys,
+                                               kin_confidence)
+        else:
+            parts["kin"] = {}
         for name in PARTITIONS:
             if parts[name]:                                   # never write an empty per-language file
                 (out_dir / name / f"{iso}.json").write_text(
@@ -341,6 +391,7 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
             slot: stats.get(f"derived_shadowed:{slot}", 0) for slot in typology.SLOTS
             if stats.get(f"derived_shadowed:{slot}", 0)},
         "measured_date": _MEASURED_DATE,
+        "kin_leave_one_out": kin_confidence,
     }
     (out_dir / "_coverage.json").write_text(json.dumps(coverage, indent=1) + "\n", encoding="utf-8")
     (out_dir / "README.md").write_text(_README, encoding="utf-8")
@@ -368,7 +419,8 @@ split into four provenance partitions so that licensing is a directory boundary.
 | `imputed/` | **CC-BY-SA-4.0** | direction slots only | lang2vec / URIEL `syntax_knn` (Littell et al. 2017, CC-BY-SA-4.0) — kept physically apart because share-alike applies to derivatives of these values. |
 | `derived/` | **CC0-1.0** | our own alignment statistics (constituent-order profile) | computed from this project's alignments; no source text redistributed. |
 | `measured/` | **CC0-1.0** | mechanism verdicts, dated, gold named | human-recorded after scoring against gold; never inferred. |
-| `<iso>.json` | mixed (see above) | the merge of the four | convenience view; identical content, one file. |
+| `kin/` | **CC-BY-4.0** | direction slots only, gap-filling | Glottolog genetic relatedness (bcv-query's `languages.db`) — the nearest external/imputed-resolved relative's value, lowest priority, structurally unable to override anything else; confidence is a leave-one-out band rate, not the individual fact. |
+| `<iso>.json` | mixed (see above) | the merge of the five | convenience view; identical content, one file. |
 
 ## Contract
 

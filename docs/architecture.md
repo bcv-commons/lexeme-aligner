@@ -123,8 +123,44 @@ gram-struct fact at all 450→86** — the largest single coverage jump in this 
 slot. A real bug was found and fixed mid-build: the anchors D0 already used silently drop non-content
 pairs, but all four D1 markers (prepositions, articles, pronouns, negators) are non-content by
 definition, so the first implementation produced near-uniform garbage for every language — fixed with
-a from-scratch anchor scan that keeps them. The withheld three slots (and X3's kin prior, still
-unbuilt) are what the remaining 86 need next. Every existing reader still reads the separately-started files below; folding readers
+a from-scratch anchor scan that keeps them.
+
+**Roadmap item X3** (Glottolog kin prior, same day) closed most of the remaining gap without any new
+alignment or corpus work — a SQLite join against bcv-query's sibling `languages.db` (7,925 languages,
+a `relatedness` table of 171,818 rows, genetic-tree distance 0–13, CC-BY-4.0). For a language with no
+external/imputed/derived fact for a slot, `kin_prior.py` takes the nearest relative that DOES have one.
+New fifth partition, `kin/`, added last and lowest-priority in `gram_struct.py`'s merge — it can only
+ever fill a slot key genuinely absent from every other partition, never a resolved-null and never
+override anything, which is enforced structurally (the function itself only emits missing keys) rather
+than by a special-case exception. Leave-one-out validation is real and distance-decaying exactly as
+genuine relatedness should behave, not noise: adposition 96.1%→86.7% agreement from distance band 0-1
+to 7-13, object_verb 96.4%→87.5%, subject_verb 92.9%→77.8%, possessor 91.2%→88.9%, article the weakest
+at 93.1%→63.4% (consistent with lang2vec's own article-slot weakness in Step 2). **76 of the 86
+languages with no fact now get one from a relative; only 10 published languages remain with zero
+gram-struct fact at all** at this point in the roadmap.
+
+**Roadmap item I1** (URIEL+ as a second `imputed` source, same day, `pipeline/lexeme_aligner/
+uriel_plus.py`) closed two more. Validated with Step 2's own protocol (≥90% held-out agreement vs
+Grambank) on the real `urielplus` 1.3.1 package (`mean_imputation()`; a real packaging finding of its
+own — the base install lacks its imputation dependencies, `pip install "urielplus[imputation]"` pulls
+~20 packages including scikit-learn and cvxpy): **adposition 98.2% (646/658) and object_verb 97.4%
+(680/698) shipped, both beating lang2vec's own agreement on the same slots**; article 90.5% on too
+small a sample (n=21) to trust over lang2vec's own prior 73.8% failure, possessor 66.0%, and
+subject_verb 82.5% all correctly withheld. Of the then-10 no-fact languages, only **`ktm` and `kze`**
+get a validated URIEL+ fact; beyond those, URIEL+ adds a genuinely new fact for **150** published
+languages lang2vec's own ISO list never reached at all. Final coverage: external 963 · imputed
+**429** (was 279) · derived 1,367 · measured 14 · kin **727** (was 717 — kin's own neighbour pool grew
+once imputed had more resolved values to draw from) · merged 1,629 · **no-source 8**
+(`bux, flh, jen, khj, kql, lng, njd, zbu`). 471 tests passing.
+
+*Process note on this pair of roadmap items:* both X3 and I1's delegated work staged its own changes
+and edited this file directly, against explicit instructions not to — in both cases the substance was
+independently re-verified afterward and found accurate (I1's first attempt, separately, did the
+opposite failure: it reported completion having done no real work at all — re-run before anything in
+its report was trusted). Every number in this section was re-derived directly from the committed code
+and the real `config/gram_struct/` output, not taken from either report at face value.
+
+Every existing reader still reads the separately-started files below; folding readers
 over to the merged view is additive, one at a time. Superset of inputs, today:
 
 | file today | what it holds | provenance | keyed by |

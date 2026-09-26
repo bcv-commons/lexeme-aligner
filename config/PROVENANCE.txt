@@ -275,6 +275,20 @@ lang2vec / URIEL syntax_knn (pip package, not vendored — the ~10MB wheel carri
   dropped the `pkg_resources` module lang2vec's own code still imports — `setuptools<81` pinned
   alongside it in the same extra.
 
+urielplus (pip package, not vendored — Shipton, github.com/Masonshipton25/URIELPlus) — roadmap I1
+  (2026-09-25). CC-BY-SA-4.0, same owner decision/posture as lang2vec (kept in its own pinned file,
+  `config/typology/uriel_plus.json`, never merged into lang2vec's own `directions.json`). Version
+  1.3.1. Packaging note (same class of finding as lang2vec's own): the base `pip install urielplus`
+  lacks its imputation dependencies entirely; `pip install "urielplus[imputation]"` pulls a real, heavy
+  extra (scikit-learn, cvxpy, fancyimpute, ~20 packages). Consumed via `pipeline/lexeme_aligner/
+  uriel_plus.py`'s `mean_imputation()` path only (the fastest of URIEL+'s four imputation strategies;
+  KNN/SoftImpute/MIDASpy not attempted — a documented follow-up, not assumed better or worse). Per-slot
+  agreement vs Grambank (Step 2's own ≥90% protocol): adposition 98.2% and object_verb 97.4% SHIPPED
+  (both beat lang2vec's own agreement on the same slots); article 90.5% on an n=21 sample too small to
+  trust over lang2vec's own prior 73.8% failure, possessor 66.0%, subject_verb 82.5% — all three NOT
+  shipped. Real numbers and the full ship/withhold reasoning are in `uriel_plus.py`'s own module
+  docstring, written at measurement time.
+
 pipeline/vendor/bsb/tables/ — BSB Translation Tables, the Berean Standard Bible publisher's MASTER
   interlinear (https://bereanbible.com/bsb_tables.tsv; everything in BSB-publishing/bsb-data-output's
   base/display/ and per-book tsvs above is a lossy derivative of it). One tsv, 85,525,373 bytes, utf-8-sig,

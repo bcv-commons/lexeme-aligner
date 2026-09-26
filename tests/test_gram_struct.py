@@ -12,7 +12,7 @@ def _w(path, obj):
 
 
 def _build(tmp_path, *, features=None, directions=None, constituent=None, derived_input=None,
-           spanext=None, fertility=None, gold=None, conventions=None, isos):
+           spanext=None, fertility=None, gold=None, conventions=None, isos, kin_db=None, uriel=None):
     out = tmp_path / "out"
     cdir = tmp_path / "constituent_order"
     cdir.mkdir()
@@ -36,7 +36,12 @@ def _build(tmp_path, *, features=None, directions=None, constituent=None, derive
         fertility_file=_w(tmp_path / "fertility.json", fertility or {}),
         gold_file=_w(tmp_path / "gold.json", gold or {}),
         conventions_dir=conv,
-        manifest=tmp_path / "absent-manifest.json")
+        manifest=tmp_path / "absent-manifest.json",
+        kin_db=kin_db,
+        # Regression (found alongside roadmap I1, same class as the kin_db test-hygiene bug X3 fixed):
+        # without an explicit, isolated file here, every test in this module would silently load the
+        # REAL, live `config/typology/uriel_plus.json` from disk on every run.
+        uriel_plus_file=_w(tmp_path / "uriel_plus.json", uriel or {}))
     return out, cov
 
 
@@ -72,7 +77,44 @@ def test_grambank_wins_over_lang2vec_for_the_same_slot(tmp_path):
                     features={"xx": {"GB074": "1", "GB075": "0"}},
                     directions={"xx": {"adposition": {"direction": "after", "source": "lang2vec", "confidence": 0.9}}})
     assert _read(out, "external", "xx.json")["adposition"]["direction"] == "before"
+
+
+# --- URIEL+ (roadmap I1) — second imputed source, adposition/object_verb only ----------------------------
+def test_uriel_plus_fills_a_slot_lang2vec_never_resolved(tmp_path):
+    out, _ = _build(tmp_path, isos=["xx"],
+                    uriel={"xx": {"object_verb": {"direction": "after", "source": "uriel_plus",
+                                                  "confidence": 0.974}}})
+    imp = _read(out, "imputed", "xx.json")
+    assert imp["object_verb"] == {"direction": "after", "source": "uriel_plus", "confidence": 0.974}
+
+
+def test_uriel_plus_never_ships_an_unvalidated_slot(tmp_path):
+    # possessor failed I1's own >=90% gate (module docstring) and must never appear in the pinned
+    # file in the first place, but this also locks down that gram_struct.py would ignore it even if
+    # it somehow did — a slot outside uriel_plus.SHIPPED_SLOTS is dropped, not merged.
+    out, _ = _build(tmp_path, isos=["xx"],
+                    uriel={"xx": {"possessor": {"direction": "after", "source": "uriel_plus",
+                                                "confidence": 0.66}}})
     assert not (out / "imputed" / "xx.json").exists()
+
+
+def test_uriel_plus_never_overrides_a_grambank_external_fact(tmp_path):
+    out, _ = _build(tmp_path, isos=["xx"],
+                    features={"xx": {"GB074": "1", "GB075": "0"}},   # grambank: before
+                    uriel={"xx": {"adposition": {"direction": "after", "source": "uriel_plus",
+                                                 "confidence": 0.982}}})
+    assert _read(out, "external", "xx.json")["adposition"]["direction"] == "before"
+    assert not (out / "imputed" / "xx.json").exists()
+
+
+def test_uriel_plus_coexists_with_lang2vec_for_different_languages(tmp_path):
+    out, _ = _build(tmp_path, isos=["xx", "yy"],
+                    directions={"yy": {"adposition": {"direction": "before", "source": "lang2vec",
+                                                       "confidence": 0.93}}},
+                    uriel={"xx": {"adposition": {"direction": "after", "source": "uriel_plus",
+                                                 "confidence": 0.982}}})
+    assert _read(out, "imputed", "xx.json")["adposition"]["source"] == "uriel_plus"
+    assert _read(out, "imputed", "yy.json")["adposition"]["source"] == "lang2vec"
 
 
 # --- null-vs-absent ------------------------------------------------------------------------------------
@@ -236,3 +278,54 @@ def test_derived_input_gate_failed_meta_is_kept_in_the_derived_partition(tmp_pat
     out, _ = _build(tmp_path, isos=["xx"], derived_input={"xx": di})
     der = _read(out, "derived", "xx.json")
     assert der["_derived_meta"] == di["_derived_meta"]
+
+
+# --- kin/ partition (roadmap X3) — real sqlite fixture, end to end through build() ------------------
+def _make_kin_db(path, rows):
+    import sqlite3
+    con = sqlite3.connect(path)
+    con.execute("create table relatedness (iso639_3, related_iso639_3, rank, distance, basis)")
+    con.executemany("insert into relatedness values (?, ?, ?, ?, 'genetic-glottolog')", rows)
+    con.commit()
+    con.close()
+    return path
+
+
+def test_kin_db_none_writes_no_kin_partition_and_matches_old_behaviour(tmp_path):
+    out, cov = _build(tmp_path, isos=["xx"], features={"xx": {"GB074": "1", "GB075": "0"}})
+    assert not (out / "kin" / "xx.json").exists()
+    assert cov["kin_leave_one_out"] == {}
+
+
+def test_kin_fills_a_gap_no_other_partition_resolves(tmp_path):
+    # yy has NO external/imputed/derived/measured fact for adposition at all; its nearest relative xx
+    # (Grambank-resolved: before) should fill it via kin.
+    db = _make_kin_db(tmp_path / "lang.db", [("yy", "xx", 1, 1.0)])
+    out, cov = _build(tmp_path, isos=["xx", "yy"],
+                      features={"xx": {"GB074": "1", "GB075": "0"}}, kin_db=db)
+    kin = _read(out, "kin", "yy.json")
+    assert kin["adposition"]["direction"] == "before"
+    assert kin["adposition"]["source"] == "kin"
+    assert kin["adposition"]["neighbour"] == "xx"
+    merged = _read(out, "yy.json")
+    assert merged["adposition"]["source"] == "kin"
+
+
+def test_kin_never_fills_a_slot_another_partition_already_resolved(tmp_path):
+    # yy has its OWN Grambank fact (after) even though its nearest relative xx says before -- kin
+    # must not be able to override it, and merge_partitions must not raise either.
+    db = _make_kin_db(tmp_path / "lang.db", [("yy", "xx", 1, 1.0)])
+    out, _ = _build(tmp_path, isos=["xx", "yy"],
+                    features={"xx": {"GB074": "1", "GB075": "0"}, "yy": {"GB074": "0", "GB075": "1"}},
+                    kin_db=db)
+    kin_path = out / "kin" / "yy.json"
+    assert not kin_path.exists()                      # nothing left for kin to fill -> no file at all
+    merged = _read(out, "yy.json")
+    assert merged["adposition"]["source"] == "grambank"
+    assert merged["adposition"]["direction"] == "after"
+
+
+def test_kin_missing_db_file_degrades_to_no_kin_facts_not_an_error(tmp_path):
+    out, cov = _build(tmp_path, isos=["xx"], kin_db=tmp_path / "does-not-exist.db")
+    assert not (out / "kin").exists() or not any((out / "kin").iterdir())
+    assert cov["kin_leave_one_out"] == {}

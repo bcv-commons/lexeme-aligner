@@ -80,6 +80,8 @@ partition also writes, and these are diagnostics for a human, not typology facts
 from __future__ import annotations
 
 import argparse
+import csv
+import functools
 import hashlib
 import json
 import random
@@ -255,8 +257,74 @@ _HEBREW_ARTICLE_LEXEME = "hbo:1886a"                   # span_extension._DEFINIT
 _GREEK_NEGATION = {"G3756", "G3361"}                   # οὐ (covers οὐκ/οὐχ, one lexeme) + μή — verified
 _HEBREW_NEGATION_LEMMAS = {"לֹא", "אַל"}                # verified hinirv OT sample
 _GREEK_GEN_PRONOUN_LEMMAS = {"ἐγώ", "σύ", "αὐτός", "ἡμεῖς", "ὑμεῖς"}   # verified engbsb/MAT genitive rollups
+# D2-fix (2026-09-26): found while root-causing the 1 Cor 1:26 mispairing (see _CLAUSE_ROLE_MAX_DISTANCE's
+# comment) — the actual clause-boundary marker there is NOT a verb at all (no participle/infinitive
+# appears in the window either), it's the subordinating complementizer ὅτι (G3754, verified against the
+# real token directly: strong=G3754, lemma=ὅτι) introducing the embedded clause the three predicate
+# nominatives actually belong to. Greek subordinators/complementizers are a small, closed class (unlike
+# the open-ended parsing problem a full dependency grammar would solve) — hardcoded here the same way
+# `_GREEK_PREPOSITIONS` already is. NOT exhaustive (a real `frames`/dependency signal remains the actual
+# fix, see internal-docs/bcv-query-wishlist.md's 2026-09-26 ask); this covers the common complementizer/
+# conditional/temporal subordinators most likely to introduce an embedded clause with its own s/o role.
+_GREEK_SUBORDINATORS = {"G3754",   # ὅτι  — that/because (verified: 1 Cor 1:26)
+                        "G2443",   # ἵνα  — in order that/so that
+                        "G1437",   # ἐάν  — if
+                        "G1487",   # εἰ   — if
+                        "G3752",   # ὅταν — whenever
+                        "G2531",   # καθώς — just as
+                        "G5613",   # ὡς   — as/that/when
+                        "G5620"}   # ὥστε — so that
+# D0-fix (2026-09-26): the Hebrew equivalents, for `_hebrew_clause_role_stat` below — verified against
+# real spine tokens by Strong's number (lemma-text matching missed these due to a niqqud/normalization
+# mismatch caught in the same check: `t.lemma == "אֲשֶׁר"` silently failed on real data, `t.strong ==
+# "H0834"` did not — matching by Strong's, not raw lemma text, is the reliable approach here).
+_HEBREW_SUBORDINATORS = {"H0834",   # אֲשֶׁר — relative "who/which/that", introduces a relative clause
+                         "H3588",   # כִּי   — that/because/for/when
+                         "H0518"}   # אִם    — if
 
 _D1_MIN_N = {"adposition": 200, "article_word": 300, "possessive_word": 300, "negation": 300}
+_D2_MIN_N = {"possessor": 300, "subject_verb": 300, "object_verb": 300}
+
+_GRC_ROLE_TSV = Path("config/grc_frames/role.tsv")
+_GRC_FRAMES_TSV = Path("config/grc_frames/frames.tsv")
+
+
+@functools.lru_cache(maxsize=1)
+def load_greek_frames(role_tsv: Path = _GRC_ROLE_TSV,
+                      frames_tsv: Path = _GRC_FRAMES_TSV) -> dict[int, dict[int, set[int]]]:
+    """D2-frames (2026-09-26): real Greek NT argument structure from bcv-query, delivered same-day in
+    reply to the wishlist ask this bug motivated (see internal-docs/bcv-query-wishlist.md). Returns
+    `{ref: {verb_idx: {arg_idx, ...}}}` — `ref` matches `refs.encode()`, `verb_idx`/`arg_idx` match our
+    own spine's 0-indexed `idx` (role.tsv's `word` column is 1-indexed; verified against real tokens:
+    1 Cor 1:1 idx=0/Παῦλος/nominative == word=1/nominative, idx=3/Χριστοῦ/genitive == word=4/genitive).
+
+    Deliberately just a set of valid arg positions per verb, NOT split by PropBank role (A0/A1/A2) — the
+    fix this supports (`_clause_role_stat`'s `frame_index` parameter) uses frames.tsv to answer "is this
+    specific role="s"/"o" token actually THIS verb's own argument", not to relabel grammatical role from
+    the thematic one. PropBank A0/A1 (agent/patient) don't map 1:1 onto syntactic subject/object under
+    passive voice, so `role`'s own v/s/o tagging stays the source of grammatical role; frames.tsv only
+    ever narrows/confirms which pairing is real, replacing the walk-and-guess heuristic where it can.
+
+    Missing files degrade to `{}` (no frame data at all) rather than raising — this fix is additive on
+    top of the existing distance/subordinator heuristic (`_clause_role_stat` falls back to it per-verb
+    when a verb has no frame entry), never a hard dependency."""
+    if not Path(role_tsv).exists() or not Path(frames_tsv).exists():
+        return {}
+    key_to_ref_idx: dict[str, tuple[int, int]] = {}
+    with open(role_tsv, encoding="utf-8") as f:
+        for row in csv.DictReader(f, delimiter="\t"):
+            ref = encode(row["book"], int(row["chapter"]), int(row["verse"]))
+            key_to_ref_idx[row["key"]] = (ref, int(row["word"]) - 1)
+    frame_index: dict[int, dict[int, set[int]]] = {}
+    with open(frames_tsv, encoding="utf-8") as f:
+        for row in csv.DictReader(f, delimiter="\t"):
+            verb_loc = key_to_ref_idx.get(row["verb_key"])
+            arg_loc = key_to_ref_idx.get(row["arg_key"])
+            if verb_loc is None or arg_loc is None or verb_loc[0] != arg_loc[0]:
+                continue
+            ref, verb_idx = verb_loc
+            frame_index.setdefault(ref, {}).setdefault(verb_idx, set()).add(arg_loc[1])
+    return frame_index
 
 
 def _is_prep(t) -> bool:
@@ -475,19 +543,286 @@ def derive_d1_slots(recs, anchors: dict, stopwords=None, include_unvalidated: bo
     return out
 
 
+def _possessor_stat_greek(recs, anchors: dict) -> dict:
+    """Roadmap D2, design doc §2.3 (Greek half — the Hebrew half already exists as `rec_after_rate`,
+    read by `derive_one` below): an adjacent (H,G) or (G,H) content-token pair in SOURCE order, order-
+    AGNOSTIC (Greek genitive constructions attach either "τοῦ Δαυὶδ οἶκος" or "οἶκος Δαυίδ"), where
+    exactly one member has `case_=="genitive"` (the possessor, G) and the other does not (the head, H),
+    at most one intervening article. Excludes genitive PRONOUNS (`_is_gen_pronoun`) — those are §2.7's
+    `possessive_word`, a different slot, deliberately still withheld (D1 failed its own known-answer
+    check for the pronoun-adjacent slots; this is the noun/name case only, unaffected by that failure).
+    Measures P(pos(G) < pos(H)) in the TARGET — i.e. does the possessor's own rendering precede the
+    head's — directly from adjacency, not order-kept relative to source (Greek itself is mixed on this,
+    per the doc)."""
+    n_before = n_after = n_fused = n_opportunities = 0
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        anch = anchors.get(ref)
+        if not anch:
+            continue
+        members = r.heb
+        for i, t in enumerate(members):
+            if not t.is_content or _is_gen_pronoun(t):
+                continue
+            nxt = _next_content(members, i)
+            if nxt is None or not nxt.is_content or _is_gen_pronoun(nxt):
+                continue
+            t_gen, nxt_gen = t.case_ == "genitive", nxt.case_ == "genitive"
+            if t_gen == nxt_gen:
+                continue                                   # need exactly one genitive, one not
+            g, h = (t, nxt) if t_gen else (nxt, t)
+            n_opportunities += 1
+            pg, ph = anch.get(g.idx), anch.get(h.idx)
+            if pg is None or ph is None:
+                continue
+            if pg == ph:
+                n_fused += 1
+            elif pg < ph:
+                n_before += 1                              # possessor(G) precedes head(H) in target
+            else:
+                n_after += 1
+    n_resolved = n_before + n_after
+    return {"n_opportunities": n_opportunities, "n_fused": n_fused, "n_before": n_before,
+           "n_after": n_after, "n_resolved": n_resolved,
+           "rate_after": (n_after / n_resolved) if n_resolved else None}
+
+
+_CLAUSE_ROLE_MAX_DISTANCE = 15
+# D2-fix (2026-09-26): evidence-based cap, not a real parse. Found via independent verification of
+# D2's first sweep: 1 Corinthians 1:26 ("not many wise, not many powerful, not many well-born [were
+# called]") has three predicate nominatives (role="s") that get wrongly attributed to "consider"
+# (Βλέπετε), an unrelated OUTER clause verb — Greek elides the copula "were", so there is no finite
+# verb token to stop the window-walk at the real clause boundary. A crude distance proxy (role token
+# more than 15 source-tokens from its paired verb) isolated 85 of ~5,800 eng subject-role pairs in
+# exactly this shape — a real, non-zero minority, not the whole story (most mispairings are surely
+# closer than 15 tokens too), but a cheap, evidence-based guardrail while a real Greek dependency/
+# clause-boundary signal remains unavailable (see internal-docs/bcv-query-wishlist.md's 2026-09-26
+# ask). NOT a substitute for real parsing — see D2-frames in the roadmap plan.
+
+
+def _clause_role_stat(recs, anchors: dict, target_role: str,
+                      max_distance: int = _CLAUSE_ROLE_MAX_DISTANCE,
+                      frame_index: dict[int, dict[int, set[int]]] | None = None) -> dict:
+    """Roadmap D2, design doc §2.4 (Greek half — the Hebrew half already exists as `func_order`, read
+    by `derive_one` below): for every finite verb (`role=="v"`, `_is_finite_verb`) in a verse, walk
+    OUTWARD in both directions in spine order until hitting ANOTHER finite verb (or a verse boundary) —
+    every `target_role` token ("s" or "o") found in that window pairs with this verb ("no other verb
+    between them in source order", the doc's own phrasing). Measures P(pos(role token) < pos(verb)) in
+    the TARGET directly, not order-kept (Greek's own order is free enough that direct measurement is
+    the right question, per the doc).
+
+    `max_distance` (D2-fix, see `_CLAUSE_ROLE_MAX_DISTANCE`'s own comment): the walk additionally stops
+    after `max_distance` source-token steps even without hitting another finite verb — a real elided-
+    copula clause boundary the "another finite verb" rule alone cannot see. A pair beyond the cap is
+    dropped entirely (not counted as an opportunity at all), not merely excluded from `n_resolved`,
+    since an over-distant pairing is wrong at the SELECTION stage, not just unresolved.
+
+    The walk ALSO stops at a Greek subordinator/complementizer (`_GREEK_SUBORDINATORS`, D2-fix) — the
+    ACTUAL boundary in the 1 Cor 1:26 case that motivated this fix (ὅτι at a distance of only 3-8 tokens
+    from the outer verb, well inside any reasonable distance cap; the mispairing survives the distance
+    cap alone and needs this check too, confirmed by direct testing).
+
+    `frame_index` (D2-frames, 2026-09-26, `load_greek_frames()`'s output): when a verb HAS a real frame
+    entry, this is AUTHORITATIVE and REPLACES the walk-and-guess heuristic for that verb entirely — only
+    `target_role` tokens that are also one of the verb's real frame arguments count, no distance/
+    subordinator guessing needed (verified directly against 1 Cor 1:26: the real frame for "consider"
+    links only to "brothers"/"your calling", correctly excluding the three elided-clause predicate
+    nominatives the OLD heuristic mispaired). A verb with NO frame entry (frames.tsv covers 25,493 of
+    the NT's verb forms, not all) falls back to the heuristic below, unchanged — this is additive
+    precision, not a replacement, since frame coverage is partial."""
+    n_before = n_after = n_fused = n_opportunities = 0
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        anch = anchors.get(ref)
+        if not anch:
+            continue
+        members = r.heb
+        verse_frames = (frame_index or {}).get(ref, {})
+        for vi, v in enumerate(members):
+            if not (v.role == "v" and _is_finite_verb(v)):
+                continue
+            pv = anch.get(v.idx)
+            if pv is None:
+                continue
+            verb_args = verse_frames.get(v.idx)
+            if verb_args is not None:
+                for m in members:
+                    if m.role == target_role and m.idx in verb_args:
+                        n_opportunities += 1
+                        ps = anch.get(m.idx)
+                        if ps is not None:
+                            if ps == pv:
+                                n_fused += 1
+                            elif ps < pv:
+                                n_before += 1
+                            else:
+                                n_after += 1
+                continue
+            for step in (-1, 1):
+                j = vi + step
+                while 0 <= j < len(members) and abs(j - vi) <= max_distance:
+                    m = members[j]
+                    if m.role == "v" and _is_finite_verb(m):
+                        break
+                    if m.strong in _GREEK_SUBORDINATORS:
+                        break
+                    if m.role == target_role:
+                        n_opportunities += 1
+                        ps = anch.get(m.idx)
+                        if ps is not None:
+                            if ps == pv:
+                                n_fused += 1
+                            elif ps < pv:
+                                n_before += 1
+                            else:
+                                n_after += 1
+                    j += step
+    n_resolved = n_before + n_after
+    return {"n_opportunities": n_opportunities, "n_fused": n_fused, "n_before": n_before,
+           "n_after": n_after, "n_resolved": n_resolved,
+           "rate_after": (n_after / n_resolved) if n_resolved else None}
+
+
+def _hebrew_clause_role_stat(recs, anchors: dict, target_function: str,
+                             max_distance: int = _CLAUSE_ROLE_MAX_DISTANCE) -> dict:
+    """D0-fix (2026-09-26) — Hebrew-side analog of D2's `_clause_role_stat`, built to replace
+    `gapfill.compute_order_stats`'s `func_order` as the source for `subject_verb`/`object_verb`
+    specifically (NOT `possessor`, which keeps using `rec_after_rate` — that one is sound, see below).
+
+    Root cause this fixes (found via the automated known-answer gate: Russian's subject_verb resolved
+    confidently to "after", contradicting Russian's well-established dominant SVO order): `func_order`'s
+    (Pred,Subj) statistic measures whether the target PRESERVES Hebrew's own source order, conditioned
+    on Hebrew already having placed Pred before Subj in that instance. But Hebrew clause order is
+    genuinely MIXED — narrative vav-consecutive clauses are frequently verb-initial (Pred-first), other
+    clauses are subject-fronted — unlike Hebrew CONSTRUCT CHAINS, which really are consistently
+    head-first (so `rec_after_rate`'s order-kept approach IS sound for `possessor`). A translation with
+    a literal/source-hewing tradition can show a high "order preserved" rate on Hebrew's own verb-initial
+    clauses while its OWN default word order is something else entirely — measuring literalism, not
+    typology. This function instead pools BOTH Hebrew source orders and measures the target's ABSOLUTE
+    position directly (mirroring D2's own Greek `_clause_role_stat` exactly, and the design doc's own
+    stated preference for direct measurement over order-kept wherever the source order isn't itself
+    reliably diagnostic).
+
+    Deliberately a NEW, additive function, not a rewrite of `compute_order_stats` — that function is
+    also read by `gapfill.main()`'s own LIVE production gap-filling, which this fix must not touch.
+
+    Groups tokens by `phrase_id` (same BHSA grouping `compute_order_stats` uses), one averaged target
+    position per phrase, sorted by source position. For every `Pred`-function phrase, walks outward in
+    that SORTED PHRASE LIST until hitting another `Pred` phrase, a Hebrew subordinator/relative-marker
+    token between the two phrases' own source positions (`_HEBREW_SUBORDINATORS` — the H0834/H3588/H0518
+    class of embedded-clause marker, verified against real data the same way as the Greek fix), or
+    `max_distance` phrases away. Every `target_function`-tagged phrase found in that window pairs with
+    the Pred, scored directly (target position before/after), not order-relative-to-source."""
+    n_before = n_after = n_fused = n_opportunities = 0
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        anch = anchors.get(ref)
+        if not anch:
+            continue
+        by_phrase_fn: dict = {}
+        for t in r.heb:
+            if t.phrase_id and t.function and t.strong and t.is_content and t.idx in anch:
+                fn, src, tgts = by_phrase_fn.get(t.phrase_id, (t.function, t.idx, []))
+                tgts.append(anch[t.idx])
+                by_phrase_fn[t.phrase_id] = (fn, min(src, t.idx), tgts)
+        subordinator_positions = sorted(t.idx for t in r.heb if t.strong in _HEBREW_SUBORDINATORS)
+        phrases = sorted((src, fn, sum(tgts) / len(tgts)) for fn, src, tgts in by_phrase_fn.values())
+        for pi, (src_p, fn_p, tp) in enumerate(phrases):
+            if fn_p != "Pred":
+                continue
+            for step in (-1, 1):
+                j = pi + step
+                while 0 <= j < len(phrases) and abs(j - pi) <= max_distance:
+                    src_m, fn_m, tm = phrases[j]
+                    if fn_m == "Pred":
+                        break
+                    lo, hi = (src_p, src_m) if src_p < src_m else (src_m, src_p)
+                    if any(lo < sp < hi for sp in subordinator_positions):
+                        break
+                    if fn_m == target_function:
+                        n_opportunities += 1
+                        if tm == tp:
+                            n_fused += 1
+                        elif tm < tp:
+                            n_before += 1
+                        else:
+                            n_after += 1
+                    j += step
+    n_resolved = n_before + n_after
+    return {"n_opportunities": n_opportunities, "n_fused": n_fused, "n_before": n_before,
+           "n_after": n_after, "n_resolved": n_resolved,
+           "rate_after": (n_after / n_resolved) if n_resolved else None}
+
+
+def derive_d2_slots(recs_all, anchors: dict,
+                    frame_index: dict[int, dict[int, set[int]]] | None = None) -> dict:
+    """{"possessor": ..., "subject_verb": ..., "object_verb": ...} from Greek alone (NT), using
+    `HebToken.role` (Greek-only, see that field's own docstring) — only present where `has_role`. Uses
+    the SAME `_direction_slot` bands D1 uses (0.70/0.30), per the design doc's own §2.3/§2.4 threshold
+    convention (a DIFFERENT convention from D0's Hebrew `_order_slot`, |rate-0.5|>=0.20 — the two are
+    combined by `_combine_testaments` in `derive_one`, not unified into one threshold scheme).
+
+    `frame_index` (D2-frames, `load_greek_frames()`'s output) is threaded through to `_clause_role_stat`
+    for subject_verb/object_verb — see that function's own docstring for why real frame data, where
+    available, replaces the walk-and-guess heuristic entirely rather than merely supplementing it."""
+    out: dict = {}
+    poss = _possessor_stat_greek(recs_all, anchors)
+    d = _direction_slot(poss, _D2_MIN_N["possessor"])
+    if d is not None:
+        out["possessor"] = d
+    for role, slot_name in (("s", "subject_verb"), ("o", "object_verb")):
+        stat = _clause_role_stat(recs_all, anchors, role, frame_index=frame_index)
+        d = _direction_slot(stat, _D2_MIN_N[slot_name])
+        if d is not None:
+            out[slot_name] = d
+    return out
+
+
+def _combine_testaments(heb_slot: dict | None, grc_slot: dict | None) -> dict | None:
+    """Roadmap D2: combine D0's Hebrew-derived (OT) and D2's Greek-derived (NT) versions of the SAME
+    slot (`possessor`/`subject_verb`/`object_verb`) for a dual-testament language. A slot dict whose
+    own `direction` is `None` (already-recorded "mixed") is treated as unresolved for this comparison —
+    only a real direction counts as a testament actually taking a position. If only one testament
+    resolves, use it (tagged with which). If both resolve and AGREE, keep the higher-`n` one as the
+    published fact but record both rates for audit. If both resolve and DISAGREE, per the design doc's
+    own explicit instruction: emit `null` with `reason: "testament_conflict"` and both rates — never
+    silently pick one."""
+    heb_dir = heb_slot.get("direction") if heb_slot else None
+    grc_dir = grc_slot.get("direction") if grc_slot else None
+    if heb_dir is None and grc_dir is None:
+        return heb_slot or grc_slot                        # neither resolved a real direction; pass through
+    if heb_dir is None:
+        out = dict(grc_slot); out["testament"] = "NT"; return out
+    if grc_dir is None:
+        out = dict(heb_slot); out["testament"] = "OT"; return out
+    if heb_dir == grc_dir:
+        primary = heb_slot if heb_slot.get("n", 0) >= grc_slot.get("n", 0) else grc_slot
+        out = dict(primary)
+        out["testament"] = "OT+NT"
+        out["ot_rate"] = heb_slot.get("rate_after")
+        out["nt_rate"] = grc_slot.get("rate_after")
+        return out
+    return {"direction": None, "source": "derived", "reason": "testament_conflict",
+           "ot": {"direction": heb_dir, "rate_after": heb_slot.get("rate_after"), "n": heb_slot.get("n")},
+           "nt": {"direction": grc_dir, "rate_after": grc_slot.get("rate_after"), "n": grc_slot.get("n")}}
+
+
 def validate_derived(slot: str, derived_docs: dict[str, dict], seed: int = 0) -> dict:
     """Generalizes `typology.validate_agreement` (§4.2): for `slot`, compare every language's freshly
     DERIVED direction (from `derived_docs`, already computed — this never re-derives) against Grambank's
     OWN direction for the SAME slot (`typology.grambank_direction`), on languages where both resolve.
     Splits that reference set in half (seeded, deterministic) — calibrate on one half, report the
     held-out agreement on the other — per the doc's "leave-one-out is not needed ... what must be held
-    out is the threshold calibration" rule. ONLY `adposition` has a direct Grambank counterpart wired
-    (GB074/075 is exactly the same question this slot derives); calling this for any other slot raises,
-    rather than silently returning a meaningless comparison."""
-    if slot != "adposition":
-        raise ValueError(f"validate_derived({slot!r}): no external reference wired for this slot yet "
-                         "(see this module's own D1 docstring) — only 'adposition' is supported")
-    from lexeme_aligner.typology import grambank_direction
+    out is the threshold calibration" rule. Roadmap D2 (2026-09-25) generalized this from D1's own
+    adposition-only restriction: `typology.grambank_direction` already resolves `possessor`/
+    `subject_verb`/`object_verb`/`article` generically (it always did — D1's restriction was a
+    conservative choice for its own single shipped slot, not a real limitation of the reference
+    function), so any of `typology.SLOTS` is now accepted. A slot outside that set still raises rather
+    than silently returning a meaningless comparison."""
+    from lexeme_aligner.typology import SLOTS, grambank_direction
+    if slot not in SLOTS:
+        raise ValueError(f"validate_derived({slot!r}): not a recognized gram-struct direction slot "
+                         f"(expected one of {SLOTS})")
     grambank_all = _load_json(Path("config/grambank/features.json")).get("languages", {})
 
     pairs = []
@@ -514,6 +849,59 @@ def validate_derived(slot: str, derived_docs: dict[str, dict], seed: int = 0) ->
     return {"slot": slot, "reference_total": len(pairs),
            "calibration_half": agreement(calib), "held_out_half": agreement(held_out),
            "overall": agreement(pairs)}
+
+
+# D2-fix (2026-09-26): the automated replacement for what used to be a discretionary manual read.
+# Independent verification found a real bug (see `_CLAUSE_ROLE_MAX_DISTANCE`'s comment) that a prior
+# delegated agent's own known-answer check graded "PASSED" despite Russian resolving to a confidently
+# WRONG direction (82% "subject after verb", contradicting Russian's well-established dominant SVO
+# order) and English abstaining on a case that should be nearly unambiguous. This table is deliberately
+# SMALL — only slot/language pairs where the descriptive-grammar literature agrees near-universally, so
+# a genuinely flexible language (Spanish word order, Finnish case-driven scrambling) is never forced
+# into a wrong hard assertion. `direction` uses the same "after" = role-token-after-verb /
+# possessor-before-head convention `_direction_slot`/`_order_slot` already use throughout this module.
+KNOWN_ANSWERS = {
+    "subject_verb": {"eng": "before", "fra": "before", "rus": "before", "cmn": "before",
+                     "hin": "before", "arb": "after"},
+    "object_verb": {"eng": "after", "fra": "after", "rus": "after", "cmn": "after",
+                    "hin": "before", "arb": "after"},
+    "possessor": {"cmn": "before", "hin": "before", "arb": "after", "fra": "after"},
+}
+
+
+def check_known_answers(derived_docs: dict[str, dict]) -> dict:
+    """Hard, automated gate — NOT a discretionary read. For every (slot, iso) in `KNOWN_ANSWERS`,
+    compares the language's ACTUAL derived direction (whichever testament resolved it) against the
+    textbook-expected one.
+
+    Two distinct outcomes, deliberately not conflated:
+      - `violations` — the slot resolved to a CONFIDENT direction that CONTRADICTS the known answer.
+        This is the hard failure: being confidently wrong (the Russian case) is a selector bug, not a
+        limit of the method, and `passed` is False whenever this list is non-empty.
+      - `abstentions` — the slot came back `null`/`mixed` where the answer is textbook-unambiguous
+        (the English case). Not a hard failure on its own (abstaining is honest, if suspicious), but
+        real signal that the measurement is noisier than it should be — reported, not swallowed.
+
+    Call this on the SAME `derived_docs` mapping `validate_derived` reads, before trusting a sweep's
+    output enough to merge it into `gram_struct.py --build`."""
+    violations = []
+    abstentions = []
+    matches = []
+    for slot, table in KNOWN_ANSWERS.items():
+        for iso, expected in table.items():
+            doc = derived_docs.get(iso)
+            if not doc or slot not in doc:
+                continue
+            actual = doc[slot].get("direction")
+            if actual is None:
+                abstentions.append({"slot": slot, "iso": iso, "expected": expected})
+            elif actual != expected:
+                violations.append({"slot": slot, "iso": iso, "expected": expected, "actual": actual,
+                                   "detail": doc[slot]})
+            else:
+                matches.append({"slot": slot, "iso": iso})
+    return {"passed": not violations, "violations": violations, "abstentions": abstentions,
+           "matches": len(matches), "checked": len(matches) + len(violations) + len(abstentions)}
 
 
 def resolve_tag(tag: str) -> tuple[str, Path] | None:
@@ -561,21 +949,34 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
     stopwords = StopwordFilter(iso, str(usj_dir))
     doc.update(derive_d1_slots(recs_all, d1_anchors, stopwords=stopwords))
 
+    # Roadmap D2 (2026-09-25): Greek half of possessor/subject_verb/object_verb, from `HebToken.role`
+    # (NT-only). Computed over the SAME content-only `anchors` D0's Hebrew stats use below (unlike D1's
+    # markers, a possessor/subject/object/verb token IS a content word) — reaches every language with
+    # an NT, combined with the OT-derived version (if any) via `_combine_testaments` rather than one
+    # silently overwriting the other. `load_greek_frames()` is `lru_cache`d — parsed once per process,
+    # not once per language.
+    d2_greek = derive_d2_slots(recs_all, anchors, frame_index=load_greek_frames())
+
     if ot_books:
         heb = HebrewSource()
         recs_ot = build_corpus(ot_books, usj_dir, heb, remap=remapper(tag, str(usj_dir)))
         stats = compute_order_stats(recs_ot, anchors)
 
         possessor = _order_slot(stats["rec_after_rate"], stats["rec_after_n"], min_n=50)
-        if possessor is not None:
-            doc["possessor"] = possessor
+        combined = _combine_testaments(possessor, d2_greek.get("possessor"))
+        if combined is not None:
+            doc["possessor"] = combined
 
-        for pair, slot_name in ((("Pred", "Subj"), "subject_verb"), (("Pred", "Objc"), "object_verb")):
-            n = stats["func_order_n"].get(pair, 0)
-            rate = stats["func_order"].get(pair)
-            slot = _order_slot(rate, n, min_n=100)
-            if slot is not None:
-                doc[slot_name] = slot
+        # D0-fix (2026-09-26): subject_verb/object_verb no longer read `stats["func_order"]`
+        # (order-kept relative to Hebrew's own source order — see `_hebrew_clause_role_stat`'s own
+        # docstring for why that's unsound here). `possessor` above is UNCHANGED (rec_after_rate's
+        # order-kept approach is sound for construct chains, which really are consistently head-first).
+        for func, slot_name in (("Subj", "subject_verb"), ("Objc", "object_verb")):
+            heb_stat = _hebrew_clause_role_stat(recs_ot, anchors, func)
+            heb_slot = _direction_slot(heb_stat, _D2_MIN_N[slot_name])
+            combined = _combine_testaments(heb_slot, d2_greek.get(slot_name))
+            if combined is not None:
+                doc[slot_name] = combined
 
         prof = constituent_profile(tag, usj_dir, out_dir, methods=("eflomal", "gloss"))
         _CONSTITUENT_DIR.mkdir(parents=True, exist_ok=True)
@@ -584,6 +985,14 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
         doc.setdefault("audit", {})["constituent_order"] = {
             "source": "derived",
             **{k: prof[k] for k in ("verses_measured", "pair_order_kept", "function_drift") if k in prof}}
+    else:
+        # NT-only language (D2's entire reason to exist — the 1,211 languages D0's OT-only pass never
+        # reached): no Hebrew counterpart to combine against, so `d2_greek`'s own facts (already tagged
+        # testament="NT" by `_combine_testaments(None, ...)`) are the whole answer.
+        for slot_name in ("possessor", "subject_verb", "object_verb"):
+            combined = _combine_testaments(None, d2_greek.get(slot_name))
+            if combined is not None:
+                doc[slot_name] = combined
 
     mw = multiword_rates(tag, out_dir, lex_pos, method="eflomal")
     if mw:
@@ -614,7 +1023,11 @@ def build(isos: list[str] | None = None, out_dir: Path = OUT_DIR, aligner_out: P
             "failed_reasons": {}, "ot_slots_written": 0, "d1_slots_written": 0,
             "d1_slot_counts": {k: 0 for k in
                                ("adposition", "adposition_word", "article_word", "possessive_word",
-                                "negation", "negation_word")}}
+                                "negation", "negation_word")},
+            "d2_slots_written": 0,
+            "d2_slot_counts": {k: 0 for k in ("possessor", "subject_verb", "object_verb")}}
+    known_answer_isos = {iso for table in KNOWN_ANSWERS.values() for iso in table}
+    known_answer_docs: dict[str, dict] = {}
     for iso in isos:
         stats["total"] += 1
         ed = primary_edition(iso, compact_manifest)
@@ -638,9 +1051,19 @@ def build(isos: list[str] | None = None, out_dir: Path = OUT_DIR, aligner_out: P
             for k in stats["d1_slot_counts"]:
                 if k in doc:
                     stats["d1_slot_counts"][k] += 1
+            if any(k in doc for k in stats["d2_slot_counts"]):
+                stats["d2_slots_written"] += 1
+            for k in stats["d2_slot_counts"]:
+                if k in doc:
+                    stats["d2_slot_counts"][k] += 1
+        if iso in known_answer_isos:
+            known_answer_docs[iso] = doc
         doc["content_sha256"] = _content_sha256(doc)
         (out_dir / f"{iso}.json").write_text(json.dumps(doc, indent=1, sort_keys=True) + "\n",
                                              encoding="utf-8")
+    # D2-fix (2026-09-26): a hard, automated gate, not a discretionary read — see
+    # `check_known_answers`'s own docstring for why this exists and what it does/doesn't catch.
+    stats["known_answers"] = check_known_answers(known_answer_docs)
     return stats
 
 
@@ -665,8 +1088,17 @@ def main() -> int:
     stats = build(args.iso, args.out, args.aligner_out, with_diagnose=not args.no_diagnose)
     print(f"[derive_typology] {stats['total']} language(s): {stats['passed']} passed the quality gate "
          f"({stats['ot_slots_written']} got >=1 OT slot, {stats['d1_slots_written']} got >=1 D1 slot: "
-         f"{stats['d1_slot_counts']}), {stats['gate_failed']} gated on alignment_quality, "
+         f"{stats['d1_slot_counts']}, {stats['d2_slots_written']} got >=1 D2 slot: "
+         f"{stats['d2_slot_counts']}), {stats['gate_failed']} gated on alignment_quality, "
          f"{stats['no_edition']} had no edition at all → {args.out}", file=sys.stderr)
+    ka = stats["known_answers"]
+    print(f"[derive_typology] known-answer gate: {ka['matches']}/{ka['checked']} matched, "
+         f"{len(ka['abstentions'])} abstained, {len(ka['violations'])} VIOLATED", file=sys.stderr)
+    if not ka["passed"]:
+        print(f"[derive_typology] KNOWN-ANSWER GATE FAILED — a language resolved to a confident, "
+             f"textbook-wrong direction. Not safe to merge into gram_struct.py --build. Violations: "
+             f"{json.dumps(ka['violations'], indent=1)}", file=sys.stderr)
+        return 1
     return 0
 
 

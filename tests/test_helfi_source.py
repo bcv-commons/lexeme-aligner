@@ -3,6 +3,7 @@ lines, modeled on the real files (verified by hand against github.com/amikael/HE
 own docstring for the cross-checked Strong's numbers)."""
 from lexeme_aligner.helfi_source import (
     build_gold_and_text, build_usj_book, parse_alignment_file, parse_source_file,
+    parse_source_morphemes,
 )
 
 
@@ -82,6 +83,47 @@ def test_build_gold_and_text_shares_source_id_across_repeated_tag_no_collision()
     assert len(set(src_ids)) == 2                                    # two DIFFERENT strongs, no collision
     strongs = {r["strong"]: r["target_id"] for r in rows}
     assert strongs["H0001"].endswith("001") and strongs["H0002"].endswith("002")
+
+
+# --- roadmap F3 (2026-09-26): morpheme boundaries, kept instead of collapsed to Strong's-or-None ------
+def test_parse_source_morphemes_keeps_grammatical_letter_codes_and_compounds():
+    # the SAME two rows parse_source_file collapses to None — parse_source_morphemes keeps their detail.
+    text = (
+        "ru001:001\t1a\t-/c/-\tCNJ\tוַ\twa\n"
+        "ru001:001\t10b\t-/1035+/0980\tPR\tבֵּ֧ית לֶ֣חֶם\tbêt_leḥem\n"
+    )
+    out = parse_source_morphemes(text)
+    assert out[(1, 1, "1a")] == {"morph": "CNJ", "surface": "וַ", "translit": "wa"}
+    assert out[(1, 1, "10b")] == {"morph": "PR", "surface": "בֵּ֧ית לֶ֣חֶם", "translit": "bêt_leḥem"}
+
+
+def test_build_gold_and_text_morphemes_field_covers_all_cited_ids_lexical_or_not():
+    # "tuomarit" cites BOTH 4a (the article prefix, no Strong's) and 4b (the lexical participle stem) —
+    # the real ru001:001 shape. morphemes must include both, even though only 4b carries a gold row.
+    align = (
+        "ru001:001\tru001:001\tru001:001\tVERSE\tRuut 1:1 \n"
+        "ru001:001\t(4a) 4b\t@\t-\ttuomarit \n"
+    )
+    source_lookup = {(1, 1, "4a"): None, (1, 1, "4b"): "H8199"}
+    morph_lookup = {
+        (1, 1, "4a"): {"morph": "ART", "surface": "הַ", "translit": "ha"},
+        (1, 1, "4b"): {"morph": "MASC.PL.ACT.PCP.ABS", "surface": "שֹּׁפְטִ֔ים", "translit": "šofĕṭîm"},
+    }
+    rows, _texts, _stats = build_gold_and_text(align, source_lookup, "RUT", "HELFI", morph_lookup=morph_lookup)
+    assert len(rows) == 1                                             # only 4b carries a Strong's -> one row
+    morphemes = rows[0]["morphemes"]
+    assert [m["token_id"] for m in morphemes] == ["4a", "4b"]
+    assert morphemes[0]["morph"] == "ART"
+    assert morphemes[1]["morph"] == "MASC.PL.ACT.PCP.ABS"
+
+
+def test_build_gold_and_text_no_morphemes_field_when_morph_lookup_omitted():
+    align = (
+        "ru001:001\tru001:001\tru001:001\tVERSE\tRuut 1:1 \n"
+        "ru001:001\t1\t@\t-\tA \n"
+    )
+    rows, _texts, _stats = build_gold_and_text(align, {(1, 1, "1"): "H0001"}, "RUT", "HELFI")
+    assert "morphemes" not in rows[0]                                 # backward compatible, opt-in field
 
 
 def test_build_gold_and_text_drops_verse_on_tokenization_mismatch():

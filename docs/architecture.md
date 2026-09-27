@@ -160,6 +160,47 @@ opposite failure: it reported completion having done no real work at all — re-
 its report was trusted). Every number in this section was re-derived directly from the committed code
 and the real `config/gram_struct/` output, not taken from either report at face value.
 
+**D2 attempted 2026-09-25, found broken, fixed 2026-09-26 (D0-fix + D2-frames) — DONE, full
+1,629-language re-sweep completed and independently re-verified 2026-09-27.** D2's own Greek-side
+`subject_verb`/`object_verb` window-walk mispaired tokens
+across elided-copula clause boundaries (concrete case: 1 Corinthians 1:26's three predicate nominatives
+wrongly attributed to an unrelated outer verb) — caught by an automated known-answer gate
+(`derive_typology.check_known_answers`, now hard-wired into every `--build` run) that a prior delegated
+agent's own manual check had graded "PASSED" despite Russian resolving to a confidently WRONG direction.
+Root cause turned out deeper than D2 alone: D0's older Hebrew-side `subject_verb`/`object_verb` (via
+`gapfill.compute_order_stats`'s order-kept-relative-to-source statistic) conflates "does the target
+preserve Hebrew's own word order" with "what is the target's actual default order" — sound for
+`possessor` (Hebrew construct chains really are consistently head-first) but not for clause order
+(Hebrew genuinely mixes verb-initial and subject-fronted clauses). Replaced with a new, additive
+`_hebrew_clause_role_stat` (direct measurement, mirroring D2's own Greek approach) that leaves
+`gapfill.py`'s own `compute_order_stats` untouched for its live production use. Real Greek data arrived
+same-day from bcv-query (`config/grc_frames/frames.tsv`, real PropBank-style argument structure, sent in
+reply to a wishlist ask this exact bug motivated) and is now the AUTHORITATIVE pairing source when a
+verb has a frame entry, with the distance-cap/subordinator heuristic only as fallback where it doesn't —
+verified directly against 1 Cor 1:26: the real frame for "consider" links only to its true arguments,
+correctly excluding the three predicate nominatives.
+
+**Final, real, full-scale numbers** (independently re-derived from the actual `config/gram_struct/
+derived_input/` output after the full sweep, not taken from the sweep's own log line): **known-answer
+gate: 0 violations, 13/16 matched, 3 honest abstentions** (arb subject_verb, rus/cmn object_verb — all
+abstaining, none confidently wrong) — re-confirmed directly that `rus`'s own subject_verb, the exact
+case that started this investigation, now reads `direction: "before"` (0.2645), no longer the
+confidently-wrong `"after"` (0.822) it held before the fix. Real agreement vs Grambank, full reference
+sets (not the 50-language sample used mid-fix): **subject_verb 87.4% (243/278)** — held-out half alone
+89.9%, essentially at the ≥90% bar though the pooled figure sits just under it; **object_verb 100%
+(38/38)** — a clean, confident pass on a real, non-trivial sample; **possessor 90.5% (142/157)** —
+clears the bar. Coverage arc UNCHANGED by this fix, as expected — no-gram-struct-fact-at-all stays at
+**8** (`bux, flh, jen, khj, kql, lng, njd, zbu`), since this work was never about closing the last few
+coverage gaps (that was I1/X3's job); it was about the ACCURACY of the existing 1,367-language
+`derived` tier's subject_verb/object_verb/possessor facts specifically, which the literalism confound
+and the elided-copula bug had both been quietly undermining.
+
+**D5 built same day**: `family_consistency.py`, a general QA layer grouping languages by Glottolog
+family (bcv-query's `languages.db` `stock` column, 238 families) to flag a slot/family combination with
+anomalous internal disagreement — the automated version of the side-by-side comparison that caught the
+D2 bug above. Mechanism validated on a synthetic reconstruction of that exact bug; a real audit against
+the fresh sweep's own output is the natural next step once it finishes.
+
 Every existing reader still reads the separately-started files below; folding readers
 over to the merged view is additive, one at a time. Superset of inputs, today:
 
@@ -476,6 +517,57 @@ witness-bracketed** (words present only in a witness our Nestle1904 spine lacks)
 for the layer is rendered from the manifest by `gold_to_fullalign.py` (one README writer), which also
 learned to carry a partition it does not own across its own reruns.
 
+**F2 done same day**: `gold_health` (the positional-vs-lexical diagnostic that first caught the Russian
+Clear-gold scramble) moved from `gold_to_fullalign.py`'s own local duplicate into `contest_rule.py` as
+the one canonical, gold-source-agnostic implementation — verified byte-identical against the committed
+manifest (hin/IRVHin: positional 0.84, lexical 0.9454, gap 0.1053, n 129135) before and after.
+
+**F3 done 2026-09-26**: the "HELFI's morpheme boundaries" gain named above, two paragraphs up, is now
+real. `helfi_source.py` gained `parse_source_morphemes()` — HELFI's compound-id/letter-code data (Ruth
+1:1's "tuomarit"/judges: id `4a` = article הַ, `4b` = participle stem שֹּׁפְטִ֔ים, both silently
+discarded to `strong=None` before) is now threaded through as a real `morphemes` field on each gold row,
+additive and opt-in (`build_gold_and_text`'s `morph_lookup` param, omitted = unchanged behavior).
+
+**F4 partial, 2026-09-26** — real access and real data confirmed, publishable layer not yet built. Of
+the plan's two named Door43 editions, only one is actually usable: `ar_avd` (Arabic Van Dyck) is plain
+USFM2 with zero `\zaln` alignment markers; `BSOJ/ar_arst` (updated 2026-09-24) has real Greek-Strong's-
+keyed `\zaln-s`/`\zaln-e` markup and genuine 66-book coverage, confirmed directly against a live fetch
+(479 real markers in one book alone). One real caveat worth carrying forward: `ar_arst` is an explicitly
+"Simplified text" per its own file header — heavily paraphrased, e.g. Greek Παῦλος alone aligns to an
+entire 8-word Arabic clause — not comparable to Clear's literal gold on the same footing. A real `\zaln`
+parser (`door43_align.py`) is built and tested; the actual third-manual-layer integration (spine-side
+occurrence mapping, manifest merge, round-trip verification, real gold health for `ar_arst`) is
+comparable scope to this section's own BSB work above, not the "S" effort the plan estimated, and is
+its own follow-up.
+
+**Rewritten + extended to 10 languages, 2026-09-27.** The hand-rolled regex/text-offset `\zaln` parser
+was replaced with real `usfmtc` (already a dependency of this repo, used for ordinary ingestion
+elsewhere) — confirmed directly that `usfmtc.USX.fromUsfm(text).outUsj()` represents `\zaln-s`/
+`\zaln-e` as proper `{"type":"ms"}` milestone nodes and `\w` as `{"type":"char"}` nodes, and that the
+same real edge case (a source word left with zero target words) survives the conversion unchanged.
+Real before/after on `ar_arst`/TIT: identical stats (46 verses, 739 spans, 258 zero-target) via the new
+path — same output, less code, and now handles the FULL USFM3 spec rather than only the patterns two
+sample books happened to exercise. A bug the broader real-world test surfaced immediately: bridged
+verse numbers (`"50-51"`) crashed the naive `int()` parse — fixed with the same convention
+`versification.py`'s own `_usj_structure()` already uses.
+
+Checked Door43's official `_glt`/`_gst` ("Gateway Language Translation/Scripture Text") catalog for
+other genuinely aligned languages, applying the same "verify, don't assume from the name" rule that
+caught `ar_avd`: of 10 real candidates, **9 are genuinely aligned** (Hindi 654 zaln-s markers in Titus
+alone, Marathi 613, Bengali 607, Spanish-Latin-American 652, Gujarati 600, Kannada 607, Nepali 576,
+Odia 630, Telugu 599) — only Vietnamese has zero, despite the identical naming convention. `LANGUAGES`
+in `door43_align.py` now registers all 10 (real ISO codes verified against `publish/lexeme-alignments/
+manifest.json`; two real corrections found this way — Door43's `ne`→our `npi` not `nep`, `or`→our
+`ory` not `ori`). Coverage per language is real but partial and eclectic (Hindi's 27 books mix some OT
+with most-but-not-all NT, consistent with organic volunteer-checking progress, not a deliberate split)
+— `list_available_books()` discovers each repo's real file list live rather than assuming one.
+
+Built all 10 for real (`251` book files written, sizes proportional to real coverage — 107MB for
+Arabic's full 66 books down to 168KB for Spanish, which turned out to have only 1 book available
+despite looking well-aligned on the one book checked). Same scope note as Arabic above applies to
+every language here: the parser is real and tested, the third-manual-layer integration (spine mapping,
+manifest merge, gold health) is not yet built for any of them.
+
 **Feeds:** any consumer wanting a verse fully aligned with provenance; agreement-between-layers
 confidence; the gold side of every scorer in this repo, once they read it (they read the attestation
 parquets today).
@@ -515,6 +607,16 @@ values resolved, both symptoms of the same root cause. Fixed with a validity gua
 code is always exactly 3 lowercase letters, and the placeholder class never is (verified: zero
 exceptions across the full pin set) — after which the pin/compact-alignments disagreement count fell
 to exactly 0. 18 tests (`tests/test_edition_struct.py`); 489 total passing.
+
+**Extended 2026-09-26 (roadmap E5, reduced scope)** with a `derived.ebible` field from BibleNLP/ebible's
+`translations.csv` (`config/ebible/translations.csv`, 1,362 rows) — license, redistributability, script,
+text direction, for editions whose pin's own `license_url` embeds ebible's `translationId` as a `?id=`
+query param (a cleaner join than E2's own casing/placeholder problems: no iso/tag matching needed at
+all). Real coverage: 551 of 2,042 editions match; 546 redistributable / 5 not (a field held nowhere
+else); 435 of the 551 get genuinely new script/text-direction info beyond what `languages_db` already
+gave at the language level. The original plan item's coverage-expansion half ("second-edition pool", "251
+of the 501") was dropped as moot — a separate fix (D0-fix + D2-frames, below) took the no-gram-struct-
+fact count from 501 to 8 independent of this item. 10 more tests (28 total in `tests/test_edition_struct.py`).
 
 What exists beyond the merged view is already more scattered than gram-struct's
 inputs, and — the actual problem — inconsistently keyed:
@@ -575,7 +677,20 @@ Rules the built version follows:
   says from what source);
 - **versification moves here from `versification.json`** — and when `bcv-commons/bibles` publishes its
   per-text `versification` field, it is sourced from there with `"source": "bibles"`, exactly the
-  handover `versification.json`'s own `_doc` already promises;
+  handover `versification.json`'s own `_doc` already promises. **Partially realized 2026-09-26**: real
+  per-verse crosswalk data from bcv-commons/bibles is now in use (`config/bibles_vrs/`,
+  `pipeline/vendor/versification/schemes/{vul,rso}.tsv`), consumed directly by `versification.py`'s own
+  `scheme_of()`/`remapper()` — but NOT yet folded into edition-struct's own per-tag JSON records as this
+  proposal describes; that remains the actual remaining follow-up. The exchange with bcv-commons/bibles
+  was itself a real, productive audit: cross-checking our own structural fingerprint against their
+  classification for 278 editions found 19 disagreements, all reported back; they root-caused and fixed
+  four real bugs on their end (agreement rose from 93.2% to 97.2% across the exchange), and separately
+  found and fixed a real bug in OUR own `_CDN_TABLE` (`catm` was wrongly bucketed with the
+  septuagint/lxx family — real data shows it is byte-identical to `org`, which is hebrew-family) plus
+  resolved a genuine `lxx.tsv` discrepancy with bcv-query directly (854 Esther/Daniel Greek-addition
+  rows, deliberately removed on their end for a real garbling bug, confirmed to touch canonical Daniel
+  chapters 3/4/6 — not just non-canonical material — on our end too; their current table swapped in,
+  verified as an exact strict subset of ours);
 - **additive migration only** — every current reader keeps working off the old files; a file is folded
   in when it is next touched, never in one sweep (~2,000 pin entries with working readers is a large
   diff for zero user-visible gain if done at once).

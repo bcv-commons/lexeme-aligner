@@ -22,6 +22,9 @@ class _FakeD1Tok:
     gender: str | None = None
     person: str | None = None
     mood: str | None = None
+    role: str | None = None
+    phrase_id: int | None = None
+    function: str | None = None
 
 
 @dataclass
@@ -311,3 +314,392 @@ def test_validate_derived_ignores_languages_missing_either_side(monkeypatch):
                    "b": {"adposition": {"direction": "before"}}}
     result = dt.validate_derived("adposition", derived_docs)
     assert result["reference_total"] == 1
+
+
+def test_validate_derived_accepts_possessor_and_verb_slots_now(monkeypatch):
+    # Roadmap D2: validate_derived's slot restriction was generalized from adposition-only.
+    import lexeme_aligner.typology as typology
+    monkeypatch.setattr(typology, "grambank_direction", lambda gb, slot: "after" if gb else None)
+    monkeypatch.setattr(dt, "_load_json", lambda fp: {"languages": {"a": {"GB065": "2"}}})
+    for slot in ("possessor", "subject_verb", "object_verb"):
+        derived_docs = {"a": {slot: {"direction": "after"}}}
+        result = dt.validate_derived(slot, derived_docs)
+        assert result["slot"] == slot
+        assert result["reference_total"] == 1
+
+
+def test_validate_derived_still_rejects_an_unknown_slot_name():
+    import pytest
+    with pytest.raises(ValueError):
+        dt.validate_derived("not_a_real_slot", {})
+
+
+# --- D2 (Greek possessor / subject_verb / object_verb via HebToken.role) ---------------------------------
+def test_possessor_stat_greek_genitive_before_head():
+    # G(genitive) at idx 0 -> target 0, H(head, non-genitive) at idx 1 -> target 1: G precedes H.
+    members = [_FakeD1Tok(0, case_="genitive"), _FakeD1Tok(1, case_="accusative")]
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._possessor_stat_greek([_rec(members)], anchors)
+    assert stat == {"n_opportunities": 1, "n_fused": 0, "n_before": 1, "n_after": 0,
+                    "n_resolved": 1, "rate_after": 0.0}
+
+
+def test_possessor_stat_greek_head_before_genitive():
+    # SOURCE order H(head, idx 0) then G(genitive, idx 1); TARGET order unchanged (identity anchors) ->
+    # G's own target position (1) is still greater than H's (0) -> possessor(G) FOLLOWS head -> "after".
+    members = [_FakeD1Tok(0, case_="accusative"), _FakeD1Tok(1, case_="genitive")]
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._possessor_stat_greek([_rec(members)], anchors)
+    assert stat["n_after"] == 1 and stat["n_before"] == 0
+
+
+def test_possessor_stat_greek_excludes_genitive_pronouns():
+    tok = _FakeD1Tok(0, case_="genitive", lemma="αὐτός")
+    assert dt._is_gen_pronoun(tok)
+    members = [tok, _FakeD1Tok(1, case_="accusative")]
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._possessor_stat_greek([_rec(members)], anchors)
+    assert stat["n_opportunities"] == 0
+
+
+def test_possessor_stat_greek_both_genitive_or_both_non_genitive_is_not_a_pair():
+    members = [_FakeD1Tok(0, case_="genitive"), _FakeD1Tok(1, case_="genitive")]
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._possessor_stat_greek([_rec(members)], anchors)
+    assert stat["n_opportunities"] == 0
+
+
+def test_clause_role_stat_subject_before_verb():
+    s = _FakeD1Tok(0, role="s")
+    v = _FakeD1Tok(1, role="v", person="third")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._clause_role_stat([_rec([s, v])], anchors, "s")
+    assert stat == {"n_opportunities": 1, "n_fused": 0, "n_before": 1, "n_after": 0,
+                    "n_resolved": 1, "rate_after": 0.0}
+
+
+def test_clause_role_stat_object_after_verb():
+    v = _FakeD1Tok(0, role="v", person="third")
+    o = _FakeD1Tok(1, role="o")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._clause_role_stat([_rec([v, o])], anchors, "o")
+    assert stat["n_after"] == 1
+
+
+def test_clause_role_stat_pairs_a_role_token_with_every_verb_it_has_no_other_verb_between():
+    # s1 -- v1 -- s2 -- v2: the design spec is a PER-PAIR criterion ("each verb AND each s/o token
+    # with no OTHER verb between them"), not exclusive nearest-neighbour assignment. s2 sits between
+    # v1 and v2 with no OTHER verb on either side, so it legitimately pairs with BOTH: s1-v1 (left of
+    # v1), s2-v1 (right of v1, v2 not yet reached), s2-v2 (left of v2, v1 not yet reached) = 3 pairs.
+    s1 = _FakeD1Tok(0, role="s")
+    v1 = _FakeD1Tok(1, role="v", person="third")
+    s2 = _FakeD1Tok(2, role="s")
+    v2 = _FakeD1Tok(3, role="v", person="third")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 2, 3: 3}}
+    stat = dt._clause_role_stat([_rec([s1, v1, s2, v2])], anchors, "s")
+    assert stat["n_opportunities"] == 3
+
+
+def test_clause_role_stat_never_crosses_a_second_verb():
+    # s -- v1 -- v2 -- (nothing): s must pair with v1 only (v2 is blocked by v1 sitting between them).
+    s = _FakeD1Tok(0, role="s")
+    v1 = _FakeD1Tok(1, role="v", person="third")
+    v2 = _FakeD1Tok(2, role="v", person="third")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 2}}
+    stat = dt._clause_role_stat([_rec([s, v1, v2])], anchors, "s")
+    assert stat["n_opportunities"] == 1
+
+
+def test_clause_role_stat_ignores_non_finite_verb_forms():
+    # a participle (mood="participle", no person) must not count as a clause-boundary verb.
+    s = _FakeD1Tok(0, role="s")
+    participle = _FakeD1Tok(1, role="v", mood="participle")
+    v = _FakeD1Tok(2, role="v", person="third")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 2}}
+    stat = dt._clause_role_stat([_rec([s, participle, v])], anchors, "s")
+    # s still reaches the real finite verb v (the participle doesn't block the scan)
+    assert stat["n_opportunities"] == 1
+
+
+# --- D2-fix (2026-09-26): the 1 Cor 1:26 elided-copula regression + the distance-cap guardrail --------
+def test_clause_role_stat_drops_a_role_token_beyond_max_distance():
+    # Reproduces the real bug: an elided-copula predicate-nominative clause has no finite verb to stop
+    # the window-walk, so a distant "s"-role token gets wrongly paired with an unrelated outer verb.
+    # 1 Cor 1:26 shape: v (outer verb, e.g. "consider") ... 20 filler content tokens (the embedded
+    # ὅτι-clause with its own elided "were") ... s (a predicate nominative, e.g. "wise"). Without a cap
+    # this counts as one opportunity; with max_distance=15 it must be dropped entirely.
+    v = _FakeD1Tok(0, role="v", person="third")
+    filler = [_FakeD1Tok(i) for i in range(1, 21)]          # 20 non-role, non-verb tokens
+    s = _FakeD1Tok(21, role="s")
+    members = [v] + filler + [s]
+    anchors = {encode("MAT", 1, 1): {i: i for i in range(22)}}
+    stat_uncapped = dt._clause_role_stat([_rec(members)], anchors, "s", max_distance=999)
+    assert stat_uncapped["n_opportunities"] == 1            # the bug, reproduced
+    stat_capped = dt._clause_role_stat([_rec(members)], anchors, "s", max_distance=15)
+    assert stat_capped["n_opportunities"] == 0               # the fix: dropped, not just unresolved
+
+
+def test_clause_role_stat_default_max_distance_matches_the_evidence_that_motivated_it():
+    assert dt._CLAUSE_ROLE_MAX_DISTANCE == 15
+
+
+def test_clause_role_stat_stops_at_a_greek_subordinator_even_within_the_distance_cap():
+    # the ACTUAL 1 Cor 1:26 shape: v ... hoti (subordinator, well within any distance cap) ... s.
+    # The distance cap alone does NOT catch this (confirmed against the real verse); the subordinator
+    # check must independently break the walk.
+    v = _FakeD1Tok(0, role="v", person="third")
+    hoti = _FakeD1Tok(1, strong="G3754")                  # ὅτι — not itself an "s"/"o"/"v" role
+    s = _FakeD1Tok(2, role="s")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 2}}
+    stat = dt._clause_role_stat([_rec([v, hoti, s])], anchors, "s")
+    assert stat["n_opportunities"] == 0
+
+
+# --- load_greek_frames + _clause_role_stat's frame_index parameter (D2-frames, 2026-09-26) -----------
+def test_load_greek_frames_joins_role_and_frames_tsv_by_book_chapter_verse_word(tmp_path):
+    role_tsv = tmp_path / "role.tsv"
+    role_tsv.write_text(
+        "key\tbook\tchapter\tverse\tword\trole\tcase\ttense\tvoice\tmood\tdegree\n"
+        "46001026001\t1CO\t1\t26\t1\tv\t\t\t\t\t\n"
+        "46001026006\t1CO\t1\t26\t6\taux\t\t\t\t\t\n"
+        "46001026004\t1CO\t1\t26\t4\to\taccusative\t\t\t\t\n",
+        encoding="utf-8")
+    frames_tsv = tmp_path / "frames.tsv"
+    frames_tsv.write_text(
+        "verb_key\trole\targ_key\n"
+        "46001026001\tA0\t46001026006\n"
+        "46001026001\tA1\t46001026004\n",
+        encoding="utf-8")
+    idx = dt.load_greek_frames(role_tsv, frames_tsv)
+    ref = encode("1CO", 1, 26)
+    assert idx == {ref: {0: {5, 3}}}     # word 1->idx0 (verb), word 6->idx5, word 4->idx3
+
+
+def test_load_greek_frames_drops_a_row_whose_verb_and_arg_are_in_different_verses(tmp_path):
+    role_tsv = tmp_path / "role.tsv"
+    role_tsv.write_text(
+        "key\tbook\tchapter\tverse\tword\trole\tcase\ttense\tvoice\tmood\tdegree\n"
+        "46001026001\t1CO\t1\t26\t1\tv\t\t\t\t\t\n"
+        "46001027001\t1CO\t1\t27\t1\to\t\t\t\t\t\n",
+        encoding="utf-8")
+    frames_tsv = tmp_path / "frames.tsv"
+    frames_tsv.write_text("verb_key\trole\targ_key\n46001026001\tA1\t46001027001\n", encoding="utf-8")
+    assert dt.load_greek_frames(role_tsv, frames_tsv) == {}
+
+
+def test_load_greek_frames_degrades_to_empty_when_files_are_absent(tmp_path):
+    assert dt.load_greek_frames(tmp_path / "nope-role.tsv", tmp_path / "nope-frames.tsv") == {}
+
+
+def test_clause_role_stat_frame_index_overrides_the_heuristic_for_a_verb_with_a_real_frame():
+    # 1 Cor 1:26 shape: v(0) ... aux(5, "brothers") ... hoti-ish filler ... o(3, our fake accusative
+    # "calling") ... far away s(9,14,17)-equivalent tokens the OLD heuristic mispaired. With a frame
+    # entry for v(0) naming ONLY idx 3 as its real argument, the predicate-nominative-style "s" tokens
+    # must NOT count as opportunities at all, even without relying on distance/subordinator detection.
+    v = _FakeD1Tok(0, role="v", person="third")
+    o_real = _FakeD1Tok(3, role="s")            # the verb's REAL frame argument (using role="s" here)
+    s_fake = _FakeD1Tok(9, role="s")            # NOT in the frame -> must be excluded when framed
+    members = [v, _FakeD1Tok(1), _FakeD1Tok(2), o_real, _FakeD1Tok(4), _FakeD1Tok(5), _FakeD1Tok(6),
+              _FakeD1Tok(7), _FakeD1Tok(8), s_fake]
+    anchors = {encode("MAT", 1, 1): {i: i for i in range(10)}}
+    frame_index = {encode("MAT", 1, 1): {0: {3}}}       # verb idx0's only real argument is idx3
+    stat = dt._clause_role_stat([_rec(members)], anchors, "s", frame_index=frame_index)
+    assert stat["n_opportunities"] == 1                 # only o_real (idx3) counts, s_fake excluded
+
+
+def test_clause_role_stat_falls_back_to_the_heuristic_for_a_verb_with_no_frame_entry():
+    v = _FakeD1Tok(0, role="v", person="third")
+    s = _FakeD1Tok(1, role="s")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    frame_index = {encode("MAT", 1, 1): {}}             # this verse has frame data, but not for idx0
+    stat = dt._clause_role_stat([_rec([v, s])], anchors, "s", frame_index=frame_index)
+    assert stat["n_opportunities"] == 1                 # heuristic still applies
+
+
+def test_clause_role_stat_frame_index_none_is_pure_heuristic_unchanged():
+    v = _FakeD1Tok(0, role="v", person="third")
+    s = _FakeD1Tok(1, role="s")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    stat = dt._clause_role_stat([_rec([v, s])], anchors, "s", frame_index=None)
+    assert stat["n_opportunities"] == 1
+
+
+def test_clause_role_stat_keeps_a_role_token_within_the_cap():
+    v = _FakeD1Tok(0, role="v", person="third")
+    filler = [_FakeD1Tok(i) for i in range(1, 5)]
+    s = _FakeD1Tok(5, role="s")
+    members = [v] + filler + [s]
+    anchors = {encode("MAT", 1, 1): {i: i for i in range(6)}}
+    stat = dt._clause_role_stat([_rec(members)], anchors, "s")   # default cap
+    assert stat["n_opportunities"] == 1
+
+
+# --- _hebrew_clause_role_stat (D0-fix, 2026-09-26: replaces func_order's order-kept approach for
+# subject_verb/object_verb specifically) -----------------------------------------------------------------
+def test_hebrew_clause_role_stat_measures_target_position_directly_not_order_kept():
+    # Pred BEFORE Subj in SOURCE (Hebrew verb-initial), but Subj comes BEFORE Pred in the TARGET
+    # (idx 0 -> target pos 5, idx 1 -> target pos 0): the OLD order-kept approach would call this
+    # "order NOT kept" (source Pred-first, target Subj-first) and fold it into a totally different
+    # statistical bucket than a Subj-first-in-source case. The new function must count it as a plain
+    # "before" observation regardless of which side Hebrew put first.
+    pred = _FakeD1Tok(0, phrase_id=1, function="Pred", strong="H0001")
+    subj = _FakeD1Tok(1, phrase_id=2, function="Subj", strong="H0001")
+    anchors = {encode("MAT", 1, 1): {0: 5, 1: 0}}
+    stat = dt._hebrew_clause_role_stat([_rec([pred, subj])], anchors, "Subj")
+    assert stat == {"n_opportunities": 1, "n_fused": 0, "n_before": 1, "n_after": 0,
+                    "n_resolved": 1, "rate_after": 0.0}
+
+
+def test_hebrew_clause_role_stat_pools_both_source_orders_into_one_statistic():
+    # Case A: source Subj-then-Pred, target ALSO keeps subject before verb (before).
+    # Case B: source Pred-then-Subj (Hebrew verb-initial), target STILL keeps subject before verb.
+    # Both are genuinely "subject before verb in the target" and must land in the SAME "before" bucket,
+    # regardless of Hebrew's own source order for that instance — the entire point of this fix.
+    subj_a = _FakeD1Tok(0, phrase_id=1, function="Subj", strong="H0001")
+    pred_a = _FakeD1Tok(1, phrase_id=2, function="Pred", strong="H0001")
+    pred_b = _FakeD1Tok(2, phrase_id=3, function="Pred", strong="H0001")
+    subj_b = _FakeD1Tok(3, phrase_id=4, function="Subj", strong="H0001")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 3, 3: 2}}   # b: target subj(pos2) < pred(pos3)
+    stat = dt._hebrew_clause_role_stat([_rec([subj_a, pred_a, pred_b, subj_b])], anchors, "Subj")
+    assert stat["n_before"] == 2
+    assert stat["n_after"] == 0
+
+
+def test_hebrew_clause_role_stat_never_crosses_a_second_pred_phrase():
+    subj = _FakeD1Tok(0, phrase_id=1, function="Subj", strong="H0001")
+    pred1 = _FakeD1Tok(1, phrase_id=2, function="Pred", strong="H0001")
+    pred2 = _FakeD1Tok(2, phrase_id=3, function="Pred", strong="H0001")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 2}}
+    stat = dt._hebrew_clause_role_stat([_rec([subj, pred1, pred2])], anchors, "Subj")
+    assert stat["n_opportunities"] == 1                # subj pairs with pred1 only
+
+
+def test_hebrew_clause_role_stat_stops_at_a_hebrew_subordinator_between_the_phrases():
+    # the real root cause this function fixes: a relative/complementizer marker (H0834/H3588/H0518)
+    # sitting between two phrases means they belong to different clauses, even with no second Pred.
+    pred = _FakeD1Tok(0, phrase_id=1, function="Pred", strong="H0001")
+    rel = _FakeD1Tok(1, strong="H0834")                 # אֲשֶׁר, not itself a Subj/Objc/Pred phrase member
+    subj = _FakeD1Tok(2, phrase_id=2, function="Subj", strong="H0001")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 2}}
+    stat = dt._hebrew_clause_role_stat([_rec([pred, rel, subj])], anchors, "Subj")
+    assert stat["n_opportunities"] == 0
+
+
+def test_hebrew_clause_role_stat_reproduces_1ch_1_10_without_spurious_cross_clause_pairing():
+    # Real shape found in 1 Chronicles 1:10 during root-cause investigation: two independent clauses
+    # in one verse — (Subj1, Pred1, Objc1) then (Pred2, Subj2) — sharing no relationship. The phrase
+    # immediately before Pred2 in the SORTED list is Objc1, from the FIRST clause; that must not count
+    # as a Pred-Objc pair (it's not really the same clause), and equally Objc1 pairing "backward" with
+    # Pred1 (its own real verb) must still work correctly.
+    subj1 = _FakeD1Tok(0, phrase_id=1, function="Subj", strong="H0001")
+    pred1 = _FakeD1Tok(1, phrase_id=2, function="Pred", strong="H0001")
+    objc1 = _FakeD1Tok(2, phrase_id=3, function="Objc", strong="H0001")
+    pred2 = _FakeD1Tok(3, phrase_id=4, function="Pred", strong="H0001")
+    subj2 = _FakeD1Tok(4, phrase_id=5, function="Subj", strong="H0001")
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1, 2: 3, 3: 5, 4: 7}}
+    stat_objc = dt._hebrew_clause_role_stat(
+        [_rec([subj1, pred1, objc1, pred2, subj2])], anchors, "Objc")
+    # objc1 pairs with pred1 (its real verb, no Pred between) — walking right from pred1 hits objc1
+    # before pred2; walking from pred2 leftward hits objc1 too (no OTHER Pred between them either) —
+    # per the same per-pair (not exclusive-nearest) semantics D2's own Greek function already uses.
+    assert stat_objc["n_opportunities"] == 2
+
+
+# --- check_known_answers (D2-fix's automated gate) -----------------------------------------------------
+def test_check_known_answers_all_match():
+    docs = {"eng": {"subject_verb": {"direction": "before"}, "object_verb": {"direction": "after"}}}
+    out = dt.check_known_answers(docs)
+    assert out["passed"] is True
+    assert out["violations"] == []
+    assert out["matches"] >= 2
+
+
+def test_check_known_answers_detects_a_confident_wrong_direction():
+    # the real Russian case: subject_verb resolved confidently to "after", contradicting the known
+    # dominant SVO answer ("before") — this MUST fail the gate.
+    docs = {"rus": {"subject_verb": {"direction": "after", "n": 11664, "rate": 0.822}}}
+    out = dt.check_known_answers(docs)
+    assert out["passed"] is False
+    assert len(out["violations"]) == 1
+    assert out["violations"][0] == {"slot": "subject_verb", "iso": "rus", "expected": "before",
+                                    "actual": "after", "detail": docs["rus"]["subject_verb"]}
+
+
+def test_check_known_answers_abstention_is_reported_but_not_a_hard_failure():
+    # the real English case: subject_verb resolved to null/mixed instead of the confident "before" a
+    # textbook-unambiguous language should produce — suspicious, but abstaining is not actively wrong.
+    docs = {"eng": {"subject_verb": {"direction": None, "reason": "mixed"}}}
+    out = dt.check_known_answers(docs)
+    assert out["passed"] is True                      # abstention alone never fails the gate
+    assert out["violations"] == []
+    assert len(out["abstentions"]) == 1
+    assert out["abstentions"][0] == {"slot": "subject_verb", "iso": "eng", "expected": "before"}
+
+
+def test_check_known_answers_ignores_languages_or_slots_not_in_the_docs():
+    out = dt.check_known_answers({})
+    assert out == {"passed": True, "violations": [], "abstentions": [], "matches": 0, "checked": 0}
+
+
+def test_derive_d2_slots_omits_below_min_n():
+    members = [_FakeD1Tok(0, case_="genitive"), _FakeD1Tok(1, case_="accusative")]
+    anchors = {encode("MAT", 1, 1): {0: 0, 1: 1}}
+    out = dt.derive_d2_slots([_rec(members)], anchors)
+    assert out == {}   # far below _D2_MIN_N thresholds
+
+
+def test_derive_d2_slots_reports_possessor_and_verb_slots_together():
+    recs = []
+    anchors = {}
+    for i in range(310):
+        ref = encode("MAT", 1, i + 1)
+        g, h = _FakeD1Tok(0, case_="genitive"), _FakeD1Tok(1, case_="accusative")
+        recs.append(_rec([g, h], v=i + 1))
+        anchors[ref] = {0: 0, 1: 1}                        # G precedes H every time -> "before"
+    out = dt.derive_d2_slots(recs, anchors)
+    assert out["possessor"]["direction"] == "before"
+    assert out["possessor"]["n"] >= 300
+    assert "subject_verb" not in out and "object_verb" not in out   # no role tokens in this fixture
+
+
+# --- _combine_testaments (Hebrew OT + Greek NT versions of the same slot) --------------------------------
+def test_combine_testaments_nt_only_language():
+    grc = {"direction": "after", "source": "derived", "n": 400}
+    combined = dt._combine_testaments(None, grc)
+    assert combined["testament"] == "NT" and combined["direction"] == "after"
+
+
+def test_combine_testaments_ot_only_language():
+    heb = {"direction": "before", "source": "derived", "n": 200}
+    combined = dt._combine_testaments(heb, None)
+    assert combined["testament"] == "OT" and combined["direction"] == "before"
+
+
+def test_combine_testaments_neither_resolves_is_none():
+    assert dt._combine_testaments(None, None) is None
+
+
+def test_combine_testaments_agreement_keeps_higher_n_and_records_both_rates():
+    heb = {"direction": "after", "source": "derived", "n": 100, "rate_after": 0.85}
+    grc = {"direction": "after", "source": "derived", "n": 500, "rate_after": 0.9}
+    combined = dt._combine_testaments(heb, grc)
+    assert combined["testament"] == "OT+NT"
+    assert combined["n"] == 500                            # the higher-n (Greek) one is primary
+    assert combined["ot_rate"] == 0.85 and combined["nt_rate"] == 0.9
+
+
+def test_combine_testaments_disagreement_is_null_with_both_rates_never_silently_picked():
+    heb = {"direction": "before", "source": "derived", "n": 100, "rate_after": 0.1}
+    grc = {"direction": "after", "source": "derived", "n": 400, "rate_after": 0.9}
+    combined = dt._combine_testaments(heb, grc)
+    assert combined["direction"] is None
+    assert combined["reason"] == "testament_conflict"
+    assert combined["ot"]["direction"] == "before" and combined["nt"]["direction"] == "after"
+
+
+def test_combine_testaments_a_mixed_null_slot_is_treated_as_unresolved():
+    # a slot whose OWN direction is already None ("mixed") must not count as "this testament resolved".
+    heb_mixed = {"direction": None, "source": "derived", "n": 150, "reason": "mixed"}
+    grc = {"direction": "after", "source": "derived", "n": 400, "rate_after": 0.9}
+    combined = dt._combine_testaments(heb_mixed, grc)
+    assert combined["testament"] == "NT" and combined["direction"] == "after"

@@ -180,6 +180,34 @@ def parse_source_file(text: str, letter: str) -> dict[tuple[int, int, str], str 
     return out
 
 
+def parse_source_morphemes(text: str) -> dict[tuple[int, int, str], dict]:
+    """Roadmap F3: {(chapter, verse, token_id): {"morph", "surface", "translit"}} for EVERY row in a
+    Hebrew1008/Greek1904 source file, unconditionally — unlike `parse_source_file`, which drops a row's
+    own detail down to `None` the moment it lacks a lexical Strong's number. Two real cases this
+    recovers (verified against ru001:001): (1) sub-word morpheme splitting — a single printed word can
+    be split across several letter-suffixed token ids sharing one leading number ("1a"=CNJ prefix "וַ",
+    "1b"=the verb stem "יְהִ֗י" — two rows, one Hebrew word); (2) compound multi-word lexemes — a
+    "+"-suffixed Strong's id ("1035+") spans several Hebrew SURFACE words treated as one lexical unit
+    ("בֵּ֧ית לֶ֣חֶם" / bêt_leḥem = "Bethlehem"). Both are real boundary information the OLD Strong's-or-
+    None collapse discarded entirely; this function keeps it so a caller can reconstruct the morpheme
+    structure regardless of whether any given piece carries a lexical Strong's number."""
+    out: dict[tuple[int, int, str], dict] = {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        cols = line.split("\t")
+        if len(cols) < 6:
+            continue
+        ref, token_id, _triple, morph, surface, translit = cols[0], cols[1], cols[2], cols[3], cols[4], cols[5]
+        m = re.match(r"[a-z0-9]+(\d{3}):(\d{3})$", ref)
+        if not m:
+            continue
+        chapter = 1 if m.group(1) == "000" else int(m.group(1))
+        verse = int(m.group(2))
+        out[(chapter, verse, token_id)] = {"morph": morph, "surface": surface, "translit": translit}
+    return out
+
+
 def _clean_source_ids(field: str) -> list[str]:
     if field in ("", "-"):
         return []
@@ -223,9 +251,20 @@ def parse_alignment_file(text: str) -> dict[tuple[int, int], tuple[list[str], li
 
 
 def build_gold_and_text(align_text: str, source_lookup: dict[tuple[int, int, str], str | None],
-                        book: str, base_text: str) -> tuple[list[dict], dict[tuple[int, int], str], dict]:
+                        book: str, base_text: str,
+                        morph_lookup: dict[tuple[int, int, str], dict] | None = None
+                        ) -> tuple[list[dict], dict[tuple[int, int], str], dict]:
     """Gold rows (Clear schema) + {(chapter, verse): plain text} for one book, plus stats. `book` is
-    our USFM code, used to build `ref`/`target_id` the way `pos_score.load_gold` expects."""
+    our USFM code, used to build `ref`/`target_id` the way `pos_score.load_gold` expects.
+
+    Roadmap F3 (2026-09-26): when `morph_lookup` is given (`parse_source_morphemes`'s output), every
+    gold row also carries a `morphemes` field — the FULL list of source-side morpheme records for every
+    id the row's target token cites (`sid` in `src_ids`), not just the one that happened to carry a
+    lexical Strong's number. A target token whose ONLY cited id is a grammatical particle (no Strong's,
+    `strong is None`) still gets NO gold row here (that's the `pos_score.load_gold` contract this
+    function's Clear-schema output feeds — a Strong's-anchored gold format, unchanged), but a row that
+    DOES emit still records every morpheme it touches, including non-lexical ones, so the boundary
+    information is preserved rather than collapsed."""
     rows: list[dict] = []
     texts: dict[tuple[int, int], str] = {}
     stats: collections.Counter = collections.Counter()
@@ -245,13 +284,18 @@ def build_gold_and_text(align_text: str, source_lookup: dict[tuple[int, int, str
                     continue
                 if sid not in seen_source_ids:
                     seen_source_ids[sid] = len(seen_source_ids)
-                rows.append({
+                row = {
                     "strong": strong, "lemma": "", "surface": toks[pos_idx],
                     "ref": ref, "target_id": f"{ref}{pos_idx + 1:03d}",
                     "source_id": f"n{ref}{seen_source_ids[sid]:03d}",
                     "method": "helfi", "source_corpus": ("WLC" if book in OT_BOOKS else "Nestle1904"),
                     "base_text": base_text,
-                })
+                }
+                if morph_lookup is not None:
+                    row["morphemes"] = [
+                        {"token_id": s, **morph_lookup[(chapter, verse, s)]}
+                        for s in src_ids if (chapter, verse, s) in morph_lookup]
+                rows.append(row)
         stats["rows"] += sum(1 for src_ids in src_lists for sid in src_ids
                              if source_lookup.get((chapter, verse, sid)) is not None)
     return rows, texts, dict(stats)
@@ -288,9 +332,12 @@ def build_all(cache_dir: Path = _CACHE, base_text: str = "HELFI",
         if wanted and book not in wanted:
             continue
         letter = "H" if n <= 39 else "G"
-        source_lookup = parse_source_file(_cached(cache_dir, _source_path(n)), letter)
+        source_text = _cached(cache_dir, _source_path(n))
+        source_lookup = parse_source_file(source_text, letter)
+        morph_lookup = parse_source_morphemes(source_text)
         align_text = _cached(cache_dir, _align_path(n))
-        rows, texts, book_stats = build_gold_and_text(align_text, source_lookup, book, base_text)
+        rows, texts, book_stats = build_gold_and_text(align_text, source_lookup, book, base_text,
+                                                      morph_lookup=morph_lookup)
         all_rows.extend(rows)
         all_texts[book] = texts
         for k, v in book_stats.items():

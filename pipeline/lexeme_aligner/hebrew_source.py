@@ -141,6 +141,13 @@ class HebToken:
     # grounding rule 3/4's span/discontinuity decisions in real syntax rather than word-order guessing.
     head_idx: int | None = None
     phrase_role: str | None = None
+    # `role` (roadmap D2, 2026-09-25) — Greek's OWN clause-level role (v/adv/o/s/vc/io/p/aux/o2), NT-only
+    # (verified: populated for exactly the 27 NT books, zero OT rows; never co-occurs with `phrase_role`,
+    # which is Hebrew/OT-only). NOT the same column as `phrase_role` despite the similar name and value
+    # vocabulary — a real naming trap this session caught before building on the wrong field. Lets D2
+    # find a finite verb (`role=="v"`, `person` populated) and its clause's subject/object (`role=="s"`/
+    # `"o"`) directly, the way `phrase_role`+`function` do for Hebrew via BHSA phrases.
+    role: str | None = None
     # filled by the aligner:
     matches: list = field(default_factory=list)
 
@@ -228,6 +235,7 @@ class HebrewSource:
         self.has_construct_group = _populated("construct_group")
         self.has_head_idx = _populated("head_idx")
         self.has_phrase_role = _populated("phrase_role")
+        self.has_role = _populated("role")            # Greek clause role (see HebToken.role) — NT-only
         # hbo.db is the optional per-occurrence sense sidecar (sense-mining only).
         # Statistical methods (eflomal/IBM-1) need only spine + target USJ, so a
         # missing hbo.db must not be fatal — connect only when the file is present.
@@ -333,6 +341,8 @@ class HebrewSource:
                 tok.head_idx = r.get("head_idx")
             if self.has_phrase_role:                   # phrase-level role (see HebToken.phrase_role)
                 tok.phrase_role = r.get("phrase_role") or None
+            if self.has_role:                          # Greek clause role (see HebToken.role) — NT-only
+                tok.role = r.get("role") or None
             toks.append(tok)
 
         if not self.has_superscription_col and book == "PSA" and toks:

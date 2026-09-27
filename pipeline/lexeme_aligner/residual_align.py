@@ -289,7 +289,10 @@ def main() -> int:
         fp.unlink()
     for book, out_recs in by_book.items():
         out_recs.sort(key=lambda x: (x["chapter"], x["verse"]))
-        with (args.out / f"align_residual_{args.iso}_{book}.jsonl").open("w", encoding="utf-8") as fh:
+        from lexeme_aligner.align_files import unlink_stale_gz
+        _dest = args.out / f"align_residual_{args.iso}_{book}.jsonl"
+        unlink_stale_gz(_dest)
+        with _dest.open("w", encoding="utf-8") as fh:
             for x in out_recs:
                 fh.write(json.dumps(x, ensure_ascii=False) + "\n")
     print(f"[residual] aligned {n_pairs} of {n_src} unexplained source tokens "

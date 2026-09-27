@@ -80,6 +80,21 @@ def _strip_book(name: str, prefix: str) -> str | None:
     return None
 
 
+def unlink_stale_gz(out_path: Path) -> bool:
+    """Call before writing a fresh `align_<method>_<tag>_<BOOK>.jsonl`: removes the `.jsonl.gz` sibling a
+    previous `full_chain --clean-out` left behind. Found 2026-09-27: `tag_files` (correctly) returns
+    BOTH spellings, and nothing removed the stale one, so every downstream step of a re-run
+    (gloss bootstrap, spanext, gapfill, export_lex, compact_align) read the OLD compressed output
+    together with the NEW uncompressed one — spa's in-chain export carried 1,219,951 rows against
+    977,411 from a clean re-export (+25% phantom rows, a blend of two different alignments). Affects any
+    language re-run with --clean-out since compression arrived (2026-09-11). Returns True if removed."""
+    gz = out_path.with_name(out_path.name + ".gz")
+    if gz.exists():
+        gz.unlink()
+        return True
+    return False
+
+
 def tag_files(out_dir: Path, method: str, tag: str) -> list[AlignPath]:
     """Exact-tag align_<method>_<tag>_<BOOK>.jsonl(.gz) files for ONE known method."""
     prefix = f"align_{method}_{tag}_"

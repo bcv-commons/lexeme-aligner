@@ -176,6 +176,8 @@ def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path
         samples: list[dict] = []
         missing = 0
         out_path = out_dir / f"align_{tag}_{iso}_{book}.jsonl"
+        from lexeme_aligner.align_files import unlink_stale_gz
+        unlink_stale_gz(out_path)          # a --clean-out'd previous run must not be read beside this one
         with out_path.open("w", encoding="utf-8") as fh:
             for rec in brecs:
                 content = [t for t in rec.heb if t.is_content and t.strong]

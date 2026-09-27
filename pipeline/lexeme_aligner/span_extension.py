@@ -1097,6 +1097,8 @@ def main(argv=None) -> int:
     for book, recs in by_book.items():
         recs.sort(key=lambda r: (r["chapter"], r["verse"]))
         dest = a.out / f"align_spanext_{a.iso}_{book}.jsonl"
+        from lexeme_aligner.align_files import unlink_stale_gz
+        unlink_stale_gz(dest)
         with dest.open("w", encoding="utf-8") as fh:
             for r in recs:
                 fh.write(json.dumps(r, ensure_ascii=False) + "\n")

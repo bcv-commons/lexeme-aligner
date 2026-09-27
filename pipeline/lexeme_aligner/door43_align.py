@@ -1,14 +1,38 @@
-"""Roadmap F4 (internal-docs/aim1-typology-source-structure-plan.md, "### full-align"): a third Arabic
-manual layer from Door43's real USFM3 `\\zaln` word-alignment markup.
+"""Roadmap F4 (internal-docs/aim1-typology-source-structure-plan.md, "### full-align"): manual
+alignment layers from Door43's real USFM3 `\\zaln` word-alignment markup — Arabic (`ar_arst`) plus,
+per the 2026-09-26 extension below, every other language on Door43's own official catalog with
+genuinely aligned text, not just the plan's original single-language scope.
 
 CORRECTION TO THE PLAN'S OWN FRAMING, found while investigating (verified against real fetched files,
-not assumed): the plan names TWO editions, `ar_avd`/`ar_arst`, as "the only aligned Bibles the catalog
-now returns" — but only ONE of them actually carries alignment data. `ar_avd` (Door43-Catalog/ar_avd,
-Arabic Van Dyck) is plain USFM2 text with ZERO `\\zaln` markers anywhere (checked TIT in full: 0
-matches) and is also missing 19-PSA.usfm/23-ISA.usfm from its own file list — a real, separate gap.
-`ar_arst` (BSOJ/ar_arst, git.door43.org, updated 2026-09-24) genuinely has real `\\zaln-s`/`\\zaln-e`
-markup, keyed to Greek Strong's/lemma/morph/occurrence, full 66-book coverage. This module targets
-`ar_arst` only — `ar_avd` cannot serve as an aligned manual layer at all, alignment data or not.
+not assumed): the plan names TWO Arabic editions, `ar_avd`/`ar_arst`, as "the only aligned Bibles the
+catalog now returns" — but only ONE of them actually carries alignment data. `ar_avd`
+(Door43-Catalog/ar_avd, Arabic Van Dyck) is plain USFM2 text with ZERO `\\zaln` markers anywhere
+(checked TIT in full: 0 matches) and is also missing 19-PSA.usfm/23-ISA.usfm from its own file list —
+a real, separate gap. `ar_arst` (BSOJ/ar_arst, git.door43.org, updated 2026-09-24) genuinely has real
+`\\zaln-s`/`\\zaln-e` markup, keyed to Greek Strong's/lemma/morph/occurrence, full 66-book coverage.
+`ar_avd` cannot serve as an aligned manual layer at all, alignment data or not.
+
+MULTI-LANGUAGE EXTENSION (2026-09-26): Door43's official `Door43-Catalog` org publishes a `_glt`/`_gst`
+("Gateway Language Translation"/"Gateway Scripture Text") naming convention across many languages,
+built via the SAME alignment tooling (tC Create) as `ar_arst`. Checked all 10 real candidates found in
+that org's own catalog by fetching a real book from each and counting `\\zaln-s` occurrences — same
+"verify, don't assume from the name" discipline as the `ar_avd`/`ar_arst` finding above, since it
+recurs: **9 of 10 are genuinely aligned** (`hi_glt` 654 zaln-s in Titus alone, `mr_glt` 613, `bn_gst`
+607, `es-419_glt` 652, `gu_glt` 600, `kn_glt` 607, `ne_glt` 576, `or_glt` 630, `te_glt` 599) — only
+`vi_glt` (Vietnamese) has ZERO, despite the same naming convention. Coverage per language is real but
+PARTIAL and ECLECTIC, not a clean NT/OT split — `hi_glt`'s own 27 books are a mix of some OT (Ruth,
+Ezra, Nehemiah, Esther, Obadiah, Jonah) plus most-but-not-all NT (missing Matthew, Acts, Romans,
+Galatians, Hebrews, Revelation), consistent with organic, distributed volunteer-checking progress
+(shorter/simpler books completed first) rather than a deliberate split. `list_available_books()`
+queries each repo's real file listing rather than assuming any fixed book set, for exactly this reason.
+
+LANGUAGE REGISTRY (`LANGUAGES`): `{iso: {"org", "repo", "tag"}}` — `iso` is this project's own
+published ISO 639-3 code, verified directly against `publish/lexeme-alignments/manifest.json` before
+use (two real corrections found this way: Door43's `ne` maps to our `npi`, not the ISO 639-1-derived
+`nep` macrolanguage code; Door43's `or` maps to our `ory`, not the deprecated `ori`). `es-419_glt`
+(Latin American Spanish) maps to `spa` — the SAME top-level ISO 639-3 code as this project's own
+existing `spa` edition, but likely a DIFFERENT regional/textual tradition; flagged, not silently
+assumed equivalent. `vi`/Vietnamese is deliberately excluded (confirmed zero real alignment data).
 
 USJ CONVERSION (2026-09-26 rewrite, replacing a from-scratch regex/text-offset parser): this module
 now parses real USFM3 via `usfmtc` (already a dependency of this repo — used by `cdn_source.py`/
@@ -36,13 +60,15 @@ actively-maintained USFM3 grammar parser handling the WHOLE format — footnotes
 poetry, arbitrary nesting — not just the specific patterns two sample books happened to exercise).
 
 SCOPE NOTE, still honest about what this pass delivers: a real, tested core parser
-(`usj_spans_for_book`) verified against live TIT/PHM data end-to-end, plus a `fetch_book()`/
-`build_book()` pair that writes one JSON file per book under `publish/full-align/arb/ararst/
-manual/door43-arst/<BOOK>.json` (one row per (verse_ref, strong, lemma, morph, occurrence,
-target_words)). Does NOT yet replicate BSB-tables' full sophistication (bsb_tables.py, ~900 lines: a
-Parquet struct schema, spine-side occurrence-disambiguated mapping via `map_source`, a sidecar table,
-round-trip `--emit-tsv` verification, manifest merge, gold-health gating). That remains real,
-comparable-scope follow-up work.
+(`usj_spans_for_book`) verified against live data end-to-end for all 9 confirmed-aligned languages,
+plus `fetch_book()`/`build_book()`/`build_language()` that write one JSON file per book under
+`publish/full-align/<iso>/<tag>/manual/door43-<name>/<BOOK>.json` (one row per (verse_ref, strong,
+lemma, morph, occurrence, target_words)), for whichever books a language's own repo actually has
+(discovered via `list_available_books()`, never assumed). Does NOT yet replicate BSB-tables' full
+sophistication (bsb_tables.py, ~900 lines: a Parquet struct schema, spine-side occurrence-
+disambiguated mapping via `map_source`, a sidecar table, round-trip `--emit-tsv` verification,
+manifest merge, gold-health gating). That remains real, comparable-scope follow-up work, for every
+language here, not just Arabic.
 """
 from __future__ import annotations
 
@@ -53,10 +79,29 @@ from pathlib import Path
 
 import usfmtc
 
-_BASE = "https://git.door43.org/BSOJ/ar_arst/raw/branch/master"
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
-OUT_DIR = Path("publish/full-align/arb/ararst/manual/door43-arst")
-_CACHE_DIR = Path("pipeline/work/door43_cache/ar_arst")
+_API_BASE = "https://git.door43.org/api/v1/repos"
+_CACHE_ROOT = Path("pipeline/work/door43_cache")
+_PUBLISH_ROOT = Path("publish/full-align")
+
+# {iso: {"org", "repo", "tag"}} — iso verified against publish/lexeme-alignments/manifest.json (see
+# module docstring for the two real npi/ory corrections). `tag` follows this repo's own convention for
+# a non-onboarded third-party manual-layer source (invented, not from config/pins/ — same pattern as
+# `ararst` below), and doubles as the `door43-<tag>` output directory name.
+LANGUAGES = {
+    "arb": {"org": "BSOJ", "repo": "ar_arst", "tag": "ararst"},
+    "hin": {"org": "Door43-Catalog", "repo": "hi_glt", "tag": "higlt"},
+    "mar": {"org": "Door43-Catalog", "repo": "mr_glt", "tag": "marglt"},
+    "ben": {"org": "Door43-Catalog", "repo": "bn_gst", "tag": "bengst"},
+    "spa": {"org": "Door43-Catalog", "repo": "es-419_glt", "tag": "es419glt"},
+    "guj": {"org": "Door43-Catalog", "repo": "gu_glt", "tag": "gujglt"},
+    "kan": {"org": "Door43-Catalog", "repo": "kn_glt", "tag": "knglt"},
+    "npi": {"org": "Door43-Catalog", "repo": "ne_glt", "tag": "neglt"},
+    "ory": {"org": "Door43-Catalog", "repo": "or_glt", "tag": "orglt"},
+    "tel": {"org": "Door43-Catalog", "repo": "te_glt", "tag": "telglt"},
+    # "vie": intentionally excluded — Door43-Catalog/vi_glt confirmed to carry ZERO real \zaln markers
+    # despite the same naming convention (checked directly, not assumed from the name).
+}
 
 _BOOK_FILES = {
     "GEN": "01-GEN", "EXO": "02-EXO", "LEV": "03-LEV", "NUM": "04-NUM", "DEU": "05-DEU",
@@ -91,7 +136,7 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
     `ms/zaln-e` closes, so a verse accumulates its spans in source order regardless of how many `para`
     blocks or nested elements it's split across."""
     out: dict[tuple[int, int], list[dict]] = {}
-    state = {"chapter": 0, "verse": None, "stack": []}
+    state = {"chapter": 0, "verse": None, "stack": [], "seq": 0}
 
     def close_span(span: dict) -> None:
         if state["verse"] is not None:
@@ -107,11 +152,21 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
             state["chapter"] = int(node.get("number", 0))
             state["verse"] = None
         elif t == "verse":
-            state["verse"] = int(node.get("number", 0))
+            # a bridged verse marker ("50-51") takes the first number — same convention
+            # versification.py's own _usj_structure() already uses for the identical real case.
+            state["verse"] = int(str(node.get("number", 0)).split("-")[0])
         elif t == "ms" and node.get("marker") == "zaln-s":
+            # `seq`: the order this span OPENED in, monotonic in real text position regardless of
+            # nesting (a parent phrase-level milestone and its children all open in left-to-right
+            # order; only CLOSE order is LIFO/non-monotonic when spans nest). door43_map.py sorts on
+            # this instead of trusting `x-occurrence`/`x-occurrences`, which are scoped to the
+            # ENCLOSING nested milestone rather than the whole verse whenever spans nest (found on
+            # real Hindi hi_glt data, 2026-09-27: a repeated word split across two different parent
+            # phrase groups each report `occurrences=2` locally, not the true verse-wide count).
+            state["seq"] += 1
             state["stack"].append({"strong": node.get("x-strong"), "lemma": node.get("x-lemma"),
                                    "morph": node.get("x-morph"), "occurrence": node.get("x-occurrence"),
-                                   "occurrences": node.get("x-occurrences"),
+                                   "occurrences": node.get("x-occurrences"), "seq": state["seq"],
                                    "content": node.get("x-content"), "target_words": []})
         elif t == "ms" and node.get("marker") == "zaln-e":
             if state["stack"]:
@@ -131,30 +186,59 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
     return out
 
 
-def _fetch(rel: str, cache_dir: Path = _CACHE_DIR) -> str:
+def _api_get_json(url: str) -> dict | list:
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=60) as r:   # noqa: S310 — fixed https door43 origin
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _raw_base(iso: str) -> str:
+    lang = LANGUAGES[iso]
+    return f"https://git.door43.org/{lang['org']}/{lang['repo']}/raw/branch/master"
+
+
+def list_available_books(iso: str) -> dict[str, str]:
+    """{book_code: filename_stem} for whichever books `iso`'s real Door43 repo actually has — queried
+    live from the repo's own file listing, never assumed from `_BOOK_FILES`'s full 66-book set, since
+    real coverage is partial and eclectic per language (see module docstring)."""
+    lang = LANGUAGES[iso]
+    url = f"{_API_BASE}/{lang['org']}/{lang['repo']}/contents"
+    entries = _api_get_json(url)
+    stems = {e["name"][:-5] for e in entries if isinstance(e, dict) and e["name"].endswith(".usfm")}
+    stem_to_book = {v: k for k, v in _BOOK_FILES.items()}
+    return {stem_to_book[s]: s for s in stems if s in stem_to_book}
+
+
+def _fetch(iso: str, rel: str) -> str:
+    cache_dir = _CACHE_ROOT / iso
     cache_dir.mkdir(parents=True, exist_ok=True)
     fp = cache_dir / rel
     if fp.exists():
         return fp.read_text(encoding="utf-8")
-    req = urllib.request.Request(f"{_BASE}/{rel}", headers={"User-Agent": _UA})
+    req = urllib.request.Request(f"{_raw_base(iso)}/{rel}", headers={"User-Agent": _UA})
     with urllib.request.urlopen(req, timeout=60) as r:   # noqa: S310 — fixed https door43 origin
         data = r.read().decode("utf-8")
     fp.write_text(data, encoding="utf-8")
     return data
 
 
-def fetch_book(book: str, cache_dir: Path = _CACHE_DIR) -> str:
+def fetch_book(iso: str, book: str) -> str:
     fname = _BOOK_FILES.get(book)
     if not fname:
         raise ValueError(f"unknown book code {book!r}")
-    return _fetch(f"{fname}.usfm", cache_dir)
+    return _fetch(iso, f"{fname}.usfm")
 
 
-def build_book(book: str, out_dir: Path = OUT_DIR, cache_dir: Path = _CACHE_DIR) -> dict:
-    """Fetch + parse one book, write `<out_dir>/<BOOK>.json` (one row per (chapter, verse, span)),
-    return a small per-book stat dict. No spine-side occurrence-disambiguated mapping yet (see module
-    docstring's scope note) — rows carry `strong`/`occurrence` as-is, for a future mapper to consume."""
-    text = fetch_book(book, cache_dir)
+def _out_dir(iso: str) -> Path:
+    return _PUBLISH_ROOT / iso / LANGUAGES[iso]["tag"] / "manual" / f"door43-{LANGUAGES[iso]['tag']}"
+
+
+def build_book(iso: str, book: str, out_dir: Path | None = None) -> dict:
+    """Fetch + parse one book for `iso`, write `<out_dir>/<BOOK>.json` (one row per (chapter, verse,
+    span)), return a small per-book stat dict. No spine-side occurrence-disambiguated mapping yet (see
+    module docstring's scope note) — rows carry `strong`/`occurrence` as-is, for a future mapper to
+    consume."""
+    text = fetch_book(iso, book)
     usj = usj_from_usfm(text)
     verses = usj_spans_for_book(usj)
     rows = []
@@ -164,22 +248,40 @@ def build_book(book: str, out_dir: Path = OUT_DIR, cache_dir: Path = _CACHE_DIR)
             if not span["target_words"]:
                 n_zero_target += 1
             rows.append({"book": book, "chapter": ch, "verse": v, **span})
+    out_dir = out_dir or _out_dir(iso)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{book}.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False) + "\n",
                                           encoding="utf-8")
     return {"book": book, "verses": len(verses), "spans": len(rows), "zero_target_spans": n_zero_target}
 
 
+def build_language(iso: str, out_dir: Path | None = None) -> dict:
+    """Build every book `iso`'s real Door43 repo actually has (via `list_available_books`), return a
+    per-language stat dict. Never assumes full-Bible coverage."""
+    books = list_available_books(iso)
+    stats = [build_book(iso, book, out_dir) for book in sorted(books)]
+    return {"iso": iso, "tag": LANGUAGES[iso]["tag"], "books": len(stats),
+           "verses": sum(s["verses"] for s in stats), "spans": sum(s["spans"] for s in stats),
+           "zero_target_spans": sum(s["zero_target_spans"] for s in stats)}
+
+
 def main(argv=None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--book", action="append", help="book code(s) to build; default a small real sample")
-    ap.add_argument("--out", type=Path, default=OUT_DIR)
+    ap.add_argument("--iso", action="append", choices=sorted(LANGUAGES),
+                    help="language(s) to build; default all confirmed-aligned languages")
+    ap.add_argument("--book", action="append", help="restrict to specific book code(s) (single --iso only)")
+    ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args(argv)
-    books = args.book or ["RUT", "TIT"]
-    for book in books:
-        stat = build_book(book, args.out)
-        print(json.dumps(stat), file=sys.stderr)
+    isos = args.iso or sorted(LANGUAGES)
+    if args.book and len(isos) != 1:
+        ap.error("--book requires exactly one --iso")
+    for iso in isos:
+        if args.book:
+            for book in args.book:
+                print(json.dumps(build_book(iso, book, args.out)), file=sys.stderr)
+        else:
+            print(json.dumps(build_language(iso, args.out)), file=sys.stderr)
     return 0
 
 

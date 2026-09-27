@@ -26,6 +26,9 @@ gold = ["pysword", "pyarrow"]             # sword_source.py (Step G0 gold expans
 typology = ["lang2vec", "setuptools<81"]  # typology.py (Step 2) — lang2vec still imports the deprecated
                                           # pkg_resources module; setuptools>=81 dropped it (real conflict,
                                           # found 2026-09-24, not hypothetical — pin until lang2vec updates)
+translit = ["uroman"]                     # M4 (2026-09-27) — gloss_align.romanize()'s target-side
+                                          # romanization for the name-transliteration prior (MIT); the
+                                          # prior falls back to a no-op if this extra isn't installed
 
 [project.scripts]
 lexeme-align = "lexeme_aligner.run_pilot:main"

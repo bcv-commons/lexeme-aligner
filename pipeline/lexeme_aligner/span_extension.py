@@ -322,11 +322,14 @@ _TYPOLOGY_SLOT = {"adposition_order": "adposition", "article_order": "article",
 def direction_for(grambank: dict[str, str], feature_group: str, iso: str | None = None) -> str | None:
     """"before" / "after" / None (mixed, ambiguous, or absent — never guess). Step 2: when Grambank
     alone is silent (`grambank` missing the relevant codes for this language — the ~51% of published
-    languages Grambank doesn't cover) and `iso` is given, falls back to the pre-built typology table
-    (`typology.direction`, built ONLY from sources whose agreement with Grambank was measured and
-    cleared 90% — see typology.py's own docstring). `iso=None` (the default) keeps this
+    languages Grambank doesn't cover) and `iso` is given, falls back to gram-struct's own merged view
+    (`gram_struct.merged_direction` — D4a, 2026-09-27, replacing the narrower raw `typology.py` WALS/
+    lang2vec-only table this used before D0/D1/D2/I1/X3 built out gram-struct's full external/imputed/
+    derived/kin merge; `typology.py`'s own table is a strict subset of what gram-struct now covers, so
+    this is a superset fallback, not a different one). `iso=None` (the default) keeps this
     Grambank-only, unchanged from before Step 2 — every existing call site that doesn't pass `iso`
-    is unaffected."""
+    is unaffected. Deferred import — see `gram_struct.merged_direction`'s own docstring for why (a
+    real import-cycle risk, not a style choice)."""
     before_id, after_id = GRAMBANK_FEATURES[feature_group]
     before = grambank.get(before_id) == "1"
     after = grambank.get(after_id) == "1"
@@ -335,10 +338,10 @@ def direction_for(grambank: dict[str, str], feature_group: str, iso: str | None 
     if after and not before:
         return "after"
     if iso is not None:
-        from lexeme_aligner import typology
+        from lexeme_aligner import gram_struct
         slot = _TYPOLOGY_SLOT.get(feature_group)
         if slot:
-            return typology.direction(iso, slot)
+            return gram_struct.merged_direction(iso, slot)
     return None
 
 
@@ -346,15 +349,16 @@ def possession_direction_for(grambank: dict[str, str], iso: str | None = None) -
     """"before" / "after" / None, from GB065 directly — a single ternary value (1=possessor precedes
     possessum, 2=possessor follows, 3=both/free), not a before_id/after_id binary pair like
     direction_for()'s other callers, so it gets its own small helper instead of forcing GB065 through
-    that shape. Same Step 2 typology-table fallback as `direction_for` when `iso` is given."""
+    that shape. Same gram-struct merged-view fallback as `direction_for` when `iso` is given (see that
+    function's own docstring for the D4a change this replaced)."""
     v = grambank.get(GRAMBANK_FEATURES["possession_order"][0])
     if v == "1":
         return "before"
     if v == "2":
         return "after"
     if iso is not None:
-        from lexeme_aligner import typology
-        return typology.direction(iso, "possessor")
+        from lexeme_aligner import gram_struct
+        return gram_struct.merged_direction(iso, "possessor")
     return None
 
 
@@ -570,15 +574,17 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     stats: collections.Counter = collections.Counter()
     if grambank_raw is None:
         # Step 2: a language absent from Grambank entirely (~51% of published languages) can still
-        # have a typology-table entry (WALS/lang2vec, validated against Grambank elsewhere — see
-        # typology.py) — but ONLY reachable when `typology_fallback` is explicitly on (see docstring
-        # above: measured net-negative for 2 of the 3 languages tested). Without it, a Grambank-absent
-        # language skips exactly as it always has.
+        # have gram-struct coverage (external/imputed/derived/kin, per D4a 2026-09-27 — was the
+        # narrower typology.py WALS/lang2vec-only table before D0/D1/D2/I1/X3 built gram-struct's full
+        # merge; typology.SLOTS' 5 slots are the same 5 gram-struct tracks) — but ONLY reachable when
+        # `typology_fallback` is explicitly on (see docstring above: measured net-negative for 2 of the
+        # 3 languages tested against the OLD, narrower table — this gate is being re-measured against
+        # the new one). Without it, a Grambank-absent language skips exactly as it always has.
         if not typology_fallback:
             return {}, {"skipped": "no Grambank coverage for this language"}
-        from lexeme_aligner import typology
-        if not any(typology.direction(publish_iso, slot) is not None for slot in typology.SLOTS):
-            return {}, {"skipped": "no Grambank or typology coverage for this language"}
+        from lexeme_aligner import gram_struct, typology
+        if not any(gram_struct.merged_direction(publish_iso, slot) is not None for slot in typology.SLOTS):
+            return {}, {"skipped": "no Grambank or gram-struct coverage for this language"}
     grambank = grambank_raw or {}   # downstream code calls grambank.get(...) unconditionally
 
     # Which (risk, pos) combinations are ACTUALLY flagged for this base-chain run, and in which direction —

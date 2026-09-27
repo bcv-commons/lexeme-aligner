@@ -301,6 +301,31 @@ def merge_partitions(iso: str, parts: dict[str, dict], stats: collections.Counte
     return merged
 
 
+def merged_direction(iso: str, slot: str, out_dir: Path = OUT_DIR) -> str | None:
+    """D4a (2026-09-27): the merged-view direction for one (iso, slot), reading the already-built
+    per-tier files directly rather than the raw `typology.py` WALS/lang2vec-only table `span_extension.
+    direction_for`/`possession_direction_for` fell back to before. Same priority as `merge_partitions`
+    (`PARTITIONS` order: external > imputed > derived > measured > kin) but scoped to ONE slot instead
+    of building a whole merged doc — cheap enough to call per-token, and read-only (never writes).
+
+    Deliberately NOT imported at `span_extension.py`'s module top level — `gram_struct.py` already
+    imports `direction_for`/`possession_direction_for` FROM `span_extension` at import time, so the
+    reverse direction has to stay a deferred, call-time import (the exact same pattern those two
+    functions already use for `typology.direction`) or the two modules would form a real import cycle.
+
+    Returns `None` if no tier has a resolved (non-null) direction for this (iso, slot) — never guessed,
+    same contract as `typology.direction`."""
+    for name in PARTITIONS:
+        fp = Path(out_dir) / name / f"{iso}.json"
+        if not fp.exists():
+            continue
+        doc = _load_json(fp)
+        entry = doc.get(slot)
+        if entry and entry.get("direction"):
+            return entry["direction"]
+    return None
+
+
 def language_set(all_isos: bool, grambank_langs: dict, directions: dict, constituent_dir: Path,
                  spanext: dict, fertility: dict, manifest: Path = _PUBLISHED_MANIFEST,
                  uriel: dict | None = None) -> list[str]:

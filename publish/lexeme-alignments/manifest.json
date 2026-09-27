@@ -15705,6 +15705,7 @@
         "ENGWEB",
         "ENGWMV",
         "GHT",
+        "eng_asv",
         "eng_bbe",
         "eng_cpb",
         "eng_dby",
@@ -15724,40 +15725,41 @@
       ],
       "books": 66,
       "by_base_text": {
-        "BSB": 102442,
-        "EN1ESV": 64017,
-        "ENGEVD": 105218,
-        "ENGNAS": 89149,
-        "ENGNLH": 121310,
-        "ENGNLV": 28792,
-        "ENGWEB": 84447,
-        "ENGWMV": 99974,
-        "GHT": 16925,
-        "eng_bbe": 83535,
-        "eng_cpb": 83208,
-        "eng_dby": 81990,
-        "eng_dra": 97774,
-        "eng_f35": 26259,
-        "eng_fbv": 112856,
-        "eng_gnv": 89055,
-        "eng_jps": 58764,
-        "eng_lee": 61449,
-        "eng_net": 105267,
-        "eng_ojb": 104200,
-        "eng_rv5": 80131,
-        "eng_t4t": 130196,
-        "eng_ulb": 97141,
-        "eng_wyc2017": 88679,
-        "eng_ylt": 73176
+        "BSB": 94307,
+        "EN1ESV": 83607,
+        "ENGEVD": 102439,
+        "ENGNAS": 84871,
+        "ENGNLH": 116994,
+        "ENGNLV": 28252,
+        "ENGWEB": 81237,
+        "ENGWMV": 96914,
+        "GHT": 16526,
+        "eng_asv": 70139,
+        "eng_bbe": 81818,
+        "eng_cpb": 80753,
+        "eng_dby": 79387,
+        "eng_dra": 95689,
+        "eng_f35": 25139,
+        "eng_fbv": 109046,
+        "eng_gnv": 87257,
+        "eng_jps": 56780,
+        "eng_lee": 59504,
+        "eng_net": 100618,
+        "eng_ojb": 100561,
+        "eng_rv5": 77975,
+        "eng_t4t": 126713,
+        "eng_ulb": 93264,
+        "eng_wyc2017": 86904,
+        "eng_ylt": 70976
       },
       "by_method": {
-        "eflomal": 1412782,
-        "gapfill": 48504,
-        "gloss": 624668
+        "eflomal": 1467872,
+        "gapfill": 54487,
+        "gloss": 585311
       },
-      "content_sha256": "f997bb562c9e7b78adf8a60e395af68c6eccb11a7a705a94ce4b16d98f151629",
+      "content_sha256": "12aa90d7a26a3af02f04726e76ce02cc266db06db450949029b1c88a870a56a7",
       "file": "iso=eng/data.parquet",
-      "hi_conf_ge_0.9": 422978,
+      "hi_conf_ge_0.9": 437460,
       "language": "English",
       "lexemes": 14040,
       "methods": [
@@ -15766,7 +15768,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 2085954,
+      "rows": 2107670,
       "sources": {
         "BSB": {
           "edition": "BSB",
@@ -15811,6 +15813,11 @@
         "GHT": {
           "edition": "GHT",
           "license_url": "https://www.wiebefamily.org/GHT.htm",
+          "provider": "bible.helloao.org"
+        },
+        "eng_asv": {
+          "edition": "eng_asv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=eng-asv",
           "provider": "bible.helloao.org"
         },
         "eng_bbe": {
@@ -15895,7 +15902,7 @@
         }
       },
       "strongs": 13159,
-      "surfaces": 152442,
+      "surfaces": 153567,
       "testament": "NT+OT"
     },
     "enq": {
@@ -50358,6 +50365,56 @@
       "surfaces": 13016,
       "testament": "NT"
     },
+    "tam": {
+      "base_texts": [
+        "TAMWTC",
+        "tam_irv",
+        "tam_tcv"
+      ],
+      "books": 66,
+      "by_base_text": {
+        "TAMWTC": 50071,
+        "tam_irv": 166677,
+        "tam_tcv": 175181
+      },
+      "by_method": {
+        "eflomal": 365480,
+        "gapfill": 15391,
+        "gloss": 11058
+      },
+      "content_sha256": "926b9de29bcf0173986575f023e4f6482b56d0321d182019a5232267781bcac5",
+      "file": "iso=tam/data.parquet",
+      "hi_conf_ge_0.9": 153546,
+      "language": "Tamil",
+      "lexemes": 13977,
+      "methods": [
+        "eflomal",
+        "gloss",
+        "gapfill"
+      ],
+      "min_count": 1,
+      "rows": 391929,
+      "sources": {
+        "TAMWTC": {
+          "edition": "TAMWTC",
+          "license_url": "http://www.bibleleague.org",
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "tam_irv": {
+          "edition": "tam_irv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=tam2017",
+          "provider": "bible.helloao.org"
+        },
+        "tam_tcv": {
+          "edition": "tam_tcv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=tamtcv",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "strongs": 13106,
+      "surfaces": 178364,
+      "testament": "NT+OT"
+    },
     "tap": {
       "base_texts": [
         "tap_twf"
@@ -50972,6 +51029,65 @@
       "strongs": 4830,
       "surfaces": 15311,
       "testament": "NT"
+    },
+    "tel": {
+      "base_texts": [
+        "TELGMI",
+        "TELWTC",
+        "tel_irv",
+        "tel_otsa"
+      ],
+      "books": 66,
+      "by_base_text": {
+        "TELGMI": 148072,
+        "TELWTC": 162189,
+        "tel_irv": 149909,
+        "tel_otsa": 136322
+      },
+      "by_method": {
+        "eflomal": 548685,
+        "gapfill": 32057,
+        "gloss": 12011,
+        "spanext": 3739
+      },
+      "content_sha256": "358cec1515b62fc442a563a2606663c33e238ba58450617d3e7c700d92b43f53",
+      "file": "iso=tel/data.parquet",
+      "hi_conf_ge_0.9": 205778,
+      "language": "Telugu",
+      "lexemes": 14014,
+      "methods": [
+        "spanext",
+        "eflomal",
+        "gloss",
+        "gapfill"
+      ],
+      "min_count": 1,
+      "rows": 596492,
+      "sources": {
+        "TELGMI": {
+          "edition": "TELGMI",
+          "license_url": null,
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "TELWTC": {
+          "edition": "TELWTC",
+          "license_url": "http://www.bibleleague.org",
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "tel_irv": {
+          "edition": "tel_irv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=tel2017",
+          "provider": "bible.helloao.org"
+        },
+        "tel_otsa": {
+          "edition": "tel_otsa",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=telotsa",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "strongs": 13137,
+      "surfaces": 213259,
+      "testament": "NT+OT"
     },
     "ter": {
       "base_texts": [

@@ -74,3 +74,32 @@ def test_verses_with_no_anchor_are_skipped():
     r = _Rec("RUT", 1, 1, [head, dep])
     stats = gf.compute_order_stats([r], {})   # no anchors entry for this ref at all
     assert stats["rec_after_n"] == 0
+
+
+# --- M3 (2026-09-27): resolve_possessor_fallback ---------------------------------------------------
+
+def test_possessor_fallback_none_when_already_confident():
+    # phrase_confident=True means the empirical rate is trusted; gram_struct should never be consulted.
+    assert gf.resolve_possessor_fallback(True, "spa", False) is None
+
+
+def test_possessor_fallback_none_when_disabled():
+    assert gf.resolve_possessor_fallback(False, "spa", True) is None
+
+
+def test_possessor_fallback_after_direction_maps_to_rate_1(monkeypatch):
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot: "after" if slot == "possessor" else None)
+    assert gf.resolve_possessor_fallback(False, "ben", False) == 1.0
+
+
+def test_possessor_fallback_before_direction_maps_to_rate_0(monkeypatch):
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot: "before")
+    assert gf.resolve_possessor_fallback(False, "hin", False) == 0.0
+
+
+def test_possessor_fallback_none_when_gram_struct_has_nothing_either(monkeypatch):
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot: None)
+    assert gf.resolve_possessor_fallback(False, "xyz", False) is None

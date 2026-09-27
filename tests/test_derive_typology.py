@@ -703,3 +703,82 @@ def test_combine_testaments_a_mixed_null_slot_is_treated_as_unresolved():
     grc = {"direction": "after", "source": "derived", "n": 400, "rate_after": 0.9}
     combined = dt._combine_testaments(heb_mixed, grc)
     assert combined["testament"] == "NT" and combined["direction"] == "after"
+
+
+# --- D3 2.5: subject_pronoun_stat / subject_pronoun_slot / validate_subject_pronoun_need -----------
+
+def _sp_rec(spans_and_flags, book="MAT", ch=1, v=1):
+    """spans_and_flags: [(idx, span_len, is_finite_verb, is_content), ...] — builds both a _FakeD1Rec
+    and the matching span_lengths dict `subject_pronoun_stat` expects."""
+    members = [_FakeD1Tok(idx=i, strong=f"H{i}", is_content=content, person=("3ms" if finite else None))
+              for i, (i2, span, finite, content) in enumerate(spans_and_flags)]
+    r = _rec(members, book, ch, v)
+    span_lengths = {encode(book, ch, v): {i: span for i, (_, span, _, _) in enumerate(spans_and_flags)}}
+    return r, span_lengths
+
+
+def test_subject_pronoun_stat_computes_real_spread():
+    # 2 finite verbs with span 2, 3 other content tokens with span 1 -> spread = 2.5 - 1.0 = 1.5
+    r, sp = _sp_rec([(0, 2, True, True), (1, 3, True, True), (2, 1, False, True),
+                     (3, 1, False, True), (4, 1, False, True)])
+    stat = dt.subject_pronoun_stat([r], sp)
+    assert stat["n_finite"] == 2 and stat["n_other"] == 3
+    assert stat["mean_finite_span"] == 2.5 and stat["mean_other_span"] == 1.0
+    assert stat["spread"] == 1.5
+
+
+def test_subject_pronoun_stat_none_spread_when_a_bucket_is_empty():
+    r, sp = _sp_rec([(0, 2, True, True)])   # no non-finite content tokens at all
+    stat = dt.subject_pronoun_stat([r], sp)
+    assert stat["spread"] is None
+
+
+def test_subject_pronoun_slot_omitted_below_min_n():
+    assert dt.subject_pronoun_slot({"n_finite": 5, "n_other": 100, "spread": 1.4}, min_n=30) is None
+
+
+def test_subject_pronoun_slot_high_spread_needs_free_pronoun():
+    slot = dt.subject_pronoun_slot({"n_finite": 50, "n_other": 200, "spread": 1.41}, min_n=30)
+    assert slot["needs_free_subject_pronoun"] is True
+    assert slot["experimental"] is True and slot["source"] == "derived"
+
+
+def test_subject_pronoun_slot_low_spread_is_pro_drop():
+    slot = dt.subject_pronoun_slot({"n_finite": 50, "n_other": 200, "spread": 0.21}, min_n=30)
+    assert slot["needs_free_subject_pronoun"] is False
+
+
+def test_subject_pronoun_slot_middle_band_is_ambiguous():
+    # ben/asm's own real reference spread (+0.55/+0.56) falls exactly in this deliberate null band.
+    slot = dt.subject_pronoun_slot({"n_finite": 50, "n_other": 200, "spread": 0.55}, min_n=30)
+    assert slot["needs_free_subject_pronoun"] is None
+    assert slot["reason"] == "ambiguous"
+
+
+def test_validate_subject_pronoun_need_perfect_agreement(monkeypatch, tmp_path):
+    import json as _json
+    cfg = tmp_path / "config" / "grambank"
+    cfg.mkdir(parents=True)
+    (cfg / "features.json").write_text(_json.dumps({"languages": {
+        "eng": {"GB089": "0", "GB090": "0"},    # incomplete indexing -> needs a free pronoun
+        "arb": {"GB089": "1", "GB090": "0"},    # complete indexing -> pro-drop
+    }}), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    derived_docs = {
+        "eng": {"subject_pronoun_need": {"needs_free_subject_pronoun": True}},
+        "arb": {"subject_pronoun_need": {"needs_free_subject_pronoun": False}},
+    }
+    result = dt.validate_subject_pronoun_need(derived_docs)
+    assert result["reference_total"] == 2
+    assert result["overall"]["agree"] == 2 and result["overall"]["rate"] == 1.0
+
+
+def test_validate_subject_pronoun_need_skips_languages_grambank_has_no_data_for(monkeypatch, tmp_path):
+    import json as _json
+    cfg = tmp_path / "config" / "grambank"
+    cfg.mkdir(parents=True)
+    (cfg / "features.json").write_text(_json.dumps({"languages": {"eng": {}}}), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    derived_docs = {"eng": {"subject_pronoun_need": {"needs_free_subject_pronoun": True}}}
+    result = dt.validate_subject_pronoun_need(derived_docs)
+    assert result["reference_total"] == 0

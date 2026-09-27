@@ -329,3 +329,42 @@ def test_kin_missing_db_file_degrades_to_no_kin_facts_not_an_error(tmp_path):
     out, cov = _build(tmp_path, isos=["xx"], kin_db=tmp_path / "does-not-exist.db")
     assert not (out / "kin").exists() or not any((out / "kin").iterdir())
     assert cov["kin_leave_one_out"] == {}
+
+
+# --- merged_direction (D4a, 2026-09-27) -----------------------------------------------------------------
+def _write_tier(out_dir, tier, iso, doc):
+    d = out_dir / tier
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{iso}.json").write_text(json.dumps(doc), encoding="utf-8")
+
+
+def test_merged_direction_prefers_external_over_everything(tmp_path):
+    _write_tier(tmp_path, "external", "xx", {"possessor": {"direction": "after"}})
+    _write_tier(tmp_path, "derived", "xx", {"possessor": {"direction": "before"}})
+    assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) == "after"
+
+
+def test_merged_direction_falls_back_through_the_full_priority_order(tmp_path):
+    _write_tier(tmp_path, "kin", "xx", {"possessor": {"direction": "before"}})
+    assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) == "before"
+    _write_tier(tmp_path, "derived", "xx", {"possessor": {"direction": "after"}})
+    assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) == "after"   # derived beats kin
+    _write_tier(tmp_path, "imputed", "xx", {"possessor": {"direction": "before"}})
+    assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) == "before"  # imputed beats derived
+
+
+def test_merged_direction_skips_a_null_direction_and_keeps_looking(tmp_path):
+    # external resolves the KEY but with direction=None (mixed) -- must not stop there and return None;
+    # keep falling through to a tier that actually has a real direction.
+    _write_tier(tmp_path, "external", "xx", {"possessor": {"direction": None, "reason": "mixed"}})
+    _write_tier(tmp_path, "derived", "xx", {"possessor": {"direction": "after"}})
+    assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) == "after"
+
+
+def test_merged_direction_none_when_no_tier_resolves(tmp_path):
+    assert gs.merged_direction("zz", "possessor", out_dir=tmp_path) is None
+
+
+def test_merged_direction_none_when_slot_absent_from_every_tier(tmp_path):
+    _write_tier(tmp_path, "external", "xx", {"adposition": {"direction": "after"}})
+    assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) is None

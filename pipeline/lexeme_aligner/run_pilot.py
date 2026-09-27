@@ -100,14 +100,32 @@ def pooled_verse_groups(book: str, ch: int, heb: HebrewSource, ranges: dict, rem
         info = ranges.get((tc, vs))
         text = info["text"] if info else ""
         members: list[tuple[int, HebToken]] = []
+        # M5 fix (2026-09-27): `head_idx` (this token's syntactic head's OWN spine idx, Hebrew/OT
+        # only — see hebrew_source.py) is populated BEFORE this renumbering and means "position
+        # within the head's OWN VERSE" (spine idx resets to 0 per verse), never "position within
+        # this pooled group" — the same ambiguity `tok.idx` itself has before renumbering. Left
+        # unfixed, a token's OLD head_idx value can coincidentally collide with some OTHER token's
+        # NEW pooled idx (0..N-1 spans every verse in the group, not just this token's own verse),
+        # silently pointing `llm_prompt.clause_verb_hint` at the wrong word instead of the intended
+        # one or safely finding nothing. Recorded here BEFORE the idx rewrite below, keyed on
+        # (this token's own verse, its original idx) -> its new pooled position, then every member's
+        # head_idx is remapped through the same table (a head is always in the same source verse as
+        # its dependent, per BHSA clause structure) — `None` when the head's original idx isn't in
+        # this table at all (should not happen for a genuine intra-verse head, but fails safe rather
+        # than guessing if it ever does).
+        idx_remap: dict[tuple[int, int], int] = {}
         i = 0
         for v2 in verses:
             tc2, tv2 = target_verse_of[v2]
             if tc2 == tc and vs <= tv2 <= ve:
                 for tok in heb.verse_tokens(book, ch, v2):
+                    idx_remap[(v2, tok.idx)] = i
                     tok.idx = i
                     i += 1
                     members.append((v2, tok))
+        for v2, tok in members:
+            if tok.head_idx is not None:
+                tok.head_idx = idx_remap.get((v2, tok.head_idx))
         yield v, vs, ve, text, members
 
 

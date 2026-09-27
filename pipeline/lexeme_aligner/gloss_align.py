@@ -86,6 +86,44 @@ def _word_score(gloss_forms: list[str], tok_forms: list[str]) -> float:
     return 0.0
 
 
+_UROMAN = None
+_ROMAN_CACHE: dict[str, str] = {}
+
+
+def romanize(word: str) -> str:
+    """M4 (2026-09-27): universal romanization for the name-transliteration prior's TARGET side, via
+    `uroman` (MIT, Hermjakob/USC-ISI) -- `pip install uroman` under the `translit` extra. Lazy-imported
+    and cached per process (loading its rule tables has real cost, and the same target token recurs
+    across a whole corpus); falls back to the word UNCHANGED when `uroman` isn't installed, so this
+    stays additive/opt-in at the dependency level, never a hard requirement of the base chain.
+
+    WHY THIS EXISTS: this module's own `is_name` path below compares an ENGLISH gloss ("Ruth") against
+    the raw TARGET token via `_name_score`'s plain Levenshtein/prefix check -- for any non-Latin-script
+    target (Devanagari, Arabic, Bengali, Cyrillic, Han, ...) that comparison is structurally impossible
+    (disjoint character sets can never clear `_name_score`'s distance/prefix thresholds), so the name
+    prior was silently INERT for every such language, in BOTH this module's own gloss pass and
+    `gapfill_align.py`'s `lex_translit`-based prior -- confirmed by inspection of `_name_score`'s own
+    thresholds, not measured as "low precision": it could not fire AT ALL. Romanizing the target token
+    before comparison makes the same mechanism reachable for scripts it never worked on before. Verified
+    on real Ruth-book names via `uroman.Uroman().romanize_string`: hin "रूत"->"ruut", ben "রূৎ"->"ruuta",
+    arb "بوعز"->"bw'z" (all recognizably close to their English gloss). Also lightly normalizes
+    already-Latin text (diacritic-stripping: "Élimélek"->"Elimelek"), which `_name_score`'s own
+    lowering doesn't do -- a mild accent-insensitivity gain for the already-working Latin-script
+    languages, not just a new capability for non-Latin ones."""
+    global _UROMAN
+    if word in _ROMAN_CACHE:
+        return _ROMAN_CACHE[word]
+    if _UROMAN is None:
+        try:
+            import uroman
+            _UROMAN = uroman.Uroman()
+        except ImportError:
+            _UROMAN = False
+    out = _UROMAN.romanize_string(word) if _UROMAN else word
+    _ROMAN_CACHE[word] = out
+    return out
+
+
 def _name_score(gloss_en: str, token: str) -> float:
     """Proper noun: English per-occurrence gloss vs target surface (Ruth→Rut, Boaz→Boas)."""
     g, t = gloss_en.lower().strip(".,"), token.lower()
@@ -152,6 +190,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
     norm = NORMALIZERS.get(iso, Normalizer())
     tok_forms = [norm.forms(t) for t in tokens]
     blocked = {j for j in range(len(tokens)) if stopwords and stopwords.is_function(tokens[j])}  # #3
+    tok_roman = [romanize(t) for t in tokens]   # M4: once per verse, not per (h, j) pair
 
     light_h = {h.idx for h in heb if skip_lexemes and h.lexeme in skip_lexemes}
     _none: set = set()
@@ -168,10 +207,10 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
         h_blocked = blocked_for(h)
         is_name = (h.sp == "nmpr") or (h.morph or "").endswith("Np")
         if is_name and h.gloss_en:
-            for j, t in enumerate(tokens):
+            for j in range(len(tokens)):
                 if j in h_blocked:
                     continue
-                s = _name_score(h.gloss_en, t)
+                s = _name_score(h.gloss_en, tok_roman[j])
                 if s:
                     cands.append(Match(h.idx, [j], s, "name"))
         for variant in priors.lookup(h):

@@ -387,6 +387,124 @@ def full_anchors(out_dir: Path, tag: str, methods=("eflomal", "gloss")) -> dict[
     return out
 
 
+def full_span_lengths(out_dir: Path, tag: str, methods=("eflomal", "gloss")) -> dict[int, dict[int, int]]:
+    """{ref: {h_idx: len(t_idx)}} for every aligned pair (content and non-content) -- the SPAN LENGTH
+    rather than `full_anchors`' first position, for D3's subject-pronoun-need statistic (2.5) below.
+    Same first-method-wins convention, same reason for a from-scratch scan (`gapfill.load_covered`'s
+    own content-only anchors would also work here since 2.5 only ever reads content/finite-verb tokens,
+    but this keeps the "own scan, own contract" pattern D1's `full_anchors` already established rather
+    than depending on gapfill's unrelated content-filtering choice)."""
+    out: dict[int, dict[int, int]] = {}
+    for m in methods:
+        for fp in tag_files(out_dir, m, tag):
+            with fp.open(encoding="utf-8") as fh:
+                for line in fh:
+                    rec = json.loads(line)
+                    ref = rec["ref"]
+                    verse = out.setdefault(ref, {})
+                    for p in rec["pairs"]:
+                        ti = p.get("t_idx") or []
+                        if ti and p["h_idx"] not in verse:
+                            verse[p["h_idx"]] = len(ti)
+    return out
+
+
+_SUBJECT_PRONOUN_MIN_N = 30   # min finite-verb tokens with a resolved span, both testaments pooled
+
+
+def subject_pronoun_stat(recs, span_lengths: dict) -> dict:
+    """D3 2.5 (internal-docs/aim1-typology-source-structure-plan.md): mean target span at FINITE VERBS
+    (spine `person` populated -- both testaments, see `HebToken.person`) minus mean span at other
+    CONTENT tokens -- the datum `grambank_fetch.py`'s own docstring already spot-checked by hand on 5
+    languages (eng +1.41, hin +0.77, ben +0.56, asm +0.55, arb +0.21: "a 6.7x spread, rank-ordered by
+    whether the language needs a free subject pronoun") -- generalized here into a real per-language
+    derived statistic computed from the SAME base-chain data every other D0-D2 slot already reads,
+    instead of a hand-run five-language spot check."""
+    finite_spans: list[int] = []
+    other_spans: list[int] = []
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        sp = span_lengths.get(ref)
+        if not sp:
+            continue
+        for t in r.heb:
+            if not t.strong:
+                continue
+            n = sp.get(t.idx)
+            if n is None:
+                continue
+            if t.person:
+                finite_spans.append(n)
+            elif t.is_content:
+                other_spans.append(n)
+    if not finite_spans or not other_spans:
+        return {"n_finite": len(finite_spans), "n_other": len(other_spans), "spread": None}
+    mean_finite = sum(finite_spans) / len(finite_spans)
+    mean_other = sum(other_spans) / len(other_spans)
+    return {"n_finite": len(finite_spans), "n_other": len(other_spans),
+           "mean_finite_span": round(mean_finite, 4), "mean_other_span": round(mean_other, 4),
+           "spread": round(mean_finite - mean_other, 4)}
+
+
+def subject_pronoun_slot(stat: dict, min_n: int = _SUBJECT_PRONOUN_MIN_N) -> dict | None:
+    """D3 2.5: bands set from the 5-language reference spread already in `grambank_fetch.py`'s own
+    docstring -- `spread >= 0.6` (clears both eng +1.41 and hin +0.77) -> the language needs a free
+    subject pronoun; `spread <= 0.3` (clears arb +0.21) -> pro-drop, the verb's own inflection suffices;
+    between (ben +0.56 / asm +0.55 fall exactly here) -> `None`, a deliberate "ambiguous" band, not a
+    threshold-tuning failure -- those two languages' own real numbers ARE the boundary case the 5-point
+    reference spread already showed ("pro-drop-ish"), so forcing them to a side would misrepresent the
+    very data the bands were set from. `min_n` gates on `n_finite` (the rarer bucket) exactly the way
+    every other D0-D2 slot gates on its own scarcer count."""
+    if stat.get("spread") is None or stat["n_finite"] < min_n:
+        return None
+    spread = stat["spread"]
+    needs = True if spread >= 0.6 else False if spread <= 0.3 else None
+    out = {"needs_free_subject_pronoun": needs, "spread": spread, "source": "derived",
+          "n_finite": stat["n_finite"], "n_other": stat["n_other"], "experimental": True}
+    if needs is None:
+        out["reason"] = "ambiguous"
+    return out
+
+
+def validate_subject_pronoun_need(derived_docs: dict[str, dict], seed: int = 0) -> dict:
+    """D3 2.5's own validation gate (plan: "validates against GB089/090 `not_all_one`", "≥ 85% ->
+    `experimental: true`; below -> not written"). Compares derived `needs_free_subject_pronoun` against
+    Grambank's own subject_indexing existence fact -- `_subject_indexing_incomplete` (fertility_priors.py)
+    is true exactly when NEITHER GB089 (suffix/enclitic) nor GB090 (prefix/proclitic) subject-marking is
+    attested, i.e. exactly when a free pronoun would be needed -- so the derived boolean should equal it.
+    Same calibrate-then-report-held-out split as `validate_derived` (deterministic, seeded); compares
+    only languages where BOTH resolve, and only where Grambank actually carries subject_indexing data at
+    all (never treats no-data as a confirmed "complete indexing" -- see that function's own docstring)."""
+    from lexeme_aligner.fertility_priors import _subject_indexing_incomplete
+    from lexeme_aligner.grambank_fetch import FEATURES as grambank_features
+    grambank_all = _load_json(Path("config/grambank/features.json")).get("languages", {})
+    codes = grambank_features["subject_indexing"]
+
+    pairs = []
+    for iso, doc in derived_docs.items():
+        slot = doc.get("subject_pronoun_need")
+        if not slot or slot.get("needs_free_subject_pronoun") is None:
+            continue
+        gb = grambank_all.get(iso)
+        if not gb or not any(c in gb for c in codes):
+            continue
+        pairs.append((iso, slot["needs_free_subject_pronoun"], _subject_indexing_incomplete(gb)))
+
+    rng = random.Random(seed)
+    shuffled = pairs[:]
+    rng.shuffle(shuffled)
+    half = len(shuffled) // 2
+    calib, held_out = shuffled[:half], shuffled[half:]
+
+    def agreement(rows):
+        agree = sum(1 for _, d, g in rows if d == g)
+        return {"agree": agree, "compared": len(rows),
+               "rate": round(agree / len(rows), 4) if rows else None}
+
+    return {"reference_total": len(pairs), "calibration_half": agreement(calib),
+           "held_out_half": agreement(held_out), "overall": agreement(pairs)}
+
+
 def _adjacency_stat(recs, anchors: dict, is_marker, target_ok=None, require_stopword=None) -> dict:
     """Generic 2.1/2.2/2.7/2.8 statistic: for every source token matching `is_marker`, find the next
     content token via `_next_content` (optionally gated by `target_ok`), then compare their base-chain
@@ -948,6 +1066,24 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
     from lexeme_aligner.target_stopwords import StopwordFilter
     stopwords = StopwordFilter(iso, str(usj_dir))
     doc.update(derive_d1_slots(recs_all, d1_anchors, stopwords=stopwords))
+
+    # D3 2.5 -- NOT wired in (2026-09-27): built (subject_pronoun_stat/subject_pronoun_slot below) and
+    # measured for real on eng specifically (the known reference case, grambank_fetch.py's own spot
+    # check: expected spread +1.41) -- got -0.0024, using either eflomal alone or eflomal+gloss. Root
+    # cause: OUR OWN produced alignment's mean span length is ~1.03 for EVERY content-token bucket
+    # (finite verbs and everything else alike) -- there is essentially no multi-word-span signal left
+    # in our own output to measure a spread FROM, the same "measures our own limitation, not the
+    # phenomenon" failure mode already found this session for cross_lang_prior's per-lexeme rates (see
+    # gapfill.py's own `--cross-lang` docstring) and M1's fertility_priors result. The reference +1.41
+    # figure was verified against Clear's GOLD spans directly (2.18 words/token on average, real
+    # variance by source-token type) -- a fundamentally different, richer data source than our own
+    # eflomal+gloss pairs. Confirmed on a 42-language live sample too (config/gram_struct's own
+    # validate_subject_pronoun_need against Grambank subject_indexing: 65.2% overall agreement, well
+    # below the plan's own 85% bar, and EVERY one of the 42 came back `needs_free_subject_pronoun:
+    # False` -- a degenerate, not just imprecise, result). Do not wire this into derive_one until it is
+    # re-sourced from something with real span variance (gold spans -- but that caps coverage at the
+    # gold set, defeating the point -- or an independent per-relation signal, not our own base-chain
+    # span length). Kept as tested, correct, UNUSED infrastructure below.
 
     # Roadmap D2 (2026-09-25): Greek half of possessor/subject_verb/object_verb, from `HebToken.role`
     # (NT-only). Computed over the SAME content-only `anchors` D0's Hebrew stats use below (unlike D1's

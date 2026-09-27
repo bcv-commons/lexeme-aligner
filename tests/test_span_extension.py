@@ -566,14 +566,16 @@ def test_extend_spans_relation_trigger_never_touches_a_construct_head(tmp_path, 
 # --- extend_spans: Step 2 typology-table fallback for Grambank-uncovered languages ------------------------
 def test_extend_spans_falls_back_to_typology_when_grambank_is_none(tmp_path, monkeypatch):
     """A language absent from Grambank entirely (spa/ben/asm — Step 2's own target languages) must
-    still get a direction from the typology table instead of being skipped outright."""
+    still get a direction from gram-struct's own merged view (D4a, 2026-09-27 — was the narrower
+    typology.py table before) instead of being skipped outright."""
     write_align(tmp_path, "fakeiso", "eflomal", "MAT",
                [{"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
                  "pairs": [pair(0, "lx:noun", "H1", [3])]}])
     monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:noun": "noun"}, {}))
     monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: None)   # NOT in Grambank at all
-    import lexeme_aligner.typology as ty
-    monkeypatch.setattr(ty, "direction", lambda iso, slot, path=ty._OUT: "before" if slot == "article" else None)
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction",
+                        lambda iso, slot, out_dir=gs.OUT_DIR: "before" if slot == "article" else None)
     monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
         {"risk": "articles", "pos": "noun", "prompt_hint": "..."}]})
     monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
@@ -590,13 +592,13 @@ def test_extend_spans_falls_back_to_typology_when_grambank_is_none(tmp_path, mon
 
 
 def test_extend_spans_typology_fallback_off_by_default_skips_grambank_absent_language(tmp_path, monkeypatch):
-    """typology_fallback defaults False — measured net-negative for 2 of 3 languages tested (ben/asm),
-    so a Grambank-absent language must be skipped, not silently routed through typology, unless
-    explicitly opted in."""
+    """typology_fallback defaults False — measured net-negative for 2 of 3 languages tested against the
+    old, narrower table (ben/asm) — so a Grambank-absent language must be skipped, not silently routed
+    through gram-struct's merged view, unless explicitly opted in."""
     monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:noun": "noun"}, {}))
     monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: None)
-    import lexeme_aligner.typology as ty
-    monkeypatch.setattr(ty, "direction", lambda iso, slot, path=ty._OUT: "before")   # would resolve if asked
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot, out_dir=gs.OUT_DIR: "before")   # would resolve if asked
     by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
     assert by_book == {}
     assert "skipped" in stats
@@ -605,8 +607,8 @@ def test_extend_spans_typology_fallback_off_by_default_skips_grambank_absent_lan
 def test_extend_spans_skips_when_neither_grambank_nor_typology_has_anything(tmp_path, monkeypatch):
     monkeypatch.setattr(se, "load_priors", lambda _pp: ({}, {}))
     monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: None)
-    import lexeme_aligner.typology as ty
-    monkeypatch.setattr(ty, "direction", lambda iso, slot, path=ty._OUT: None)   # nothing anywhere
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot, out_dir=gs.OUT_DIR: None)   # nothing anywhere
     by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path,
                                      typology_fallback=True)
     assert by_book == {}
@@ -901,3 +903,17 @@ def test_diagnose_handles_no_flagged_language_gracefully(tmp_path, monkeypatch):
     report = se.diagnose("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
     assert report["block_rates"] == {}
     assert report["top_high_volume_stopwords"] == []
+
+
+def test_direction_for_falls_back_to_gram_struct_merged_direction_when_grambank_silent(monkeypatch):
+    # D4a (2026-09-27): the fallback now reads gram-struct's own merged view, not the older, narrower
+    # typology.py WALS/lang2vec-only table.
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot, out_dir=gs.OUT_DIR: "after")
+    assert se.direction_for({}, "adposition_order", iso="xx") == "after"
+
+
+def test_possession_direction_for_falls_back_to_gram_struct_merged_direction(monkeypatch):
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction", lambda iso, slot, out_dir=gs.OUT_DIR: "before")
+    assert se.possession_direction_for({}, iso="xx") == "before"

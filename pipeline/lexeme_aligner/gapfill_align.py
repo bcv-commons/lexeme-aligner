@@ -49,7 +49,7 @@ embedding). strong/name/cross_edition fills are hi-conf (score 0.9, matching exp
 """
 from __future__ import annotations
 
-from lexeme_aligner.gloss_align import Match, _name_score
+from lexeme_aligner.gloss_align import Match, _name_score, romanize
 
 
 class GapFiller:
@@ -124,6 +124,8 @@ class GapFiller:
         if not content or not avail:
             return []
         tnorm = [t.lower() for t in tokens]
+        # M4: romanized once per verse (not per candidate pair) -- see romanize()'s own docstring.
+        troman = [romanize(t) for t in tokens]
         n_trg, n_src = len(tokens), max(len(heb), 1)
         order = {h.idx: k for k, h in enumerate(heb)}                # source token → ordinal position
 
@@ -236,7 +238,7 @@ class GapFiller:
                 # today's baseline — a source token strict has no answer for still gets exactly the
                 # coverage it always did (see __init__ for the measured reasoning).
                 is_cross = bool(not is_strong and not is_cross_strict and known_cross and tnorm[j] in known_cross)
-                is_name = bool(spos == "name" and translit and _name_score(translit, tokens[j]) >= 0.8)
+                is_name = bool(spos == "name" and translit and _name_score(translit, troman[j]) >= 0.8)
                 # phrase-adjacency: within 1 of where the aligned phrase-mate predicts this token —
                 # can FIRE a fill alone (rare construct dependents with no vocabulary anywhere), and
                 # boosts the ranking of vocab-fired candidates sitting in the syntactically right spot.

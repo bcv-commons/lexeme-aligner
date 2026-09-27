@@ -149,6 +149,29 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
 _PHRASE_CONFIDENCE_MARGIN = 0.20
 
 
+def resolve_possessor_fallback(phrase_confident: bool, publish_iso: str, disabled: bool) -> float | None:
+    """M3 (2026-09-27): when the taken pool's own empirical construct-order signal isn't confident
+    (`phrase_confident` False), fall back to gram_struct's externally-sourced `possessor` direction
+    (the same merged external/imputed/derived/measured/kin table D4a wired into span_extension.py)
+    instead of leaving mechanism A disabled outright — never tried against any typology source before
+    this session's gram-struct build. Returns a synthetic `rec_after_rate`-shaped value (1.0/0.0, on
+    the correct side of `align_gap`'s own `>= 0.5` check) so the caller can plug it straight into the
+    same parameter, or `None` when confident already / explicitly disabled / gram_struct has nothing
+    either (no tier resolves a `possessor` direction for this language) -- the exact same "no fact,
+    never guessed" contract `gram_struct.merged_direction` itself carries.
+
+    `possessor` direction encodes where the DEPENDENT sits relative to its HEAD noun; "after" means the
+    dependent (BHSA `rela=="rec"`) trails the head (`rela=="NA"`) -- exactly `rec_after_rate`'s own
+    semantics, so this maps directly rather than re-deriving anything."""
+    if phrase_confident or disabled:
+        return None
+    from lexeme_aligner import gram_struct
+    direction = gram_struct.merged_direction(publish_iso, "possessor")
+    if direction not in ("before", "after"):
+        return None
+    return 1.0 if direction == "after" else 0.0
+
+
 def compute_order_stats(recs, anchors) -> dict:
     """Raw construct-order / cross-phrase function-order statistics from the taken pool (`anchors`,
     eflomal+gloss's own aligned target positions) — extracted from `main()`'s own inline computation
@@ -360,7 +383,13 @@ def main() -> int:
     order_stats = compute_order_stats(recs, anchors)
     rec_after_rate = order_stats["rec_after_rate"]
     phrase_confident = rec_after_rate is not None and abs(rec_after_rate - 0.5) >= _PHRASE_CONFIDENCE_MARGIN
-    phrase_enabled = phrase_confident and not args.no_phrase
+    # M3 (2026-09-27): see resolve_possessor_fallback's own docstring.
+    possessor_fallback_rate = resolve_possessor_fallback(phrase_confident, publish_iso, args.no_phrase)
+    phrase_enabled = (phrase_confident or possessor_fallback_rate is not None) and not args.no_phrase
+    effective_rec_after_rate = rec_after_rate if phrase_confident else possessor_fallback_rate
+    # func_order (the broader cross-phrase Subj/Pred/Objc mechanism) is UNCHANGED — it is not a
+    # possessor-specific signal, so the gram_struct `possessor` fallback above does not extend to it;
+    # it still requires its own confident empirical rate per function pair, same as before M3.
     func_order = ({pair: rate for pair, rate in order_stats["func_order"].items()
                   if order_stats["func_order_n"][pair] >= 100
                   and abs(rate - 0.5) >= _PHRASE_CONFIDENCE_MARGIN}
@@ -405,8 +434,9 @@ def main() -> int:
           f"(#4, {'weighted count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if args.cross_edition_weighted else 'tiered strict-overlay count>=' + str(args.cross_edition_min_count) + ' share>=' + str(args.cross_edition_min_share) if not args.no_cross_edition_tiered else 'hi_conf-only (bare, --no-cross-edition-tiered)'}, "
           f"from iso={args.cross_edition_iso or publish_iso}) · "
           f"construct-order: {order_stats['rec_after_n']} dep/head pair(s) observed "
-          f"(rate={'%.2f' % rec_after_rate if rec_after_rate is not None else 'sparse, default'}) · "
-          f"phrase prior: {'enabled' if phrase_enabled else 'DISABLED (below confidence gate)' if not phrase_confident and not args.no_phrase else 'disabled (--no-phrase)'} · "
+          f"(rate={'%.2f' % rec_after_rate if rec_after_rate is not None else 'sparse, default'}"
+          f"{', gram-struct fallback=' + ('after' if possessor_fallback_rate else 'before') if possessor_fallback_rate is not None else ''}) · "
+          f"phrase prior: {'enabled' if phrase_enabled else 'DISABLED (below confidence gate, no gram-struct possessor direction either)' if not phrase_confident and not args.no_phrase else 'disabled (--no-phrase)'} · "
           f"cross-phrase func-order: {len(func_order)} confident pair(s) · "
           f"morph-agreement: {len(morph_surf_top)} (strong,feature,value) cell(s)",
           file=sys.stderr)
@@ -450,7 +480,7 @@ def main() -> int:
                                    extend_over_stopwords=args.extend_over_stopwords,
                                    cross_edition_vocab=cross_edition_vocab,
                                    cross_edition_vocab_strict=cross_edition_vocab_strict or None,
-                                   rec_after_rate=rec_after_rate,
+                                   rec_after_rate=effective_rec_after_rate,
                                    phrase_enabled=phrase_enabled,
                                    func_order=func_order,
                                    morph_surf=morph_surf_top)

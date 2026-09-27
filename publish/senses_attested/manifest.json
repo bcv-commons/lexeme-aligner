@@ -3074,6 +3074,7 @@
         "ENGNLH",
         "ENGWEB",
         "ENGWMV",
+        "eng_asv",
         "eng_bbe",
         "eng_cpb",
         "eng_dby",
@@ -3090,15 +3091,15 @@
         "eng_wyc2017",
         "eng_ylt"
       ],
-      "books": 7134,
-      "content_sha256": "9088107fe7e3fe7b61db4868d07ae91a28cb1e781c30fcf71206325298231465",
+      "books": 7414,
+      "content_sha256": "605518b2557b4843a2efa3536ddc29b9e833efd28719cfcbebe77202296a0b82",
       "file": "iso=eng/data.parquet",
       "language": "English",
       "lexeme_stem_senses": 12278,
       "lexemes": 6714,
       "method": "eflomal+gapfill+gloss",
       "min_count": 1,
-      "rows": 1364468,
+      "rows": 1366715,
       "source_corpus": "WLC",
       "sources": {
         "BSB": {
@@ -3144,6 +3145,11 @@
         "GHT": {
           "edition": "GHT",
           "license_url": "https://www.wiebefamily.org/GHT.htm",
+          "provider": "bible.helloao.org"
+        },
+        "eng_asv": {
+          "edition": "eng_asv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=eng-asv",
           "provider": "bible.helloao.org"
         },
         "eng_bbe": {
@@ -3227,7 +3233,7 @@
           "provider": "bible.helloao.org"
         }
       },
-      "surfaces": 103101,
+      "surfaces": 103551,
       "testament": "OT"
     },
     "epo": {
@@ -9700,6 +9706,41 @@
       "surfaces": 4276,
       "testament": "OT"
     },
+    "tam": {
+      "base_texts": [
+        "tam_irv",
+        "tam_tcv"
+      ],
+      "books": 793,
+      "content_sha256": "e8c8f396310b019c7409403d84f7ef39a03ff07f8541cc1db1780f3b996fb55e",
+      "file": "iso=tam/data.parquet",
+      "language": "Tamil",
+      "lexeme_stem_senses": 12113,
+      "lexemes": 6681,
+      "method": "eflomal+gapfill+gloss",
+      "min_count": 1,
+      "rows": 212759,
+      "source_corpus": "WLC",
+      "sources": {
+        "TAMWTC": {
+          "edition": "TAMWTC",
+          "license_url": "http://www.bibleleague.org",
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "tam_irv": {
+          "edition": "tam_irv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=tam2017",
+          "provider": "bible.helloao.org"
+        },
+        "tam_tcv": {
+          "edition": "tam_tcv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=tamtcv",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 112085,
+      "testament": "OT"
+    },
     "tap": {
       "base_texts": [
         "tap_twf"
@@ -9811,6 +9852,48 @@
         }
       },
       "surfaces": 31597,
+      "testament": "OT"
+    },
+    "tel": {
+      "base_texts": [
+        "TELGMI",
+        "TELWTC",
+        "tel_irv",
+        "tel_otsa"
+      ],
+      "books": 1448,
+      "content_sha256": "ba5682e2fa70031b234ff611213096341683821ec19cd8d284949117c44c8205",
+      "file": "iso=tel/data.parquet",
+      "language": "Telugu",
+      "lexeme_stem_senses": 12202,
+      "lexemes": 6697,
+      "method": "eflomal+gapfill+gloss+spanext",
+      "min_count": 1,
+      "rows": 377975,
+      "source_corpus": "WLC",
+      "sources": {
+        "TELGMI": {
+          "edition": "TELGMI",
+          "license_url": null,
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "TELWTC": {
+          "edition": "TELWTC",
+          "license_url": "http://www.bibleleague.org",
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "tel_irv": {
+          "edition": "tel_irv",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=tel2017",
+          "provider": "bible.helloao.org"
+        },
+        "tel_otsa": {
+          "edition": "tel_otsa",
+          "license_url": "https://ebible.org/Scriptures/details.php?id=telotsa",
+          "provider": "bible.helloao.org"
+        }
+      },
+      "surfaces": 150509,
       "testament": "OT"
     },
     "tet": {

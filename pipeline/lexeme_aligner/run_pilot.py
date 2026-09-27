@@ -381,6 +381,11 @@ def main() -> int:
                          "config — now None means 'consult config/fertility_flags.json', explicit "
                          "--fertility-typology-fallback/--no-fertility-typology-fallback still override "
                          "for a one-off experiment.")
+    ap.add_argument("--fertility-lexeme-targets", action=argparse.BooleanOptionalAction, default=None,
+                    help="R1 (2026-09-27): restrict FERF lines to anchors with EXTERNAL multi-word evidence "
+                         "(config/fertility/lexeme_targets.json, built by fertility_targets.py from every gold "
+                         "parquet on disk) and take f from that table instead of 1+relations. Default: consult "
+                         "config/fertility_flags.json's `lexeme_targets` for this language (off if no entry).")
     ap.add_argument("--null-prior", action="store_true",
                     help="Step 3 control (ii): a flat, typology-BLIND fertility prior on the most "
                          "frequent anchor types ('just align more function words') — the control that "
@@ -499,6 +504,15 @@ def main() -> int:
         fert_typology_fallback = (args.fertility_typology_fallback
                                   if args.fertility_typology_fallback is not None
                                   else fert_flags.get("typology_fallback", False))
+        use_lexeme_targets = (args.fertility_lexeme_targets if args.fertility_lexeme_targets is not None
+                              else fert_flags.get("lexeme_targets", False))
+        lexeme_targets = None
+        if use_lexeme_targets:
+            from lexeme_aligner.fertility_targets import load_targets
+            lexeme_targets = load_targets()
+            if not lexeme_targets:
+                raise SystemExit("--fertility-lexeme-targets: config/fertility/lexeme_targets.json is missing "
+                                 "or empty — build it with `python -m lexeme_aligner.fertility_targets` first")
         if use_fertility and args.null_prior:
             raise SystemExit("--fertility-priors (or config/fertility_flags.json's enabled=true for "
                              f"{publish_iso}) and --null-prior are mutually exclusive controls — pass "
@@ -516,9 +530,11 @@ def main() -> int:
                 lex_pos, _ = _load_priors_pack(PRIOR_PACK)
                 fert_priors = fertmod.build_fertility_priors(
                     recs, publish_iso, lex_pos, heb, anchor=args.anchor, lam=fert_lambda,
-                    invert=args.fertility_invert, typology_fallback=fert_typology_fallback)
+                    invert=args.fertility_invert, typology_fallback=fert_typology_fallback,
+                    lexeme_targets=lexeme_targets)
                 print(f"[pilot] Step 3 fertility priors: {len(fert_priors)} anchor(s) flagged"
-                      f"{' (INVERTED placebo)' if args.fertility_invert else ''}, "
+                      f"{' (INVERTED placebo)' if args.fertility_invert else ''}"
+                      f"{' (R1 lexeme-targets gated)' if lexeme_targets else ''}, "
                       f"lambda={fert_lambda}", file=sys.stderr)
         eflo = EflomalAligner(anchor=args.anchor, stem=args.eflomal_stem,
                               content_only=args.eflomal_content_only,

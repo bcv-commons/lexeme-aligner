@@ -42,9 +42,23 @@ GOLD = {iso: _backend(v) for iso, v in _cfg.items()
 LANGS = list(GOLD)
 
 
-def gold_edition(iso: str) -> str | None:
+def _source_entry(iso: str, gold_method: str | None) -> dict | None:
+    """E2 (2026-09-27): a language may carry SECOND gold sources built against a DIFFERENT text than
+    its primary gold (Door43's own hi_glt vs Clear's IRVHin for hin). They live as nested
+    `{"<method>": {"edition", "base_text"}}` sub-entries of the language's gold_langs.json entry; when
+    `gold_method` names one, its edition/base_text win over the primary's. `None`/unknown method → the
+    primary entry, exactly as before."""
+    v = _cfg.get(iso)
+    if not isinstance(v, dict):
+        return None
+    if gold_method and isinstance(v.get(gold_method), dict):
+        return v[gold_method]
+    return v
+
+
+def gold_edition(iso: str, gold_method: str | None = None) -> str | None:
     """The ingest-cache tag whose text IS the translation this language's gold was built against, or
-    None if unrecorded.
+    None if unrecorded. `gold_method`: see `_source_entry` (a second source on a different text).
 
     ALWAYS resolve a benchmark/gap-fill run's edition through here, never by globbing usj-<iso>*:
     scoring compares our alignment against gold built from ONE specific translation, and most gold
@@ -52,19 +66,20 @@ def gold_edition(iso: str) -> str | None:
     scores one Bible against another Bible's gold and the result looks like a quality problem rather
     than a setup error — measured 2026-08-31, spa read 10.9% gap-fill precision on spa_bes vs 54.8%
     on the correct spa_r09."""
-    v = _cfg.get(iso)
+    v = _source_entry(iso, gold_method)
     return v.get("edition") if isinstance(v, dict) else None
 
 
-def gold_base_text(iso: str) -> str | None:
+def gold_base_text(iso: str, gold_method: str | None = None) -> str | None:
     """Clear's own name for that edition (BSB, RV09, AVD …) — for reporting/provenance."""
-    v = _cfg.get(iso)
+    v = _source_entry(iso, gold_method)
     return v.get("base_text") if isinstance(v, dict) else None
 
 
-def gold_usj_dir(iso: str, ingest_cache: Path = Path("pipeline/work/ingest-cache")) -> Path | None:
+def gold_usj_dir(iso: str, ingest_cache: Path = Path("pipeline/work/ingest-cache"),
+                 gold_method: str | None = None) -> Path | None:
     """The USJ dir to align for a gold-scored run. None if the edition is unrecorded or not ingested."""
-    ed = gold_edition(iso)
+    ed = gold_edition(iso, gold_method)
     if not ed:
         return None
     d = Path(ingest_cache) / f"usj-{ed}"

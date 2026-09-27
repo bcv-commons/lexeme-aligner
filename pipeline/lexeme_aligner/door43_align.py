@@ -72,6 +72,7 @@ language here, not just Arabic.
 """
 from __future__ import annotations
 
+import functools
 import json
 import sys
 import urllib.request
@@ -135,15 +136,48 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
     of raw text-offset matches. A span is finalized (appended to `out[(chapter, verse)]`) the moment its
     `ms/zaln-e` closes, so a verse accumulates its spans in source order regardless of how many `para`
     blocks or nested elements it's split across."""
+    return _walk_book(usj)[0]
+
+
+def usj_verses_for_book(usj: dict) -> tuple[dict[tuple[int, int], list[dict]], dict[tuple[int, int], str],
+                                            dict[tuple[int, int], list[str]]]:
+    """E2 (2026-09-27): `(spans, texts, words)` — the same spans as `usj_spans_for_book` (each
+    additionally carrying `target_positions`, the verse-local 0-based index of each of its `\\w` words),
+    the verse's own clean text (every `\\w` word and every plain-string fragment — punctuation, spacing —
+    in document order, milestones dropped), and the verse's full `\\w` word list in order (aligned or
+    not, so `target_positions` index into it). The text is what gets written as this language's own
+    ingest-cache edition, so the gold's target positions and OUR tokenization of the same verse derive
+    from one string — the only way `pos_score.map_positions` can reconcile them."""
+    return _walk_book(usj)
+
+
+def _walk_book(usj: dict) -> tuple[dict[tuple[int, int], list[dict]], dict[tuple[int, int], str],
+                                   dict[tuple[int, int], list[str]]]:
     out: dict[tuple[int, int], list[dict]] = {}
-    state = {"chapter": 0, "verse": None, "stack": [], "seq": 0}
+    texts: dict[tuple[int, int], list[str]] = {}
+    words: dict[tuple[int, int], list[str]] = {}          # every \w word of the verse, aligned or not
+    state = {"chapter": 0, "verse": None, "stack": [], "seq": 0, "wpos": 0}
 
     def close_span(span: dict) -> None:
         if state["verse"] is not None:
             out.setdefault((state["chapter"], state["verse"]), []).append(span)
 
+    def _cur_text() -> list[str] | None:
+        if state["verse"] is None:
+            return None
+        return texts.setdefault((state["chapter"], state["verse"]), [])
+
+    def _clean(s: str) -> str:
+        # Nepali (ne_glt) writes ZERO WIDTH JOINER/NON-JOINER inside words ("परमेश्‍वरको"); our
+        # tokenizer and `clear_tokens` treat them differently, which left 4% of npi's gold words
+        # unplaceable (5,432 of 131k, vs <0.5% for every other language) before this strip.
+        return s.replace("‍", "").replace("‌", "")
+
     def walk(node) -> None:
         if isinstance(node, str):
+            buf = _cur_text()
+            if buf is not None and node.strip():
+                buf.append(_clean(node))
             return
         if not isinstance(node, dict):
             return
@@ -155,6 +189,7 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
             # a bridged verse marker ("50-51") takes the first number — same convention
             # versification.py's own _usj_structure() already uses for the identical real case.
             state["verse"] = int(str(node.get("number", 0)).split("-")[0])
+            state["wpos"] = 0
         elif t == "ms" and node.get("marker") == "zaln-s":
             # `seq`: the order this span OPENED in, monotonic in real text position regardless of
             # nesting (a parent phrase-level milestone and its children all open in left-to-right
@@ -167,14 +202,22 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
             state["stack"].append({"strong": node.get("x-strong"), "lemma": node.get("x-lemma"),
                                    "morph": node.get("x-morph"), "occurrence": node.get("x-occurrence"),
                                    "occurrences": node.get("x-occurrences"), "seq": state["seq"],
-                                   "content": node.get("x-content"), "target_words": []})
+                                   "content": node.get("x-content"), "target_words": [],
+                                   "target_positions": []})
         elif t == "ms" and node.get("marker") == "zaln-e":
             if state["stack"]:
                 close_span(state["stack"].pop())
         elif t == "char" and node.get("marker") == "w":
-            word = "".join(c for c in node.get("content", []) if isinstance(c, str)).strip()
+            word = _clean("".join(c for c in node.get("content", []) if isinstance(c, str)).strip())
+            buf = _cur_text()
+            if buf is not None:
+                buf.append(word)
+                words.setdefault((state["chapter"], state["verse"]), []).append(word)
             if state["stack"]:
                 state["stack"][-1]["target_words"].append(word)
+                state["stack"][-1]["target_positions"].append(state["wpos"])
+            state["wpos"] += 1
+            return                                   # a \w node's content is its word — already consumed
         for child in node.get("content", []) if isinstance(node.get("content"), list) else []:
             walk(child)
 
@@ -183,7 +226,20 @@ def usj_spans_for_book(usj: dict) -> dict[tuple[int, int], list[dict]]:
     # any spans left open at book end (malformed/truncated markup) still get reported, not dropped
     for span in reversed(state["stack"]):
         close_span(span)
-    return out
+    clean = {}
+    for key, pieces in texts.items():
+        # words are separated by a space; a punctuation fragment attaches to the preceding word
+        s = ""
+        for p in pieces:
+            p = p.replace("\n", " ").strip()
+            if not p:
+                continue
+            if s and p[0].isalnum() or (s and not s[-1].isspace() and p[0] not in ",.;:!?)»”’"):
+                s += " " + p
+            else:
+                s += p
+        clean[key] = " ".join(s.split())
+    return out, clean, words
 
 
 def _api_get_json(url: str) -> dict | list:
@@ -253,6 +309,49 @@ def build_book(iso: str, book: str, out_dir: Path | None = None) -> dict:
     (out_dir / f"{book}.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False) + "\n",
                                           encoding="utf-8")
     return {"book": book, "verses": len(verses), "spans": len(rows), "zero_target_spans": n_zero_target}
+
+
+@functools.lru_cache(maxsize=None)
+def parsed_book(iso: str, book: str) -> tuple:
+    """`usj_verses_for_book(usj_from_usfm(fetch_book(iso, book)))`, cached per process — the USFM3
+    parse is the expensive step (~10 s/book) and `write_edition` + `door43_gold.build_gold` both need
+    the same parse for the same book in one run (2026-09-27: the first full build parsed every book
+    twice)."""
+    return usj_verses_for_book(usj_from_usfm(fetch_book(iso, book)))
+
+
+def write_edition(iso: str, books: list[str] | None = None,
+                  ingest_cache: Path = Path("pipeline/work/ingest-cache")) -> dict:
+    """E2 (2026-09-27): write this Door43 language's OWN text as an ingest-cache edition
+    `usj-<tag>/<NN>-<BOOK>.json` in this repo's USJ layout (run_pilot's book numbering, one
+    `{"type":"verse"}` marker + one plain text string per verse — the shape every other adapter
+    produces), from the same USFM the alignment rows come from, via `usj_verses_for_book`. That makes
+    the human alignment usable as gold for OUR chain run on the SAME text (the SWORD/HELFI precedent),
+    which no other language of ours has for Door43's Indic set. Returns {book: n_verses}."""
+    from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
+    tag = LANGUAGES[iso]["tag"]
+    dest = Path(ingest_cache) / f"usj-{tag}"
+    dest.mkdir(parents=True, exist_ok=True)
+    books = books or sorted(list_available_books(iso))
+    written: dict[str, int] = {}
+    for book in books:
+        _spans, texts, _words = parsed_book(iso, book)
+        content: list = [{"type": "book", "marker": "id", "code": book, "content": []}]
+        cur_ch = None
+        para: dict | None = None
+        for (ch, v) in sorted(texts):
+            if ch != cur_ch:
+                content.append({"type": "chapter", "marker": "c", "number": str(ch)})
+                para = {"type": "para", "marker": "p", "content": []}
+                content.append(para)
+                cur_ch = ch
+            para["content"].append({"type": "verse", "marker": "v", "number": str(v)})
+            para["content"].append(texts[(ch, v)] + "\n")
+        doc = {"type": "USJ", "version": "3.0", "content": content}
+        (dest / f"{_BOOK_FILE_NUM[book]}-{book}.json").write_text(
+            json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        written[book] = len(texts)
+    return written
 
 
 def build_language(iso: str, out_dir: Path | None = None) -> dict:

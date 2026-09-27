@@ -293,6 +293,8 @@ def load_grambank_raw(publish_iso: str, path=None) -> dict[str, str] | None:
     return load_grambank(publish_iso, path)
 
 
+from lexeme_aligner.function_classes import TRIGGER_CLASSES as _TRIGGER_CLASSES   # P1/R6 typed gate
+
 _SPANEXT_FLAGS_FILE = Path("config/spanext_flags.json")
 
 
@@ -547,7 +549,10 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                  methods: tuple[str, ...] = ("eflomal", "gloss"), prior_pack: Path = PRIOR_PACK,
                  definite_trigger: bool | None = None, relation_trigger: bool | None = None,
                  typology_fallback: bool | None = None,
-                 typology_fallback_articles: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
+                 typology_fallback_articles: bool | None = None,
+                 typed_gate: bool | None = None,
+                 phrase_window_gate: bool | None = None,
+                 name_guard: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
     """{BOOK: [verse record, ...]} of ONLY the pairs that got widened, plus stats. Never mutates the base
     chain's own jsonl — this is a separate, additive layer (see module docstring). `definite_trigger`:
     Step 1's derived-definiteness additive trigger (`compute_definite`). `relation_trigger`: Step 1's
@@ -595,8 +600,22 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         typology_fallback = flags.get("typology_fallback", False)
     if typology_fallback_articles is None:
         typology_fallback_articles = flags.get("typology_fallback_articles", False)
+    if typed_gate is None:
+        # P1/R6 (2026-09-27): typed function-word gate — a candidate must belong to the class(es) this
+        # trigger may take (function_classes.TRIGGER_CLASSES), not merely be "some stopword". Opt-in per
+        # language until measured, like every other flag here.
+        typed_gate = flags.get("typed_gate", False)
+    if phrase_window_gate is None:
+        # P2 (2026-09-27): a candidate may not lie inside ANOTHER BHSA phrase's aligned target window
+        # (59.8% of spa's owned steals were cross-phrase — plan §8.H5). OT-only signal; opt-in.
+        phrase_window_gate = flags.get("phrase_window_gate", False)
+    if name_guard is None:
+        # P4 (2026-09-27): a candidate whose romanized form name-matches the transliteration of a
+        # DIFFERENT name token in the verse is that name's own rendering, not a free particle — the
+        # 1 Chronicles genealogy steals ("Chûs" extended onto "Raema"). Opt-in.
+        name_guard = flags.get("name_guard", False)
 
-    lex_pos, _ = load_priors(prior_pack)
+    lex_pos, lex_translit = load_priors(prior_pack)
     grambank_raw = load_grambank_raw(publish_iso)
     stats: collections.Counter = collections.Counter()
     if grambank_raw is None:
@@ -686,6 +705,7 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # needs the ADJACENT function word attached to the POSSESSOR ("prabhu KA sevak"), a different token
     # entirely, so this is tracked separately rather than folded into struct_of.
     rela_of: dict[int, dict[int, str | None]] = {}
+    phrase_of: dict[int, dict[int, str | None]] = {}    # ref -> h_idx -> BHSA phrase_id (P2, OT-only)
     definite_of: dict[int, dict[int, bool]] = {}          # ref -> h_idx -> definite (Step 1, Hebrew-only)
     # ref -> construct_group id -> [HebToken, ...] in spine order: the chain a possessor/rectum belongs
     # to, in the order its own members actually appear — the fix for the multi-member chain-order bug
@@ -698,6 +718,7 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         lexeme_of[ref] = {t.idx: t.lexeme for t in r.heb}
         struct_of[ref] = {t.idx: (t.state, t.case_) for t in r.heb}
         rela_of[ref] = {t.idx: t.rela for t in r.heb}
+        phrase_of[ref] = {t.idx: getattr(t, "phrase_id", None) for t in r.heb}
         definite_of[ref] = compute_definite(r.heb, lex_pos, heb.assimilated_after_idx(r.book, r.ch, r.v))
         groups: dict[str, list] = collections.defaultdict(list)
         for t in r.heb:
@@ -709,6 +730,10 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     has_relation_signal = heb.has_phrase                    # rela lands with phrase_id (OT-only)
 
     stop = StopwordFilter(publish_iso, str(usj_dir))
+    fc = None
+    if typed_gate:
+        from lexeme_aligner.function_classes import FunctionClasses
+        fc = FunctionClasses(publish_iso, iso, out_dir)
 
     # Build ONE unified per-(ref, h_idx) view across methods first (first method in `methods` order
     # wins a contested h_idx — the same "first wins" convention merge_align/compact_align already use),
@@ -745,6 +770,22 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         claimed: set[int] = set()
         for p in verse.values():
             claimed |= set(p["t_idx"])
+        # P2: each BHSA phrase's aligned target window (min..max position of its already-aligned
+        # members). A candidate inside a DIFFERENT phrase's window is that phrase's word.
+        phrase_win: dict[str, tuple[int, int]] = {}
+        if phrase_window_gate:
+            pos_by_phrase: dict[str, list[int]] = collections.defaultdict(list)
+            for p in verse.values():
+                pid = phrase_of.get(ref, {}).get(p["h_idx"])
+                if pid:
+                    pos_by_phrase[pid].extend(p["t_idx"])
+            phrase_win = {pid: (min(ps), max(ps)) for pid, ps in pos_by_phrase.items()}
+        # P4: the romanized-name check needs every OTHER name token's transliteration in this verse.
+        verse_name_translit: dict[int, str] = {}
+        if name_guard and lex_translit:
+            for h_idx, lx in lexeme_of.get(ref, {}).items():
+                if lex_pos.get(lx) == "name" and lex_translit.get(lx):
+                    verse_name_translit[h_idx] = lex_translit[lx].replace(".", "").replace("·", "")
         widened = []
         for p in verse.values():
             if not p.get("content"):
@@ -760,7 +801,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
             sides_used: set[str] = set()
             this_lexeme = lexeme_of.get(ref, {}).get(p["h_idx"])
 
-            def _try_extend(direction: str, stat_label: str, boundary: int | None = None) -> bool:
+            def _try_extend(direction: str, stat_label: str, boundary: int | None = None,
+                            allowed: frozenset[str] | None = None) -> bool:
                 if direction in sides_used:
                     return False
                 cur = sorted(t_idx + [c for _, _, c in extensions])
@@ -771,6 +813,30 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                         return False
                 if not (0 <= c < len(toks) and c not in claimed and stop.is_function(toks[c])):
                     return False                                 # never reached the identity check at all
+                if phrase_win:
+                    # P2: inside another phrase's aligned window and outside our own -> that phrase's word.
+                    this_phrase = phrase_of.get(ref, {}).get(p["h_idx"])
+                    own = phrase_win.get(this_phrase) if this_phrase else None
+                    for pid, (lo, hi) in phrase_win.items():
+                        if pid != this_phrase and lo <= c <= hi and not (own and own[0] <= c <= own[1]):
+                            stats[f"phrase_blocked_{stat_label}"] += 1
+                            return False
+                if verse_name_translit:
+                    # P4: the candidate IS some other name's rendering (romanized edit-match), not a particle.
+                    from lexeme_aligner.gloss_align import _name_score, romanize
+                    rom = romanize(toks[c])
+                    for other_idx, tr in verse_name_translit.items():
+                        if other_idx != p["h_idx"] and _name_score(tr, rom) >= 0.8:
+                            stats[f"name_blocked_{stat_label}"] += 1
+                            return False
+                if fc is not None and allowed is not None:
+                    # P1/R6 typed gate: a genuine stopword, but not one of the class(es) this trigger may
+                    # take (an article trigger may not grab a preposition; a case trigger may not grab a
+                    # possessive determiner — the fra "su/ses as article" steal, span_extension.py's own
+                    # fra section). Counted separately so diagnose() can show what the typing removed.
+                    if not fc.allows(toks[c], allowed):
+                        stats[f"typed_blocked_{stat_label}"] += 1
+                        return False
                 # Reached the identity guard: every candidate that clears the ordinary checks (a real
                 # stopword, unclaimed, in bounds) is counted here — `identity_checked_<label>` is the
                 # denominator, `identity_blocked_<label>` the numerator, for `diagnose()`'s block-rate
@@ -789,7 +855,7 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
             # "noun" carrying both `articles` and `possession_affix`) are genuinely different needs for
             # different occurrences, not competing guesses about the same one; see `active`'s own comment.
             for d, _risk in active.get(pos, []):
-                if _try_extend(d, pos):
+                if _try_extend(d, pos, allowed=_TRIGGER_CLASSES.get(_risk)):
                     break
             if case_marking_direction and has_struct:
                 # ADDITIVE path: the lexeme's own POS tag didn't match (missing from the prior pack, or
@@ -801,7 +867,17 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                 # measured worse on both hin and arb (see below).
                 state, case_ = struct_of.get(ref, {}).get(p["h_idx"], (None, None))
                 if state == "construct" or case_ in ("genitive", "dative"):
-                    _try_extend(case_marking_direction, "struct")
+                    # P3 (2026-09-27): the construct HEAD gets the same chain-neighbour boundary the
+                    # possessor path below already had — never claim on or past a chain-mate's own span
+                    # (the within-phrase steals of plan §8.H5: אַלּוּפֵי → אַלּוּף, בְנֵי → בְּנ).
+                    s_boundary = None
+                    for members in groups_of.get(ref, {}).values():
+                        if any(t.idx == p["h_idx"] for t in members):
+                            s_boundary = _chain_neighbor_boundary(members, p["h_idx"],
+                                                                  case_marking_direction, verse)
+                            break
+                    _try_extend(case_marking_direction, "struct", boundary=s_boundary,
+                                allowed=_TRIGGER_CLASSES["struct"])
             if relation_trigger and case_marking_direction and has_relation_signal:
                 # Correction 1 (Step 1): the struct path above extends the construct HEAD (the
                 # possessum — "servant" in "servant of the LORD"); a postpositional language needs the
@@ -823,14 +899,15 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                             boundary = _chain_neighbor_boundary(members, p["h_idx"],
                                                                 case_marking_direction, verse)
                             break
-                    _try_extend(case_marking_direction, "possessor", boundary=boundary)
+                    _try_extend(case_marking_direction, "possessor", boundary=boundary,
+                                allowed=_TRIGGER_CLASSES["possessor"])
             if definite_trigger and article_order_direction and has_definite_signal:
                 # Step 1 (C'): derived definiteness (compute_definite) as an ADDITIVE trigger, parallel
                 # to case_marking's structured-signal path above — fires even when the lexeme's own POS
                 # tag missed `active`, gated on `article_order` direction (not the coarse RISK_RULES
                 # audit). Opt-in (`--definite-trigger`) until measured; see module docstring for results.
                 if definite_of.get(ref, {}).get(p["h_idx"]):
-                    _try_extend(article_order_direction, "definite")
+                    _try_extend(article_order_direction, "definite", allowed=_TRIGGER_CLASSES["definite"])
             if not extensions:
                 continue
             new_t_idx = sorted(t_idx + [c for _, _, c in extensions])
@@ -978,6 +1055,20 @@ def main(argv=None) -> int:
                          "extend_spans's own docstring for the full, corrected story. "
                          "--typology-fallback-articles/--no-typology-fallback-articles force it "
                          "either way for a one-off experiment.")
+    ap.add_argument("--typed-gate", action=argparse.BooleanOptionalAction, default=None,
+                    help="P1/R6 (2026-09-27): a candidate must belong to the function-word CLASS this "
+                         "trigger may take (function_classes.TRIGGER_CLASSES: articles->article, "
+                         "case_marking/struct/possessor->adposition, possession_affix->pronoun|adposition), "
+                         "not merely be any stopword. Classes are learned per language from our own "
+                         "alignments of the separate source function tokens (function_classes.py). "
+                         "Default: consult config/spanext_flags.json (off if no entry).")
+    ap.add_argument("--phrase-window-gate", action=argparse.BooleanOptionalAction, default=None,
+                    help="P2 (2026-09-27): reject a candidate lying inside ANOTHER BHSA phrase's aligned "
+                         "target window (OT-only signal). Default: consult config/spanext_flags.json.")
+    ap.add_argument("--name-guard", action=argparse.BooleanOptionalAction, default=None,
+                    help="P4 (2026-09-27): reject a candidate whose romanized form name-matches the "
+                         "transliteration of a DIFFERENT name token in the verse (genealogy-list steals). "
+                         "Default: consult config/spanext_flags.json.")
     ap.add_argument("--diagnose", action="store_true",
                     help="pre-flight TRIAGE report only (block rates + top high-volume stopwords) — "
                          "writes nothing, does not consult or update config/spanext_flags.json; see "
@@ -995,7 +1086,10 @@ def main(argv=None) -> int:
                                   definite_trigger=a.definite_trigger,
                                   relation_trigger=a.relation_trigger,
                                   typology_fallback=a.typology_fallback,
-                                  typology_fallback_articles=a.typology_fallback_articles)
+                                  typology_fallback_articles=a.typology_fallback_articles,
+                                  typed_gate=a.typed_gate,
+                                  phrase_window_gate=a.phrase_window_gate,
+                                  name_guard=a.name_guard)
     if "skipped" in stats:
         print(f"[span_extension] {a.iso}: {stats['skipped']}", file=sys.stderr)
         return 0

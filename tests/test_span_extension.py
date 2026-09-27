@@ -951,3 +951,63 @@ def test_possession_direction_for_falls_back_to_gram_struct_merged_direction(mon
     import lexeme_aligner.gram_struct as gs
     monkeypatch.setattr(gs, "merged_direction", lambda iso, slot, out_dir=gs.OUT_DIR: "before")
     assert se.possession_direction_for({}, iso="xx") == "before"
+
+
+def test_phrase_window_gate_blocks_a_candidate_inside_another_phrases_window(tmp_path, monkeypatch):
+    """P2 (2026-09-27): token 0 (phrase A) wants to extend forward onto position 3 — but position 3 lies
+    inside phrase B's aligned window (B's own member sits at 2 and 4), so it is B's word."""
+    write_align(tmp_path, "fakeiso", "eflomal", "RUT",
+               [{"ref": 8001001, "book": "RUT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:noun", "H1", [1]), pair(1, "lx:other", "H2", [2]), pair(2, "lx:other2", "H3", [4])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:noun": "noun", "lx:other": "noun", "lx:other2": "noun"}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB074": "0", "GB075": "1"})   # postpositional
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "case_marking", "pos": "noun", "prompt_hint": "..."}]})
+    toks = ["a", "NOUN", "B1", "X", "B2", "e"]
+    t0, t1, t2 = _FakeTok(0, "lx:noun"), _FakeTok(1, "lx:other"), _FakeTok(2, "lx:other2")
+    t0.phrase_id, t1.phrase_id, t2.phrase_id = "A", "B", "B"
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("RUT", 1, 1, toks, [t0, t1, t2])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init())
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "X"})())
+    # without the gate: token 0 grabs X (position 2? no — forward from 1 is 2, which is claimed; so nothing)
+    # make the geometry explicit: token 0 at position 1 extends forward to 2 (claimed by t1) -> fails;
+    # so put the noun at position 2 and X at 3 instead.
+    write_align(tmp_path, "fakeiso", "eflomal", "RUT",
+               [{"ref": 8001001, "book": "RUT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:noun", "H1", [2]), pair(1, "lx:other", "H2", [1]), pair(2, "lx:other2", "H3", [4])]}])
+    toks = ["a", "B1", "NOUN", "X", "B2", "e"]
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("RUT", 1, 1, toks, [t0, t1, t2])])
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["RUT"], out_dir=tmp_path,
+                                     phrase_window_gate=False)
+    assert stats.get("extended_noun") == 1                      # ungated: X taken
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["RUT"], out_dir=tmp_path,
+                                     phrase_window_gate=True)
+    assert stats.get("phrase_blocked_noun") == 1 and not stats.get("extended_noun")
+
+
+def test_name_guard_blocks_a_candidate_that_is_another_names_transliteration(tmp_path, monkeypatch):
+    """P4 (2026-09-27): a Latin-script target where the 'stopword' next to name A is actually name B."""
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT",
+               [{"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:cush", "G1", [1])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:cush": "name", "lx:raema": "name"},
+                                                        {"lx:cush": "Chus", "lx:raema": "Raema"}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: {"GB074": "0", "GB075": "1"})
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "case_marking", "pos": "name", "prompt_hint": "..."}]})
+    toks = ["y", "Chus", "raema", "z"]
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("MAT", 1, 1, toks, [_FakeTok(0, "lx:cush"), _FakeTok(1, "lx:raema")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init())
+    # pretend the stopword list (wrongly) contains 'raema' — the real-data situation behind the steals
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "raema"})())
+    _, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path, name_guard=False)
+    assert stats.get("extended_name") == 1
+    _, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path, name_guard=True)
+    assert stats.get("name_blocked_name") == 1 and not stats.get("extended_name")

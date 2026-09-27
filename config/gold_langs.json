@@ -7,7 +7,11 @@
  "arb": {
   "base_text": "AVD",
   "edition": "arb_vdv",
-  "gold": "clear"
+  "gold": "clear",
+  "door43": {
+   "edition": "ararst",
+   "base_text": "ar_arst"
+  }
  },
  "cmn": {
   "base_text": "ChiUns",
@@ -28,7 +32,11 @@
   "base_text": "IRVBen",
   "edition": "ben_irv",
   "gold": "clear",
-  "_note": "same bug as asm (base_text was bare 'IRV', parquet's real value is 'IRVBen') — found and fixed 2026-09-25 while running roadmap M1."
+  "_note": "same bug as asm (base_text was bare 'IRV', parquet's real value is 'IRVBen') — found and fixed 2026-09-25 while running roadmap M1.",
+  "door43": {
+   "edition": "bengst",
+   "base_text": "bn_gst"
+  }
  },
  "eng": {
   "base_text": "BSB",
@@ -58,7 +66,11 @@
  "hin": {
   "base_text": "IRVHin",
   "edition": "hinirv",
-  "gold": "clear"
+  "gold": "clear",
+  "door43": {
+   "edition": "higlt",
+   "base_text": "hi_glt"
+  }
  },
  "hun": {
   "gbt_greek_rows": 2615,
@@ -85,15 +97,23 @@
   "gold": "gbt",
   "note": "NT ONLY (gbt rus has zero Hebrew rows). Rehabilitated 2026-09-01 — see _quarantine.",
   "second_source_sword": {
-   "base_text": "RusVZh", "gold_method": "sword", "format": "gbf",
-   "gold_links": 56418, "positional_health": 0.847, "link_f1": 0.857,
+   "base_text": "RusVZh",
+   "gold_method": "sword",
+   "format": "gbf",
+   "gold_links": 56418,
+   "positional_health": 0.847,
+   "link_f1": 0.857,
    "note": "vendor-only (CrossWire-restricted license, see sword_source.py docstring), NT only. A THIRD independent reference (Clear/scrambled, gbt/CC0, now RusVZh/vendor-only) all agreeing our alignment is healthy (.847 positional here vs gbt's .545) further corroborates the _quarantine diagnosis: the defect is Clear's gold specifically. Score with pos_score --base-text RusVZh --gold-method sword."
   }
  },
  "spa": {
   "base_text": "RV09",
   "edition": "spa_r09",
-  "gold": "clear"
+  "gold": "clear",
+  "door43": {
+   "edition": "es419glt",
+   "base_text": "es-419_glt"
+  }
  },
  "swe": {
   "base_text": "folkbibeln",
@@ -115,6 +135,41 @@
   "gbt_greek_rows": 462,
   "gbt_usable_rows": 5363,
   "gold": "gbt",
-  "grambank": "GB117=0 no copula, GB250=0"
+  "grambank": "GB117=0 no copula, GB250=0",
+  "door43": {
+   "edition": "telglt",
+   "base_text": "te_glt"
+  }
+ },
+ "_door43_doc": "`gold: door43` = Door43 human \\zaln word alignment (door43_gold.py, Greek NT only so far), scored with `pos_score --gold-method door43`. Its text is the language's OWN Door43 edition (usj-<tag>, written by door43_align.write_edition), NOT any edition we ingested elsewhere — so for a language that already has a primary gold on a different text (arb/ben/hin/spa/tel) the door43 source lives as a nested {\"door43\": {edition, base_text}} sub-entry that contest_rule.gold_edition/gold_usj_dir select when asked for gold_method=\"door43\". Added 2026-09-27 (plan step E2).",
+ "guj": {
+  "gold": "door43",
+  "edition": "gujglt",
+  "base_text": "gu_glt",
+  "_note": "added 2026-09-27 (E2): first gold for this language — Door43 gu_glt human alignment, NT books only; text = usj-gujglt (the Door43 edition itself)."
+ },
+ "kan": {
+  "gold": "door43",
+  "edition": "knglt",
+  "base_text": "kn_glt",
+  "_note": "added 2026-09-27 (E2): first gold for this language — Door43 kn_glt human alignment, NT books only; text = usj-knglt (the Door43 edition itself)."
+ },
+ "mar": {
+  "gold": "door43",
+  "edition": "marglt",
+  "base_text": "mr_glt",
+  "_note": "added 2026-09-27 (E2): first gold for this language — Door43 mr_glt human alignment, NT books only; text = usj-marglt (the Door43 edition itself)."
+ },
+ "npi": {
+  "gold": "door43",
+  "edition": "neglt",
+  "base_text": "ne_glt",
+  "_note": "added 2026-09-27 (E2): first gold for this language — Door43 ne_glt human alignment, NT books only; text = usj-neglt (the Door43 edition itself)."
+ },
+ "ory": {
+  "gold": "door43",
+  "edition": "orglt",
+  "base_text": "or_glt",
+  "_note": "added 2026-09-27 (E2): first gold for this language — Door43 or_glt human alignment, NT books only; text = usj-orglt (the Door43 edition itself)."
  }
 }

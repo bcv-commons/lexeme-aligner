@@ -158,3 +158,32 @@ def test_load_fertility_flags_reads_typology_fallback(tmp_path):
         encoding="utf-8")
     assert fp.load_fertility_flags("spa", path=fp_path) == {
         "enabled": True, "lambda": 2.0, "typology_fallback": True}
+
+
+# --- R1 (2026-09-27): lexeme_targets gate ---------------------------------------------------------------
+def test_lexeme_targets_restrict_ferf_to_externally_attested_anchors(monkeypatch):
+    """With a targets table, only flagged anchors with multi_langs >= min_langs keep a FERF line, and f
+    comes from the table (clamped >= 2) instead of 1 + relations."""
+    import lexeme_aligner.fertility_priors as fpm
+    # two Hebrew nouns in construct relation (possessor gate): H1 is the rectum (rela=rec), H2 too
+    a = tok(0, "H1"); a.rela = "rec"
+    b = tok(1, "H2"); b.rela = "rec"
+    rec = _Rec("RUT", 1, 1, [a, b])
+    monkeypatch.setattr(fpm, "load_grambank_raw", lambda iso: {"GB074": "1", "GB075": "0"})   # adposition side
+    monkeypatch.setattr(fpm, "compute_definite", lambda heb, lex_pos, assim: {})
+    class _Heb:
+        def assimilated_after_idx(self, *a): return set()
+    base = fpm.build_fertility_priors([rec], "xx", {}, _Heb())
+    assert set(base) == {"H1", "H2"} and base["H1"][0] == 2
+    table = {"H1": {"f": 3, "multi_langs": 3}, "H2": {"f": 2, "multi_langs": 1}}
+    gated = fpm.build_fertility_priors([rec], "xx", {}, _Heb(), lexeme_targets=table, min_langs=2)
+    assert set(gated) == {"H1"}                 # H2: only 1 gold source says multi-word -> dropped
+    assert gated["H1"][0] == 3                  # f from the table
+    assert gated["H1"][1] == base["H1"][1]      # alpha unchanged
+
+
+def test_load_fertility_flags_reads_lexeme_targets(tmp_path):
+    import lexeme_aligner.fertility_priors as fpm
+    fp_path = tmp_path / "fertility_flags.json"
+    fp_path.write_text('{"spa": {"enabled": true, "lambda": 2.0, "lexeme_targets": true}}', encoding="utf-8")
+    assert fpm.load_fertility_flags("spa", path=fp_path)["lexeme_targets"] is True

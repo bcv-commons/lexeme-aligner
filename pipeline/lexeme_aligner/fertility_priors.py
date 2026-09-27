@@ -125,6 +125,8 @@ def load_fertility_flags(publish_iso: str, path: Path | None = None) -> dict:
         out["lambda"] = float(entry["lambda"])
     if isinstance(entry.get("typology_fallback"), bool):
         out["typology_fallback"] = entry["typology_fallback"]
+    if isinstance(entry.get("lexeme_targets"), bool):       # R1 (2026-09-27), see fertility_targets.py
+        out["lexeme_targets"] = entry["lexeme_targets"]
     return out
 
 
@@ -156,7 +158,8 @@ def _subject_indexing_incomplete(grambank: dict[str, str]) -> bool:
 
 
 def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb, anchor: str = "strong",
-                           lam: float = 1.0, invert: bool = False, typology_fallback: bool = False
+                           lam: float = 1.0, invert: bool = False, typology_fallback: bool = False,
+                           lexeme_targets: dict | None = None, min_langs: int = 3
                           ) -> dict[str, tuple[int, float]]:
     """{anchor_string: (fert, alpha)} ready for `EflomalAligner.run(fertility_priors=...)`. `heb`: the
     same `HebrewSource` instance `build_corpus` was called with (for `assimilated_after_idx`, per
@@ -204,6 +207,20 @@ def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb,
         increments = sum(1 for v in k[a].values() if v > 0)
         f = min(FERT_CAP, 1 + increments)
         alpha = min(n[a], lam * sum(v for v in k[a].values() if v > 0))
+        if lexeme_targets is not None:
+            # R1 (2026-09-27): only anchors with EXTERNAL multi-word evidence (fertility_targets.py —
+            # rendered multi-word at least half the time in >= `min_langs` gold sources) keep a FERF line,
+            # and `f` comes from that evidence instead of "1 + number of relations that fired". The
+            # relation gate above is still required: the table says the lexeme CAN be a phrase, the
+            # relation says THIS language has a marked reason for it here.
+            t = lexeme_targets.get(a)
+            # first real table (2026-09-27, Clear+SWORD+HELFI golds): 8,297 anchors, 6,804 multi-word in
+            # >=2 sources but only because eng/hin gold credit function words to nearly every noun — so
+            # `multi_langs` alone barely discriminates; requiring the table's own f >= 2 (cross-language
+            # mean span >= 1.5) is what does. Anchors the gold says are ~1 word stay unboosted.
+            if not t or t.get("multi_langs", 0) < min_langs or int(t.get("f", 1)) < 2:
+                continue
+            f = min(FERT_CAP, int(t["f"]))
         priors[a] = (f, alpha)
     return priors
 

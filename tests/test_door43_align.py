@@ -89,3 +89,32 @@ def test_book_files_covers_all_66_standard_books():
     assert len(da._BOOK_FILES) == 66
     assert da._BOOK_FILES["RUT"] == "08-RUT"
     assert da._BOOK_FILES["REV"] == "67-REV"
+
+
+def test_usj_verses_for_book_gives_positions_text_and_word_list():
+    # E2 (2026-09-27): every \w gets a verse-local position (aligned or not); punctuation attaches to the
+    # preceding word in the clean text; `words` lists every \w in order.
+    body = ('\\c 1\n\\v 1 '
+           r'\zaln-s |x-strong="G39720"\*\w Pablo|x-occurrence="1" x-occurrences="1"\w*\zaln-e\*, '
+           r'\zaln-s |x-strong="G23160"\*\w de|x-occurrence="1" x-occurrences="1"\w* '
+           r'\w Dios|x-occurrence="1" x-occurrences="1"\w*\zaln-e\* \w siervo|x-occurrence="1" x-occurrences="1"\w*'
+           '\n')
+    spans, texts, words = da.usj_verses_for_book(da.usj_from_usfm(_HEADER + body))
+    assert words[(1, 1)] == ["Pablo", "de", "Dios", "siervo"]          # 'siervo' is outside any span
+    assert texts[(1, 1)] == "Pablo, de Dios siervo"
+    by_strong = {s["strong"]: s for s in spans[(1, 1)]}
+    assert by_strong["G39720"]["target_positions"] == [0]
+    assert by_strong["G23160"]["target_positions"] == [1, 2]
+    assert by_strong["G23160"]["target_words"] == ["de", "Dios"]
+
+
+def test_zero_width_joiners_are_stripped_from_words_and_text():
+    # Nepali ne_glt writes ZWJ inside words; both the word list and the clean text must drop it so the
+    # gold's clear-token positions and our tokenizer index one and the same string (E2, 2026-09-27).
+    body = ('\\c 1\n\\v 1 '
+           r'\zaln-s |x-strong="G23160"\*\w परमेश्' + "‍" + r'वरको|x-occurrence="1" x-occurrences="1"\w*\zaln-e\*'
+           '\n')
+    spans, texts, words = da.usj_verses_for_book(da.usj_from_usfm(_HEADER + body))
+    assert words[(1, 1)] == ["परमेश्वरको"]
+    assert "‍" not in texts[(1, 1)]
+    assert spans[(1, 1)][0]["target_words"] == ["परमेश्वरको"]

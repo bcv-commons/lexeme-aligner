@@ -326,14 +326,27 @@ class Metrics:
                 "over_claimed": self.over_claimed}
 
 
-def score(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bool = True) -> Metrics:
+def score(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bool = True,
+          neutral: dict[int, set[int]] | None = None) -> Metrics:
     """`content_only`: judge only gold links whose source token is a content lexeme — what the statistical
-    chain is asked to align. Aim-2 (full-partition) output should be scored with content_only=False."""
+    chain is asked to align. Aim-2 (full-partition) output should be scored with content_only=False.
+
+    `neutral` (E1, 2026-09-27): `{ref: {target positions}}` that are neither rewarded nor penalised — our
+    spans have them removed before exact_span/tp/fp/over_claimed are computed. Built by
+    `neutral_positions()` for a gold whose curation convention never credits function words to any source
+    token (spa/fra Clear gold — `gold_convention_profile`), so an article/adposition our chain attached
+    to the governing noun is not scored as a false positive the gold could never have confirmed. Strict
+    scoring is unchanged when `neutral` is None; callers report both rows side by side."""
     m = Metrics()
+    neutral = neutral or {}
     for ref, gv in gold.items():
         if ref not in spine.key_of:
             continue
         ov = ours.spans.get(ref, {})
+        nref = neutral.get(ref)
+        if nref:
+            ov = {key: (pos - nref) for key, pos in ov.items()}
+            ov = {key: pos for key, pos in ov.items() if pos}
         m.verses += 1
         g_count = collections.Counter(s for s, _k in gv.links)
         for (strong, k), gpos in gv.links.items():
@@ -376,6 +389,63 @@ def repaired_surfaces(gold: dict[int, GoldVerse]) -> dict[tuple[str, str], set[s
     return out
 
 
+# --- E1: gold curation convention (2026-09-27) ------------------------------------------------------------
+def tokens_by_ref(usj_dir: Path, books: list[str]) -> dict[int, list[str]]:
+    """{ref: our tokens of the verse text} for every verse of `books` present in `usj_dir`."""
+    from lexeme_aligner.refs import encode
+    out: dict[int, list[str]] = {}
+    for b in books:
+        fp = _book_file(usj_dir, b)
+        if not fp.exists():
+            continue
+        for (ch, v), text in read_verses(fp).items():
+            out[encode(b, ch, v)] = tokenize(text)
+    return out
+
+
+def gold_convention_profile(gold: dict[int, GoldVerse], toks: dict[int, list[str]], is_function) -> dict:
+    """Does this gold ever credit a target FUNCTION word to a source token? Over the gold's verses:
+    every target position our stopword list (`is_function`) flags, and how many of those the gold
+    claims for any source token. spa/fra Clear gold never attach 'el/la/de' to anything (measured this
+    session: 63.9% of spa's span-extension 'conflicts' were exactly that); eng Clear gold does. The
+    `credit_rate` decides whether `neutral_positions()` applies. Threshold 0.5 — the two observed
+    regimes are far apart (see the plan's §8.H3: spa gold mean fertility 1.17 vs eng 1.8-2.4 on the same
+    Hebrew source), not a tuned constant."""
+    n_func = n_credited = 0
+    n_spans = n_multi = 0
+    for ref, gv in gold.items():
+        t = toks.get(ref)
+        if not t:
+            continue
+        for i, w in enumerate(t):
+            if is_function(w):
+                n_func += 1
+                if i in gv.claimed:
+                    n_credited += 1
+        for pos in gv.links.values():
+            n_spans += 1
+            n_multi += len(pos) > 1
+    rate = n_credited / n_func if n_func else None
+    return {"function_positions": n_func, "function_credited": n_credited,
+            "credit_rate": round(rate, 4) if rate is not None else None,
+            "credits_function_words": (rate is not None and rate >= 0.5),
+            "gold_spans": n_spans, "gold_multiword_share": round(n_multi / n_spans, 4) if n_spans else None}
+
+
+def neutral_positions(gold: dict[int, GoldVerse], toks: dict[int, list[str]], is_function) -> dict[int, set[int]]:
+    """{ref: function-word positions the gold leaves unclaimed} — the positions `score(neutral=...)`
+    neither rewards nor penalises for a gold that does not credit function words."""
+    out: dict[int, set[int]] = {}
+    for ref, gv in gold.items():
+        t = toks.get(ref)
+        if not t:
+            continue
+        s = {i for i, w in enumerate(t) if is_function(w) and i not in gv.claimed}
+        if s:
+            out[ref] = s
+    return out
+
+
 # --- CLI ---------------------------------------------------------------------------------------------
 def _books(a) -> list[str]:
     from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS
@@ -400,16 +470,24 @@ def main(argv=None) -> int:
                          "gold, weaker evidence than manual; the printed report always names which was used.")
     ap.add_argument("--all-tokens", action="store_true",
                     help="judge function-word links too (Aim-2 full partition); default: content lexemes only")
+    ap.add_argument("--convention-aware", action="store_true",
+                    help="E1 (2026-09-27): also report a `[conv]` row per method in which target function "
+                         "words the gold leaves unclaimed are NEUTRAL (neither tp nor fp) when the gold's own "
+                         "curation convention never credits function words (credit_rate < 0.5 — spa/fra Clear "
+                         "gold); a no-op for a gold that does credit them (eng). The strict row is always kept.")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     a = ap.parse_args(argv)
     from lexeme_aligner.contest_rule import gold_base_text, gold_usj_dir
-    base_text = a.base_text or gold_base_text(a.publish_iso)
-    want = gold_usj_dir(a.publish_iso)
-    if want and Path(a.usj_dir).resolve() != Path(want).resolve():
-        raise SystemExit(f"[pos_score] --usj-dir is not the gold edition for {a.publish_iso} ({want})")
-    books = _books(a)
     gold_methods = tuple(a.gold_method) if a.gold_method else ("manual",)
+    # E2: a second gold source (e.g. door43) may be built against a DIFFERENT text than the primary
+    # gold — its edition/base_text come from the nested per-method entry in gold_langs.json.
+    base_text = a.base_text or gold_base_text(a.publish_iso, gold_method=gold_methods[0])
+    want = gold_usj_dir(a.publish_iso, gold_method=gold_methods[0])
+    if want and Path(a.usj_dir).resolve() != Path(want).resolve():
+        raise SystemExit(f"[pos_score] --usj-dir is not the gold edition for {a.publish_iso} "
+                         f"(method {gold_methods[0]}: {want})")
+    books = _books(a)
     gold, stats = load_gold(a.publish_iso, a.usj_dir, books, base_text, gold_methods=gold_methods)
     print(f"[pos_score] gold {a.publish_iso}/{base_text} (method={','.join(gold_methods)}): "
           f"{stats['verses_mapped']}/{stats['verses']} verses mapped "
@@ -417,6 +495,20 @@ def main(argv=None) -> int:
           f"{stats['links']} links ({stats['links_punct_only']} punctuation-only dropped, "
           f"{stats['links_beyond_text']} beyond text)", file=sys.stderr)
     spine = load_spine(books, a.usj_dir, a.iso)
+    neutral = None
+    profile = None
+    if a.convention_aware:
+        from lexeme_aligner.target_stopwords import StopwordFilter
+        toks = tokens_by_ref(a.usj_dir, books)
+        stop = StopwordFilter(a.publish_iso, str(a.usj_dir))
+        profile = gold_convention_profile(gold, toks, stop.is_function)
+        print(f"[pos_score] gold convention: function-word credit rate "
+              f"{profile['credit_rate']} ({profile['function_credited']}/{profile['function_positions']}), "
+              f"gold multi-word share {profile['gold_multiword_share']} → "
+              f"{'credits function words: [conv] rows are a no-op' if profile['credits_function_words'] else 'does NOT credit function words: unclaimed function positions are neutral in [conv] rows'}",
+              file=sys.stderr)
+        if not profile["credits_function_words"]:
+            neutral = neutral_positions(gold, toks, stop.is_function)
     results = {}
     for spec in (a.method or ["eflomal", "gloss", "eflomal+gloss+gapfill"]):
         ours = load_spec(spec, a.iso, a.out, books, spine)
@@ -424,8 +516,11 @@ def main(argv=None) -> int:
             print(f"[pos_score] nothing found for {spec} — skipped", file=sys.stderr)
             continue
         results[spec] = score(gold, ours, spine, content_only=not a.all_tokens).row()
+        if a.convention_aware:
+            results[f"{spec} [conv]"] = score(gold, ours, spine, content_only=not a.all_tokens,
+                                              neutral=neutral).row()
     if a.json:
-        print(json.dumps({"gold_stats": dict(stats), "results": results}, indent=1))
+        print(json.dumps({"gold_stats": dict(stats), "convention": profile, "results": results}, indent=1))
         return 0
     cols = ["gold_links", "answered", "exact_span", "overlap", "link_precision", "link_recall", "link_f1", "aer",
             "target_unclaimed_rate", "over_claimed", "ambiguous_skipped"]

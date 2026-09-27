@@ -135,11 +135,12 @@ def multiword_rates(iso: str, out_dir: Path, lex_pos: dict[str, str], method: st
     return {pos: tuple(v) for pos, v in counts.items()}
 
 
-# Step 2 (typology.py) fallback: which typology.py SLOT stands in for this risk's existence check when
-# Grambank itself doesn't flag it (missing entirely — the ~51% of published languages with no Grambank
-# coverage at all — or present but this specific direction pair is 0/0, e.g. hin has no articles at
-# all). Only the three DIRECTION-bearing risks map to a slot; subject_indexing/tam_auxiliary/tam_affix
-# have no typology.py equivalent and stay Grambank-only, same as before Step 2.
+# Step 2 / D4a fallback: which gram_struct SLOT (gram_struct.merged_direction, D4a 2026-09-27 —
+# was typology.py's own narrower WALS/lang2vec-only table before) stands in for this risk's existence
+# check when Grambank itself doesn't flag it (missing entirely — the ~51% of published languages with
+# no Grambank coverage at all — or present but this specific direction pair is 0/0, e.g. hin has no
+# articles at all). Only the three DIRECTION-bearing risks map to a slot; subject_indexing/
+# tam_auxiliary/tam_affix have no gram_struct equivalent and stay Grambank-only, same as before Step 2.
 _TYPOLOGY_EXISTENCE_SLOT = {"case_marking": "adposition", "articles": "article",
                            "possession_affix": "possessor"}
 
@@ -176,15 +177,25 @@ def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = 
                 matched_ids = [f for f in feature_ids if grambank.get(f) == "1"]
         if not flagged and use_typology and risk_key in _TYPOLOGY_EXISTENCE_SLOT:
             # Grambank was silent (absent for this language entirely, or present but 0/0 for this
-            # specific pair) — fall back to the pre-built typology table, which only ever carries a
-            # direction from a source whose agreement with Grambank was measured at >=90% (typology.py's
-            # own docstring). A resolved direction from a validated source stands in for "this category
-            # exists"; this is what makes case_marking/articles/possession_affix reachable at all for
-            # the ~51% of published languages Grambank itself never covers (spa/ben/asm — Step 2's own
-            # target languages).
-            from lexeme_aligner import typology
+            # specific pair) — fall back to gram-struct's own merged view (D4a follow-up, 2026-09-27:
+            # this call used to go straight to the narrower `typology.py` WALS/lang2vec-only table,
+            # never updated when D4a moved span_extension.py's OWN direction_for/possession_direction_for
+            # onto gram_struct.merged_direction — a real, previously-undiscovered gap: this existence
+            # PRE-CHECK stayed on the old table even after the thing it gates started reading the new
+            # one. Concretely: gram_struct now resolves an `article` direction for spa/ben/asm that
+            # `typology.direction` never could (no article-order parameter in WALS at all), so
+            # "articles" risk was silently UNREACHABLE for them regardless of `use_typology` — confirmed
+            # empirically (`analyze()` on live spa/ben/asm data returned only case_marking/
+            # possession_affix findings, never articles, before this fix). A resolved direction from a
+            # validated source stands in for "this category exists"; this is what makes
+            # case_marking/articles/possession_affix reachable at all for the ~51% of published
+            # languages Grambank itself never covers (spa/ben/asm — Step 2's own target languages).
+            # Deferred import: gram_struct.py imports RISK_RULES from this module at its own top level,
+            # so the reverse direction must stay call-time, same reason span_extension.py's own
+            # direction_for/possession_direction_for already do this.
+            from lexeme_aligner import gram_struct
             slot = _TYPOLOGY_EXISTENCE_SLOT[risk_key]
-            if typology.direction(publish_iso, slot) is not None:
+            if gram_struct.merged_direction(publish_iso, slot) is not None:
                 flagged, matched_ids = True, [f"typology:{slot}"]
         if not flagged:
             continue

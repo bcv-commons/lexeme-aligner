@@ -161,9 +161,9 @@ def test_analyze_falls_back_to_typology_when_grambank_is_none(tmp_path, monkeypa
                                    [pair(98, "lx:name", [98, 99]), pair(99, "lx:name", [100, 101])]}]
     write_align(tmp_path, "xyz_edition", "eflomal", "MAT", records)
 
-    import lexeme_aligner.typology as ty
-    monkeypatch.setattr(ty, "direction",
-                        lambda iso, slot, path=ty._OUT: "before" if slot == "adposition" else None)
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction",
+                        lambda iso, slot, out_dir=gs.OUT_DIR: "before" if slot == "adposition" else None)
 
     report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused",
                         use_typology=True)
@@ -181,9 +181,9 @@ def test_analyze_typology_fallback_off_by_default(tmp_path, monkeypatch):
     records = [{"ref": 1, "pairs": [pair(i, "lx:name", [i]) for i in range(98)] +
                                    [pair(98, "lx:name", [98, 99]), pair(99, "lx:name", [100, 101])]}]
     write_align(tmp_path, "xyz_edition", "eflomal", "MAT", records)
-    import lexeme_aligner.typology as ty
-    monkeypatch.setattr(ty, "direction",
-                        lambda iso, slot, path=ty._OUT: "before" if slot == "adposition" else None)
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction",
+                        lambda iso, slot, out_dir=gs.OUT_DIR: "before" if slot == "adposition" else None)
 
     report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused")
     assert not any(f["risk"] == "case_marking" for f in report["findings"])
@@ -200,9 +200,9 @@ def test_analyze_typology_fallback_still_requires_the_rate_anomaly(tmp_path, mon
                                    [pair(i, "lx:name", [i]) for i in range(50, 100)]}]
     write_align(tmp_path, "xyz_edition", "eflomal", "MAT", records)
 
-    import lexeme_aligner.typology as ty
-    monkeypatch.setattr(ty, "direction",
-                        lambda iso, slot, path=ty._OUT: "before" if slot == "adposition" else None)
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction",
+                        lambda iso, slot, out_dir=gs.OUT_DIR: "before" if slot == "adposition" else None)
 
     report = al.analyze("xyz_edition", "xyz", out_dir=tmp_path, prior_pack=tmp_path / "unused")
     assert not any(f["risk"] == "case_marking" for f in report["findings"])

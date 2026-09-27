@@ -146,3 +146,15 @@ def test_load_fertility_flags_missing_language_is_empty(tmp_path):
 
 def test_load_fertility_flags_missing_file_is_empty(tmp_path):
     assert fp.load_fertility_flags("hin", path=tmp_path / "nope.json") == {}
+
+
+def test_load_fertility_flags_reads_typology_fallback(tmp_path):
+    # real gap fixed 2026-09-27: this field used to be silently dropped, so onboard.py/full_chain.py
+    # (which never pass the CLI flag directly) reproduced 0 flagged anchors for spa regardless of
+    # `enabled: true` -- see this function's own docstring.
+    fp_path = tmp_path / "fertility_flags.json"
+    fp_path.write_text(
+        '{"spa": {"enabled": true, "lambda": 2.0, "typology_fallback": true, "_note": "win"}}',
+        encoding="utf-8")
+    assert fp.load_fertility_flags("spa", path=fp_path) == {
+        "enabled": True, "lambda": 2.0, "typology_fallback": True}

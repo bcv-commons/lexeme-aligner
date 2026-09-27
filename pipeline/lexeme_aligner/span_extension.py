@@ -297,7 +297,8 @@ _SPANEXT_FLAGS_FILE = Path("config/spanext_flags.json")
 
 
 def load_spanext_flags(publish_iso: str, path: Path | None = None) -> dict[str, bool]:
-    """{"definite_trigger"|"relation_trigger"|"typology_fallback": bool} recommendations recorded for
+    """{"definite_trigger"|"relation_trigger"|"typology_fallback"|"typology_fallback_articles": bool}
+    recommendations recorded for
     `publish_iso` in `config/spanext_flags.json` — the "measure once, remember it in one line, no code
     edit" pattern `config/gold_langs.json`/`config/typology/directions.json` already use. {} (all
     flags default off) for a language with no entry, or if the file doesn't exist at all — never an
@@ -545,7 +546,8 @@ def _chain_neighbor_boundary(members: list, this_idx: int, direction: str, union
 def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], out_dir: Path = OUT,
                  methods: tuple[str, ...] = ("eflomal", "gloss"), prior_pack: Path = PRIOR_PACK,
                  definite_trigger: bool | None = None, relation_trigger: bool | None = None,
-                 typology_fallback: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
+                 typology_fallback: bool | None = None,
+                 typology_fallback_articles: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
     """{BOOK: [verse record, ...]} of ONLY the pairs that got widened, plus stats. Never mutates the base
     chain's own jsonl — this is a separate, additive layer (see module docstring). `definite_trigger`:
     Step 1's derived-definiteness additive trigger (`compute_definite`). `relation_trigger`: Step 1's
@@ -555,7 +557,30 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     for spa, net negative for ben/asm (see `analyze_language.analyze`'s own docstring for numbers);
     a genuine per-language split, not a metric artifact.
 
-    All three default to `None`, meaning "consult `config/spanext_flags.json` for `publish_iso`,
+    `typology_fallback_articles`: D4a follow-up (2026-09-27) — SEPARATE from `typology_fallback`
+    itself, and not for the reason first suspected. A byte-for-byte diff of spa's ENTIRE spanext
+    output before vs after D4a's own change found it IDENTICAL — the `noun_before`/`name_before`
+    pairs come from `case_marking` (the adposition direction, unchanged old vs new backend), spa's
+    PRE-EXISTING 2026-09-24 mechanism, not anything D4a touched. What D4a's follow-up DID surface is a
+    separate, deeper bug: `analyze_language.py`'s own existence pre-check for `articles`/
+    `case_marking`/`possession_affix` had been left calling the OLD `typology.direction()` table
+    directly, never updated when D4a moved this module's OWN `direction_for`/`possession_direction_for`
+    onto `gram_struct.merged_direction()` — so the real `articles` risk (as opposed to the unrelated
+    `case_marking`-driven pairs above) was structurally UNREACHABLE for spa/ben/asm under ANY backend,
+    old or new, until that pre-check was fixed too (see `analyze_language.py`'s own comment). Fixing it
+    makes `articles` newly discoverable for spa/ben/asm for the first time ever. This flag exists so
+    that newly-discoverable-but-UNMEASURED capability doesn't silently start firing the moment the
+    analyze_language.py bug is fixed — `config/spanext_flags.json` records `false` for spa (verified:
+    output stays byte-identical to the pre-fix baseline with this flag off), pending its own dedicated
+    measurement like every other never-yet-scored flag here. A SEPARATE, real finding from the same
+    follow-up: isolating case_marking's OWN pre-existing noun/name-extension conflicts (excluding the
+    already-documented gold-non-credit-of-articles artifact) found only ~38-41% precision on the
+    checkable cases — well below the ~2/3 bar the same general mechanism cleared for eng (F1
+    .632->.741) — which calls spa's ORIGINAL "4,435 vs 3,561 net positive" `typology_fallback` verdict
+    into some question, independent of D4a; not acted on here, `typology_fallback` stays `true`
+    pending a fuller re-audit (see `config/spanext_flags.json`'s own note for spa).
+
+    All four default to `None`, meaning "consult `config/spanext_flags.json` for `publish_iso`,
     default OFF if it has no entry" — NOT a bare `False` default, so a language nobody has measured
     yet gets today's conservative behavior automatically, while one that HAS been measured and found
     to benefit (e.g. hin's `relation_trigger`) gets that remembered without anyone needing to pass a
@@ -568,6 +593,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         relation_trigger = flags.get("relation_trigger", False)
     if typology_fallback is None:
         typology_fallback = flags.get("typology_fallback", False)
+    if typology_fallback_articles is None:
+        typology_fallback_articles = flags.get("typology_fallback_articles", False)
 
     lex_pos, _ = load_priors(prior_pack)
     grambank_raw = load_grambank_raw(publish_iso)
@@ -592,6 +619,9 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # phase-1 audit itself wouldn't flag as worth checking.
     report = analyze(iso, publish_iso, out_dir, prior_pack, method=methods[0], use_typology=typology_fallback)
     _typology_iso = publish_iso if typology_fallback else None
+    # D4a follow-up: the "articles" risk gets its OWN, separately-gated iso -- see
+    # `typology_fallback_articles`'s own docstring for why this is split from `_typology_iso` above.
+    _typology_iso_articles = publish_iso if typology_fallback_articles else None
     # pos -> [(direction, risk), ...], in RISK_RULES' own findings order (its priority). A pos can carry
     # MORE THAN ONE flagged risk — e.g. English "noun" gets both `articles` ("the servant") and
     # `possession_affix` ("his servant"), genuinely different needs for different occurrences of the same
@@ -606,6 +636,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         risk, pos = f.get("risk"), f.get("pos")
         if risk == "possession_affix":
             d = possession_direction_for(grambank, iso=_typology_iso)   # GB065 is ternary, not before/after
+        elif risk == "articles":
+            d = direction_for(grambank, DIRECTION_FEATURES["articles"], iso=_typology_iso_articles)
         elif risk in DIRECTION_FEATURES:
             d = direction_for(grambank, DIRECTION_FEATURES[risk], iso=_typology_iso)
         else:
@@ -633,8 +665,10 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # not gated on analyze_language's own multiword-rate audit flagging "articles" for some POS the way
     # case_marking_direction above is — the whole point of a hard per-occurrence structural signal
     # (compute_definite) is to catch occurrences a coarse lexeme-level audit has no way to single out.
-    # Step 2: also falls through to the typology table when Grambank itself has no article_order pair.
-    article_order_direction = direction_for(grambank, DIRECTION_FEATURES["articles"], iso=_typology_iso)
+    # Step 2: also falls through to the typology table when Grambank itself has no article_order pair
+    # -- gated on `_typology_iso_articles`, not `_typology_iso` (D4a follow-up, same reasoning as the
+    # `active` loop's own "articles" branch above).
+    article_order_direction = direction_for(grambank, DIRECTION_FEATURES["articles"], iso=_typology_iso_articles)
 
     heb = HebrewSource()
     recs = build_corpus(books, usj_dir, heb, remap=remapper(iso, str(usj_dir)))
@@ -834,7 +868,8 @@ def diagnose(iso: str, publish_iso: str, usj_dir: Path, books: list[str], out_di
 
       (1) `block_rates` — per trigger label, `identity_blocked_<label> / identity_checked_<label>`
           (the counters `_try_extend` tracks) with EVERY opt-in trigger forced ON for this call only
-          (`definite_trigger`/`relation_trigger`/`typology_fallback` all `True`) so every mechanism's
+          (`definite_trigger`/`relation_trigger`/`typology_fallback`/`typology_fallback_articles` all
+          `True`) so every mechanism's
           behavior is visible regardless of what `spanext_flags.json` currently records for this
           language — this function never reads or writes that file, and never touches disk (no
           `align_spanext_*` files are written here, unlike `main()`'s normal run). A near-zero rate
@@ -882,7 +917,8 @@ def diagnose(iso: str, publish_iso: str, usj_dir: Path, books: list[str], out_di
     rows.sort(key=lambda r: -r["total"])
 
     _by_book, stats = extend_spans(iso, publish_iso, usj_dir, books, out_dir, methods, prior_pack,
-                                   definite_trigger=True, relation_trigger=True, typology_fallback=True)
+                                   definite_trigger=True, relation_trigger=True, typology_fallback=True,
+                                   typology_fallback_articles=True)
     block_rates = {}
     for key, checked in stats.items():
         if not key.startswith("identity_checked_"):
@@ -925,10 +961,23 @@ def main(argv=None) -> int:
                          "additively — default: consult config/spanext_flags.json (on for hin, "
                          "measured); --relation-trigger/--no-relation-trigger force it either way")
     ap.add_argument("--typology-fallback", action=argparse.BooleanOptionalAction, default=None,
-                    help="Step 2's WALS/lang2vec direction table for languages Grambank doesn't "
+                    help="gram_struct's merged direction table for languages Grambank doesn't "
                          "cover — default: consult config/spanext_flags.json (on for spa, off for "
                          "ben/asm, all measured); --typology-fallback/--no-typology-fallback force "
-                         "it either way")
+                         "it either way. Gates the possessor/case_marking mechanisms only — see "
+                         "--typology-fallback-articles for the separately-gated articles mechanism.")
+    ap.add_argument("--typology-fallback-articles", action=argparse.BooleanOptionalAction, default=None,
+                    help="D4a follow-up (2026-09-27): SEPARATE from --typology-fallback — gates only "
+                         "the real 'articles' RISK_RULES noun/name-extension mechanism, newly "
+                         "DISCOVERABLE for spa/ben/asm now that analyze_language.py's own existence "
+                         "pre-check consults gram_struct too (a real bug, previously stuck on the old "
+                         "WALS/lang2vec-only table — see that module's own comment). UNMEASURED so "
+                         "far for any language; default off (config/spanext_flags.json) until scored "
+                         "against real gold. NOT the same mechanism as the case_marking-driven "
+                         "noun/name extension typology_fallback's own verdict already covers — see "
+                         "extend_spans's own docstring for the full, corrected story. "
+                         "--typology-fallback-articles/--no-typology-fallback-articles force it "
+                         "either way for a one-off experiment.")
     ap.add_argument("--diagnose", action="store_true",
                     help="pre-flight TRIAGE report only (block rates + top high-volume stopwords) — "
                          "writes nothing, does not consult or update config/spanext_flags.json; see "
@@ -945,7 +994,8 @@ def main(argv=None) -> int:
     by_book, stats = extend_spans(a.iso, a.publish_iso, a.usj_dir, books, a.out, methods, a.prior_pack,
                                   definite_trigger=a.definite_trigger,
                                   relation_trigger=a.relation_trigger,
-                                  typology_fallback=a.typology_fallback)
+                                  typology_fallback=a.typology_fallback,
+                                  typology_fallback_articles=a.typology_fallback_articles)
     if "skipped" in stats:
         print(f"[span_extension] {a.iso}: {stats['skipped']}", file=sys.stderr)
         return 0

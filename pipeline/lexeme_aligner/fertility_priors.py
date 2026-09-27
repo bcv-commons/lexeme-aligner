@@ -101,10 +101,18 @@ _FERTILITY_FLAGS_FILE = Path("config/fertility_flags.json")
 
 
 def load_fertility_flags(publish_iso: str, path: Path | None = None) -> dict:
-    """{"enabled": bool, "lambda": float} for `publish_iso`, or `{}` if unmeasured — same "measure
-    once, remember it in one line, no code edit" pattern as `span_extension.load_spanext_flags`/
-    `config/gold_langs.json`/`config/typology/directions.json`. `run_pilot`'s own `--fertility-priors`/
-    `--no-fertility-priors`/`--fertility-lambda` always override whatever is recorded here."""
+    """{"enabled": bool, "lambda": float, "typology_fallback": bool} for `publish_iso`, or `{}` if
+    unmeasured — same "measure once, remember it in one line, no code edit" pattern as
+    `span_extension.load_spanext_flags`/`config/gold_langs.json`/`config/typology/directions.json`.
+    `run_pilot`'s own `--fertility-priors`/`--no-fertility-priors`/`--fertility-lambda`/
+    `--fertility-typology-fallback`/`--no-fertility-typology-fallback` always override whatever is
+    recorded here. `typology_fallback` (added 2026-09-27): a real gap existed for months where this
+    field could be present in `config/fertility_flags.json` (spa's own measured win depends on it) but
+    this loader silently dropped it — `run_pilot.py` had nothing to consult, so `onboard.py`/
+    `full_chain.py` (which never pass the CLI flag directly) reproduced 0 flagged anchors for spa
+    regardless of `enabled: true`. Fixed alongside `run_pilot.py`'s own flag becoming a
+    None-default BooleanOptionalAction that consults this field, matching `enabled`/`lambda`'s own
+    contract exactly instead of being the one config-schema field nothing actually read."""
     path = path or _FERTILITY_FLAGS_FILE
     if not Path(path).exists():
         return {}
@@ -115,6 +123,8 @@ def load_fertility_flags(publish_iso: str, path: Path | None = None) -> dict:
         out["enabled"] = entry["enabled"]
     if isinstance(entry.get("lambda"), (int, float)):
         out["lambda"] = float(entry["lambda"])
+    if isinstance(entry.get("typology_fallback"), bool):
+        out["typology_fallback"] = entry["typology_fallback"]
     return out
 
 

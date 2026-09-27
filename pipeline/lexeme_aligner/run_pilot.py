@@ -368,11 +368,19 @@ def main() -> int:
                          "typology signals did NOT flag, instead of the ones they did — isolates "
                          "'the prior helps because of WHERE it's placed' from 'any prior here regularizes'. "
                          "MEASURED on hin: +0.0013 F1, ~1/5 the real prior's +0.0066 — confirms placement matters")
-    ap.add_argument("--fertility-typology-fallback", action="store_true",
-                    help="Step 3: fall back to Step 2's WALS/lang2vec typology table when Grambank has "
+    ap.add_argument("--fertility-typology-fallback", action=argparse.BooleanOptionalAction, default=None,
+                    help="Step 3: fall back to gram_struct's merged direction table when Grambank has "
                          "nothing for this language (mirrors span_extension's --typology-fallback, but "
-                         "is its own, separately-measured decision — UNMEASURED so far, no language needs it "
-                         "yet since hin/arb/eng all have Grambank coverage)")
+                         "is its own, separately-measured decision per config/fertility_flags.json's own "
+                         "'typology_fallback' field for this language — a real signal for spa, measured "
+                         "2026-09-27; ben/asm have it too but it doesn't win there). BooleanOptionalAction "
+                         "(not plain store_true, fixed 2026-09-27): a bare --fertility-priors on the CLI or "
+                         "config/fertility_flags.json's own enabled=true was previously NOT enough to "
+                         "reproduce spa's own measured win via onboard.py/full_chain.py, since neither ever "
+                         "passes this flag and it used to default to False unconditionally regardless of "
+                         "config — now None means 'consult config/fertility_flags.json', explicit "
+                         "--fertility-typology-fallback/--no-fertility-typology-fallback still override "
+                         "for a one-off experiment.")
     ap.add_argument("--null-prior", action="store_true",
                     help="Step 3 control (ii): a flat, typology-BLIND fertility prior on the most "
                          "frequent anchor types ('just align more function words') — the control that "
@@ -488,6 +496,9 @@ def main() -> int:
                          else fert_flags.get("enabled", False))
         fert_lambda = (args.fertility_lambda if args.fertility_lambda is not None
                        else fert_flags.get("lambda", 1.0))
+        fert_typology_fallback = (args.fertility_typology_fallback
+                                  if args.fertility_typology_fallback is not None
+                                  else fert_flags.get("typology_fallback", False))
         if use_fertility and args.null_prior:
             raise SystemExit("--fertility-priors (or config/fertility_flags.json's enabled=true for "
                              f"{publish_iso}) and --null-prior are mutually exclusive controls — pass "
@@ -505,7 +516,7 @@ def main() -> int:
                 lex_pos, _ = _load_priors_pack(PRIOR_PACK)
                 fert_priors = fertmod.build_fertility_priors(
                     recs, publish_iso, lex_pos, heb, anchor=args.anchor, lam=fert_lambda,
-                    invert=args.fertility_invert, typology_fallback=args.fertility_typology_fallback)
+                    invert=args.fertility_invert, typology_fallback=fert_typology_fallback)
                 print(f"[pilot] Step 3 fertility priors: {len(fert_priors)} anchor(s) flagged"
                       f"{' (INVERTED placebo)' if args.fertility_invert else ''}, "
                       f"lambda={fert_lambda}", file=sys.stderr)

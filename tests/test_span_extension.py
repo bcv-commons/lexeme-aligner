@@ -586,9 +586,43 @@ def test_extend_spans_falls_back_to_typology_when_grambank_is_none(tmp_path, mon
                         lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "X"})())
 
     by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path,
-                                     typology_fallback=True)
+                                     typology_fallback=True, typology_fallback_articles=True)
     assert stats["extended_noun"] == 1
     assert by_book["MAT"][0]["pairs"][0]["t_idx"] == [2, 3]
+
+
+def test_extend_spans_typology_fallback_alone_does_not_enable_articles(tmp_path, monkeypatch):
+    """D4a follow-up (2026-09-27): gram_struct newly resolves an `article` direction for spa that the
+    old typology table never could, which would otherwise silently activate the 'articles' mechanism
+    for any typology_fallback=true language. Dedicated measurement found ~38-41% artifact-corrected
+    precision there (real conflicts: genealogy name-list/genitive-construct steals) — well below what
+    `typology_fallback`'s own possessor/case_marking verdict was actually validated against. So
+    `typology_fallback=True` alone (spa's own real, shipped setting) must NOT fire the articles risk;
+    only the separate `typology_fallback_articles` flag may."""
+    write_align(tmp_path, "fakeiso", "eflomal", "MAT",
+               [{"ref": 40001001, "book": "MAT", "chapter": 1, "verse": 1,
+                 "pairs": [pair(0, "lx:noun", "H1", [3])]}])
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({"lx:noun": "noun"}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: None)   # NOT in Grambank at all
+    import lexeme_aligner.gram_struct as gs
+    monkeypatch.setattr(gs, "merged_direction",
+                        lambda iso, slot, out_dir=gs.OUT_DIR: "before" if slot == "article" else None)
+    monkeypatch.setattr(se, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "articles", "pos": "noun", "prompt_hint": "..."}]})
+    monkeypatch.setattr(se, "build_corpus", lambda books, usj_dir, heb, remap=None: [
+        _FakeVerseRec("MAT", 1, 1, ["a", "b", "X", "NOUN", "d"], [_FakeTok(0, "lx:noun")])])
+    monkeypatch.setattr(se, "remapper", lambda iso, usj_dir: None)
+    monkeypatch.setattr(se.HebrewSource, "__init__", _fake_heb_init())
+    monkeypatch.setattr(se, "StopwordFilter",
+                        lambda *a, **k: type("S", (), {"is_function": lambda self, w: w == "X"})())
+
+    # typology_fallback=True but typology_fallback_articles left at its default (None -> off, no
+    # config entry for "fake") -- the only direction gram_struct has at all is "article", so if the
+    # split gating is broken, `active` ends up empty and the whole call returns "skipped" instead.
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path,
+                                     typology_fallback=True)
+    assert stats.get("skipped") == "no flagged (pos, direction) combination for this language"
+    assert by_book == {}
 
 
 def test_extend_spans_typology_fallback_off_by_default_skips_grambank_absent_language(tmp_path, monkeypatch):

@@ -350,8 +350,16 @@ def main() -> int:
                   "wasn't given — the manifest's 'language' field will be null.", file=sys.stderr)
 
     # pass 2: align every edition now that lang_name is settled
+    # --publish-iso is essential here too (2026-09-27, real production gap): run_pilot falls back to
+    # `publish_iso = args.iso` (this edition's TAG, e.g. spa_r09), so every per-LANGUAGE config keyed on
+    # the bare iso — config/fertility_flags.json above all — was silently never consulted for the
+    # eflomal step of the production chain. hin/eng/spa's measured fertility wins (enabled: true) had
+    # therefore never actually reached a published partition; caught by grepping a full_chain log for
+    # "Step 3 fertility priors" and finding zero lines. full_chain.py already passes --publish-iso to
+    # its own gloss/spanext/gapfill/residual steps for the same reason; this was the one call that didn't.
     for tag in tags:
         _run("run_pilot", "--method", args.method, scope_flag, "--usj-dir", usj_dirs[tag], "--iso", tag,
+             "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env)
 
     primary, pool = tags[0], tags[1:]

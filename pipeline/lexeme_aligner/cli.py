@@ -6,7 +6,8 @@ remaining argument through unchanged. Nothing here re-implements a step, so the 
     lexeme-aligner run tgl [--skip-ingest] [--clean-out ...]          one language, the 9-step chain  (= full_chain --iso tgl --clean-out)
     lexeme-aligner batch --catalog [--include-dbt]                    onboard every catalog language not yet done (= onboard_catalog --full)
     lexeme-aligner batch --list spec.json [--force]                   a hand-curated language list              (= onboard_batch)
-    lexeme-aligner batch --all [--fresh] [--skip-ingest]              re-run every onboarded language, resumable (= scripts/update_all.py)
+    lexeme-aligner batch --all|--isos a,b|--stale-before DATE [--workers N --nice N --skip-ingest --fresh --retry-failed]
+                                                                      resumable chain over many languages (= lexeme_aligner.batch)
     lexeme-aligner grammar derive|article-bound|gram-struct|check|all grammar facts (derive_typology / article_bound / gram_struct)
     lexeme-aligner publish [--iso a,b | --ready-file F] [--push]      safe partial publish (= scripts/publish_safe.py; dry run unless --push)
     lexeme-aligner status                                             coverage report                          (= scripts/status.py)
@@ -62,8 +63,11 @@ def plan(argv: list[str]) -> list[list[str]]:
             force, rest = _take(rest, "--force")
             return [_module("onboard_batch", "--spec", spec, "--full", "--clean-out", *(["--force"] if force else []), *rest)]
         if every:
-            return [_script("update_all.py", "--clean-out", *rest)]
-        raise SystemExit("usage: lexeme-aligner batch (--catalog [--include-dbt] | --list FILE [--force] | --all [--fresh]) [more options]")
+            return [_module("batch", "--all", *rest)]
+        if any(r in rest for r in ("--isos", "--stale-before")):
+            return [_module("batch", *rest)]
+        raise SystemExit("usage: lexeme-aligner batch (--catalog [--include-dbt] | --list FILE [--force] | --all | --isos a,b | --stale-before DATE) "
+                         "[--workers N --nice N --skip-ingest --fresh --retry-failed --dry-run ...]")
     if sub == "grammar":
         what, rest = (rest[0], rest[1:]) if rest else ("", [])
         steps = {"derive": [_module("derive_typology", "--build", *rest)],

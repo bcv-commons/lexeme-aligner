@@ -38,9 +38,10 @@
 #   make text-strip-report            # bracket/paren clues -> config/text_strip_report.md (see it + config/text_strip_rules.json)
 #   make clean-out ISO=ceb            # catch-up cleanup for out/ jsonl that predates auto-clean-out
 #                                      # (or CLEAN_OUT_ALL=1 — multi-dataset-safety-checked, not blind rm)
-#   make publish ISO=ceb
+#   make publish ISO=ceb [PUSH=1]     # safe partial publish, dry run unless PUSH=1
+#   make publish-ready                # which languages are safe to publish now
 #   make publish-span-profile
-#   make publish-all
+#   make publish-all [PUSH=1] [INCLUDE_MWE=1]
 #   make llm-align ISO=hinirv PUBLISH_ISO=hin USJ_DIR=pipeline/work/ingest-cache/usj-hinirv PROVIDER=mock   # opt-in LLM experiment
 #   make llm-score ISO=hinirv PUBLISH_ISO=hin OUT_TAG=hinirv.gap-seeded.mock GOLD_ISO=hin
 
@@ -143,9 +144,16 @@ clean-out:
 
 # --- publish (always separate, always manual) ---
 
+# Every publish below goes through pipeline/scripts/publish_safe.py (merges only the selected languages into the manifest that is on
+# Hugging Face now, never deletes, preflight + schema guard + verify; the compact sidecar layers go to their own repos). DRY RUN unless PUSH=1.
 publish: _require-iso
 	$(LOAD_ENV)
-	$(PY) pipeline/scripts/publish_lang.py --iso "$(ISO)" --create
+	$(PY) pipeline/scripts/publish_lang.py --iso "$(ISO)" $(if $(PUSH),--push)
+
+# which languages are safe to publish right now, and why the others are not (writes pipeline/work/logs/publish_ready_latest.json)
+publish-ready:
+	$(LOAD_ENV)
+	$(PY) pipeline/scripts/publish_safe.py --list-ready
 
 publish-span-profile:
 	$(LOAD_ENV)
@@ -159,15 +167,20 @@ publish-senses-ubs:
 
 # cross-lingual-span-profile is now sourced from lexeme-alignments+aligned_mwe (both persisted local
 # datasets, not transient out/), so it's no longer timing-sensitive — safe to fold in as the last step.
-publish-all:
+# publish-all = every language that is ready right now (publish_safe) — a dry run unless PUSH=1; INCLUDE_MWE=1 adds aligned_mwe (its schema
+# guard refuses a partial publish, so that one goes out for all languages at once). The small whole-tree datasets (stopwords,
+# morphology, span profile) are a separate `make publish-extras`.
+publish-all: publish-ready
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.export_lex --publish-all bcv-commons/lexeme-alignments --create
-	$(PY) -m lexeme_aligner.export_mwe --publish-all bcv-commons/aligned-mwe --create
-	$(PY) -m lexeme_aligner.senses_attested --publish-all bcv-commons/senses-attested --create
-	$(PY) -m lexeme_aligner.compact_align_batch --skip-generate --publish-hf bcv-commons/compact-alignments --create
+	$(PY) pipeline/scripts/publish_safe.py --ready-file pipeline/work/logs/publish_ready_latest.json $(if $(PUSH),--push) $(if $(INCLUDE_MWE),--include-mwe)
+	@echo "(the stopwords / morphology / span-profile datasets are separate: make publish-extras)"
+
+# real publishes of the small whole-tree datasets. NOTE: never put $(MAKE) in these recipes — `make -n` EXECUTES recipes that contain it, and with
+# .ONESHELL that runs the whole recipe for real (a "dry" check of a publish target would publish).
+publish-extras: publish-span-profile
+	$(LOAD_ENV)
 	$(PY) -m lexeme_aligner.export_stopwords --publish bcv-commons/target-stopwords --create
 	$(PY) -m lexeme_aligner.export_morph --publish bcv-commons/target-morphology --create
-	$(MAKE) publish-span-profile
 
 # --- opt-in LLM-alignment experiment (internal-docs/llm-align-experiment-plan.md, advanced-docs/llm-experiment.md) ---
 # NEVER part of the default chain. Everything but PROVIDER=mock spends money (API key) or subscription quota

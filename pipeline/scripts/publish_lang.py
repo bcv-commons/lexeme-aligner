@@ -1,67 +1,50 @@
-"""Publish ONE already-exported language's local files, WITHOUT re-aggregating from out/ — so this
-still works even after that language's raw jsonl was cleaned up (--clean-out). Reads each dataset's own
-manifest.json entry for the iso and pushes exactly that file.
+"""Publish ONE language — now a thin wrapper over `publish_safe.py` (2026-10-02).
 
-Covers: lexeme-alignments, aligned_mwe, senses_attested — the three datasets that are genuinely ONE
-parquet per language, via export_lex.publish_to_hf (same manifest-entry pattern for all three).
+The previous version uploaded the LOCAL manifest.json whole, which describes hundreds of languages whose new data is not on Hugging Face yet, so a
+single-language publish made the HF manifest claim things that are not there. `publish_safe.py` merges only the selected language into the manifest
+that is on HF now, never deletes, runs a preflight, guards the schema, routes the compact sidecar layers to their own repos and verifies afterwards.
 
-NOT covered (no per-language publish path exists for these — each pushes its ENTIRE local tree every
-time by design, so isolating one language's HF diff isn't possible): compact-alignments (many small
-per-book files sharing a common `_index/`), target-stopwords, target-morphology (bulk-manifest-per-call
-datasets). Use `make publish-all` for those.
+    python3 pipeline/scripts/publish_lang.py --iso tgl              # dry run (the safe default)
+    python3 pipeline/scripts/publish_lang.py --iso tgl --push       # really publish
+    python3 pipeline/scripts/publish_lang.py --iso tgl --push --include-mwe
 
-    python3 pipeline/scripts/publish_lang.py --iso ceb --create
+Kept flags: `--iso`, `--skip DATASET[,..]` (by local dir name, e.g. aligned_mwe), `--dry-run` (now the default, accepted for old habits),
+`--create` (accepted and ignored: the repos exist and the layer repos are created on demand).
 """
 from __future__ import annotations
 
 import argparse
-import json
+import subprocess
 import sys
 from pathlib import Path
 
-from lexeme_aligner.export_lex import publish_to_hf
-
-_DATASETS = [
-    ("publish/lexeme-alignments", "bcv-commons/lexeme-alignments"),
-    ("publish/aligned_mwe", "bcv-commons/aligned-mwe"),
-    ("publish/senses_attested", "bcv-commons/senses-attested"),
-]
+SAFE = Path(__file__).resolve().parent / "publish_safe.py"
+DEFAULT_DATASETS = ["lexeme-alignments", "senses_attested", "compact-alignments"]
 
 
-def main() -> int:
+def build_command(iso: str, push: bool, skip: list[str], include_mwe: bool) -> list[str]:
+    datasets = [d for d in DEFAULT_DATASETS + (["aligned_mwe"] if include_mwe else []) if d not in skip]
+    if not datasets:
+        raise SystemExit("nothing left to publish after --skip")
+    cmd = [sys.executable, str(SAFE), "--iso", iso, "--datasets", ",".join(datasets)]
+    if include_mwe:
+        cmd.append("--include-mwe")
+    if push:
+        cmd.append("--push")
+    return cmd
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
-    ap.add_argument("--create", action="store_true")
-    ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--skip", default="", help="comma-separated datasets to leave out, by local dir name "
-                    "(lexeme-alignments, aligned_mwe, senses_attested) — e.g. `--skip aligned_mwe` while its new "
-                    "base_text schema is not yet published for every language (a half-converted HF dataset mixes schemas)")
-    args = ap.parse_args()
-    skip = {x.strip() for x in args.skip.split(",") if x.strip()}
-    unknown = skip - {Path(r).name for r, _ in _DATASETS}
-    if unknown:
-        ap.error(f"--skip: unknown dataset(s) {sorted(unknown)}")
-
-    for root_str, repo_id in _DATASETS:
-        root = Path(root_str)
-        if root.name in skip:
-            print(f"[publish_lang] {root_str}: skipped (--skip)", file=sys.stderr)
-            continue
-        manifest_fp = root / "manifest.json"
-        if not manifest_fp.exists():
-            continue
-        manifest = json.loads(manifest_fp.read_text(encoding="utf-8"))
-        entry = manifest.get("languages", {}).get(args.iso)
-        if not entry:
-            print(f"[publish_lang] {root_str}: no entry for '{args.iso}' — skipping", file=sys.stderr)
-            continue
-        rel_file = entry["file"]
-        publish_to_hf(root, args.iso, rel_file, entry, repo_id, args.create, args.dry_run)
-
-    print(f"[publish_lang] '{args.iso}' done. Note: compact-alignments/target-stopwords/"
-          f"target-morphology have no per-language publish path — use `make publish-all` for those.",
-          file=sys.stderr)
-    return 0
+    ap.add_argument("--push", action="store_true", help="actually publish (default is a dry run)")
+    ap.add_argument("--dry-run", action="store_true", help="accepted for old habits; a dry run is already the default")
+    ap.add_argument("--create", action="store_true", help="accepted and ignored")
+    ap.add_argument("--skip", default="", help="comma-separated datasets to leave out, by local dir name")
+    ap.add_argument("--include-mwe", action="store_true", help="also publish aligned_mwe (its schema guard still applies)")
+    a = ap.parse_args(argv)
+    skip = [s.strip() for s in a.skip.split(",") if s.strip()]
+    return subprocess.call(build_command(a.iso, a.push and not a.dry_run, skip, a.include_mwe))
 
 
 if __name__ == "__main__":

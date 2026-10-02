@@ -23,7 +23,10 @@ def test_batch_modes():
     assert _mods(cli.plan(["batch", "--catalog"])) == [["lexeme_aligner.onboard_catalog", "--full"]]
     assert _mods(cli.plan(["batch", "--list", "s.json", "--force"])) == [
         ["lexeme_aligner.onboard_batch", "--spec", "s.json", "--full", "--clean-out", "--force"]]
-    assert _mods(cli.plan(["batch", "--all", "--fresh"])) == [["update_all.py", "--clean-out", "--fresh"]]
+    assert _mods(cli.plan(["batch", "--all", "--fresh", "--workers", "3"])) == [["lexeme_aligner.batch", "--all", "--fresh", "--workers", "3"]]
+    assert _mods(cli.plan(["batch", "--stale-before", "2026-09-28", "--skip-ingest"])) == [
+        ["lexeme_aligner.batch", "--stale-before", "2026-09-28", "--skip-ingest"]]
+    assert _mods(cli.plan(["batch", "--isos", "tgl,ind"])) == [["lexeme_aligner.batch", "--isos", "tgl,ind"]]
 
 
 def test_grammar_all_runs_in_dependency_order():
@@ -52,7 +55,7 @@ def test_main_stops_at_the_first_failing_step(monkeypatch):
 
 def test_every_target_module_exists():
     import importlib.util
-    for sub in (["run", "x"], ["batch", "--catalog"], ["grammar", "all"], ["eval"]):
+    for sub in (["run", "x"], ["batch", "--catalog"], ["batch", "--all"], ["grammar", "all"], ["eval"]):
         for cmd in cli.plan(sub):
             if cmd[1] == "-m":
                 assert importlib.util.find_spec(cmd[2]) is not None, cmd[2]

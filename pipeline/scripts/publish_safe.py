@@ -203,6 +203,15 @@ def paths_info_batched(api, repo: str, paths: list[str], batch: int = 100, retri
     return found
 
 
+def ready_report(isos: list[str], ledger: dict, busy: set[str], lex: dict, comp: dict, allow_stale: bool) -> tuple[list[str], dict[str, list[str]]]:
+    """(ready languages, {language: reasons}) from the same preflight a push uses — one definition of "safe to publish"."""
+    ready, blocked = [], {}
+    for iso in isos:
+        why = preflight(iso, ledger, busy, lex, comp, allow_stale)
+        (blocked.__setitem__(iso, why) if why else ready.append(iso))
+    return ready, blocked
+
+
 def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch: Path) -> dict:
     from lexeme_aligner.hf_bulk_publish import publish_chunked
     repo, kind = DATASETS[name]
@@ -289,8 +298,27 @@ def main() -> int:
     ap.add_argument("--include-mwe", action="store_true", help="also publish aligned_mwe (schema guard still applies)")
     ap.add_argument("--allow-stale", action="store_true", help="also publish languages unchanged since 14 Sept")
     ap.add_argument("--push", action="store_true", help="actually publish (default is a dry run)")
+    ap.add_argument("--list-ready", action="store_true",
+                    help="no publishing: run the preflight over EVERY language in the local manifest, print why the others are blocked and "
+                         "write the ready list to --ready-out")
+    ap.add_argument("--ready-out", type=Path, default=REPO / "pipeline/work/logs/publish_ready_latest.json")
     ap.add_argument("--chunk-size", type=int, default=int(os.environ.get("ALIGNER_HF_CHUNK_SIZE", "200")))
     args = ap.parse_args()
+    if args.list_ready:
+        ledger = json.loads((REPO / "config/pipeline_decisions.json").read_text())
+        busy = running_isos(subprocess.run(["ps", "-eo", "cmd"], capture_output=True, text=True).stdout)
+        lex = json.loads((REPO / "publish/lexeme-alignments/manifest.json").read_text())
+        comp = json.loads((REPO / "publish/compact-alignments/manifest.json").read_text())
+        ready, blocked = ready_report(sorted(lex.get("languages", {})), ledger, busy, lex, comp, args.allow_stale)
+        args.ready_out.parent.mkdir(parents=True, exist_ok=True)
+        args.ready_out.write_text(json.dumps(ready), encoding="utf-8")
+        reasons: dict[str, list[str]] = {}
+        for iso, why in blocked.items():
+            reasons.setdefault(why[0].split(" for edition")[0].split(" but the manifest")[0][:60], []).append(iso)
+        print(f"[publish_safe] {len(ready)} of {len(lex.get('languages', {}))} languages are ready -> {args.ready_out}", file=sys.stderr)
+        for why, who in sorted(reasons.items(), key=lambda kv: -len(kv[1])):
+            print(f"   {len(who):5d}  {why}  {who[:6]}{' ...' if len(who) > 6 else ''}", file=sys.stderr)
+        return 0
     isos = [i.strip() for i in args.iso.split(",") if i.strip()]
     if args.ready_file:
         isos += json.loads(args.ready_file.read_text())

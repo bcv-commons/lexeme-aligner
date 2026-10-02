@@ -130,3 +130,10 @@ def test_paths_info_batched_batches_and_waits_out_a_429():
     assert [len(c) for c in calls] == [100, 100, 100, 51]       # 3 full-size batches + the remainder, the 429'd one retried
     assert slept == [12.0]                                        # Retry-After 7 + 5
     assert "iso=000/data.parquet" in out and "iso=zzz/missing" not in out and len(out) == 250
+
+
+def test_ready_report_splits_ready_from_blocked_with_reasons():
+    ready, blocked = ps.ready_report(["nolang"], {}, set(), {"languages": {}}, {"languages": {}}, False)
+    assert ready == [] and blocked["nolang"] == ["no lexeme-alignments manifest entry"]
+    ready2, blocked2 = ps.ready_report([], {}, set(), {"languages": {}}, {"languages": {}}, False)
+    assert ready2 == [] and blocked2 == {}

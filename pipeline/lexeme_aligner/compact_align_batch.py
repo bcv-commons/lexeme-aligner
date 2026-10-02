@@ -34,6 +34,7 @@ from pathlib import Path
 
 from lexeme_aligner.config import HF_CHUNK_SIZE, LEX_ROOT
 from lexeme_aligner.gapfill_batch import USJ_DIR_OVERRIDES, discover_tags, has_eflomal
+from lexeme_aligner import compact_layers
 from lexeme_aligner.hf_bulk_publish import publish_chunked
 
 
@@ -78,12 +79,23 @@ def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_s
             str(fp.relative_to(root)) for iso in isos
             for fp in (root / iso[0] / iso).rglob("*.json")
         )
-    all_files = sorted(set(global_files) | set(lang_files))
-    # a scoped --iso push is a DELIBERATE PARTIAL view of root, not "this is now the whole catalog" —
-    # detect_deletions=False so the rest of the catalog's already-published files (correctly absent
-    # from this call's all_files) never get misread as locally-removed and queued for HF deletion.
+    # 2026-10-02: the .meta.json / .extra.json sidecars live in their OWN repos (compact_layers.py) — same relative path, so a reader that
+    # wants a sidecar just uses a second base URL. Only when pushing to the canonical main repo; any other repo_id keeps the old all-in-one shape.
+    split = compact_layers.split_layers(sorted(set(global_files) | set(lang_files)))
+    layered = repo_id == compact_layers.MAIN_REPO
+    all_files = split["main"] if layered else sorted(set(global_files) | set(lang_files))
+    # a scoped --iso push is a DELIBERATE PARTIAL view of root, not "this is now the whole catalog" — detect_deletions=False so the rest of the
+    # catalog's already-published files (correctly absent from this call's all_files) never get misread as locally-removed and queued for HF
+    # deletion. Also False for a full push of the main repo now: the sidecars it no longer lists are NOT "removed locally", they moved.
     publish_chunked(root, repo_id, all_files, create, dry_run, chunk_size, label="compact-alignments",
-                    detect_deletions=(isos is None))
+                    detect_deletions=(isos is None and not layered))
+    if layered:
+        for layer, spec in compact_layers.LAYERS.items():
+            if not split[layer]:
+                continue
+            stage, files = compact_layers.stage_layer(root, layer, split[layer])
+            publish_chunked(stage, spec["repo"], files, True, dry_run, chunk_size,     # create=True: the layer repos are part of the dataset
+                            label=f"compact-alignments-{layer}", detect_deletions=False)
 
 
 def main() -> int:

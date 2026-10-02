@@ -31,8 +31,7 @@ translit = ["uroman"]                     # M4 (2026-09-27) — gloss_align.roma
                                           # prior falls back to a no-op if this extra isn't installed
 
 [project.scripts]
-lexeme-align = "lexeme_aligner.run_pilot:main"
-lexeme-pipeline = "lexeme_aligner.pipeline:main"   # ingest → align → export [→ publish]
+lexeme-aligner = "lexeme_aligner.cli:main"   # run | batch | grammar | publish | status | eval | text-strip
 
 [tool.setuptools]
 packages = ["lexeme_aligner"]

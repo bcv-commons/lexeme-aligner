@@ -34,6 +34,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "pipeline"))
+from lexeme_aligner import compact_layers  # noqa: E402
 
 DATASETS = {                                   # local dir name -> (HF repo, kind)
     "lexeme-alignments": ("bcv-commons/lexeme-alignments", "partition"),
@@ -169,6 +170,7 @@ def selected_files(name: str, kind: str, isos: list[str], local_root: Path) -> l
         return [f"iso={i}/data.parquet" for i in isos if (local_root / f"iso={i}/data.parquet").exists()] + \
                [f for f in ["README.md", *_COMPANION_RESOURCES] if (local_root / f).exists()]
     files = [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("*.json")]
+    files = [f for f in files if compact_layers.layer_of(f) == "main"]      # sidecars go to their own repos (publish_layer)
     files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
     files += [f for f in ("README.md", "tokenize.js", "tokenizer_sensitive_languages.json", "pipeline_decisions.json")
               if (local_root / f).exists()]
@@ -248,6 +250,37 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
     return result
 
 
+def layer_files(isos: list[str], layer: str, local_root: Path) -> list[str]:
+    """Every `<BOOK>_<hash>.<layer>.json` of the selected languages (relative to the compact root)."""
+    suffix = compact_layers.LAYERS[layer]["suffix"]
+    return sorted(str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob(f"*{suffix}"))
+
+
+def publish_layer(layer: str, isos: list[str], push: bool, chunk: int) -> dict:
+    """Push one sidecar layer of the selected languages to its own repo (same relative paths as the main repo). No manifest to merge: the repo
+    holds only the sidecars plus its README. Verify = every pushed file exists on HF with the local byte size (batched, rate-limit safe)."""
+    from lexeme_aligner.hf_bulk_publish import publish_chunked
+    repo = compact_layers.LAYERS[layer]["repo"]
+    local_root = REPO / "publish" / "compact-alignments"
+    rel = layer_files(isos, layer, local_root)
+    name = f"compact-alignments-{layer}"
+    if not rel:
+        print(f"[publish_safe] {name}: no {layer} files for the selected languages", file=sys.stderr)
+        return {"dataset": name, "pushed": [], "files": 0, "verified": True, "entry_mismatch": [], "other_entries_changed": []}
+    stage, files = compact_layers.stage_layer(local_root, layer, rel)
+    print(f"[publish_safe] {name} -> {repo}: {len(isos)} language(s), {len(files)} file(s)", file=sys.stderr)
+    publish_chunked(stage, repo, files, create=True, dry_run=not push, chunk_size=chunk, label=name, detect_deletions=False)
+    result = {"dataset": name, "pushed": isos if push else [], "files": len(files)}
+    if push:
+        from huggingface_hub import HfApi
+        infos = paths_info_batched(HfApi(), repo, files, batch=200)
+        bad = [f for f in files if f not in infos or getattr(infos[f], "size", None) != (stage / f).stat().st_size]
+        result.update(verified=not bad, entry_mismatch=bad[:50], other_entries_changed=[])
+        print(f"[publish_safe] {name}: VERIFY {'OK' if not bad else 'FAILED'} — {len(files) - len(bad)}/{len(files)} files present with the right size"
+              f"{'; first problems ' + str(bad[:5]) if bad else ''}", file=sys.stderr)
+    return result
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", default="", help="comma-separated languages")
@@ -286,6 +319,8 @@ def main() -> int:
         return 1
     scratch = REPO / "pipeline/work/publish-scratch"
     results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch) for n in names]
+    if "compact-alignments" in names:                          # the two optional sidecar layers live in their own repos
+        results += [publish_layer(layer, ok, args.push, args.chunk_size) for layer in compact_layers.LAYERS]
     log = REPO / f"pipeline/work/logs/publish_safe_{time.strftime('%Y%m%d_%H%M%S')}.json"
     log.write_text(json.dumps({"pushed": args.push, "languages": ok, "left_out": skipped, "results": results}, indent=1), encoding="utf-8")
     print(f"[publish_safe] {'PUSHED' if args.push else 'dry run only — nothing pushed (add --push)'}; log {log.relative_to(REPO)}", file=sys.stderr)

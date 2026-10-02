@@ -38,7 +38,7 @@ not just in the narrow window before a cleanup sweep:
 Note: `aligned_mwe` now pools EVERY edition of a language (rows tagged by `base_text`, like lexeme-alignments),
 so numerator and denominator cover the same editions. Partitions built before 2026-09-30 covered only the first
 edition in pool order and can still under-estimate `multiword_rate` for a multi-edition language until they are
-regenerated (`export_mwe_batch`).
+regenerated (re-run the language's chain, `full_chain` step 7).
 
     python3 -m lexeme_aligner.cross_lang_prior --out publish/cross-lingual-span-profile/profile.json
 """

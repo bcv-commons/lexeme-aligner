@@ -69,14 +69,13 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    `bcv-commons/lexeme-alignments` (as of 2026-08-11: **924 language partitions**), plus
    `senses_attested` (284), `aligned_mwe` (923), `compact-alignments` (923), `target-stopwords` (924),
    `target-morphology` (923), and `cross-lingual-span-profile` (published 2026-07-31). Published via
-   `pipeline/scripts/publish_lang.py`/`publish_all.py` (`make publish`/`publish-all`), chunked through
+   `pipeline/scripts/publish_safe.py` (`lexeme-aligner publish`), chunked through
    `config.HF_CHUNK_SIZE` to respect HF's 128-commits/hour/repo limit.
 5. **Multi-source ingest + end-to-end driver** — **working**. Two text sources behind the USJ seam:
    `cdn_source` (cdn.bibel.wiki **PKF**, 589 langs, Node edge `pipeline/pkf2usfm/`) and `helloao_source`
    (bible.helloao.org **JSON**, ~1,256 translations, pure Python — reaches beyond PKF, e.g. Swedish).
-   Both pin (sha256) + link the source licence, never copy it. `lexeme_aligner.pipeline
-   --source pkf|helloao [--all]` chains ingest → align → export [→ publish] per language; `--all` does
-   the whole Bible (OT then NT — separate spines — aggregated into one lexicon). Verified end-to-end:
+   Both pin (sha256) + link the source licence, never copy it. `lexeme-aligner run ISO` (= `full_chain`; the old `lexeme_aligner.pipeline` driver was removed 2026-10-02)
+   chains ingest → align → export per language, the whole Bible (OT then NT — separate spines — aggregated into one lexicon). Verified end-to-end:
    `ind` via PKF (~50s); `swe` whole Bible via helloAO in ~47s → 67.5k rows / 12,999 Strong's (H + G).
    *Reproducibility (decided — content-addressed, see below):* eflomal
    seeds from `/dev/urandom` (`random.c`), so it's non-deterministic by design — the pinned **inputs** are

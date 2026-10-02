@@ -198,7 +198,10 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "tokenizer versions, so it cannot detect a mismatch. Use the published tokenize.js (generated "
           "from the producing side by scripts/gen_js_tokenizer.py) or match it exactly; if your "
           "implementation declares a different version, REFUSE TO DECODE rather than silently resolve "
-          "positions to the wrong words."]
+          "positions to the wrong words.",
+          "SIDECAR REPOS (since 2026-10-02): the optional <BOOK>_<hash>.meta.json and <BOOK>_<hash>.extra.json files are published in "
+          "their own repos, bcv-commons/compact-alignments-meta and bcv-commons/compact-alignments-extra, under the IDENTICAL relative "
+          "path <iso[0]>/<iso>/<edition>/. The alignment arrays, _index/, manifest.json and tokenize.js stay in this repo."]
 
 
 def update_manifest(path: Path, iso: str, edition: str, entry: dict) -> None:

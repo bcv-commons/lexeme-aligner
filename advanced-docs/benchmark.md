@@ -66,7 +66,7 @@ alignment quality by having both runs. The number is a conservative floor — a 
 synonyms or vowel-alternations (`man/män`), so true agreement is higher.
 
 ```bash
-python -m lexeme_aligner.pipeline --source helloao --translation swe_svk --iso swk --all   # align
+python -m lexeme_aligner.full_chain --iso swe   # align (every edition of the language; this doc's numbers predate the pooled chain)
 python -m lexeme_aligner.benchmark --gold lexicon --iso swk --method eflomal --testament greek --min-count 10
 ```
 Needs the `[validate]` extra (`pyarrow` + `snowballstemmer`). The lexicon is fetched from karnbibeln.se

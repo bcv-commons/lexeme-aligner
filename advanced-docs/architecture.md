@@ -60,8 +60,9 @@ python3 -m lexeme_aligner.export_lex --iso ind --lang-name Indonesian
 python3 -m lexeme_aligner.benchmark --gold clear --iso ind --method eflomal
 ```
 `lexeme_aligner.pipeline` (the old "one command per language, ingest through publish" driver this doc
-used to lead with) still exists too, but current Makefile targets bypass it in favor of `full_chain.py`
-— don't use it as the reference entry point.
+used to lead with) was removed on 2026-10-02. The single front door is now `lexeme-aligner`
+(`lexeme_aligner/cli.py`, also `python -m lexeme_aligner`), a thin dispatcher over `full_chain` and the batch,
+grammar and publish entry points: `run`, `batch`, `grammar`, `publish`, `status`, `eval`, `text-strip`.
 
 Alignment output goes to `$ALIGNER_OUT` (default `pipeline/work/out/`, gitignored):
 `align_<method>_<iso>_<BOOK>.jsonl` + `report_<method>_<iso>.md`.
@@ -96,7 +97,7 @@ decoupling check that the standalone core has minimal inputs. Full schemas: `DAT
 | **align** | `run_pilot` + `eflomal_align` / `stat_align` / `gloss_align` / `gapfill` | spine + USJ → per-verse `align_<method>_<iso>_<BOOK>.jsonl` |
 | **export** | `export_lex` | jsonl → `publish/lexeme-alignments/iso=<iso>/data.parquet` + `manifest.json` (LOCAL only — chain runs this twice: eflomal-only, then the final union) |
 | **companion exports** | `export_mwe` · `senses_attested` · `compact_align` | jsonl/prior partitions → their own `publish/*` trees (LOCAL only) |
-| **publish** | `publish_lang.py` (`make publish ISO=...`) / `publish_all.py` (`make publish-all`) | partition + manifest + companion resources + card → Hugging Face dataset — always a separate, deliberate step |
+| **publish** | `publish_safe.py` (`lexeme-aligner publish`; dry run unless `--push`; merges only the selected languages into the live HF manifest) — `publish_lang.py` / `make publish-all` still exist but upload the local manifest whole | partition + manifest + companion resources + card → Hugging Face dataset — always a separate, deliberate step |
 | **benchmark** | `benchmark` (`--gold clear\|lexicon`, `--method <mode>`) | scored vs a manual gold |
 
 ## The alignment methods (the ensemble)
@@ -207,23 +208,19 @@ catalog walk) · `full_chain.py` (the 9-step orchestrator both `new-language` an
 
 **Benchmark & correctness:** `benchmark` (clear|lexicon golds) · `greek_morph_strong` ·
 `hebrew_lexeme_strong` · `cross_lang_prior` (span profile + light-lexeme detection) ·
-`target_stopwords` · `target_morph` · `verify_stopwords`.
+`target_stopwords` · `target_morph`.
 
 **Other published exports:** `export_mwe` (multi-word expressions) · `export_stopwords` ·
 `export_morph` · `compact_align` (canonical ordinal index + per-language compact array, see
 `../docs/compact-alignments.md`).
 
-**Gap-fill quality R&D (BHSA phrase syntax, OT-only):** `constituent_order` / `constituent_order_batch`
-(per-language word-order typology profile vs Hebrew, `config/constituent_order/`) · `phrase_coherence`
-(gold-validates phrase-mate adjacency as a confidence signal) · `annotate_coherence` (writes that signal
-onto existing `align_*.jsonl` pairs, read by `export_lex`'s `hi_conf`) · `score_gapfill` (the honest
+**Gap-fill quality R&D (BHSA phrase syntax, OT-only):** `constituent_order`
+(per-language word-order typology profile vs Hebrew, `config/constituent_order/`) · `score_gapfill` (the honest
 gap-fill metric — of the tokens eflomal+gloss both missed, how many did gapfill fill correctly, by
 prior).
 
-**Occurrence-alignment research (separate from the main pipeline)** — cross-checking our own alignment
-against independently-produced sources: `gbt_align` / `gbt_fetch` (globalbibletools/data) ·
-`bsb_align` / `bsb_fetch` (Berean Standard Bible's own Strong's-tagged spans) · `clear_align`
-(Clear-Bible gold, reframed as a source rather than just a benchmark oracle) · `occurrence_union`
-(additive union of the above).
+**Occurrence-alignment research (separate from the main pipeline)** — `gbt_align` / `gbt_fetch` (globalbibletools/data).
+The first-generation extractors `bsb_align` / `bsb_fetch`, `clear_align` and `occurrence_union` were removed on 2026-10-02; the gold sources are now
+`gold_to_fullalign`, `bsb_tables`, `door43_*`, `sword_source` and `helfi_source`.
 
-**Vendored/misc:** `versification` (KJV-standard verse mapping) · `recipes` (prior-pack joins).
+**Vendored/misc:** `versification` (KJV-standard verse mapping).

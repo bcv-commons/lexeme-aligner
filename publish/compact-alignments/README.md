@@ -41,6 +41,20 @@ words you need the edition's own text (tokenized the same way alignment tokenize
 separately from that edition's own source. This is deliberate: it's what keeps the dataset unambiguously
 CC0 and small.
 
+## Where the files live — three repos, one path scheme (since 2026-10-02)
+
+This repo passed Hugging Face's recommended 100,000 files per repo, so the two optional sidecar layers are published as sibling datasets under
+the **identical relative path** — `<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.<layer>.json` — so a reader that wants a sidecar only needs a second
+base URL (and a reader that only wants alignments changes nothing):
+
+| layer | file | repo |
+|---|---|---|
+| alignments (this repo) | `<BOOK>_<hash>.json` | `bcv-commons/compact-alignments` |
+| provenance sidecar | `<BOOK>_<hash>.meta.json` | [`bcv-commons/compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta) |
+| opt-in residual layer | `<BOOK>_<hash>.extra.json` | [`bcv-commons/compact-alignments-extra`](https://huggingface.co/datasets/bcv-commons/compact-alignments-extra) |
+
+`_index/`, `manifest.json`, `tokenize.js` and `pipeline_decisions.json` stay here. Not every book has a sidecar file — a missing one is simply a 404.
+
 ## Two kinds of file
 
 ### 1. Shared content-lexeme sequence — `_index/<BOOK>_lexemes.json`, published ONCE per book
@@ -101,6 +115,8 @@ the compact string for the `i`-th verse ref (in `_lexemes.json`'s own key order)
 stored per edition.
 
 ### 3. Provenance sidecar — `<BOOK>_<hash>.meta.json`
+
+> Published in [`bcv-commons/compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta) under the same relative path (see *Where the files live*).
 
 Optional, additive, and **safe to ignore** — a reader that only wants alignments can stop at section 2.
 It exists because an alignment string alone cannot tell you *who produced this and how sure they were*,

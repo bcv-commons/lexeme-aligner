@@ -41,8 +41,8 @@ OUT = _p("ALIGNER_OUT", _PIPELINE / "work" / "out")               # experiment o
 # whole request, so re-running or re-scoring a finished cell never re-spends. Lives under work/ (gitignored).
 LLM_CACHE = _p("ALIGNER_LLM_CACHE", _PIPELINE / "work" / "llm-cache")
 LEX_ROOT = _p("ALIGNER_LEX_ROOT", _REPO_ROOT / "publish" / "lexeme-alignments")  # published dataset root (was aligned_lex)
-# language-independent prior pack pulled from bcv-commons/prior-pack (HF, CC-BY) — feeds the recipes
-# (R1 keyness-filter, R2 sense-surface, R3 gap-map, LXX NT-gap). See internal-docs/aligner-handover.md.
+# language-independent prior pack pulled from bcv-commons/prior-pack (HF, CC-BY) — read by span_extension / article_bound for lexeme POS
+# and keyness. (The old `recipes` module that also read it was removed 2026-10-02.)
 PRIOR_PACK = _p("ALIGNER_PRIOR_PACK", _PIPELINE / "vendor" / "prior-pack" / "prior_pack.parquet")
 HF_CHUNK_SIZE = int(os.environ.get("ALIGNER_HF_CHUNK_SIZE", "200"))  # files per HF commit, project-wide
 # per-edition opt-in bracket/paren text-strip decisions (usj_source.py) — see config/text_strip_rules.json

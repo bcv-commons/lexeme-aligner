@@ -51,18 +51,9 @@ version. Pull: `snapshot_download('bcv-commons/prior-pack', repo_type='dataset',
 
 ## Outputs (`ALIGNER_OUT/`)
 
-### `recipe_<name>_<iso>.parquet` — prior-pack recipes (mode-1, aligner-computed)
-`lexeme_aligner.recipes` joins the prior pack against data this repo owns, per language (all four built):
-- **R1 keyness-filter** — `publish/lexeme-alignments` × `prior_pack.keyness` → content-word seed dictionary (drops
-  function words, ranks by hi_conf). `recipe_r1_keyness_<iso>.parquet`.
-- **R2 sense-surface** — `publish/senses_attested` × `prior_pack.senses` (sense inventory + base rates) → each
-  prior sense marked confirmed / **missing** (disambiguation target) / extra. `recipe_r2_sense_<iso>.parquet`.
-- **R3 gap-map** — `lexeme-spine` content lexemes MINUS a language's attested lexemes → what it hasn't
-  aligned; sorted by low `xling_confidence` (fragile) then spine frequency. `recipe_r3_gapmap_<iso>.parquet`.
-- **LXX NT-gap** — OT `publish/lexeme-alignments` surfaces carried into the NT via `prior_pack.lxx_greek` (Hebrew
-  lexeme → LXX → Greek); candidate NT renderings, `nt_total=0` gaps first, restricted to CONTENT Greek
-  lexemes (keyness-filtered — else the article/prepositions flood it). `recipe_lxx_ntgap_<iso>.parquet`.
-`python3 -m lexeme_aligner.recipes --iso <iso> --recipe all` (or `r1|r2|r3|lxx`).
+### `recipe_<name>_<iso>.parquet` — removed
+The prior-pack recipes module (R1 keyness filter, R2 sense-surface, R3 gap-map, LXX NT-gap) was removed on 2026-10-02: its jobs were superseded by the
+bootstrap gloss priors and the UBS-keyed senses dataset (`senses_attested --scheme ubs`). Old `recipe_*.parquet` files may still sit in `ALIGNER_OUT/`.
 
 ### `align_<method>_<iso>_<BOOK>.jsonl` — per-verse alignments
 ```json

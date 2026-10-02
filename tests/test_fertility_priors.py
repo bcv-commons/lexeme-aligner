@@ -187,3 +187,40 @@ def test_load_fertility_flags_reads_lexeme_targets(tmp_path):
     fp_path = tmp_path / "fertility_flags.json"
     fp_path.write_text('{"spa": {"enabled": true, "lambda": 2.0, "lexeme_targets": true}}', encoding="utf-8")
     assert fpm.load_fertility_flags("spa", path=fp_path)["lexeme_targets"] is True
+
+
+# --- R3 (plural_word, GB318) + R4 (gloss word-count) ------------------------------------------------
+def test_has_plural_word_requires_gb318_one():
+    import lexeme_aligner.fertility_priors as fpm
+    assert fpm._has_plural_word({"GB318": "1"}) is True
+    assert fpm._has_plural_word({"GB318": "0"}) is False
+    assert fpm._has_plural_word({}) is False
+
+
+def test_plural_relation_fires_only_with_gb318_and_plural_number(monkeypatch):
+    import lexeme_aligner.fertility_priors as fpm
+    a = tok(0, "H1"); a.number = "plural"
+    b = tok(1, "H2"); b.number = "singular"
+    rec = _Rec("RUT", 1, 1, [a, b])
+    monkeypatch.setattr(fpm, "compute_definite", lambda heb, lex_pos, assim: {})
+    class _Heb:
+        def assimilated_after_idx(self, *a): return set()
+    monkeypatch.setattr(fpm, "load_grambank_raw", lambda iso: {"GB318": "1"})
+    priors = fpm.build_fertility_priors([rec], "xx", {}, _Heb())
+    assert set(priors) == {"H1"}
+    monkeypatch.setattr(fpm, "load_grambank_raw", lambda iso: {"GB318": "0"})
+    priors = fpm.build_fertility_priors([rec], "xx", {}, _Heb())
+    assert priors == {}
+
+
+def test_gloss_multiword_relation_fires_ungated_by_grambank(monkeypatch):
+    import lexeme_aligner.fertility_priors as fpm
+    a = tok(0, "H1"); a.gloss_en = "the.husband"
+    b = tok(1, "H2"); b.gloss_en = "he"
+    rec = _Rec("RUT", 1, 1, [a, b])
+    monkeypatch.setattr(fpm, "compute_definite", lambda heb, lex_pos, assim: {})
+    monkeypatch.setattr(fpm, "load_grambank_raw", lambda iso: None)   # no Grambank data at all
+    class _Heb:
+        def assimilated_after_idx(self, *a): return set()
+    priors = fpm.build_fertility_priors([rec], "xx", {}, _Heb())
+    assert set(priors) == {"H1"}                # fires from gloss_multiword alone, no typology needed

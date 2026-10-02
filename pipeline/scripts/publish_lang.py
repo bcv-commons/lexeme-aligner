@@ -33,10 +33,20 @@ def main() -> int:
     ap.add_argument("--iso", required=True)
     ap.add_argument("--create", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--skip", default="", help="comma-separated datasets to leave out, by local dir name "
+                    "(lexeme-alignments, aligned_mwe, senses_attested) — e.g. `--skip aligned_mwe` while its new "
+                    "base_text schema is not yet published for every language (a half-converted HF dataset mixes schemas)")
     args = ap.parse_args()
+    skip = {x.strip() for x in args.skip.split(",") if x.strip()}
+    unknown = skip - {Path(r).name for r, _ in _DATASETS}
+    if unknown:
+        ap.error(f"--skip: unknown dataset(s) {sorted(unknown)}")
 
     for root_str, repo_id in _DATASETS:
         root = Path(root_str)
+        if root.name in skip:
+            print(f"[publish_lang] {root_str}: skipped (--skip)", file=sys.stderr)
+            continue
         manifest_fp = root / "manifest.json"
         if not manifest_fp.exists():
             continue

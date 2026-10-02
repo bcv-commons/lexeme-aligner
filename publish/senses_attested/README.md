@@ -15,6 +15,12 @@ configs:
 
 # senses_attested — attested target renderings per lexeme sense
 
+> **Note (2026-09-30).** The `sense` number in this dataset comes from our own automatic disambiguation and is
+> `1` for about 97% of tokens; checked against the manually built UBS Dictionary of Biblical Hebrew it agrees no better
+> than chance when it says "same sense" (though where it does split, the split is informative). For a sense key you can
+> trust, use the sibling dataset **`senses_attested_ubs`** (CC BY-SA 4.0), keyed on UBS sense ids. This dataset is kept
+> unchanged for existing consumers.
+
 Many Hebrew words carry more than one distinguishable meaning depending on their grammatical form —
 for example, a verb's meaning can shift with its **binyan** (the Hebrew verb-stem pattern: *qal*
 "simple/active" vs. *hiphil* "causative," etc.). This dataset records, for each Hebrew **lexeme**

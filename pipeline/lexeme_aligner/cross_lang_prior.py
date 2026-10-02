@@ -35,9 +35,10 @@ not just in the narrow window before a cleanup sweep:
     noise filter the original implementation never had (it counted `len(t_idx)` directly, contiguous or
     not). So `multiword_rate` = aligned_mwe's confirmed count ÷ lexeme-alignments' total count per
     lexeme — arguably MORE accurate than before, not just a workaround.
-Caveat: `aligned_mwe` currently only covers each language's PRIMARY edition (no pooling), while
-`lexeme-alignments`' denominator pools every edition — for a multi-edition language this can slightly
-UNDER-estimate multiword_rate (the numerator doesn't see every edition the denominator does).
+Note: `aligned_mwe` now pools EVERY edition of a language (rows tagged by `base_text`, like lexeme-alignments),
+so numerator and denominator cover the same editions. Partitions built before 2026-09-30 covered only the first
+edition in pool order and can still under-estimate `multiword_rate` for a multi-edition language until they are
+regenerated (`export_mwe_batch`).
 
     python3 -m lexeme_aligner.cross_lang_prior --out publish/cross-lingual-span-profile/profile.json
 """

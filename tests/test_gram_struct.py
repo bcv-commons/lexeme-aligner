@@ -368,3 +368,12 @@ def test_merged_direction_none_when_no_tier_resolves(tmp_path):
 def test_merged_direction_none_when_slot_absent_from_every_tier(tmp_path):
     _write_tier(tmp_path, "external", "xx", {"adposition": {"direction": "after"}})
     assert gs.merged_direction("xx", "possessor", out_dir=tmp_path) is None
+
+
+def test_write_atomic_replaces_whole_file_and_leaves_no_temp(tmp_path):
+    from lexeme_aligner.gram_struct import _write_atomic
+    target = tmp_path / "sub" / "xx.json"
+    _write_atomic(target, '{"a": 1}\n')
+    _write_atomic(target, '{"a": 2}\n')
+    assert target.read_text() == '{"a": 2}\n'
+    assert [p.name for p in target.parent.iterdir()] == ["xx.json"]

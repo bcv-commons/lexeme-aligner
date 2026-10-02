@@ -138,6 +138,15 @@ def _has_article_side(grambank: dict[str, str], iso: str | None) -> bool:
     return direction_for(grambank, DIRECTION_FEATURES["articles"], iso=iso) is not None
 
 
+def _has_plural_word(grambank: dict[str, str]) -> bool:
+    """R3 (2026-09-27): GB318 -- does this language mark plural with a FREE WORD rather than only a
+    suffix/reduplication/etc? True only on a real Grambank "1"; unlike the other existence gates this
+    one is Grambank-only (no gram_struct/typology fallback built for it yet -- GB318 isn't one of the
+    slots gram_struct.merged_direction resolves), so it silently never fires for Grambank-absent
+    languages, same as every other never-extended existence check before Step 2 built the fallback."""
+    return grambank.get("GB318") == "1"
+
+
 def _subject_indexing_incomplete(grambank: dict[str, str]) -> bool:
     """True only when Grambank ACTUALLY SAYS neither subject-indexing code is "1" — never when the
     language simply has no Grambank entry for this feature at all. Bug found + left unfixed by
@@ -172,6 +181,7 @@ def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb,
     has_adp = _has_adposition_side(grambank, _iso)
     has_art = _has_article_side(grambank, _iso)
     subj_incomplete = _subject_indexing_incomplete(grambank)
+    has_plural_word = _has_plural_word(grambank)               # R3 (2026-09-27)
 
     n: collections.Counter = collections.Counter()
     k: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
@@ -190,6 +200,20 @@ def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb,
                 k[a]["definite"] += 1
             if subj_incomplete and t.person:
                 k[a]["finite_verb"] += 1
+            if has_plural_word and t.number == "plural":
+                k[a]["plural"] += 1
+            # R4 (2026-09-27): the per-occurrence MACULA English gloss's own word count ("the.husband" =
+            # 2 words) as a language-INDEPENDENT fertility hint -- plan §8.H3: it predicts real gold
+            # fertility monotonically for eng (1.83->1.99->2.42 by gloss word-count) and hin
+            # (1.99->2.01->2.29), flat only for spa/fra because THEIR gold convention doesn't credit
+            # function words (the same artefact E1 was built for), not because the signal is absent
+            # there too. Ungated by any typology existence check on purpose: unlike possessor/dative/
+            # definite/finite_verb (which need the TARGET to have a marked way to render the relation),
+            # a multi-word English gloss is evidence about the SOURCE CONCEPT itself, plausible to
+            # transfer to any target language the same way fertility_targets.py's cross-language table
+            # does -- this is the same idea applied per-occurrence instead of aggregated across gold.
+            if t.gloss_en and t.gloss_en.count(".") >= 1:
+                k[a]["gloss_multiword"] += 1
 
     flagged = {a for a, c in k.items() if any(v > 0 for v in c.values())}
     if invert:

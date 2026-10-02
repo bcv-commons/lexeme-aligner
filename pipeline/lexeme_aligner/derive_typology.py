@@ -92,6 +92,7 @@ from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.analyze_language import multiword_rates
 from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.constituent_order import profile as constituent_profile
+from lexeme_aligner.edition_vote import combine_editions
 from lexeme_aligner.gapfill import compute_order_stats, load_covered, load_priors
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.refs import encode
@@ -120,20 +121,14 @@ def _content_sha256(doc: dict) -> str:
     return hashlib.sha256(json.dumps(doc, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
-def primary_edition(iso: str, compact_manifest: dict) -> tuple[str, str, list[str]] | None:
-    """(tag, edition_code, books) for the edition with the most OT-book coverage (ties broken by total
-    book count), or the edition with the most books at all if none has any OT book (pure NT-only
-    language) — always returns SOME edition tag when the language has one, since the quality gate
-    needs a `usj_dir` even for NT-only languages."""
+def editions_of(iso: str, compact_manifest: dict) -> list[tuple[str, str, list[str]]]:
+    """[(tag, edition_code, books), ...] for EVERY edition of `iso` that has compact-alignments, sorted by tag.
+    There is no privileged edition: each one is analysed on its own and `combine_language` folds the verdicts
+    together (see `edition_vote`). This replaced `primary_edition()`, which picked one edition by OT-book count
+    with ties settled by manifest order — effectively first-come, and blind to the other editions."""
     editions = compact_manifest.get(iso, {}).get("editions", {})
-    if not editions:
-        return None
-    def key(item):
-        _ecode, e = item
-        books = e.get("books") or []
-        return (len([b for b in books if b in OT_BOOKS]), len(books))
-    ecode, e = max(editions.items(), key=key)
-    return e["tag"], ecode, (e.get("books") or [])
+    return sorted(((e["tag"], ecode, list(e.get("books") or [])) for ecode, e in editions.items()),
+                  key=lambda t: t[0].lower())
 
 
 def gold_health_for(iso: str, fullalign_manifests: list[dict]) -> float | None:
@@ -1116,8 +1111,8 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
 
         prof = constituent_profile(tag, usj_dir, out_dir, methods=("eflomal", "gloss"))
         _CONSTITUENT_DIR.mkdir(parents=True, exist_ok=True)
-        (_CONSTITUENT_DIR / f"{iso}.json").write_text(
-            json.dumps(prof, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        (_CONSTITUENT_DIR / f"{tag}.json").write_text(      # this EDITION's own profile; the language-level
+            json.dumps(prof, indent=1, sort_keys=True) + "\n", encoding="utf-8")   # <iso>.json is pooled by combine_language
         doc.setdefault("audit", {})["constituent_order"] = {
             "source": "derived",
             **{k: prof[k] for k in ("verses_measured", "pair_order_kept", "function_drift") if k in prof}}
@@ -1148,6 +1143,79 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
     return doc
 
 
+_SLOT_KEYS = ("possessor", "subject_verb", "object_verb", "adposition", "adposition_word", "article_word",
+              "possessive_word", "negation", "negation_word")
+
+
+def pool_constituent(profiles: dict[str, dict]) -> dict | None:
+    """Pool the per-edition constituent-order profiles of one language by their own counts: `kept`/`total` per
+    pair are summed (rate recomputed), `mean_drift` is averaged weighted by `n`, `verses_measured` is summed."""
+    profiles = {t: p for t, p in profiles.items() if p}
+    if not profiles:
+        return None
+    pairs: dict[str, list[int]] = {}
+    drift: dict[str, list[float]] = {}
+    verses = 0
+    for p in profiles.values():
+        verses += int(p.get("verses_measured") or 0)
+        for k, v in (p.get("pair_order_kept") or {}).items():
+            acc = pairs.setdefault(k, [0, 0])
+            acc[0] += int(v.get("kept", 0))
+            acc[1] += int(v.get("total", 0))
+        for k, v in (p.get("function_drift") or {}).items():
+            acc = drift.setdefault(k, [0.0, 0])
+            acc[0] += float(v.get("mean_drift", 0.0)) * int(v.get("n", 0))
+            acc[1] += int(v.get("n", 0))
+    tags = sorted(profiles)
+    return {"tag": "+".join(tags), "tags": tags, "verses_measured": verses,
+            "pair_order_kept": {k: {"kept": kp, "rate": round(kp / tot, 3) if tot else None, "total": tot}
+                                for k, (kp, tot) in sorted(pairs.items())},
+            "function_drift": {k: {"mean_drift": round(dsum / n, 4) if n else None, "n": n}
+                               for k, (dsum, n) in sorted(drift.items())}}
+
+
+def combine_language(iso: str, docs: dict[str, dict]) -> dict:
+    """The language-level record from one `derive_one` doc PER EDITION ({tag: doc}). Every slot goes through
+    `edition_vote.combine_editions` (weighted by the slot's own `n`; a clear majority wins, a split abstains with
+    `reason: "edition_conflict"`), every slot records which editions said what and how well they agreed, and the
+    per-edition quality-gate outcomes stay in `_derived_meta.editions`. Editions that failed the gate contribute
+    nothing but stay listed."""
+    meta: dict = {}
+    for tag, d in docs.items():
+        m = d.get("_derived_meta", {})
+        meta[tag] = {"passed": m.get("reason") is None, "reason": m.get("reason"), "gate": m.get("gate")}
+    passed = {t: d for t, d in docs.items() if d.get("_derived_meta", {}).get("reason") is None}
+    reasons = {m["reason"] for m in meta.values()}
+    doc: dict = {"_derived_meta": {
+        "reason": None if passed else ("no_ingest_cache" if reasons == {"no_ingest_cache"} else "alignment_quality"),
+        "editions": meta, "n_editions": len(docs), "n_passed": len(passed)}}
+    if not passed:
+        return doc
+    for key in _SLOT_KEYS:
+        slot = combine_editions({t: d.get(key) for t, d in passed.items()})
+        if slot is not None:
+            doc[key] = slot
+    audit: dict = {}
+    mw: dict[str, list[int]] = {}
+    for d in passed.values():
+        for pos, v in (d.get("audit", {}).get("multiword_rates") or {}).items():
+            acc = mw.setdefault(pos, [0, 0])
+            acc[0] += v["multi_word"]
+            acc[1] += v["total"]
+    if mw:
+        audit["multiword_rates"] = {pos: {"multi_word": m, "total": t} for pos, (m, t) in sorted(mw.items())}
+    pooled = pool_constituent({t: d.get("audit", {}).get("constituent_order") for t, d in passed.items()})
+    if pooled:
+        audit["constituent_order"] = {"source": "derived", **pooled}
+    per_ed = {t: d["audit"]["diagnose_block_rates"] for t, d in passed.items()
+              if d.get("audit", {}).get("diagnose_block_rates")}
+    if per_ed:
+        audit["diagnose_block_rates_by_edition"] = per_ed
+    if audit:
+        doc["audit"] = audit
+    return doc
+
+
 def build(isos: list[str] | None = None, out_dir: Path = OUT_DIR, aligner_out: Path = OUT,
          with_diagnose: bool = True) -> dict:
     compact_manifest = _load_json(_COMPACT_MANIFEST).get("languages", {})
@@ -1162,20 +1230,25 @@ def build(isos: list[str] | None = None, out_dir: Path = OUT_DIR, aligner_out: P
                                 "negation", "negation_word")},
             "d2_slots_written": 0,
             "d2_slot_counts": {k: 0 for k in ("possessor", "subject_verb", "object_verb")}}
+    stats.update({"editions_total": 0, "multi_edition_languages": 0, "slot_conflicts": 0, "slot_minorities": 0})
     known_answer_isos = {iso for table in KNOWN_ANSWERS.values() for iso in table}
     known_answer_docs: dict[str, dict] = {}
     for iso in isos:
         stats["total"] += 1
-        ed = primary_edition(iso, compact_manifest)
-        if ed is None:
+        eds = editions_of(iso, compact_manifest)
+        if not eds:
             stats["no_edition"] += 1
             continue
-        tag, _ecode, books = ed
-        ot_books = [b for b in books if b in OT_BOOKS]
-        try:
-            doc = derive_one(iso, tag, ot_books, books, aligner_out, with_diagnose=with_diagnose)
-        except Exception as e:
-            doc = {"_derived_meta": {"reason": "alignment_quality", "gate": {"error": str(e)}}}
+        docs: dict[str, dict] = {}
+        for tag, _ecode, books in eds:
+            ot_books = [b for b in books if b in OT_BOOKS]
+            try:
+                docs[tag] = derive_one(iso, tag, ot_books, books, aligner_out, with_diagnose=with_diagnose)
+            except Exception as e:
+                docs[tag] = {"_derived_meta": {"reason": "alignment_quality", "gate": {"error": str(e)}}}
+        doc = combine_language(iso, docs)
+        stats["editions_total"] += len(eds)
+        stats["multi_edition_languages"] += len(eds) > 1
         if doc.get("_derived_meta", {}).get("reason") == "alignment_quality" and "possessor" not in doc:
             stats["gate_failed"] += 1
         else:
@@ -1192,6 +1265,18 @@ def build(isos: list[str] | None = None, out_dir: Path = OUT_DIR, aligner_out: P
             for k in stats["d2_slot_counts"]:
                 if k in doc:
                     stats["d2_slot_counts"][k] += 1
+            for k in _SLOT_KEYS:
+                sl = doc.get(k)
+                if sl and sl.get("reason") == "edition_conflict":
+                    stats["slot_conflicts"] += 1
+                elif sl and sl.get("agreement", {}).get("voting", 0) > sl.get("agreement", {}).get("agree", 0):
+                    stats["slot_minorities"] += 1
+            pooled = doc.get("audit", {}).get("constituent_order")
+            if pooled:
+                _CONSTITUENT_DIR.mkdir(parents=True, exist_ok=True)
+                (_CONSTITUENT_DIR / f"{iso}.json").write_text(
+                    json.dumps({k: v for k, v in pooled.items() if k != "source"}, indent=1, sort_keys=True) + "\n",
+                    encoding="utf-8")
         if iso in known_answer_isos:
             known_answer_docs[iso] = doc
         doc["content_sha256"] = _content_sha256(doc)
@@ -1211,6 +1296,10 @@ def main() -> int:
     ap.add_argument("--iso", action="append", help="one or more isos; default: every published language")
     ap.add_argument("--out", type=Path, default=OUT_DIR)
     ap.add_argument("--aligner-out", type=Path, default=OUT)
+    ap.add_argument("--shard", metavar="I/N", help="process only every N-th language starting at I (0-based) — "
+                    "run N shards in parallel; each language is independent")
+    ap.add_argument("--check-known-answers", action="store_true",
+                    help="run the known-answer gate over the docs already on disk (use after sharded --build runs)")
     ap.add_argument("--no-diagnose", action="store_true",
                     help="skip span_extension.diagnose() block-rate audit (cheap for Grambank-absent "
                          "languages, a real second corpus build for covered ones)")
@@ -1219,14 +1308,32 @@ def main() -> int:
         docs = {fp.stem: _load_json(fp) for fp in args.out.glob("*.json")}
         print(json.dumps(validate_derived(args.validate, docs), indent=1))
         return 0
+    if args.check_known_answers:
+        known = {iso for table in KNOWN_ANSWERS.values() for iso in table}
+        docs = {fp.stem: _load_json(fp) for fp in args.out.glob("*.json") if fp.stem in known}
+        ka = check_known_answers(docs)
+        print(f"[derive_typology] known-answer gate: {ka['matches']}/{ka['checked']} matched, "
+              f"{len(ka['abstentions'])} abstained, {len(ka['violations'])} VIOLATED", file=sys.stderr)
+        if not ka["passed"]:
+            print(json.dumps(ka["violations"], indent=1), file=sys.stderr)
+        return 0 if ka["passed"] else 1
     if not args.build:
-        ap.error("pass --build or --validate SLOT")
-    stats = build(args.iso, args.out, args.aligner_out, with_diagnose=not args.no_diagnose)
+        ap.error("pass --build, --check-known-answers or --validate SLOT")
+    isos = args.iso
+    if args.shard:
+        i, n = (int(x) for x in args.shard.split("/"))
+        pool = sorted(args.iso) if args.iso else sorted(_load_json(_LEXEME_MANIFEST).get("languages", {}))
+        isos = pool[i::n]
+    stats = build(isos, args.out, args.aligner_out, with_diagnose=not args.no_diagnose)
     print(f"[derive_typology] {stats['total']} language(s): {stats['passed']} passed the quality gate "
          f"({stats['ot_slots_written']} got >=1 OT slot, {stats['d1_slots_written']} got >=1 D1 slot: "
          f"{stats['d1_slot_counts']}, {stats['d2_slots_written']} got >=1 D2 slot: "
          f"{stats['d2_slot_counts']}), {stats['gate_failed']} gated on alignment_quality, "
          f"{stats['no_edition']} had no edition at all → {args.out}", file=sys.stderr)
+    print(f"[derive_typology] editions analysed: {stats['editions_total']} across {stats['total'] - stats['no_edition']} "
+          f"language(s), {stats['multi_edition_languages']} with >1 edition; slot verdicts where editions split: "
+          f"{stats['slot_minorities']} carried a dissenting minority, {stats['slot_conflicts']} abstained "
+          f"(edition_conflict)", file=sys.stderr)
     ka = stats["known_answers"]
     print(f"[derive_typology] known-answer gate: {ka['matches']}/{ka['checked']} matched, "
          f"{len(ka['abstentions'])} abstained, {len(ka['violations'])} VIOLATED", file=sys.stderr)

@@ -115,7 +115,7 @@ def _publish_state_path(root: Path) -> Path:
     return root / ".publish_state.json"
 
 
-def _retry_transient(fn, what: str, attempts: int = 3, base_delay: float = 3.0):
+def _retry_transient(fn, what: str, attempts: int = 6, base_delay: float = 5.0):
     """Retry transient network errors only; HfHubHTTPError (auth/rate-limit) propagates immediately —
     those need a human decision (re-login, wait out the hourly quota), not a few quick retries that
     would just re-trigger the same failure."""

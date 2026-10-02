@@ -110,10 +110,12 @@ def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_C
     # canonical) if EITHER testament ever pointed it at something — a positive "this is a duplicate"
     # signal from one testament wins over silence on the other.
     records: list[dict] = []
+    coverage: dict[str, set[str]] = {}     # own_key -> testaments this edition is fetchable for
     for testament in sorted(testaments):   # sorted: deterministic regardless of set iteration order
         for v in all_versions(iso, testament):
             if v["fetchable"]:
                 records.append(v)
+                coverage.setdefault(f"{v['source']}:{v['edition_code']}", set()).add(testament)
     points_at: dict[str, str] = {}   # own_key -> same_text_as, first non-None across either testament
     for v in records:
         own_key = f"{v['source']}:{v['edition_code']}"
@@ -160,6 +162,12 @@ def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_C
     # _priority_pick just runs over whichever members WERE observed) and improves on it: the old
     # fallback took the first-encountered member arbitrarily; this takes the highest-priority one.
     def _priority_pick(members: list[str]) -> str:
+        # Coverage first (2026-10-01): members of a same-text family were flagged the same on ONE testament but can
+        # differ on the other (bco: PKF BCOPKF is NT-only, its helloAO twin bco_wbt also has the OT). Picking by
+        # source priority alone fetched the NT-only copy and the OT was never ingested. Among the members that
+        # cover the most testaments, our source priority decides as before.
+        best = max(len(coverage.get(m, ())) for m in members)
+        members = [m for m in members if len(coverage.get(m, ())) == best] or members
         for src in PRIORITY:
             for ok in members:
                 if all_own_keys[ok]["source"] == src:
@@ -167,17 +175,20 @@ def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_C
         return members[0]
 
     seen: dict[str, dict] = {}
+    canon_coverage: dict[str, set[str]] = {}
     for family_id, members in families.items():
         canonical = _priority_pick(members)
         rec = all_own_keys[canonical]
         seen[canonical] = {"source": rec["source"], "param": rec["param"], "edition_code": rec["edition_code"]}
-    return _drop_near_duplicates(seen, classification)
+        canon_coverage[canonical] = set().union(*(coverage.get(m, set()) for m in members))
+    return _drop_near_duplicates(seen, classification, canon_coverage)
 
 
 _REDUNDANT_LIKELY = {"dialect_variant", "orthography_convention", "near_identical"}
 
 
-def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[tuple[str, str]]]) -> list[dict]:
+def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[tuple[str, str]]],
+                          coverage: dict[str, set[str]] | None = None) -> list[dict]:
     """Default auto-pooling keeps every distinct FETCHABLE edition, but distinct isn't the same as
     independent — the catalog also classifies near-duplicate REVISIONS of the same base translation
     (`dialect_variant`/`orthography_convention`/`near_identical`, e.g. two hosted copies of the same
@@ -196,7 +207,15 @@ def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[
     reference for `helloao:mal_bib` (genuinely fetchable) — blindly keeping whichever side the
     classification data happened to point at would keep the dead one and drop the working one.
     Within the same priority tier (e.g. pkf vs pkf, or two DBT filesets), the pick is an arbitrary
-    but deterministic tiebreak (sorted key order) — there's no source-based signal left to use."""
+    but deterministic tiebreak (sorted key order) — there's no source-based signal left to use.
+
+    COVERAGE comes first (2026-10-01): an edition is never dropped when it covers a testament its partner
+    does not. Found on jav: JAVLAI (NT+OT) and JAVNRF (NT) are near-duplicates on the NT, the same-tier
+    tiebreak dropped JAVLAI, and the language stayed NT-only with a perfectly good OT edition available.
+    With `coverage` ({edition key: testaments it is fetchable for}): if the edition the rules would drop covers
+    something the survivor lacks, the survivor is dropped instead when it covers nothing extra, and BOTH are
+    kept when each covers something the other lacks (pooling both only double-weights the shared testament,
+    dropping either loses a whole one)."""
     dropped: set[str] = set()
     for key in sorted(classification):
         if key in dropped or key not in seen:
@@ -211,10 +230,15 @@ def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[
         key_rank = PRIORITY.index(seen[key]["source"]) if seen[key]["source"] in PRIORITY else len(PRIORITY)
         closest_rank = (PRIORITY.index(seen[closest]["source"]) if seen[closest]["source"] in PRIORITY
                         else len(PRIORITY))
-        if key_rank < closest_rank:
-            dropped.add(closest)
-        else:
-            dropped.add(key)   # key_rank >= closest_rank — including the same-tier tiebreak
+        loser, winner = (closest, key) if key_rank < closest_rank else (key, closest)   # same-tier tiebreak: drop `key`
+        if coverage is not None:
+            lose_only = coverage.get(loser, set()) - coverage.get(winner, set())
+            win_only = coverage.get(winner, set()) - coverage.get(loser, set())
+            if lose_only and win_only:
+                continue                     # each has a testament the other lacks: keep both
+            if lose_only:
+                loser = winner               # the preferred one adds nothing the other lacks: drop it instead
+        dropped.add(loser)
     return [v for k, v in seen.items() if k not in dropped]
 
 

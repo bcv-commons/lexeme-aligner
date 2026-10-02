@@ -46,7 +46,8 @@ from pathlib import Path
 from typing import Callable
 
 from lexeme_aligner.llm_prompt import (
-    PROMPT_VERSION, SCHEMA_FULL, SCHEMA_FULL_PACKED, SCHEMA_LEXEME, SCHEMA_LEXEME_VERIFY, SCHEMA_VERIFY)
+    PROMPT_VERSION, SCHEMA_FULL, SCHEMA_FULL_PACKED, SCHEMA_LEXEME, SCHEMA_LEXEME_VERIFY, SCHEMA_VERIFY,
+    SCHEMA_VERIFY_PACKED, SCHEMA_VERSE, SCHEMA_VERSE_PACKED)
 
 # --- pricing / usage ----------------------------------------------------------------------------------
 
@@ -251,6 +252,11 @@ class MockProvider(Provider):
             return self._lexeme(suffix), Usage(billing="none")
         if schema == SCHEMA_FULL_PACKED:
             results = [self._full_verse(block) for block in suffix.split("\n---\n")]
+            return {"results": results}, Usage(billing="none")
+        if schema in (SCHEMA_VERSE_PACKED, SCHEMA_VERIFY_PACKED):
+            item = SCHEMA_VERIFY if schema == SCHEMA_VERIFY_PACKED else SCHEMA_VERSE
+            results = [self.complete(prefix, block, item, max_tokens=max_tokens)[0]
+                       for block in suffix.split("\n---\n")]
             return {"results": results}, Usage(billing="none")
         if schema == SCHEMA_LEXEME_VERIFY:
             lexeme = re.search(r"^LEXEME (\S+)", suffix, re.M).group(1)

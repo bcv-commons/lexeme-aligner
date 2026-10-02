@@ -27,15 +27,18 @@ _HEADER = ("| cell | strategy | model | effort | route | calls | to decide | fil
            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 
 
-def _judge(a):
-    """-> f(ref, strong, words) -> True/False, or None when the gold has no truth for that token."""
+def _gold(a):
     if a.gold == "clear":
         from lexeme_aligner.score_gapfill import clear_gold
-        gold = clear_gold(a.publish_iso, RESOURCES, a.gold_iso)
-    elif a.gold == "gbt":
-        gold = load_gold_gbt_positional(a.gold_iso or a.publish_iso)
-    else:
-        raise SystemExit("[llm report] --gold lexicon is type-level, not positional; use clear or gbt")
+        return clear_gold(a.publish_iso, RESOURCES, a.gold_iso)
+    if a.gold == "gbt":
+        return load_gold_gbt_positional(a.gold_iso or a.publish_iso)
+    raise SystemExit("[llm report] --gold lexicon is type-level, not positional; use clear or gbt")
+
+
+def _judge(a, gold=None):
+    """-> f(ref, strong, words) -> True/False, or None when the gold has no truth for that token."""
+    gold = gold if gold is not None else _gold(a)
 
     def judge(ref: int, strong: str, words: list[str]):
         key = (f"{ref:08d}", strong)
@@ -75,7 +78,7 @@ def _row(cell: str, doc: dict, t: dict[str, list[int]]) -> str:
     fills, judged, correct = _sum(t)
     u = doc.get("usage_incl_cache") or doc.get("usage", {})          # the CELL's cost, however many times it was re-rendered
     decide = doc.get("tokens_to_decide") or 0
-    net = 0.0 if doc.get("strategy") == "verify" else 100 * fills / max(1, doc.get("content_tokens") or 0)
+    net = 0.0 if doc.get("strategy") in ("verify", "verify-widened") else 100 * fills / max(1, doc.get("content_tokens") or 0)
     cost = doc.get("cell_cost_usd", doc.get("cost_usd", 0.0))
     return (f"| {cell} | {doc.get('strategy', '')} | {doc.get('model', '')} | {doc.get('effort', '')} | "
             f"{doc.get('provider', '')}{'+batch' if doc.get('batch') else ''} | {doc.get('calls', 0)}"
@@ -123,6 +126,62 @@ def _verify_table(a, doc: dict, out_dir: Path, book_nums: set[int], judge) -> st
         lines.append(f"| llm `{prior}` | {jd} | {c} | {_pct(c, jd)} |")
     fills, jd, c = _sum(final)
     lines.append(f"| llm kept (confirmed + corrected) | {jd} | {c} | {_pct(c, jd)} |")
+    return "\n".join(lines)
+
+
+def _widened_table(a, doc: dict, out_dir: Path, book_nums: set[int], gold) -> str:
+    """verify-widened: for every token span_extension widened and the model was shown, is the APPENDED word
+    really in the gold span (the widening's own precision), and did the model keep the right ones? Judged on
+    the added word(s) only, not on the whole span. `decision accuracy` counts a kept-and-correct or a
+    dropped-and-wrong widening as right. Gold that does not credit function words (spa, fra) cannot judge
+    this — use a gold that does (hin, eng)."""
+    from lexeme_aligner.llm_align import read_pairs, scan_spans
+    kept: dict[tuple[int, int], list[int]] = {}
+    rejected: set[tuple[int, int]] = set()
+    for fp in tag_files(out_dir, "llm", a.out_tag):
+        for line in fp.open(encoding="utf-8"):
+            rec = json.loads(line)
+            for p in rec["pairs"]:
+                kept[(rec["ref"], p["h_idx"])] = sorted(p["t_idx"])
+            for s in rec.get("llm_skipped", []):
+                if s.get("status") == "rejected" and "h_idx" in s:
+                    rejected.add((rec["ref"], s["h_idx"]))
+    shown = set(kept) | rejected
+    base, _low = scan_spans(a.iso, out_dir, ("eflomal", "gloss"))
+    c = collections.Counter()
+    for _m, ref, p in read_pairs(a.iso, out_dir, ["spanext"]):
+        key = (ref, p["h_idx"])
+        b = base.get(ref, {}).get(p["h_idx"])
+        if ref // 1_000_000 not in book_nums or key not in shown or not b or not p.get("strong"):
+            continue
+        wide = sorted(p["t_idx"])
+        words = dict(zip(wide, p["target"].split()))
+        added = [t for t in wide if t not in b]
+        gkey = (f"{ref:08d}", p["strong"])
+        if not added or gkey not in gold or len(words) != len(wide):
+            continue
+        ok = all(norm_surface(words[t]) in gold[gkey] for t in added)
+        final = set(kept.get(key, []))
+        keep = bool(final & set(added))                                   # any appended word retained
+        c["judgeable"] += 1
+        c["orig_ok"] += ok
+        if keep:
+            c["kept"] += 1
+            c["kept_ok"] += ok
+        else:
+            c["dropped"] += 1
+            c["dropped_wrong"] += (not ok)
+        c["right"] += (keep == ok)
+    lines = ["", f"verify-widened — {len(shown)} widened tokens shown; {len(rejected)} rejected; "
+                 f"{c['judgeable']} judgeable against gold (added word(s) only)", "",
+             "| set | judgeable | added word correct | precision |", "|---|---|---|---|",
+             f"| original spanext widenings (same tokens) | {c['judgeable']} | {c['orig_ok']} | "
+             f"{_pct(c['orig_ok'], c['judgeable'])} |",
+             f"| llm kept the widening | {c['kept']} | {c['kept_ok']} | {_pct(c['kept_ok'], c['kept'])} |",
+             f"| llm dropped the widening (share that WAS wrong) | {c['dropped']} | {c['dropped_wrong']} | "
+             f"{_pct(c['dropped_wrong'], c['dropped'])} |",
+             f"| decision accuracy (kept-and-right + dropped-and-wrong) | {c['judgeable']} | {c['right']} | "
+             f"{_pct(c['right'], c['judgeable'])} |"]
     return "\n".join(lines)
 
 
@@ -180,7 +239,8 @@ def report(a) -> int:
     doc = json.loads(ledger_fp.read_text(encoding="utf-8"))
     from lexeme_aligner.refs import BOOK_NUMBERS
     book_nums = {BOOK_NUMBERS[b] for b in doc["books"]}
-    judge = _judge(a)
+    gold = _gold(a)
+    judge = _judge(a, gold)
     cell = tally(a.out_tag, "llm", out_dir, book_nums, judge)
     rows = [_row(a.out_tag, doc, cell)]
     decide = doc.get("tokens_to_decide") or 0
@@ -191,6 +251,7 @@ def report(a) -> int:
             pass
     table = _HEADER + "\n".join(rows)
     extra = (_verify_table(a, doc, out_dir, book_nums, judge) if doc.get("strategy") == "verify"
+             else _widened_table(a, doc, out_dir, book_nums, gold) if doc.get("strategy") == "verify-widened"
              else _same_token_table(a, out_dir, book_nums, judge))
     text = (f"\n### {a.out_tag} — {doc.get('ts', '')} (run {doc.get('run_id', '')}, prompt {doc.get('prompt_sha8', '')})"
             f"\n\n{table}\n{extra}\n")

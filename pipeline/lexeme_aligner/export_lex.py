@@ -42,6 +42,7 @@ from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.hebrew_source import spine_corpus
+from lexeme_aligner.manifest_io import update_json
 from lexeme_aligner.config import HF_CHUNK_SIZE, LEX_ROOT, OUT, SPINE_DB
 
 SCHEMA = ["surface", "lexeme", "method", "base_text", "source_corpus", "count", "hi_conf"]  # PUBLISHED
@@ -212,7 +213,10 @@ def build_entry(rows: list[Row], iso: str, methods: list[str], min_count: int, b
 
 
 _COMPANION_RESOURCES = ["light_lexemes.json", "hebrew_lexeme_strong.json", "greek_morph_strong.json",
-                        "contest_rule.json"]   # global (not per-iso) — re-uploaded each publish so they
+                        "contest_rule.json",
+                        "pipeline_decisions.json"]   # the per-language ledger (pipeline_decisions.py copies it into every
+                                                      # dataset root); it was documented as shipped with every dataset but
+                                                      # no publish list included it until 2026-10-01   # global (not per-iso) — re-uploaded each publish so they
                                                 # never drift out of sync; see README's "Companion reference
                                                 # resources" section for what each one is
 
@@ -225,7 +229,7 @@ def _sha256_file(fp: Path) -> str:
     return hashlib.sha256(fp.read_bytes()).hexdigest()
 
 
-def _retry_transient(fn, what: str, attempts: int = 3, base_delay: float = 3.0):
+def _retry_transient(fn, what: str, attempts: int = 6, base_delay: float = 5.0):
     """Retry on transient network errors ONLY (SSL/connect/read timeouts, etc — seen live: a 199-language
     batch stopped twice on nothing more than a flaky handshake). HfHubHTTPError (auth failures, the 429
     commit-rate limit) is NOT retried here and propagates immediately — those need a human decision
@@ -324,14 +328,13 @@ def publish_to_hf(root: Path, iso: str, rel_file: str, entry: dict,
 
 
 def update_manifest(path: Path, iso: str, entry: dict) -> None:
-    """Merge one language's entry into the deterministic (sorted, timestamp-free) manifest."""
-    doc = {"schema": SCHEMA, "languages": {}}
-    if path.exists():
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    doc["schema"] = SCHEMA
-    doc.setdefault("languages", {})[iso] = entry
-    path.write_text(json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    """Merge one language's entry into the deterministic (sorted, timestamp-free) manifest — under a lock
+    (manifest_io.update_json), because several chains can finish a language at the same moment."""
+    def _merge(doc: dict) -> None:
+        doc["schema"] = SCHEMA
+        doc.setdefault("languages", {})[iso] = entry
+
+    update_json(path, _merge, default={"schema": SCHEMA, "languages": {}})
 
 
 def publish_all_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool,

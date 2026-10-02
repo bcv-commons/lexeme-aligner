@@ -29,9 +29,11 @@ picks up exactly where it left off, no separate state file to go stale.
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 
 from lexeme_aligner.catalog_source import load as load_catalog
+from lexeme_aligner.config import LEX_ROOT
 from lexeme_aligner.onboard import _EDITIONS_CONFIG, _EXCLUSIONS, allowed_testaments, editions_for
 from lexeme_aligner.onboard_batch import already_exported, run_one
 
@@ -61,6 +63,13 @@ def build_plan(include_dbt: bool, exclusions=_EXCLUSIONS, editions_config=_EDITI
     return plan
 
 
+MIN_FREE_GB = 15.0
+
+
+def free_gb(path=LEX_ROOT) -> float:
+    return shutil.disk_usage(path).free / 1024 ** 3
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--include-dbt", action="store_true",
@@ -70,6 +79,9 @@ def main() -> int:
     ap.add_argument("--full", action="store_true",
                     help="run full_chain.py (ingest+eflomal+gloss+gapfill+export+aligned_mwe+"
                          "senses_attested+compact-alignments) instead of onboard.py's ingest+eflomal-only")
+    ap.add_argument("--min-free-gb", type=float, default=MIN_FREE_GB,
+                    help="stop (exit 2) BEFORE a language when free space on the output volume is below this, "
+                         f"instead of dying mid-write on a full disk (default {MIN_FREE_GB}); a re-run resumes")
     args = ap.parse_args()
 
     plan = build_plan(args.include_dbt)
@@ -87,6 +99,11 @@ def main() -> int:
 
     results: dict[str, tuple[bool, str]] = {}
     for lang in plan:
+        free = free_gb()
+        if free < args.min_free_gb:
+            print(f"\n[onboard_catalog] STOP before '{lang['iso']}': only {free:.1f} GB free on the output volume "
+                  f"(< {args.min_free_gb:g} GB). Free space and re-run; finished languages are skipped.", file=sys.stderr)
+            return 2
         ok, msg = run_one(lang, full=args.full)
         results[lang["iso"]] = (ok, msg)
         print(f"  {'✓' if ok else '✗'} {lang['iso']:8} {msg}", file=sys.stderr)

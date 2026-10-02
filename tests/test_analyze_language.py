@@ -56,6 +56,23 @@ def test_multiword_rates_buckets_by_pos_and_ignores_non_content_or_unaligned(tmp
     assert rates == {"name": (1, 2)}                            # 1 multi-word of 2 total; noun/verb excluded
 
 
+def test_multiword_rates_pools_a_list_of_tags_across_editions(tmp_path):
+    # 2026-09-28: a pooled multi-edition language's own audit sums every pooled edition's counts rather
+    # than reading one arbitrarily-chosen tag.
+    write_align(tmp_path, "editionA", "eflomal", "MAT", [
+        {"ref": 1, "pairs": [pair(0, "lx:name1", [0]), pair(1, "lx:name2", [1, 2])]},
+    ])
+    write_align(tmp_path, "editionB", "eflomal", "MAT", [
+        {"ref": 1, "pairs": [pair(0, "lx:name1", [0]), pair(1, "lx:name2", [1])]},
+    ])
+    lex_pos = {"lx:name1": "name", "lx:name2": "name"}
+    pooled = multiword_rates(["editionA", "editionB"], tmp_path, lex_pos)
+    assert pooled == {"name": (1, 4)}          # 1 multi-word (editionA's name2) of 4 total pairs, summed
+    # sanity: a single-tag call still only sees its own edition
+    assert multiword_rates("editionA", tmp_path, lex_pos) == {"name": (1, 2)}
+    assert multiword_rates("editionB", tmp_path, lex_pos) == {"name": (0, 2)}
+
+
 def test_analyze_end_to_end_flags_risk_only_when_grambank_says_so(tmp_path, monkeypatch):
     import lexeme_aligner.analyze_language as al
 

@@ -45,10 +45,10 @@ from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import LEX_ROOT, LLM_CACHE, OUT, PRIOR_PACK, RESOURCES
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.llm_prompt import (
-    ALIGNED, PROMPT_VERSION, SCHEMA_FULL_PACKED, SEEDED, STRATEGIES, Decision, FullDecision, Packet,
+    ALIGNED, PACKABLE, PROMPT_VERSION, SCHEMA_FULL_PACKED, SEEDED, VERIFY_LIKE, STRATEGIES, Decision, FullDecision, Packet,
     derive_score, derive_score_full, normalize, normalize_full, prior_for, raw_from_lexeme,
     raw_from_lexeme_verify, raw_from_packed, raw_from_verify, raw_from_verse, render_prefix, render_suffix,
-    schema_for, seed_renderings)
+    packed_schema_for, raw_from_packed_verify, schema_for, seed_renderings)
 from lexeme_aligner.llm_providers import (
     Job, PRICES, Provider, ProviderError, ResponseCache, Usage, cache_key, load_prices, make_provider,
     supports_effort)
@@ -79,6 +79,8 @@ class Inputs:
     label: str = ""
     lang_name: str = ""
     risk_by_pos: dict[str, str] = field(default_factory=dict)        # POS -> a pointed SEEDS caveat (§14)
+    widened: dict[int, dict[int, tuple[list[int], list[int], str]]] = field(default_factory=dict)
+    # ref -> h_idx -> (base t_idx, span_extension's WIDENED t_idx, its `prior` label) — verify-widened only
 
 
 def read_pairs(iso: str, out_dir: Path, methods, min_score: float = 0.0):
@@ -103,6 +105,20 @@ def scan_spans(iso: str, out_dir: Path, methods, min_score: float = 0.0, verify_
         if m == "eflomal" and (p.get("score") or 0) < verify_below:
             low[ref][p["h_idx"]] = (sorted(p["t_idx"]), float(p["score"]))
     return dict(spans), dict(low)
+
+
+def scan_widened(iso: str, out_dir: Path, base_spans: dict[int, dict[int, list[int]]]
+                 ) -> dict[int, dict[int, tuple[list[int], list[int], str]]]:
+    """ref -> h_idx -> (base span, widened span, label) for every token span_extension widened AND that has a
+    base span in `base_spans` (a widened pair with no base to compare against cannot be judged). The added
+    positions are exactly widened - base, so nothing here depends on the `prior` label's format."""
+    out: dict[int, dict[int, tuple[list[int], list[int], str]]] = collections.defaultdict(dict)
+    for _m, ref, p in read_pairs(iso, out_dir, ["spanext"]):
+        base = base_spans.get(ref, {}).get(p["h_idx"])
+        wide = sorted(p["t_idx"])
+        if base and set(wide) > set(base):
+            out[ref][p["h_idx"]] = (list(base), wide, str(p.get("prior") or ""))
+    return dict(out)
 
 
 def scan_others(iso: str, out_dir: Path, methods) -> dict[tuple[int, int], list[int]]:
@@ -161,13 +177,18 @@ def load_inputs(a) -> Inputs:
     res = build_residual(recs, covered_h, taken_t, stopwords, light_forms)
     candidates = {encode(r.book, r.ch, r.v): set(r.orig) for r in res}
     spans, low = scan_spans(a.iso, a.out, methods, a.explained_min_score, a.verify_below)
+    widened = scan_widened(a.iso, a.out, spans) if a.strategy == "verify-widened" else {}
     vocab: dict = {}
     risk_by_pos: dict[str, str] = {}
     if a.strategy in SEEDED:
-        try:
-            vocab = load_lexeme_vocab_scored(a.publish_iso)
-        except SystemExit as e:
-            print(f"[llm] whole-language vocab unavailable ({e}) — seeds will be empty", file=sys.stderr)
+        if getattr(a, "no_seeds", False):
+            vocab = None      # T2 ablation: no SEEDS block at all (NOT an empty vocab, which would print
+                              # "no rendering attested yet" for every lexeme and bias the comparison)
+        else:
+            try:
+                vocab = load_lexeme_vocab_scored(a.publish_iso)
+            except SystemExit as e:
+                print(f"[llm] whole-language vocab unavailable ({e}) — seeds will be empty", file=sys.stderr)
         risk_by_pos = _risk_notes(a)
         if risk_by_pos:
             print(f"[llm] SEEDS risk notes active for pos={sorted(risk_by_pos)} (phase-1 audit, §14)",
@@ -175,7 +196,7 @@ def load_inputs(a) -> Inputs:
     agree = ("eflomal", "gloss", "gapfill") if a.strategy == "full" else ("gapfill", "residual")
     return Inputs(recs, covered_h, taken_t, spans, low, candidates, stopwords.is_function, vocab, lex_pos,
                   lex_translit, scan_others(a.iso, a.out, agree), light, f"{a.publish_iso}, edition {a.iso}",
-                  a.lang_name, risk_by_pos)
+                  a.lang_name, risk_by_pos, widened)
 
 
 # --- packets ------------------------------------------------------------------------------------------
@@ -204,7 +225,7 @@ def _verse_packet(strategy: str, r: VerseRec, inp: Inputs, decide: list[int], al
                   if strategy == "full" else decide)
     lexemes = sorted({toks_by_idx[h].lexeme for h in seed_scope if toks_by_idx[h].lexeme})
     seeds = ({lx: seed_renderings(lx, inp.vocab, top_k) for lx in lexemes}
-             if strategy in SEEDED else {})
+             if strategy in SEEDED and inp.vocab is not None else {})
     return Packet(strategy, encode(r.book, r.ch, r.v), r.book, r.ch, r.v, inp.label, list(r.toks), r.heb,
                   sorted(decide), sorted(allowed), sorted(soft), sorted(taken), resolved, proposed or {},
                   seeds, _meta(lexemes, inp))
@@ -268,6 +289,20 @@ def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: in
             resolved = {h: ts for h, ts in inp.spans.get(ref, {}).items() if h not in low}
             base[ref] = _verse_packet(strategy, r, inp, sorted(low), allowed, allpos - taken - allowed, taken,
                                       resolved, proposed=low, top_k=top_k)
+        elif strategy == "verify-widened":
+            wide = {h: v for h, v in inp.widened.get(ref, {}).items() if h in content}
+            if not wide:
+                continue
+            proposed = {h: (v[1], 0.9) for h, v in wide.items()}
+            own = {j for ts, _s in proposed.values() for j in ts}
+            taken = set(inp.taken_t.get(ref, ())) - own
+            func = {j for j, w in enumerate(r.toks) if inp.is_function(w)} - own
+            allowed = (allpos - taken - func) | own
+            resolved = {h: ts for h, ts in inp.spans.get(ref, {}).items() if h not in wide}
+            pkt = _verse_packet(strategy, r, inp, sorted(wide), allowed, allpos - taken - allowed, taken,
+                                resolved, proposed=proposed, top_k=top_k)
+            base[ref] = dataclasses.replace(
+                pkt, widened={h: (v[0], sorted(set(v[1]) - set(v[0])), v[2]) for h, v in wide.items()})
         else:                                                         # gap, gap-seeded, lexeme-grouped
             gap = content - inp.covered_h.get(ref, set())
             if not gap:
@@ -284,10 +319,10 @@ def build_packets(strategy: str, inp: Inputs, *, group_size: int = 12, top_k: in
     stats["verses_sent"] = len(base)
     stats["tokens_to_decide"] = sum(len(p.decide) for p in base.values())
     ordered = [base[k] for k in sorted(base)]
-    if strategy == "full" and pack_size > 1:
+    if strategy in PACKABLE and pack_size > 1:
         packs = _even_packs(ordered, pack_size)
         stats["packs"] = len(packs)
-        return ([Packet("full", 0, "", 0, 0, inp.label, [], [], [], [], [], [], members=pack)
+        return ([Packet(strategy, 0, "", 0, 0, inp.label, [], [], [], [], [], [], members=pack)
                  for pack in packs],
                 base, dict(stats))
     if strategy != "lexeme-grouped":
@@ -400,12 +435,15 @@ class Ledger:
 # call itself was cut short. Since `max_tokens` only caps a request and never forces the model to use it,
 # there is no cost to being generous here — a shorter real response just returns fewer tokens.
 _FULL_TOKENS_PER_ID = 400
+_PACKED_TOKENS_PER_ID = 300      # gap/verify: observed reasoning+answer per decided id is well below `full`'s
 
 
 def max_tokens_for(p: Packet) -> int:
     if p.strategy == "full":
         n = sum(len(m.decide) for m in p.members) if p.members else len(p.decide)
         return min(max(8192, n * _FULL_TOKENS_PER_ID), 64000)
+    if p.members and p.strategy in PACKABLE:                    # packed residue call: budget per decided id
+        return min(max(4096, p.n_decide * _PACKED_TOKENS_PER_ID), 64000)
     return 8192 if p.strategy in ("lexeme-grouped", "lexeme-verify") else 4096
 
 
@@ -490,10 +528,13 @@ def resolve(results, base: dict[int, Packet], strategy: str, *, allow_scattered:
         elif strategy == "lexeme-verify":
             for ref, items in raw_from_lexeme_verify(resp, p).items():
                 raw[ref].extend(items)
-        elif strategy == "full" and p.members:                  # a packed call: several verses, one response
+        elif p.members and strategy in VERIFY_LIKE:             # packed verify: verdicts per member by ref
+            for ref, items in raw_from_packed_verify(resp, p).items():
+                raw[ref].extend(items)
+        elif p.members and strategy in PACKABLE:                # a packed call: several verses, one response
             for ref, items in raw_from_packed(resp).items():
                 raw[ref].extend(items)
-        elif strategy == "verify":
+        elif strategy in VERIFY_LIKE:
             raw[p.ref].extend(raw_from_verify(resp, p))
         else:
             raw[p.ref].extend(raw_from_verse(resp))
@@ -759,9 +800,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--explained-min-score", type=float, default=0.0)
     ap.add_argument("--group-size", type=int, default=12, help="lexeme-grouped: verses per call")
     ap.add_argument("--pack-size", type=int, default=1,
-                    help="full: verses per call, wrapped in one {\"results\": [...]} response (1 = unpacked, "
-                         "current default behaviour)")
+                    help="full/gap/gap-seeded/verify: verses per call, wrapped in one {\"results\": [...]} "
+                         "response (1 = unpacked, the default). For the residue strategies (2026-09-29) a "
+                         "pack is ~15-25 verses; the output ceiling is budgeted per decided id")
     ap.add_argument("--top-k", type=int, default=6, help="seed renderings per lexeme")
+    ap.add_argument("--no-seeds", action="store_true",
+                    help="T2 ablation (2026-09-29): send NO whole-language SEEDS block (seeded strategies only); "
+                         "use a distinct --out-tag so the arms don't overwrite each other")
     ap.add_argument("--verify-below", type=float, default=0.9, help="verify: eflomal pairs scoring below this")
     ap.add_argument("--source-tag", default=None,
                     help="lexeme-verify: the completed `full` run's --out-tag to review "
@@ -786,6 +831,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     a = build_parser().parse_args(argv)
+    if a.no_seeds and a.strategy in ("lexeme-grouped", "lexeme-verify"):
+        raise SystemExit("--no-seeds is defined for the per-verse strategies (full, gap-seeded) only")
     a.publish_iso = a.publish_iso or a.iso
     a.lang_name = a.lang_name or lang_name_for(a.publish_iso)
     a.out_tag = a.out_tag or (f"{a.iso}.{a.strategy}.{model_short(a.model) if a.provider != 'mock' else 'mock'}"
@@ -813,7 +860,7 @@ def main(argv=None) -> int:
     else:
         packets, base, stats = build_packets(a.strategy, inp, group_size=a.group_size, top_k=a.top_k,
                                              pack_size=a.pack_size)
-    grouped_by_members = a.strategy in ("lexeme-grouped", "lexeme-verify") or (a.strategy == "full" and a.pack_size > 1)
+    grouped_by_members = a.strategy in ("lexeme-grouped", "lexeme-verify") or (a.strategy in PACKABLE and a.pack_size > 1)
     if a.ref is not None:
         if grouped_by_members:
             for g in packets:
@@ -839,7 +886,7 @@ def main(argv=None) -> int:
     if Path(conv).is_file():
         conventions = Path(conv).read_text(encoding="utf-8")
     prefix = render_prefix(a.publish_iso, a.lang_name, a.strategy, conventions)
-    schema = SCHEMA_FULL_PACKED if a.strategy == "full" and a.pack_size > 1 else schema_for(a.strategy)
+    schema = packed_schema_for(a.strategy) if a.strategy in PACKABLE and a.pack_size > 1 else schema_for(a.strategy)
     prefix_sha = hashlib.sha256(prefix.encode("utf-8")).hexdigest()[:8]
     est = estimate(packets, prefix, a.model, prices, batch=a.batch)
     print(f"[llm] {a.strategy} · {a.iso}→{a.out_tag}: {stats.get('verses_in_scope', 0)} verses in scope, "

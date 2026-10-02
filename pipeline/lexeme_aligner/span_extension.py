@@ -298,20 +298,33 @@ from lexeme_aligner.function_classes import TRIGGER_CLASSES as _TRIGGER_CLASSES 
 _SPANEXT_FLAGS_FILE = Path("config/spanext_flags.json")
 
 
-def load_spanext_flags(publish_iso: str, path: Path | None = None) -> dict[str, bool]:
-    """{"definite_trigger"|"relation_trigger"|"typology_fallback"|"typology_fallback_articles": bool}
-    recommendations recorded for
+def load_spanext_flags(publish_iso: str, path: Path | None = None, tag: str | None = None) -> dict[str, bool]:
+    """{"definite_trigger"|"relation_trigger"|"typology_fallback"|"typology_fallback_articles"|
+    "base_mechanisms"|...: bool} recommendations recorded for
     `publish_iso` in `config/spanext_flags.json` — the "measure once, remember it in one line, no code
     edit" pattern `config/gold_langs.json`/`config/typology/directions.json` already use. {} (all
     flags default off) for a language with no entry, or if the file doesn't exist at all — never an
     error. `path` looked up at CALL time (not a default argument) so tests can monkeypatch it, same
-    convention as `load_grambank_raw`'s own `path` parameter."""
+    convention as `load_grambank_raw`'s own `path` parameter.
+
+    `tag` (edition tag, e.g. `arb_wtc`): an entry keyed by the TAG overrides the language-level entry
+    key-by-key. Added 2026-09-29 for the E6 verdicts (`base_mechanisms`), which measurably differ
+    between editions of ONE language (arb: vdv .47 vs wtc .26) — see internal-docs/
+    aim1-three-track-evaluation-plan.md §2.6b."""
     path = path or _SPANEXT_FLAGS_FILE
     if not Path(path).exists():
         return {}
     doc = json.loads(Path(path).read_text(encoding="utf-8"))
-    entry = doc.get(publish_iso, {})
+    entry = dict(doc.get(publish_iso, {}))
+    if tag and tag != publish_iso:
+        entry.update(doc.get(tag, {}))
     return {k: v for k, v in entry.items() if isinstance(v, bool)}   # skip "_note"/free-text keys
+
+
+def base_mechanisms_enabled(flags: dict[str, bool]) -> bool:
+    """False only when `config/spanext_flags.json` records `base_mechanisms: false` (an E6-verified flip:
+    the always-on RISK_RULES mechanisms do not help this edition). Default True = today's behaviour."""
+    return flags.get("base_mechanisms", True)
 
 
 # grambank_fetch's "<x>_order" feature-group name -> typology.py's short slot name — the two modules
@@ -512,6 +525,33 @@ def _has_strong_identity(word: str, surface_identity: dict[str, tuple[str, float
     return total >= _IDENTITY_MIN_COUNT and share >= _IDENTITY_SHARE_MAX   # one dominant lexeme ("ses" -> autos)
 
 
+def greek_np_chunks(heb: list) -> dict[int, str]:
+    """P6 (2026-09-27): {h_idx: synthetic phrase_id} for the NT half of the corpus, which BHSA's own
+    `phrase_id` never reaches (Hebrew/OT-only spine field -- every NT token has it None). Greek DOES
+    carry `case_`/`number`/`gender` on every token (content and function alike -- an article agrees with
+    its noun), so a maximal run of ADJACENT tokens sharing the same non-null (case_, number, gender)
+    triple is a real, cheap agreement-based noun-phrase chunk (textbook Greek grammar: ὁ ἀγαθὸς ἄνθρωπος
+    all masculine-nominative-singular). Used to give `phrase_window_gate` (P2) a phrase boundary on NT
+    verses the same way BHSA's own `phrase_id` already gives it one on OT verses -- deliberately NOT
+    bridging a gap (a conjunction/particle with no case marking breaks a chunk here, rather than being
+    skipped over): a conservative first cut, easy to validate against Door43's own human spans (an NP
+    chunk's aligned words should land contiguously there) before ever loosening it."""
+    ids: dict[int, str] = {}
+    prev_key = None
+    chunk_no = 0
+    for t in sorted(heb, key=lambda t: t.idx):
+        key = (t.case_, t.number, t.gender) if (t.case_ and t.number and t.gender) else None
+        if key is not None and key == prev_key:
+            ids[t.idx] = f"npchunk{chunk_no}"
+        elif key is not None:
+            chunk_no += 1
+            ids[t.idx] = f"npchunk{chunk_no}"
+        prev_key = key
+    # drop singleton "chunks" (a lone tagged token next to nothing sharing its triple) -- not a phrase.
+    counts = collections.Counter(ids.values())
+    return {idx: pid for idx, pid in ids.items() if counts[pid] > 1}
+
+
 def _chain_neighbor_boundary(members: list, this_idx: int, direction: str, unioned_verse: dict
                              ) -> int | None:
     """Correction 1's own remaining bug (Step 1's docstring, "root cause: multi-member construct
@@ -552,7 +592,9 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                  typology_fallback_articles: bool | None = None,
                  typed_gate: bool | None = None,
                  phrase_window_gate: bool | None = None,
-                 name_guard: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
+                 name_guard: bool | None = None,
+                 base_mechanisms: bool | None = None,
+                 article_bound: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
     """{BOOK: [verse record, ...]} of ONLY the pairs that got widened, plus stats. Never mutates the base
     chain's own jsonl — this is a separate, additive layer (see module docstring). `definite_trigger`:
     Step 1's derived-definiteness additive trigger (`compute_definite`). `relation_trigger`: Step 1's
@@ -591,7 +633,22 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     to benefit (e.g. hin's `relation_trigger`) gets that remembered without anyone needing to pass a
     CLI flag by hand every run. Passing an explicit `True`/`False` (Python call or `--flag`/`--no-flag`
     on the CLI) always overrides the config, for a one-off experiment without editing it."""
-    flags = load_spanext_flags(publish_iso)
+    flags = load_spanext_flags(publish_iso, tag=iso)
+    if base_mechanisms is None:
+        # E6 flip (2026-09-29): `false` = cross-edition verification (xedition_verify.py) found the
+        # always-on mechanisms unsupported for THIS edition. Whole-layer skip: an edition flipped off
+        # carries no opt-in trigger flags (checked by tests/test_span_extension.py), so nothing else
+        # needs to survive. Reversible by deleting the config entry / passing --base-mechanisms.
+        base_mechanisms = base_mechanisms_enabled(flags)
+    if not base_mechanisms:
+        return {}, {"skipped": "base mechanisms gated off for this edition (config/spanext_flags.json, E6)",
+                    "gated_off": True}
+    if article_bound is None:
+        # 2026-09-30: a language whose definite article is FUSED into the noun (swe/dan/nob/bul/arb/heb, see
+        # article_bound.py) has no free article word to append, so the `articles` risk and the derived
+        # definiteness trigger can only steal a neighbouring word. Only a positive derived fact gates.
+        from lexeme_aligner.article_bound import is_bound
+        article_bound = is_bound(publish_iso)
     if definite_trigger is None:
         definite_trigger = flags.get("definite_trigger", False)
     if relation_trigger is None:
@@ -656,6 +713,9 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         if risk == "possession_affix":
             d = possession_direction_for(grambank, iso=_typology_iso)   # GB065 is ternary, not before/after
         elif risk == "articles":
+            if article_bound:
+                stats["articles_skipped_bound_article"] += 1
+                continue
             d = direction_for(grambank, DIRECTION_FEATURES["articles"], iso=_typology_iso_articles)
         elif risk in DIRECTION_FEATURES:
             d = direction_for(grambank, DIRECTION_FEATURES[risk], iso=_typology_iso)
@@ -687,7 +747,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # Step 2: also falls through to the typology table when Grambank itself has no article_order pair
     # -- gated on `_typology_iso_articles`, not `_typology_iso` (D4a follow-up, same reasoning as the
     # `active` loop's own "articles" branch above).
-    article_order_direction = direction_for(grambank, DIRECTION_FEATURES["articles"], iso=_typology_iso_articles)
+    article_order_direction = (None if article_bound else
+                               direction_for(grambank, DIRECTION_FEATURES["articles"], iso=_typology_iso_articles))
 
     heb = HebrewSource()
     recs = build_corpus(books, usj_dir, heb, remap=remapper(iso, str(usj_dir)))
@@ -718,7 +779,13 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         lexeme_of[ref] = {t.idx: t.lexeme for t in r.heb}
         struct_of[ref] = {t.idx: (t.state, t.case_) for t in r.heb}
         rela_of[ref] = {t.idx: t.rela for t in r.heb}
-        phrase_of[ref] = {t.idx: getattr(t, "phrase_id", None) for t in r.heb}
+        real_phrase = {t.idx: getattr(t, "phrase_id", None) for t in r.heb}
+        if phrase_window_gate and not any(real_phrase.values()):
+            # P6: BHSA phrase_id is Hebrew/OT-only -- on an NT verse (or an OT one the spine build
+            # didn't attach BHSA phrases to) fall back to the Greek agreement-based NP chunker instead
+            # of leaving phrase_window_gate with nothing to work with there at all.
+            real_phrase = greek_np_chunks(r.heb) or real_phrase
+        phrase_of[ref] = real_phrase
         definite_of[ref] = compute_definite(r.heb, lex_pos, heb.assimilated_after_idx(r.book, r.ch, r.v))
         groups: dict[str, list] = collections.defaultdict(list)
         for t in r.heb:
@@ -913,8 +980,13 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
             new_t_idx = sorted(t_idx + [c for _, _, c in extensions])
             new_target = " ".join(toks[j] for j in new_t_idx)
             ext = dict(p)
+            # 2026-09-28: embed the ADDED clean-text position after ':' for each extension (at most 2,
+            # one per direction -- `sides_used` caps it) -- this is what lets a client fully REVERT the
+            # fold: original_span = published_span MINUS the position(s) named here. compact_align.py
+            # remaps each embedded position from clean-text to raw-text coordinates before publishing
+            # (this module has no notion of that distinction; see build_compact's own docstring).
             ext.update(t_idx=new_t_idx, target=new_target, method="spanext",
-                      prior="+".join(f"spanext_{lbl}_{d}" for d, lbl, _ in extensions))
+                      prior="+".join(f"spanext_{lbl}_{d}:{c}" for d, lbl, c in extensions))
             widened.append(ext)
             for _, _, c in extensions:
                 claimed.add(c)
@@ -1069,6 +1141,10 @@ def main(argv=None) -> int:
                     help="P4 (2026-09-27): reject a candidate whose romanized form name-matches the "
                          "transliteration of a DIFFERENT name token in the verse (genealogy-list steals). "
                          "Default: consult config/spanext_flags.json.")
+    ap.add_argument("--base-mechanisms", action=argparse.BooleanOptionalAction, default=None,
+                    help="E6 flip (2026-09-29): run the always-on RISK_RULES mechanisms at all. Default: "
+                         "consult config/spanext_flags.json (on unless the edition/language records "
+                         "base_mechanisms=false after cross-edition verification).")
     ap.add_argument("--diagnose", action="store_true",
                     help="pre-flight TRIAGE report only (block rates + top high-volume stopwords) — "
                          "writes nothing, does not consult or update config/spanext_flags.json; see "
@@ -1089,7 +1165,13 @@ def main(argv=None) -> int:
                                   typology_fallback_articles=a.typology_fallback_articles,
                                   typed_gate=a.typed_gate,
                                   phrase_window_gate=a.phrase_window_gate,
-                                  name_guard=a.name_guard)
+                                  name_guard=a.name_guard,
+                                  base_mechanisms=a.base_mechanisms)
+    if stats.get("gated_off"):
+        # a stale layer from before the flip must not survive a re-run that now skips
+        from lexeme_aligner.align_files import tag_files
+        for fp in tag_files(a.out, "spanext", a.iso):
+            Path(fp).unlink(missing_ok=True)
     if "skipped" in stats:
         print(f"[span_extension] {a.iso}: {stats['skipped']}", file=sys.stderr)
         return 0

@@ -245,3 +245,53 @@ def test_merge_into_manifest_updates_atomically_and_regenerates_card(tmp_path, m
     assert m["languages"]["eng"]["editions"]["engbsb"]["layers"]["statistical"] == {"rows": 1}
     assert not (root / "manifest.json.tmp").exists()
     assert "BSB Translation Tables layer" in (root / "README.md").read_text(encoding="utf-8")
+
+
+# --- 2026-09-28: _resolve_bsb_usj_dir() — config-driven, never a hardcoded tag name ----------------------
+
+def _write_sources(tmp_path, **tag_to_edition):
+    import json
+    fp = tmp_path / "sources.json"
+    fp.write_text(json.dumps({tag: {"edition": ed} for tag, ed in tag_to_edition.items()}), encoding="utf-8")
+    return fp
+
+
+def test_resolve_bsb_usj_dir_prefers_engbsb_when_present(tmp_path):
+    sources = _write_sources(tmp_path, engbsb="BSB", bsb="BSB")
+    (tmp_path / "usj-engbsb").mkdir()
+    (tmp_path / "usj-bsb").mkdir()
+    got = bt._resolve_bsb_usj_dir(sources_path=sources, ingest_root=tmp_path)
+    assert got == tmp_path / "usj-engbsb"
+
+
+def test_resolve_bsb_usj_dir_falls_back_when_engbsb_is_gone(tmp_path):
+    # the real scenario this fixes: production now writes under "bsb", "engbsb" no longer exists on disk.
+    sources = _write_sources(tmp_path, engbsb="BSB", bsb="BSB")
+    (tmp_path / "usj-bsb").mkdir()   # engbsb's own directory is absent
+    got = bt._resolve_bsb_usj_dir(sources_path=sources, ingest_root=tmp_path)
+    assert got == tmp_path / "usj-bsb"
+
+
+def test_resolve_bsb_usj_dir_is_case_insensitive_on_the_edition_value(tmp_path):
+    sources = _write_sources(tmp_path, weirdtag="bsb")
+    (tmp_path / "usj-weirdtag").mkdir()
+    got = bt._resolve_bsb_usj_dir(sources_path=sources, ingest_root=tmp_path)
+    assert got == tmp_path / "usj-weirdtag"
+
+
+def test_resolve_bsb_usj_dir_last_resort_when_nothing_exists_on_disk(tmp_path):
+    sources = _write_sources(tmp_path, engbsb="BSB")
+    got = bt._resolve_bsb_usj_dir(sources_path=sources, ingest_root=tmp_path)
+    assert got == tmp_path / "usj-engbsb"   # historical default, even though absent -- never crashes
+
+
+def test_resolve_bsb_usj_dir_missing_sources_file(tmp_path):
+    got = bt._resolve_bsb_usj_dir(sources_path=tmp_path / "nope.json", ingest_root=tmp_path)
+    assert got == tmp_path / "usj-engbsb"
+
+
+def test_edition_and_lang_constants_are_never_renamed_by_this_fix():
+    # the real published path publish/full-align/eng/engbsb/... already has real data under this exact
+    # name -- only USJ_DIR (where we READ from) may vary, never EDITION (where we PUBLISH to).
+    assert bt.EDITION == "engbsb"
+    assert bt.LANG == "eng"

@@ -65,29 +65,75 @@ def test_order_slot_none_rate_is_omitted_even_with_enough_n():
     assert dt._order_slot(rate=None, n=200, min_n=100) is None
 
 
-def test_primary_edition_prefers_most_ot_books():
-    manifest = {
-        "hin": {"editions": {
-            "hin_thin": {"tag": "hin_thin", "books": ["MAT", "MRK"]},
-            "hinirv": {"tag": "hinirv", "books": ["GEN", "EXO", "MAT"]},
-        }}
-    }
-    tag, ecode, books = dt.primary_edition("hin", manifest)
-    assert tag == "hinirv" and ecode == "hinirv"
-    assert set(books) == {"GEN", "EXO", "MAT"}
-
-
-def test_primary_edition_falls_back_to_most_books_when_no_ot_at_all():
-    manifest = {"xyz": {"editions": {
-        "xyz_a": {"tag": "xyz_a", "books": ["MAT"]},
-        "xyz_b": {"tag": "xyz_b", "books": ["MAT", "MRK", "LUK"]},
+def test_editions_of_lists_every_edition_sorted_by_tag_and_privileges_none():
+    manifest = {"hin": {"editions": {
+        "hinirv": {"tag": "hinirv", "books": ["GEN", "EXO", "MAT"]},
+        "hin_thin": {"tag": "hin_thin", "books": ["MAT", "MRK"]},
+        "HINNT": {"tag": "HINNT", "books": ["MAT"]},
     }}}
-    tag, _ecode, books = dt.primary_edition("xyz", manifest)
-    assert tag == "xyz_b" and len(books) == 3
+    eds = dt.editions_of("hin", manifest)
+    assert [t for t, _e, _b in eds] == ["hin_thin", "hinirv", "HINNT"]
+    assert eds[1] == ("hinirv", "hinirv", ["GEN", "EXO", "MAT"])
 
 
-def test_primary_edition_none_when_language_absent():
-    assert dt.primary_edition("nope", {}) is None
+def test_editions_of_empty_when_language_absent():
+    assert dt.editions_of("nope", {}) == []
+
+
+def _ed_doc(possessor=None, n=200, reason=None, gate=None, **extra):
+    doc = {"_derived_meta": {"reason": reason, "gate": gate or {"passed": reason is None}}}
+    if possessor is not None:
+        doc["possessor"] = {"direction": possessor, "source": "derived", "n": n, "rate": 0.8}
+    doc.update(extra)
+    return doc
+
+
+def test_combine_language_votes_across_editions_and_records_agreement():
+    docs = {"a": _ed_doc("after", 900), "b": _ed_doc("before", 100), "c": _ed_doc("after", 300)}
+    out = dt.combine_language("xyz", docs)
+    assert out["possessor"]["direction"] == "after"
+    assert out["possessor"]["agreement"] == {"voting": 3, "agree": 2, "weight_share": 0.9231}
+    assert set(out["possessor"]["editions"]) == {"a", "b", "c"}
+    assert out["_derived_meta"]["n_editions"] == 3 and out["_derived_meta"]["n_passed"] == 3
+
+
+def test_combine_language_abstains_on_a_split():
+    out = dt.combine_language("xyz", {"a": _ed_doc("after", 500), "b": _ed_doc("before", 450)})
+    assert out["possessor"]["direction"] is None and out["possessor"]["reason"] == "edition_conflict"
+
+
+def test_combine_language_ignores_failed_editions_but_lists_them():
+    docs = {"good": _ed_doc("after"), "bad": _ed_doc(reason="alignment_quality", gate={"coverage": 0.3})}
+    out = dt.combine_language("xyz", docs)
+    assert out["possessor"]["direction"] == "after" and set(out["possessor"]["editions"]) == {"good"}
+    assert out["_derived_meta"]["editions"]["bad"]["passed"] is False
+    assert out["_derived_meta"]["reason"] is None and out["_derived_meta"]["n_passed"] == 1
+
+
+def test_combine_language_with_no_passing_edition_is_a_gate_failure_with_no_slots():
+    docs = {"a": _ed_doc(reason="alignment_quality"), "b": _ed_doc(reason="alignment_quality")}
+    out = dt.combine_language("xyz", docs)
+    assert out["_derived_meta"]["reason"] == "alignment_quality" and "possessor" not in out
+    only_missing = dt.combine_language("xyz", {"a": _ed_doc(reason="no_ingest_cache")})
+    assert only_missing["_derived_meta"]["reason"] == "no_ingest_cache"
+
+
+def test_pool_constituent_sums_counts_and_weights_drift():
+    p1 = {"verses_measured": 100, "pair_order_kept": {"A>B": {"kept": 80, "total": 100, "rate": 0.8}},
+          "function_drift": {"Objc": {"mean_drift": 0.10, "n": 100}}}
+    p2 = {"verses_measured": 300, "pair_order_kept": {"A>B": {"kept": 100, "total": 300, "rate": 0.33}},
+          "function_drift": {"Objc": {"mean_drift": 0.30, "n": 300}}}
+    out = dt.pool_constituent({"t1": p1, "t2": p2})
+    assert out["verses_measured"] == 400 and out["tags"] == ["t1", "t2"] and out["tag"] == "t1+t2"
+    assert out["pair_order_kept"]["A>B"] == {"kept": 180, "rate": 0.45, "total": 400}
+    assert out["function_drift"]["Objc"] == {"mean_drift": 0.25, "n": 400}
+    assert dt.pool_constituent({"t": None}) is None
+
+
+def test_combine_language_pools_multiword_rates():
+    docs = {"a": _ed_doc("after", audit={"multiword_rates": {"noun": {"multi_word": 10, "total": 100}}}),
+            "b": _ed_doc("after", audit={"multiword_rates": {"noun": {"multi_word": 30, "total": 100}}})}
+    assert dt.combine_language("xyz", docs)["audit"]["multiword_rates"] == {"noun": {"multi_word": 40, "total": 200}}
 
 
 def test_gold_health_for_takes_max_positional_across_partitions_and_manifests():
@@ -170,7 +216,7 @@ def test_derive_one_audit_facts_never_collide_with_slot_keys(monkeypatch):
 def test_build_writes_content_sha256_for_every_language(monkeypatch, tmp_path):
     monkeypatch.setattr(dt, "_load_json", lambda fp: (
         {"languages": {"zzz": {}}} if "compact-alignments" not in str(fp) else {"languages": {}}))
-    monkeypatch.setattr(dt, "primary_edition", lambda iso, m: None)   # no edition -> no_edition path
+    monkeypatch.setattr(dt, "editions_of", lambda iso, m: [])         # no edition -> no_edition path
     stats = dt.build(isos=["zzz"], out_dir=tmp_path)
     assert stats["no_edition"] == 1
     assert stats["total"] == 1

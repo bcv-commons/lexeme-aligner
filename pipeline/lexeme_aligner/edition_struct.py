@@ -178,6 +178,7 @@ def build_record(tag: str, pin: dict, tag_to_iso: dict[str, str], helloao: dict[
                           "bracketed": tb["bracketed"], "source": "diagnostic-verses"} if tb else None,
         "text_strip": {"strip_brackets": ts.get("strip_brackets", False),
                        "strip_parens_noise": ts.get("strip_parens_noise", False),
+                       **{k: True for k in ("strip_alternate_brackets", "strip_alternate_parens") if ts.get(k)},
                        "reason": ts.get("reason"), "source": "manual"} if ts
                      else {"strip_brackets": False, "strip_parens_noise": False, "source": "default"},
         "script": {"code": scripts.get(iso), "source": "languages_db"} if iso in scripts else None,

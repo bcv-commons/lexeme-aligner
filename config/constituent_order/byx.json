@@ -1,53 +1,109 @@
 {
  "function_drift": {
+  "Adju": {
+   "mean_drift": -0.0486,
+   "n": 85
+  },
   "Cmpl": {
-   "mean_drift": -0.0055,
-   "n": 69
+   "mean_drift": 0.0028,
+   "n": 386
+  },
+  "Loca": {
+   "mean_drift": 0.0247,
+   "n": 31
   },
   "Objc": {
-   "mean_drift": -0.0037,
-   "n": 55
+   "mean_drift": 0.0207,
+   "n": 260
   },
   "PreC": {
-   "mean_drift": -0.0301,
-   "n": 44
+   "mean_drift": -0.0213,
+   "n": 207
   },
   "Pred": {
-   "mean_drift": 0.0335,
-   "n": 255
+   "mean_drift": 0.0259,
+   "n": 957
   },
   "Subj": {
-   "mean_drift": 0.0263,
-   "n": 89
+   "mean_drift": 0.014,
+   "n": 457
+  },
+  "Time": {
+   "mean_drift": -0.0071,
+   "n": 66
   }
  },
  "pair_order_kept": {
+  "Adju>Pred": {
+   "kept": 20,
+   "rate": 0.667,
+   "total": 30
+  },
+  "Cmpl>Pred": {
+   "kept": 73,
+   "rate": 0.702,
+   "total": 104
+  },
+  "Cmpl>Subj": {
+   "kept": 21,
+   "rate": 0.7,
+   "total": 30
+  },
+  "Objc>Cmpl": {
+   "kept": 23,
+   "rate": 0.561,
+   "total": 41
+  },
+  "Objc>Pred": {
+   "kept": 40,
+   "rate": 0.656,
+   "total": 61
+  },
   "Pred>Cmpl": {
+   "kept": 109,
+   "rate": 0.673,
+   "total": 162
+  },
+  "Pred>Objc": {
+   "kept": 98,
+   "rate": 0.681,
+   "total": 144
+  },
+  "Pred>Pred": {
+   "kept": 129,
+   "rate": 0.632,
+   "total": 204
+  },
+  "Pred>Subj": {
+   "kept": 121,
+   "rate": 0.494,
+   "total": 245
+  },
+  "Subj>Cmpl": {
+   "kept": 47,
+   "rate": 0.701,
+   "total": 67
+  },
+  "Subj>Objc": {
    "kept": 25,
    "rate": 0.714,
    "total": 35
   },
-  "Pred>Objc": {
-   "kept": 20,
-   "rate": 0.541,
-   "total": 37
-  },
-  "Pred>Pred": {
-   "kept": 43,
-   "rate": 0.606,
-   "total": 71
-  },
-  "Pred>Subj": {
-   "kept": 30,
-   "rate": 0.526,
-   "total": 57
+  "Subj>PreC": {
+   "kept": 39,
+   "rate": 0.722,
+   "total": 54
   },
   "Subj>Pred": {
-   "kept": 21,
-   "rate": 0.656,
-   "total": 32
+   "kept": 118,
+   "rate": 0.72,
+   "total": 164
   }
  },
- "tag": "byx_png",
- "verses_measured": 79
+ "tag": "byx_png+byxpkf",
+ "tags": [
+  "byx_png",
+  "byxpkf"
+ ],
+ "verses_measured": 362
 }

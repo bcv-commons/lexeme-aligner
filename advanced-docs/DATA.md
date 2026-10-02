@@ -103,11 +103,12 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
   method-provenance, additive union) live in
   `publishing-principles.md`.
 - `publish/aligned_mwe/` (**CC0**) — one row per (lexeme → **contiguous multi-word expression**):
-  `lexeme, strong, phrase, n_words, count, share, contig`. Where `publish/lexeme-alignments` is per token, this mines
+  `lexeme, strong, phrase, n_words, source_corpus, base_text, count, share, contig` (every edition pooled, rows tagged by
+  `base_text`, `share` within an edition — no primary edition). Where `publish/lexeme-alignments` is per token, this mines
   the real phrase renderings (חֶסֶד → "kasih setia") using the jsonl `t_idx` positions: only spans whose
   target positions are **contiguous** (`max−min+1 == len`) qualify; scattered join-artifacts are dropped
   and counted in the manifest (`scattered_dropped`). Rides on eflomal's grow-diag-final-and symmetrised
-  alignment. Produced by `python3 -m lexeme_aligner.export_mwe --iso <iso> --method eflomal` — **needs
+  alignment. Produced by `python3 -m lexeme_aligner.export_mwe --iso <first-tag> --pool <other-tags> --method all` — **needs
   jsonl re-aligned after the `t_idx` change**. Same partitioned-Parquet + committed-manifest layout.
 - `publish/senses_attested/` (**CC-BY**, MACULA-keyed) — the attested-evidence layer shoresh ingests (bcv-query
   data-contract): `lexeme, stem, sense, surface, count, share, method, source_corpus, base_text` — one
@@ -159,3 +160,18 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
   `--build-index` — `config/canonical_index/whole_bible.json`, shared across languages) but is not
   the published form. Full format detail in `../docs/compact-alignments.md`.
 - per-word interlinear. → published to **bcv-commons**; the monorepo consumes them as external resources.
+
+
+## senses_attested_ubs — the UBS-keyed sense attestation (2026-09-30)
+
+`publish/senses_attested_ubs/` (`python3 -m lexeme_aligner.senses_attested --scheme ubs`, chain step 8b): the same evidence as
+`senses_attested`, keyed on **(lexeme, stem, ubs_sense)** where `ubs_sense` is a sense id of the UBS Dictionary of Biblical
+Hebrew (SDBH extract, CC BY-SA 4.0) bound to each token by `lexeme_aligner/ubs_senses.py` from the dictionary's own
+per-occurrence Scripture references. `senses.tsv` in the dataset root names every id (entry id, lemma, Strong's codes,
+short English gloss, domain codes). **License CC BY-SA 4.0 with credit to UBS — a separate dataset root on purpose; never
+mixed into the CC-BY `senses_attested`.** Input: `pipeline/ubs-senses.db` (gitignored, rebuilt from the UBS JSON in
+`pipeline/work/ubs-dictionary/` with `python3 -m lexeme_aligner.ubs_senses --build`; pins in `config/PROVENANCE.txt`).
+Function words are included (UBS senses prepositions and conjunctions). Why it replaces our own numbers as the trusted key:
+plan doc §8.11 (ours agrees with UBS no better than chance when it says "same sense").
+`recipes --recipe r2 --senses-scheme ubs` compares a language's attested UBS senses with the UBS inventory (which senses have
+no attested rendering yet).

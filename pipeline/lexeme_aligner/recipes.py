@@ -94,7 +94,29 @@ def r3_gap_map(iso: str, prior: dict, aligned_root: Path, spine_db: Path):
     return gaps
 
 
-def r2_sense_surface(iso: str, prior: dict, senses_root: Path):
+def ubs_inventory(spine_db: Path = SPINE_DB, ubs_db: Path | None = None) -> dict[str, dict]:
+    """The prior-shaped sense INVENTORY from the UBS Dictionary of Biblical Hebrew: {lexeme: {"senses": [{"stem", "sense"
+    (= UBS sense id), "share"}]}} where share is the fraction of that lexeme's bound tokens carrying the sense. Built from
+    `pipeline/ubs-senses.db` joined to the spine (for the binyan)."""
+    from lexeme_aligner.ubs_senses import UBS_SENSES_DB
+    con = sqlite3.connect(f"file:{ubs_db or UBS_SENSES_DB}?mode=ro", uri=True)
+    con.execute("ATTACH DATABASE ? AS spine", (str(spine_db),))
+    counts: dict[tuple, int] = {}
+    for lexeme, stem, lex_id, n in con.execute(
+            "SELECT t.lexeme, COALESCE(w.stem,''), t.lex_id, COUNT(*) FROM token_sense t JOIN spine.spine_words w "
+            "ON w.book=t.book AND w.chapter=t.chapter AND w.verse=t.verse AND w.idx=t.idx GROUP BY 1,2,3"):
+        counts[(lexeme, stem, lex_id)] = n
+    con.close()
+    tot: dict[str, int] = {}
+    for (lx, _st, _id), n in counts.items():
+        tot[lx] = tot.get(lx, 0) + n
+    inv: dict[str, dict] = {}
+    for (lx, st, lex_id), n in counts.items():
+        inv.setdefault(lx, {"senses": []})["senses"].append({"stem": st, "sense": lex_id, "share": n / tot[lx]})
+    return inv
+
+
+def r2_sense_surface(iso: str, prior: dict, senses_root: Path, sense_col: str = "sense"):
     """A language's attested senses vs the prior sense INVENTORY. For each lexeme the prior knows a
     sense inventory for, mark each prior (stem, sense) confirmed | missing (prior sense the language
     hasn't attested → a disambiguation target) and surface any attested-but-not-in-inventory `extra`."""
@@ -105,7 +127,7 @@ def r2_sense_surface(iso: str, prior: dict, senses_root: Path):
     # attested (lexeme, stem, sense) → (total count, top surface) across whatever base_texts are pooled
     att: dict[tuple, dict] = {}
     for r in pq.read_table(fp).to_pylist():
-        k = (r["lexeme"], r["stem"] or "", str(r["sense"]))
+        k = (r["lexeme"], r["stem"] or "", str(r[sense_col]))
         a = att.setdefault(k, {"count": 0, "top": None, "top_n": -1})
         a["count"] += r["count"]
         if r["count"] > a["top_n"]:
@@ -194,7 +216,10 @@ def main() -> int:
                     help="R1: extra salience floor beyond dropping null-keyness function words")
     ap.add_argument("--top-ot", type=int, default=3, help="LXX: dominant OT surfaces carried per Hebrew lexeme")
     ap.add_argument("--aligned-root", type=Path, default=LEX_ROOT)
-    ap.add_argument("--senses-root", type=Path, default=Path("publish/senses_attested"))
+    ap.add_argument("--senses-scheme", choices=["legacy", "ubs"], default="legacy",
+                    help="R2 only: 'ubs' compares the language's UBS-keyed attestation (publish/senses_attested_ubs) with "
+                         "the UBS Dictionary of Biblical Hebrew sense inventory instead of our legacy sense numbers")
+    ap.add_argument("--senses-root", type=Path, default=None)
     ap.add_argument("--prior-pack", type=Path, default=PRIOR_PACK)
     ap.add_argument("--spine-db", type=Path, default=SPINE_DB)
     ap.add_argument("--out", type=Path, default=OUT)
@@ -217,7 +242,11 @@ def main() -> int:
                   f"-> {r['surface']}", file=sys.stderr)
 
     if args.recipe in ("r2", "all"):
-        rows = r2_sense_surface(args.iso, prior, args.senses_root)
+        if args.senses_scheme == "ubs":
+            rows = r2_sense_surface(args.iso, ubs_inventory(args.spine_db),
+                                    args.senses_root or Path("publish/senses_attested_ubs"), "ubs_sense")
+        else:
+            rows = r2_sense_surface(args.iso, prior, args.senses_root or Path("publish/senses_attested"))
         dest = args.out / f"recipe_r2_sense_{args.iso}.parquet"
         _write_parquet(rows, dest, {"lexeme": pa.string(), "stem": pa.string(), "sense": pa.string(),
                                     "prior_share": pa.float32(), "status": pa.string(),

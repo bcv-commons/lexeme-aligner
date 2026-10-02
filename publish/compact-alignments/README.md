@@ -60,6 +60,15 @@ a BOOK is always entirely one testament (Hebrew OT or Greek NT, never mixed), so
 already tells you which language every entry in the file is. (Don't drop the prefix anywhere it might
 mix testaments, e.g. `lexeme-alignments` — one partition there spans a whole language, both OT and NT.)
 
+**Version stamp — `_index/_source.json`.** Records the source spine's own content pin (`spine_sha256`) and,
+per book, the verse count, the content-token count and the sha256 of that book's `_lexemes.json`. The index is
+checked against the spine with `python3 -m lexeme_aligner.source_index --check`, and no array is written
+against an index that disagrees with the spine. Why it exists: on 2026-09-23 the spine gained one content
+token in each of ten verses (DAN 5:27, DAN 5:28, ECC 6:11, EZK 7:13, EZK 16:53, EZK 30:16, ISA 24:16,
+JER 12:1, NAM 3:17, PRO 26:17), so `srcOrd` values after the inserted token in those verses differ between
+files built before and after that date unless they are renumbered; the files here have been (the inserted
+token is unaligned in them).
+
 **`srcOrd` cannot be resolved from file kind #2 alone** — you always need this file too. It exists
 specifically so a client never has to reconstruct `is_content` themselves. Live case that motivated it:
 Hebrew's direct-object marker (Strong's `H0853`) shares its bare lexeme id with a much rarer noun
@@ -164,6 +173,31 @@ lexemes["RUT 1:1"][0];    // -> "1961"  (the lexeme srcOrd 0 refers to)
 
 (`Object.keys()`/`for...in` iterate string keys in insertion order per the ECMAScript spec since ES2015
 — this is guaranteed, not just conventional, in modern JS. Same guarantee in Python 3.7+ dicts.)
+
+## Function-word convention (decided 2026-09-29)
+
+**The rule.** A target word that renders a source *function* token (an article such as ὁ or Hebrew ה, a
+preposition prefix, a conjunction) belongs to **that token's own alignment**. Only a target function word with
+**no** source token of its own (a case ending's "of", an assimilated article, a construct "of") is folded into
+the neighbouring content word's span. Rationale: every source token gets its own row, and a client that wants
+the "content word plus its function words" view can rebuild it, whereas a fold cannot be split back without
+extra data.
+
+**What is true today, so you can rely on it (the data does not yet follow the rule everywhere).**
+- This array indexes **content tokens only** (`_index/<BOOK>_lexemes.json`), so a function token's own row is
+  not represented here yet. Function-token alignments exist upstream but are not published.
+- Where the chain folded a function word into a content span, that fold is **always labelled** in the
+  `rule` sidecar (`'srcOrd:label:targetIdx'`), and is reversible with `published_span - {targetIdx ...}`.
+  That covers exactly the words the convention says to fold *unless* the word has an own source token, in
+  which case the convention would move it to that token's row.
+- Measured on the current output (whole Bible, spanext-widened words only): an article token sits directly
+  before the widened content token in about 10% of Hindi and 4% of English widenings; other function tokens
+  (prepositions, conjunctions) precede a much larger share and have not been classified yet.
+
+**What will change, and how it will be delivered.** Function-token alignments will be added as a separate,
+additive layer with its own source index, so nothing above changes shape for existing clients; the main array
+will then drop an appended function word only where that word has an own token and is published in the new
+layer. Until that layer ships, treat folded function words as "attached to the content word, labelled".
 
 ## Path components
 

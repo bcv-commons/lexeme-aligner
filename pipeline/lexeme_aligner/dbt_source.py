@@ -50,6 +50,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from lexeme_aligner import dns_cache as _dns_cache  # last-known-good DNS fallback; this machine's DNS goes flaky
+_dns_cache.install()
 
 BASE = os.environ.get("BIBLE_API_BASE_URL", "https://4.dbt.io/api")
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
@@ -79,10 +81,12 @@ def _api_key() -> str:
     return key
 
 
-def _get(path: str, params: dict, retries: int = 5) -> dict:
+def _get(path: str, params: dict, retries: int = 8) -> dict:
     """GET a DBP endpoint, key injected, with backoff on transient errors. Paced by
     BIBLE_API_DELAY_MS before every call (see module-level comment) — the single choke point all
-    DBT calls go through, so this covers bible_info/book_chapters/chapter_verses uniformly."""
+    DBT calls go through, so this covers bible_info/book_chapters/chapter_verses uniformly.
+    2026-10-01: 8 attempts with backoff capped at 30 s (was 5 attempts, 1-8 s): this machine's DNS goes flaky for
+    10-60 s at a time, and a language's whole chain aborted after the old ~15 s of patience (xtm, ydd)."""
     if _REQUEST_DELAY:
         time.sleep(_REQUEST_DELAY)
     q = dict(params)
@@ -103,7 +107,7 @@ def _get(path: str, params: dict, retries: int = 5) -> dict:
             err = e
         if attempt < retries - 1:
             print(f"[dbt_source] retry {attempt + 1}/{retries - 1} after {err} — {path}", file=sys.stderr)
-            time.sleep(2 ** attempt)
+            time.sleep(min(2 ** attempt, 30))
     raise err
 
 

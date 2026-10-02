@@ -1,0 +1,531 @@
+{
+ "_doc": "E6 cross-edition verification of span_extension's always-on mechanisms (xedition_verify.py, 2026-09-29): for every edition with a spanext layer, the share of spanext-added words that sibling editions' verse TEXT corroborates (adjacent, same side, to their own hi-conf rendering of the same source token). Thresholds in xedition_verify.py (FLIP_BELOW/KEEP_AT_LEAST), calibrated on nine gold-judged editions. Editions with no same-script, non-duplicate sibling cannot be verified and are absent. Verdict 'flip' is mirrored as base_mechanisms=false per edition in config/spanext_flags.json.",
+ "editions": {
+  "aomwbt": {
+   "excluded": {},
+   "iso": "aom",
+   "lift": 0.0,
+   "null": 0.005,
+   "pairs": 92,
+   "refs": [
+    "aompkf"
+   ],
+   "support": 0.0,
+   "verdict": "insufficient"
+  },
+  "arb_vdv": {
+   "excluded": {},
+   "iso": "arb",
+   "lift": 11.815,
+   "null": 0.0399,
+   "pairs": 5425,
+   "refs": [
+    "arbnav",
+    "arbwtc",
+    "arbn",
+    "arbasv"
+   ],
+   "support": 0.4717,
+   "verdict": "keep"
+  },
+  "arbasv": {
+   "excluded": {},
+   "iso": "arb",
+   "lift": 10.227,
+   "null": 0.0378,
+   "pairs": 1722,
+   "refs": [
+    "arb_vdv",
+    "arbnav",
+    "arbwtc",
+    "arbn"
+   ],
+   "support": 0.3862,
+   "verdict": "uncertain"
+  },
+  "arbnav": {
+   "excluded": {
+    "arbn": "duplicate"
+   },
+   "iso": "arb",
+   "lift": 9.929,
+   "null": 0.0333,
+   "pairs": 5930,
+   "refs": [
+    "arb_vdv",
+    "arbwtc",
+    "arbasv"
+   ],
+   "support": 0.3307,
+   "verdict": "uncertain"
+  },
+  "arbwtc": {
+   "excluded": {},
+   "iso": "arb",
+   "lift": 9.581,
+   "null": 0.027,
+   "pairs": 6845,
+   "refs": [
+    "arb_vdv",
+    "arbnav",
+    "arbn",
+    "arbasv"
+   ],
+   "support": 0.2587,
+   "verdict": "flip"
+  },
+  "ben_irv": {
+   "excluded": {},
+   "iso": "ben",
+   "lift": 9.101,
+   "null": 0.0296,
+   "pairs": 2730,
+   "refs": [
+    "ben_ocv",
+    "benwtc",
+    "bengst"
+   ],
+   "support": 0.2696,
+   "verdict": "flip"
+  },
+  "ces_bib": {
+   "excluded": {},
+   "iso": "ces",
+   "lift": 4.109,
+   "null": 0.0241,
+   "pairs": 1836,
+   "refs": [
+    "ces_bkr",
+    "ces_nkb"
+   ],
+   "support": 0.0991,
+   "verdict": "flip"
+  },
+  "ces_bkr": {
+   "excluded": {},
+   "iso": "ces",
+   "lift": 4.029,
+   "null": 0.071,
+   "pairs": 1759,
+   "refs": [
+    "ces_nkb",
+    "ces_bib"
+   ],
+   "support": 0.286,
+   "verdict": "flip"
+  },
+  "ces_nkb": {
+   "excluded": {},
+   "iso": "ces",
+   "lift": 6.777,
+   "null": 0.0427,
+   "pairs": 1681,
+   "refs": [
+    "ces_bkr",
+    "ces_bib"
+   ],
+   "support": 0.2891,
+   "verdict": "flip"
+  },
+  "cop_shc": {
+   "excluded": {},
+   "iso": "cop",
+   "lift": 12.128,
+   "null": 0.0314,
+   "pairs": 557,
+   "refs": [
+    "cop_cnt"
+   ],
+   "support": 0.3806,
+   "verdict": "uncertain"
+  },
+  "crkwcv": {
+   "excluded": {
+    "crkcbs": "script"
+   },
+   "iso": "crk",
+   "lift": NaN,
+   "null": NaN,
+   "pairs": 0,
+   "refs": [],
+   "support": NaN,
+   "verdict": "insufficient"
+  },
+  "eng_f35": {
+   "excluded": {},
+   "iso": "eng",
+   "lift": 6.006,
+   "null": 0.095,
+   "pairs": 15940,
+   "refs": [
+    "eng_ylt",
+    "eng_gnv",
+    "eng_t4t",
+    "eng_wyc2017",
+    "eng_dra"
+   ],
+   "support": 0.5708,
+   "verdict": "keep"
+  },
+  "eng_gnv": {
+   "excluded": {},
+   "iso": "eng",
+   "lift": 4.023,
+   "null": 0.1575,
+   "pairs": 150489,
+   "refs": [
+    "eng_ylt",
+    "eng_t4t",
+    "eng_wyc2017",
+    "eng_dra",
+    "eng_cpb"
+   ],
+   "support": 0.6336,
+   "verdict": "keep"
+  },
+  "engbsb": {
+   "excluded": {},
+   "iso": "eng",
+   "lift": 4.003,
+   "null": 0.1388,
+   "pairs": 188585,
+   "refs": [
+    "eng_ylt",
+    "eng_gnv",
+    "eng_t4t",
+    "eng_wyc2017",
+    "eng_dra"
+   ],
+   "support": 0.5557,
+   "verdict": "keep"
+  },
+  "engnlv": {
+   "excluded": {},
+   "iso": "eng",
+   "lift": 4.7,
+   "null": 0.0792,
+   "pairs": 16124,
+   "refs": [
+    "eng_ylt",
+    "eng_gnv",
+    "eng_t4t",
+    "eng_wyc2017",
+    "eng_dra"
+   ],
+   "support": 0.3721,
+   "verdict": "uncertain"
+  },
+  "fin_helfi": {
+   "excluded": {},
+   "iso": "fin",
+   "lift": 7.2,
+   "null": 0.0418,
+   "pairs": 2843,
+   "refs": [
+    "finelc",
+    "fin_bib"
+   ],
+   "support": 0.3011,
+   "verdict": "flip"
+  },
+  "fra-lsg": {
+   "excluded": {
+    "fra_lsg": "duplicate"
+   },
+   "iso": "fra",
+   "lift": 11.392,
+   "null": 0.0617,
+   "pairs": 132859,
+   "refs": [
+    "fra_jnd",
+    "fra_ncl",
+    "fra_ost"
+   ],
+   "support": 0.703,
+   "verdict": "keep"
+  },
+  "gagib1": {
+   "excluded": {
+    "gagibt": "script"
+   },
+   "iso": "gag",
+   "lift": NaN,
+   "null": NaN,
+   "pairs": 0,
+   "refs": [],
+   "support": NaN,
+   "verdict": "insufficient"
+  },
+  "higlt": {
+   "excluded": {
+    "higtbl": "script"
+   },
+   "iso": "hig",
+   "lift": NaN,
+   "null": NaN,
+   "pairs": 0,
+   "refs": [],
+   "support": NaN,
+   "verdict": "insufficient"
+  },
+  "hin_cvb": {
+   "excluded": {},
+   "iso": "hin",
+   "lift": 5.963,
+   "null": 0.0687,
+   "pairs": 29324,
+   "refs": [
+    "hinirv",
+    "hinwtc"
+   ],
+   "support": 0.4095,
+   "verdict": "keep"
+  },
+  "hinirv": {
+   "excluded": {},
+   "iso": "hin",
+   "lift": 5.965,
+   "null": 0.0813,
+   "pairs": 24623,
+   "refs": [
+    "hin_cvb",
+    "hinwtc"
+   ],
+   "support": 0.4851,
+   "verdict": "keep"
+  },
+  "hinwtc": {
+   "excluded": {},
+   "iso": "hin",
+   "lift": 6.355,
+   "null": 0.07,
+   "pairs": 5436,
+   "refs": [
+    "hin_cvb",
+    "hinirv"
+   ],
+   "support": 0.4446,
+   "verdict": "keep"
+  },
+  "kan_irv": {
+   "excluded": {},
+   "iso": "kan",
+   "lift": 12.02,
+   "null": 0.0214,
+   "pairs": 1301,
+   "refs": [
+    "kan_okcv",
+    "kanwtc",
+    "kan_swf"
+   ],
+   "support": 0.2575,
+   "verdict": "flip"
+  },
+  "kan_okcv": {
+   "excluded": {},
+   "iso": "kan",
+   "lift": 10.882,
+   "null": 0.0157,
+   "pairs": 2165,
+   "refs": [
+    "kan_irv",
+    "kanwtc",
+    "kan_swf"
+   ],
+   "support": 0.1709,
+   "verdict": "flip"
+  },
+  "marglt": {
+   "excluded": {},
+   "iso": "mar",
+   "lift": 9.448,
+   "null": 0.0227,
+   "pairs": 424,
+   "refs": [
+    "mar_irv",
+    "mar_cbi",
+    "marwtc"
+   ],
+   "support": 0.2146,
+   "verdict": "flip"
+  },
+  "spa_bes": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 7.067,
+   "null": 0.0721,
+   "pairs": 135663,
+   "refs": [
+    "spa_vbl",
+    "spa_onbv",
+    "spantv",
+    "spa_pdt",
+    "spaerv"
+   ],
+   "support": 0.5095,
+   "verdict": "keep"
+  },
+  "spa_blm": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 6.639,
+   "null": 0.0757,
+   "pairs": 231457,
+   "refs": [
+    "spa_vbl",
+    "spa_onbv",
+    "spantv",
+    "spa_pdt",
+    "spaerv"
+   ],
+   "support": 0.5028,
+   "verdict": "keep"
+  },
+  "spa_onbv": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 6.01,
+   "null": 0.0588,
+   "pairs": 169839,
+   "refs": [
+    "spa_vbl",
+    "spantv",
+    "spa_pdt",
+    "spaerv",
+    "spa_bes"
+   ],
+   "support": 0.3531,
+   "verdict": "uncertain"
+  },
+  "spa_pdt": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 6.364,
+   "null": 0.0764,
+   "pairs": 198283,
+   "refs": [
+    "spa_vbl",
+    "spa_onbv",
+    "spantv",
+    "spaerv",
+    "spa_bes"
+   ],
+   "support": 0.4863,
+   "verdict": "keep"
+  },
+  "spa_r09": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 6.177,
+   "null": 0.0803,
+   "pairs": 208786,
+   "refs": [
+    "spa_vbl",
+    "spa_onbv",
+    "spantv",
+    "spa_pdt",
+    "spaerv"
+   ],
+   "support": 0.4963,
+   "verdict": "keep"
+  },
+  "spa_vbl": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 7.316,
+   "null": 0.0726,
+   "pairs": 107015,
+   "refs": [
+    "spa_onbv",
+    "spantv",
+    "spa_pdt",
+    "spaerv",
+    "spa_bes"
+   ],
+   "support": 0.5313,
+   "verdict": "keep"
+  },
+  "spaerv": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 6.374,
+   "null": 0.0649,
+   "pairs": 197867,
+   "refs": [
+    "spa_vbl",
+    "spa_onbv",
+    "spantv",
+    "spa_pdt",
+    "spa_bes"
+   ],
+   "support": 0.4137,
+   "verdict": "keep"
+  },
+  "spantv": {
+   "excluded": {},
+   "iso": "spa",
+   "lift": 7.231,
+   "null": 0.0689,
+   "pairs": 112708,
+   "refs": [
+    "spa_vbl",
+    "spa_onbv",
+    "spa_pdt",
+    "spaerv",
+    "spa_bes"
+   ],
+   "support": 0.4984,
+   "verdict": "keep"
+  },
+  "tel_irv": {
+   "excluded": {},
+   "iso": "tel",
+   "lift": 8.081,
+   "null": 0.0235,
+   "pairs": 4065,
+   "refs": [
+    "telwtc",
+    "tel_otsa",
+    "telgmi",
+    "telglt"
+   ],
+   "support": 0.1899,
+   "verdict": "flip"
+  },
+  "tel_otsa": {
+   "excluded": {},
+   "iso": "tel",
+   "lift": 7.833,
+   "null": 0.0239,
+   "pairs": 3383,
+   "refs": [
+    "tel_irv",
+    "telwtc",
+    "telgmi",
+    "telglt"
+   ],
+   "support": 0.1871,
+   "verdict": "flip"
+  },
+  "telglt": {
+   "excluded": {},
+   "iso": "tel",
+   "lift": 6.773,
+   "null": 0.0361,
+   "pairs": 2063,
+   "refs": [
+    "tel_irv",
+    "telwtc",
+    "tel_otsa",
+    "telgmi"
+   ],
+   "support": 0.2448,
+   "verdict": "flip"
+  }
+ },
+ "thresholds": {
+  "flip_below": 0.32,
+  "keep_at_least": 0.4,
+  "min_pairs": 300
+ }
+}

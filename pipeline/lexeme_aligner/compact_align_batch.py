@@ -58,7 +58,8 @@ def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_s
     # positions silently resolve to the wrong words under a different tokenizer, which the per-file
     # content hash cannot detect (it covers verse TEXT, identical across tokenizer versions). It was
     # never in this list, so that instruction pointed at a file that had never been published.
-    _COMPANIONS = ("manifest.json", "README.md", "tokenize.js", "tokenizer_sensitive_languages.json")
+    _COMPANIONS = ("manifest.json", "README.md", "tokenize.js", "tokenizer_sensitive_languages.json",
+                   "pipeline_decisions.json")      # the ledger the manifest tells clients to look entries up in
     global_files = sorted(
         str(fp.relative_to(root)) for fp in root.glob("_index/*.json")
     ) + [f for f in _COMPANIONS if (root / f).exists()]
@@ -92,7 +93,9 @@ def main() -> int:
     ap.add_argument("--manifest", type=Path, default=LEX_ROOT / "manifest.json")
     ap.add_argument("--usj-root", type=Path, default=Path("pipeline/work/ingest-cache"))
     ap.add_argument("--publish", type=Path, default=Path("publish/compact-alignments"))
-    ap.add_argument("--methods", default="eflomal,gloss,gapfill")
+    ap.add_argument("--methods", default="spanext,eflomal,gloss,gapfill",
+                    help="same default as full_chain's _METHODS, so a batch repair writes the arrays a fresh "
+                         "chain run would (spanext first: it wins any position it touches)")
     ap.add_argument("--local-only", action="store_true",
                     help="skip the HF push even if --publish-hf is given (generate locally only)")
     ap.add_argument("--skip-generate", action="store_true",

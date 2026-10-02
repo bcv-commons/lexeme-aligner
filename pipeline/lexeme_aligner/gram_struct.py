@@ -193,8 +193,28 @@ def build_imputed(iso: str, directions: dict, external: dict, stats: collections
 
 
 # ── derived ───────────────────────────────────────────────────────────────────────────────────────
+def _write_atomic(path: Path, text: str) -> None:
+    """temp file + os.replace in the same directory (2026-10-01): alignment chains read these files WHILE a rebuild runs
+    (span_extension -> merged_direction), and a plain write_text exposes a half-written file for a moment."""
+    import os
+    import tempfile
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def build_derived(iso: str, constituent_dir: Path = _CONSTITUENT_DIR,
-                  derived_input_dir: Path = _DERIVED_INPUT_DIR) -> dict:
+                  derived_input_dir: Path = _DERIVED_INPUT_DIR,
+                  article_bound_file: Path | None = None) -> dict:
     """`config/constituent_order/<iso>.json` (the canonical, standalone-published artifact) PLUS,
     since roadmap item D0 (2026-09-25, `derive_typology.py`), the possessor/subject_verb/object_verb
     slots and `audit.*` facts derive_typology.py computed from the SAME eflomal(+gloss) alignments.
@@ -207,10 +227,15 @@ def build_derived(iso: str, constituent_dir: Path = _CONSTITUENT_DIR,
     if fp.exists():
         doc = _load_json(fp)
         rec = {"source": "derived", "content_sha256": _sha256(fp)}
-        for key in ("tag", "verses_measured", "pair_order_kept", "function_drift"):
+        for key in ("tag", "tags", "verses_measured", "pair_order_kept", "function_drift"):
             if key in doc:
                 rec[key] = doc[key]
         rec_out["constituent_order"] = rec
+
+    from lexeme_aligner.article_bound import load_article_bound
+    ab = load_article_bound(iso, article_bound_file)
+    if ab is not None:
+        rec_out["article_bound"] = ab
 
     di_fp = Path(derived_input_dir) / f"{iso}.json"
     if di_fp.exists():
@@ -393,14 +418,13 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
             parts["kin"] = {}
         for name in PARTITIONS:
             if parts[name]:                                   # never write an empty per-language file
-                (out_dir / name / f"{iso}.json").write_text(
-                    json.dumps(parts[name], indent=1, ensure_ascii=False, sort_keys=True) + "\n",
-                    encoding="utf-8")
+                _write_atomic(out_dir / name / f"{iso}.json",
+                              json.dumps(parts[name], indent=1, ensure_ascii=False, sort_keys=True) + "\n")
                 written[name] += 1
         merged = merge_partitions(iso, parts, stats)
         if len(merged) > 1:
-            (out_dir / f"{iso}.json").write_text(
-                json.dumps(merged, indent=1, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+            _write_atomic(out_dir / f"{iso}.json",
+                          json.dumps(merged, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
             written["merged"] += 1
 
     coverage = {
@@ -418,8 +442,8 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
         "measured_date": _MEASURED_DATE,
         "kin_leave_one_out": kin_confidence,
     }
-    (out_dir / "_coverage.json").write_text(json.dumps(coverage, indent=1) + "\n", encoding="utf-8")
-    (out_dir / "README.md").write_text(_README, encoding="utf-8")
+    _write_atomic(out_dir / "_coverage.json", json.dumps(coverage, indent=1) + "\n")
+    _write_atomic(out_dir / "README.md", _README)
     return coverage
 
 
@@ -442,7 +466,7 @@ split into four provenance partitions so that licensing is a directory boundary.
 |---|---|---|---|
 | `external/` | **CC-BY-4.0** | direction slots + existence facts | Grambank v1.0 (Skirgård et al. 2023, CC-BY-4.0; Glottolog for the Glottocode→ISO mapping, CC-BY-4.0) and WALS (Dryer & Haspelmath 2013, CLDF v2020.5, CC-BY-4.0). Every fact cites its source codes (`GB074`, `WALS:85A`). |
 | `imputed/` | **CC-BY-SA-4.0** | direction slots only | lang2vec / URIEL `syntax_knn` (Littell et al. 2017, CC-BY-SA-4.0) — kept physically apart because share-alike applies to derivatives of these values. |
-| `derived/` | **CC0-1.0** | our own alignment statistics (constituent-order profile) | computed from this project's alignments; no source text redistributed. |
+| `derived/` | **CC0-1.0** | our own alignment statistics (constituent-order profile; `article_bound`: is the definite article fused into the noun, see `article_bound.py`) | computed from this project's alignments; no source text redistributed. |
 | `measured/` | **CC0-1.0** | mechanism verdicts, dated, gold named | human-recorded after scoring against gold; never inferred. |
 | `kin/` | **CC-BY-4.0** | direction slots only, gap-filling | Glottolog genetic relatedness (bcv-query's `languages.db`) — the nearest external/imputed-resolved relative's value, lowest priority, structurally unable to override anything else; confidence is a leave-one-out band rate, not the individual fact. |
 | `<iso>.json` | mixed (see above) | the merge of the five | convenience view; identical content, one file. |

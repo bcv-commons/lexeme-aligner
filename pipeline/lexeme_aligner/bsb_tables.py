@@ -84,7 +84,35 @@ VENDOR_TSV = VENDOR_DIR / "bsb_tables.tsv"
 PIN_FILE = VENDOR_DIR / "bsb_tables.pin.json"
 OUT_DIR = Path("publish/full-align")                # the published full-align root (docs/architecture.md §4)
 STAGING_DIR = Path("pipeline/work/full-align-bsb")   # the first build's staging tree — still accepted via --out-dir
-USJ_DIR = Path("pipeline/work/ingest-cache/usj-engbsb")
+_SOURCES_FILE = Path("config/sources.json")
+_INGEST_ROOT = Path("pipeline/work/ingest-cache")
+
+
+def _resolve_bsb_usj_dir(sources_path: Path = _SOURCES_FILE, ingest_root: Path = _INGEST_ROOT,
+                         prefer: str = "engbsb") -> Path:
+    """Which ingest-cache directory actually holds BSB's text — resolved from config/sources.json's own
+    tag->edition mapping (`sources[tag]["edition"] == "BSB"`) rather than a hardcoded tag name. Fixed
+    2026-09-28: this used to be the literal constant `usj-engbsb`, which silently stopped matching once
+    a production regeneration started writing the SAME text under tag `bsb` instead (config/sources.json
+    already registers both `bsb` and `engbsb` against `edition: "BSB"` — verified byte-identical text,
+    the historical drift documented in this session's own notes, not a new source). `prefer` keeps
+    picking `engbsb` first for as long as it still exists on disk (no behavior change today — both
+    currently exist), falling back to any other tag sharing the same edition (sorted, so the choice is
+    deterministic) the moment `engbsb`'s own directory is ever cleaned up or stops being maintained.
+    Does NOT touch `EDITION`/`LANG`'s own published path (`publish/full-align/eng/engbsb/...` already
+    has real published data under that exact name — renaming it would orphan that path, not fix a
+    lookup) — only WHERE we read the source text from changes here, never where we publish to."""
+    sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}
+    candidates = sorted(tag for tag, v in sources.items() if (v.get("edition") or "").upper() == "BSB")
+    if prefer in candidates and (ingest_root / f"usj-{prefer}").exists():
+        return ingest_root / f"usj-{prefer}"
+    for tag in candidates:
+        if (ingest_root / f"usj-{tag}").exists():
+            return ingest_root / f"usj-{tag}"
+    return ingest_root / f"usj-{prefer}"   # last resort: the historical default, even if absent
+
+
+USJ_DIR = _resolve_bsb_usj_dir()
 EDITION = "engbsb"
 LANG = "eng"
 PARTITION = "BSB-tables"                             # manual/<partition>/ — beside Clear's manual/BSB/

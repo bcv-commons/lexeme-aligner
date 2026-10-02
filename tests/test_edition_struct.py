@@ -272,7 +272,8 @@ def test_build_writes_has_ebible_coverage_stat(tmp_path):
 
 def test_real_ebible_csv_and_pins_produce_the_verified_match_count():
     # not a synthetic test: confirms the real, committed config/ebible/translations.csv actually joins
-    # against our real pins at the count verified during this task (551 real matches).
+    # against our real pins: 551 real matches were verified when this was written. Onboarding adds pins
+    # (552 once tgl_ulb landed), so this is a LOWER BOUND, not an exact count that goes stale per language.
     import pathlib
     if not pathlib.Path("config/ebible/translations.csv").exists():
         return
@@ -283,4 +284,4 @@ def test_real_ebible_csv_and_pins_produce_the_verified_match_count():
         eid = es.ebible_id_from_license_url(d.get("license_url"))
         if eid and eid in ebible:
             n += 1
-    assert n == 551
+    assert n >= 551

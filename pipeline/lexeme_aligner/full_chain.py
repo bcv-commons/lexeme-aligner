@@ -20,9 +20,9 @@ edition-discovery logic, no risk of drift between the two.
   5. gapfill                             fills eflomal+gloss(+spanext) coverage gaps
   5b. residual align                     2nd eflomal pass on the remainder -> compact's opt-in layer
   6. export (final)                      re-aggregates eflomal+gloss+spanext+gapfill -> same partition
-  7. aligned_mwe                         multi-word expressions (primary edition tag only)
-  8. senses_attested                     OT/Hebrew sense attestation (degrades to a no-op off-OT)
-  9. compact-alignments                  per-book, content-addressed (primary edition tag only) —
+  7. aligned_mwe                         multi-word expressions (EVERY edition pooled, rows tagged by base_text)
+  8. senses_attested                     OT/Hebrew sense attestation (degrades to a no-op off-OT); 8b: the same keyed on UBS sense ids
+  9. compact-alignments                  per-book, content-addressed (one run per EDITION, all of them) —
                                           MAIN array includes spanext (compact_align.py's _resolve()
                                           fixed 2026-09-23 to let it win unconditionally, never
                                           relitigated by the eflomal/gloss contest rule)
@@ -109,6 +109,10 @@ def main() -> int:
     tags = [t for t in tags if usj_dirs[t].exists()]   # a pooled edition onboard.py skipped has no usj dir
     if not tags:
         raise SystemExit(f"[full_chain] '{args.iso}': no tag survived ingest — see onboard's own output above")
+    # There is NO privileged edition. `primary` is only the first tag in pool order (source priority pkf>helloao>dbt),
+    # needed because export_lex/senses_attested take one `--iso` argument plus a `--pool` list; every step below
+    # that produces a per-edition artifact (compact-alignments) runs once per tag, and every pooled dataset
+    # (lexeme-alignments, aligned_mwe, senses_attested) folds ALL tags in, tagging rows by base_text.
     primary, pool = tags[0], tags[1:]
 
     # the language name onboard.py itself settled on (source-derived, priority pkf>helloao>dbt) — read
@@ -162,8 +166,9 @@ def main() -> int:
         export_args += ["--lang-name", lang_name]
     _run("export_lex", *export_args, env=env)
 
-    # step 7: aligned_mwe (primary tag only — this dataset's schema has no per-edition column)
+    # step 7: aligned_mwe — every edition pooled, rows tagged by base_text (same shape as lexeme-alignments)
     _run("export_mwe", "--iso", primary, "--publish-iso", args.iso, "--method", _METHODS,
+         *(["--pool", ",".join(pool)] if pool else []),
          *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
 
     # step 8: senses_attested (OT-only; degrades to a no-op print if this language has no OT/no senses)
@@ -174,14 +179,21 @@ def main() -> int:
         senses_args += ["--lang-name", lang_name]
     _run("senses_attested", *senses_args, env=env, soft=True)
 
-    # step 9: compact-alignments (per-book, content-addressed; primary tag only; local write, no HF push)
+    # step 8b (2026-09-30): the same attestation keyed on the UBS Dictionary of Biblical Hebrew's sense ids — the trusted
+    # sense inventory (our own sense number is '1' for 97% of tokens, plan §8.11). Separate CC BY-SA dataset root
+    # (publish/senses_attested_ubs); a no-op with a clear message when pipeline/ubs-senses.db has not been built.
+    _run("senses_attested", *senses_args, "--scheme", "ubs", env=env, soft=True)
+
+    # step 9: compact-alignments (per-book, content-addressed; ONE RUN PER EDITION — compact_align's manifest merge
+    # keeps every edition under the language; local write, no HF push)
     # _METHODS (spanext included) for the MAIN array — safe now that compact_align.py's _resolve() lets
     # spanext win any position it touches unconditionally (fixed 2026-09-23; see that function's own
     # docstring). --layer-methods stays residual-only: tried adding spanext to the opt-in .extra.json
     # layer too and it's a dead end there — build_layer drops any entry the base array already covers,
     # which is every spanext entry by construction, so it can only ever land in the main array.
-    _run("compact_align", "--iso", primary, "--publish-iso", args.iso, "--usj-dir", usj_dirs[primary],
-         "--methods", _METHODS, env=env, soft=True)
+    for tag in tags:
+        _run("compact_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
+             "--methods", _METHODS, env=env, soft=True)
 
     print(f"\n[full_chain] ✓ '{args.iso}' — full 9-step chain complete "
           f"({len(tags)} edition(s): {', '.join(tags)})", file=sys.stderr)

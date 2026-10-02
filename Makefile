@@ -53,7 +53,7 @@ LOAD_ENV = if [ -f .env ]; then export $$(grep -v '^\#' .env | xargs); fi
 
 .PHONY: llm-align llm-score help new-language update-language new-edition update-edition update-batch update-all \
         new-batch new-catalog new-catalog-dbt status text-strip-report clean-out publish \
-        publish-span-profile publish-all _require-iso _require-spec
+        publish-span-profile publish-senses-ubs publish-all _require-iso _require-spec
 
 help:
 	@sed -n '2,46p' Makefile
@@ -150,6 +150,12 @@ publish: _require-iso
 publish-span-profile:
 	$(LOAD_ENV)
 	$(PY) -m lexeme_aligner.cross_lang_prior --publish bcv-commons/cross-lingual-span-profile --create
+
+# The UBS-sense-keyed attestation is a SEPARATE dataset with its own license (CC BY-SA 4.0, UBS Dictionary of Biblical
+# Hebrew), deliberately NOT part of publish-all: publishing it is its own decision.
+publish-senses-ubs:
+	$(LOAD_ENV)
+	$(PY) -m lexeme_aligner.senses_attested --scheme ubs --publish-all bcv-commons/senses-attested-ubs --create
 
 # cross-lingual-span-profile is now sourced from lexeme-alignments+aligned_mwe (both persisted local
 # datasets, not transient out/), so it's no longer timing-sensitive — safe to fold in as the last step.

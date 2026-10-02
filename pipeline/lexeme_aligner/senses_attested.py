@@ -26,6 +26,16 @@ is a clean `base_text` row-drop, never an anonymized re-emit):
 
     python3 -m lexeme_aligner.senses_attested --iso swe --pool swk --lang-name Swedish
     → iso=swe/data.parquet with base_texts [swe_fol (Folkbibeln), swe_svk (Kärnbibeln)]
+
+**UBS scheme (2026-09-30) — `--scheme ubs`.** Our own sense number is '1' for 97% of tokens and agrees with the manually
+built UBS Dictionary of Biblical Hebrew (SDBH extract, CC BY-SA 4.0) no better than chance when it says "same sense"
+(plan doc §8.11), so the trusted sense key is UBS's. `--scheme ubs` keys on **(lexeme, stem, ubs_sense)** where `ubs_sense`
+is the UBS sense id (`LEXID`, e.g. 000001001001000) bound to each token by `ubs_senses.py` (`pipeline/ubs-senses.db`).
+It is written to its OWN dataset root, `publish/senses_attested_ubs/`, with a **CC BY-SA 4.0** card and a `senses.tsv`
+naming the ids — never mixed into the CC-BY `senses_attested`, following the license-partition rule. Function words
+carry UBS senses too (prepositions, conjunctions), so unlike the legacy scheme they are included. A pair is joined to a
+UBS sense by (book, chapter, verse, h_idx) and kept only if the pair's lexeme equals the lexeme stored with the binding
+(this drops the few tokens of pooled verse ranges, whose h_idx is renumbered).
 """
 from __future__ import annotations
 
@@ -39,10 +49,15 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files, tag_files_any_method
+from lexeme_aligner.manifest_io import update_json
 from lexeme_aligner.config import HF_CHUNK_SIZE, OUT, SPINE_DB
 from lexeme_aligner.export_lex import publish_to_hf   # reuse the HF uploader (generic)
 
 SCHEMA = ["lexeme", "stem", "sense", "surface", "count", "share", "method", "source_corpus", "base_text"]
+SCHEMA_UBS = ["lexeme", "stem", "ubs_sense", "surface", "count", "share", "method", "source_corpus", "base_text"]
+UBS_LICENSE = "cc-by-sa-4.0"
+UBS_CREDIT = ("UBS Dictionary of Biblical Hebrew (c) United Bible Societies 2023, adapted from the Semantic Dictionary of "
+              "Biblical Hebrew (c) 2000-2023 United Bible Societies; CC BY-SA 4.0")
 Row = tuple[str, str, str, str, int, float, str, str, str]
 
 
@@ -83,7 +98,8 @@ def hebrew_corpus() -> str:
         return "WLC"
 
 
-def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all"):
+def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all", scheme: str = "legacy",
+              ubs: dict | None = None):
     """Fold OT content pairs (lexeme, stem, sense) into attested target renderings, per edition.
 
     `editions` is a list of (align_iso, base_text). Pooling several editions of ONE language into a
@@ -96,6 +112,11 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all
     same additive-union spirit as lexeme-alignments (nothing silently merged across methods)."""
     counts: collections.Counter = collections.Counter()  # (lexeme, stem, sense, surface, base_text, method) -> count
     n_files = 0
+    if scheme == "ubs" and ubs is None:
+        from lexeme_aligner.ubs_senses import load_token_senses
+        ubs = load_token_senses(with_lexeme=True)
+        if not ubs:
+            raise SystemExit("no UBS sense database (pipeline/ubs-senses.db) — run `python3 -m lexeme_aligner.ubs_senses --build`")
     for align_iso, base_text in editions:
         files = _resolve_files(out_dir, align_iso, method)
         if not files:
@@ -104,10 +125,18 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all
         for fp, file_method in files:
             with fp.open(encoding="utf-8") as fh:
                 for line in fh:
-                    for p in json.loads(line)["pairs"]:
-                        lexeme, se, tgt = p.get("lexeme"), p.get("sense"), p.get("target")
-                        if not (p.get("content") and lexeme and se and tgt):  # sense ⇒ OT/Hebrew only
-                            continue
+                    rec = json.loads(line)
+                    for p in rec["pairs"]:
+                        lexeme, tgt = p.get("lexeme"), p.get("target")
+                        if scheme == "ubs":
+                            hit = ubs.get((rec.get("book"), rec.get("chapter"), rec.get("verse"), p.get("h_idx")))
+                            if not (hit and lexeme and tgt and hit[1] == lexeme):
+                                continue                       # no UBS sense, or a renumbered (pooled-range) index
+                            se = hit[0]
+                        else:
+                            se = p.get("sense")
+                            if not (p.get("content") and lexeme and se and tgt):  # sense ⇒ OT/Hebrew only
+                                continue
                         counts[(lexeme, p.get("stem") or "", str(se), tgt.strip().lower(),
                                base_text, file_method)] += 1
 
@@ -176,13 +205,13 @@ def _render(rows: list[Row]) -> list[str]:
             for lx, st, se, su, c, sh, m, sc, bt in rows]
 
 
-def write_parquet(rows: list[Row], dest: Path) -> None:
+def write_parquet(rows: list[Row], dest: Path, sense_col: str = "sense") -> None:
     import pyarrow as pa
     import pyarrow.parquet as papq
     cols = list(zip(*rows)) if rows else ([],) * 9
     papq.write_table(pa.table({
         "lexeme": pa.array(cols[0], pa.string()), "stem": pa.array(cols[1], pa.string()),
-        "sense": pa.array(cols[2], pa.string()), "surface": pa.array(cols[3], pa.string()),
+        sense_col: pa.array(cols[2], pa.string()), "surface": pa.array(cols[3], pa.string()),
         "count": pa.array(cols[4], pa.int32()),
         "share": pa.array([round(x, 4) for x in cols[5]], pa.float32()),
         "method": pa.array(cols[6], pa.string()), "source_corpus": pa.array(cols[7], pa.string()),
@@ -190,8 +219,8 @@ def write_parquet(rows: list[Row], dest: Path) -> None:
     }), dest, compression="zstd")
 
 
-def write_tsv(rows: list[Row], dest: Path) -> None:
-    dest.write_text("\t".join(SCHEMA) + "\n" + "\n".join(_render(rows)) + "\n", encoding="utf-8")
+def write_tsv(rows: list[Row], dest: Path, sense_col: str = "sense") -> None:
+    dest.write_text("\t".join(SCHEMA_UBS if sense_col == "ubs_sense" else SCHEMA) + "\n" + "\n".join(_render(rows)) + "\n", encoding="utf-8")
 
 
 def build_entry(rows: list[Row], min_count: int, books: int, lang_name: str | None,
@@ -210,15 +239,88 @@ def build_entry(rows: list[Row], min_count: int, books: int, lang_name: str | No
     return {k: v for k, v in entry.items() if v is not None}
 
 
-def update_manifest(path: Path, iso: str, entry: dict) -> None:
-    doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    doc["schema"] = SCHEMA
-    doc.setdefault("languages", {})[iso] = entry
-    path.write_text(json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+def update_manifest(path: Path, iso: str, entry: dict, scheme: str = "legacy") -> None:
+    def _merge(doc: dict) -> None:
+        doc["schema"] = SCHEMA_UBS if scheme == "ubs" else SCHEMA
+        if scheme == "ubs":
+            doc["license"] = UBS_LICENSE
+            doc["credit"] = UBS_CREDIT
+        doc.setdefault("languages", {})[iso] = entry
+
+    update_json(path, _merge)                 # locked: several chains can finish a language at the same moment
+
+
+def write_ubs_sense_table(rows: list[Row], dest: Path, ubs_db: Path | None = None) -> int:
+    """`senses.tsv`: one line per UBS sense id that occurs in `rows` — id, UBS entry id, lemma, Strong's codes, short English
+    gloss, lexical domain codes. Enough to read the ids; the full dictionary (all languages) is at UBS. Merged with any
+    existing table so a multi-language root keeps every id it uses. Returns the number of ids written."""
+    from lexeme_aligner.ubs_senses import UBS_SENSES_DB
+    ids = {r[2] for r in rows}
+    have: dict[str, str] = {}
+    if dest.exists():
+        for line in dest.read_text(encoding="utf-8").splitlines()[1:]:
+            have[line.split("\t", 1)[0]] = line
+    con = sqlite3.connect(f"file:{ubs_db or UBS_SENSES_DB}?mode=ro", uri=True)
+    try:
+        for lex_id, main_id, lemma, strongs, gloss, dom in con.execute(
+                "SELECT lex_id,main_id,lemma,strongs,gloss_en,domains FROM sense"):
+            if lex_id in ids:
+                clean = lambda x: re.sub(r"[\t\r\n]+", " ", x or "").strip()      # one physical line per sense
+                have[lex_id] = "\t".join([lex_id, main_id, clean(lemma), ",".join(f"H{x:04d}" for x in json.loads(strongs)),
+                                          clean(gloss), ",".join(json.loads(dom))])
+    finally:
+        con.close()
+    dest.write_text("ubs_sense\tubs_entry\tlemma\tstrongs\tgloss_en\tdomains\n"
+                    + "\n".join(have[k] for k in sorted(have)) + "\n", encoding="utf-8")
+    return len(have)
+
+
+_UBS_CARD = """---
+pretty_name: Attested target renderings per UBS Hebrew sense
+tags:
+  - bible
+  - word-sense
+  - lexeme
+  - hebrew
+license: cc-by-sa-4.0
+configs:
+  - config_name: default
+    data_files:
+      - split: train
+        path: iso=*/data.parquet
+---
+
+# senses_attested_ubs — attested target renderings per UBS sense
+
+For each Hebrew lexeme and each sense of the **UBS Dictionary of Biblical Hebrew**, which target-language words render
+it in practice, with counts, mined from the word alignments of `bcv-commons/lexeme-alignments`. Columns: `lexeme`
+(MACULA anchor), `stem` (binyan, empty for non-verbs), `ubs_sense` (UBS sense id, see `senses.tsv`), `surface`, `count`,
+`share` (within lexeme, stem, sense, method and edition), `method`, `source_corpus`, `base_text` (the target edition).
+
+**Why UBS senses.** The senses are the manually built, academically maintained sense inventory of the United Bible
+Societies; each sense id is bound to individual tokens through the dictionary's own per-occurrence Scripture references.
+Function words (prepositions, conjunctions) carry senses too and are included. `senses.tsv` names every id used here
+(entry id, lemma, Strong's codes, short English gloss, lexical domain codes).
+
+**License and credit — CC BY-SA 4.0 (share-alike).** This dataset is derived from the UBS Dictionary of Biblical Hebrew,
+(c) United Bible Societies 2023, adapted from the Semantic Dictionary of Biblical Hebrew (c) 2000-2023 United Bible
+Societies, released under CC BY-SA 4.0 (https://github.com/ubsicap/ubs-open-license). Anything you build from these
+files must be released under the same or a compatible license with this credit. It is deliberately a SEPARATE dataset
+from `bcv-commons/senses-attested` (CC BY, our own sense numbers) so the two licenses never mix.
+
+**Known limits.** Hebrew Bible only (the UBS Greek dictionary is not used yet); the UBS Hebrew dictionary covers about
+90% of Old Testament words; ids are bound to tokens by verse-level matching (unique / anchored / nearest, see
+`lexeme_aligner/ubs_senses.py`), validated against the spine's own glosses (61% word overlap for unique bindings against
+13% for shuffled senses). Tokens in pooled verse ranges are dropped rather than guessed.
+"""
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--scheme", choices=["legacy", "ubs"], default="legacy",
+                    help="sense key: 'legacy' = our spine's sense number (CC-BY dataset, publish/senses_attested); "
+                         "'ubs' = UBS Dictionary of Biblical Hebrew sense ids (CC BY-SA dataset, "
+                         "publish/senses_attested_ubs)")
     ap.add_argument("--publish-all", metavar="REPO_ID", default=None,
                     help="bulk-publish EVERY already-exported iso=*/data.parquet in one chunked batch, "
                          "instead of exporting one language")
@@ -240,7 +342,8 @@ def main() -> int:
     ap.add_argument("--base-text", default=None, help="override the PRIMARY iso's edition tag (default: source.edition)")
     ap.add_argument("--format", choices=["parquet", "tsv"], default="parquet")
     ap.add_argument("--out", type=Path, default=OUT)
-    ap.add_argument("--root", type=Path, default=Path("publish/senses_attested"))
+    ap.add_argument("--root", type=Path, default=None,
+                    help="dataset root (default: publish/senses_attested, or publish/senses_attested_ubs for --scheme ubs)")
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--exclude", type=Path, default=Path("config/senses_exclude.json"),
                     help="optional takedown/exclusion config (committed, auditable); absent → no-op. "
@@ -249,6 +352,7 @@ def main() -> int:
     ap.add_argument("--create", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    args.root = args.root or Path("publish/senses_attested_ubs" if args.scheme == "ubs" else "publish/senses_attested")
 
     if args.publish_all:
         publish_all_to_hf(args.root, args.publish_all, args.create, args.dry_run, args.chunk_size)
@@ -265,7 +369,7 @@ def main() -> int:
         editions.append((al_iso, bt))
         if src:
             sources[bt] = src
-    counts, n_files = aggregate(args.out, editions, args.method)
+    counts, n_files = aggregate(args.out, editions, args.method, scheme=args.scheme)
     rules = load_excludes(args.exclude)
     counts, n_excl = apply_excludes(counts, rules)
     if rules:
@@ -281,12 +385,17 @@ def main() -> int:
     part.mkdir(parents=True, exist_ok=True)
     rel_file = f"iso={publish_iso}/data.{'parquet' if args.format == 'parquet' else 'tsv'}"
     dest = args.root / rel_file
-    (write_parquet if args.format == "parquet" else write_tsv)(rows, dest)
+    sense_col = "ubs_sense" if args.scheme == "ubs" else "sense"
+    (write_parquet if args.format == "parquet" else write_tsv)(rows, dest, sense_col)
+    if args.scheme == "ubs":
+        (args.root / "README.md").write_text(_UBS_CARD, encoding="utf-8")
+        n_ids = write_ubs_sense_table(rows, args.root / "senses.tsv")
+        print(f"[senses_attested] senses.tsv now names {n_ids} UBS sense id(s)", file=sys.stderr)
 
     entry = build_entry(rows, args.min_count, n_files, args.lang_name, rel_file, sources)
     if rules:                                                # record the takedown application (auditable)
         entry["excluded"] = {"rules": len(rules), "rows_dropped": n_excl}
-    update_manifest(args.root / "manifest.json", publish_iso, entry)
+    update_manifest(args.root / "manifest.json", publish_iso, entry, args.scheme)
     print(f"[senses_attested] {n_files} file(s) · {entry['rows']} rows · {entry['lexemes']} lexemes · "
           f"{entry['lexeme_stem_senses']} (lexeme,stem,sense) · base_texts={entry['base_texts']}  → {dest}",
           file=sys.stderr)

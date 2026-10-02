@@ -2,6 +2,7 @@
 behavior against synthetic data (no real spine/Grambank/corpus needed).
 """
 import json
+from pathlib import Path
 
 import lexeme_aligner.span_extension as se
 
@@ -430,7 +431,9 @@ def test_extend_spans_definite_trigger_extends_a_proper_name_when_enabled(tmp_pa
                                      definite_trigger=True)
     assert stats["extended_definite"] == 1
     assert by_book["MAT"][0]["pairs"][0]["t_idx"] == [2, 3]
-    assert by_book["MAT"][0]["pairs"][0]["prior"] == "spanext_definite_before"
+    # 2026-09-28: the added clean-text position (2) is embedded after ':' -- this is what lets a
+    # client revert the fold (published_span minus this position = the pre-extension span).
+    assert by_book["MAT"][0]["pairs"][0]["prior"] == "spanext_definite_before:2"
 
 
 def test_extend_spans_two_sided_extension_definite_before_and_case_marking_after(tmp_path, monkeypatch):
@@ -463,7 +466,8 @@ def test_extend_spans_two_sided_extension_definite_before_and_case_marking_after
     assert stats["extended_struct"] == 1 and stats["extended_definite"] == 1
     pairs = by_book["MAT"][0]["pairs"][0]
     assert pairs["t_idx"] == [0, 1, 2]                                    # "the" + COVENANT + "of"
-    assert "spanext_definite_before" in pairs["prior"] and "spanext_struct_after" in pairs["prior"]
+    # added positions: 0 (before) and 2 (after) -- see the single-sided test above for why these are embedded.
+    assert "spanext_definite_before:0" in pairs["prior"] and "spanext_struct_after:2" in pairs["prior"]
 
 
 def test_extend_spans_definite_trigger_never_reclaims_a_side_already_used(tmp_path, monkeypatch):
@@ -1011,3 +1015,85 @@ def test_name_guard_blocks_a_candidate_that_is_another_names_transliteration(tmp
     assert stats.get("extended_name") == 1
     _, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path, name_guard=True)
     assert stats.get("name_blocked_name") == 1 and not stats.get("extended_name")
+
+
+# --- P6 (2026-09-27): Greek agreement-based NP chunking, the NT fallback for phrase_id -------------
+
+class _AgreeTok:
+    def __init__(self, idx, case_=None, number=None, gender=None):
+        self.idx, self.case_, self.number, self.gender = idx, case_, number, gender
+
+
+def test_greek_np_chunks_groups_adjacent_matching_agreement():
+    toks = [_AgreeTok(0, "nominative", "singular", "masculine"),
+           _AgreeTok(1, "nominative", "singular", "masculine"),
+           _AgreeTok(2, "nominative", "singular", "masculine"),
+           _AgreeTok(3)]
+    chunks = se.greek_np_chunks(toks)
+    assert chunks == {0: "npchunk1", 1: "npchunk1", 2: "npchunk1"}
+    assert 3 not in chunks
+
+
+def test_greek_np_chunks_breaks_on_a_different_agreement_triple():
+    toks = [_AgreeTok(0, "nominative", "singular", "masculine"),
+           _AgreeTok(1, "genitive", "singular", "feminine"),
+           _AgreeTok(2, "genitive", "singular", "feminine")]
+    chunks = se.greek_np_chunks(toks)
+    assert 0 not in chunks                 # singleton triple, dropped
+    assert chunks == {1: "npchunk2", 2: "npchunk2"}
+
+
+def test_greek_np_chunks_no_bridging_over_an_ungoverned_token():
+    toks = [_AgreeTok(0, "nominative", "singular", "masculine"),
+           _AgreeTok(1),
+           _AgreeTok(2, "nominative", "singular", "masculine")]
+    chunks = se.greek_np_chunks(toks)
+    assert chunks == {}                    # each side is a singleton once the gap breaks the run
+
+
+# --- E6 flip: base_mechanisms gate (2026-09-29) -------------------------------------------------------------
+
+def _flags_file(tmp_path, doc):
+    fp = tmp_path / "flags.json"
+    fp.write_text(json.dumps(doc), encoding="utf-8")
+    return fp
+
+
+def test_load_spanext_flags_tag_entry_overrides_language_entry(tmp_path):
+    fp = _flags_file(tmp_path, {"zz": {"relation_trigger": True, "base_mechanisms": True},
+                                "zz_wtc": {"base_mechanisms": False, "_note": "x"}})
+    assert se.load_spanext_flags("zz", fp) == {"relation_trigger": True, "base_mechanisms": True}
+    assert se.load_spanext_flags("zz", fp, tag="zz_vdv") == {"relation_trigger": True, "base_mechanisms": True}
+    assert se.load_spanext_flags("zz", fp, tag="zz_wtc") == {"relation_trigger": True, "base_mechanisms": False}
+    assert se.base_mechanisms_enabled({}) is True
+    assert se.base_mechanisms_enabled({"base_mechanisms": False}) is False
+
+
+def test_extend_spans_skips_entirely_when_base_mechanisms_gated_off(tmp_path, monkeypatch):
+    called = []
+    monkeypatch.setattr(se, "load_spanext_flags", lambda iso, path=None, tag=None: {"base_mechanisms": False})
+    monkeypatch.setattr(se, "load_priors", lambda _pp: called.append("priors") or ({}, {}))
+    by_book, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path)
+    assert by_book == {} and stats["gated_off"] is True and called == []   # nothing else even loaded
+
+
+def test_explicit_base_mechanisms_true_overrides_the_config_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(se, "load_spanext_flags", lambda iso, path=None, tag=None: {"base_mechanisms": False})
+    monkeypatch.setattr(se, "load_priors", lambda _pp: ({}, {}))
+    monkeypatch.setattr(se, "load_grambank_raw", lambda _iso, path=None: None)   # -> skipped for another reason
+    _, stats = se.extend_spans("fakeiso", "fake", tmp_path, ["MAT"], out_dir=tmp_path, base_mechanisms=True)
+    assert "gated_off" not in stats
+
+
+def test_shipped_config_never_gates_off_an_edition_that_has_opt_in_triggers():
+    """extend_spans skips the WHOLE layer when base_mechanisms is false, which would silently drop an opt-in
+    trigger recorded true for the same language/edition."""
+    doc = json.loads(Path("config/spanext_flags.json").read_text(encoding="utf-8"))
+    opt_in = ("definite_trigger", "relation_trigger", "typology_fallback", "typology_fallback_articles",
+              "typed_gate", "phrase_window_gate", "name_guard")
+    lang_of = lambda k: k.split("_")[0][:3]
+    for key, entry in doc.items():
+        if key.startswith("_") or not isinstance(entry, dict) or entry.get("base_mechanisms") is not False:
+            continue
+        eff = dict(doc.get(lang_of(key), {})); eff.update(entry)
+        assert not any(eff.get(f) is True for f in opt_in), key

@@ -155,6 +155,19 @@ def build_corpus(books: list[str], usj_dir: Path, heb: HebrewSource, remap=None)
     return recs
 
 
+def resolve_eflomal_stem(explicit: bool | None, publish_iso: str, usj_dir) -> tuple[bool, float | None]:
+    """R10 (2026-09-28): `--eflomal-stem`'s `None`-means-consult resolution, pulled out of `main()` so
+    it's independently testable. `explicit` is `args.eflomal_stem` — an explicit True/False always wins
+    (a one-off A/B override), `None` defers to `target_morph.should_stem` (the real, measured tokens/
+    type gate — see that module's own docstring for the calibration). Returns `(use_stem, ratio)`;
+    `ratio` is `None` whenever `explicit` was given directly (no lookup performed) or the language's
+    ratio couldn't be determined at all."""
+    if explicit is not None:
+        return explicit, None
+    from lexeme_aligner.target_morph import should_stem
+    return should_stem(publish_iso, usj_dir=usj_dir)
+
+
 def _hi(m) -> bool:
     return (m.method in _HI_METHODS
             or (m.method == "stat" and m.score >= 0.3)
@@ -311,10 +324,15 @@ def main() -> int:
                     help="#4 semantically-light source lexemes (copulas, quantifiers, 'have'/'one'). "
                          "Their pairs are tagged `light` so gap-fill can RELEASE the target slot they "
                          "hold without trying to re-align them")
-    ap.add_argument("--eflomal-stem", action="store_true",
-                    help="#2 for eflomal: feed STEMMED target tokens (learned morphology) so inflected "
-                         "variants pool into one co-occurrence type; output surfaces stay the raw tokens "
-                         "(eflomal aligns by position). A/B this vs the surface default before adopting.")
+    ap.add_argument("--eflomal-stem", action=argparse.BooleanOptionalAction, default=None,
+                    help="R10, #2 for eflomal: feed STEMMED target tokens (learned morphology) so "
+                         "inflected variants pool into one co-occurrence type; output surfaces stay the "
+                         "raw tokens (eflomal aligns by position). Default: consult "
+                         "`target_morph.should_stem()` — auto-enabled when the language's own "
+                         "tokens/type ratio is at or below `target_morph.STEM_RATIO_THRESHOLD` (real, "
+                         "measured calibration in that module's docstring), off otherwise (fail closed, "
+                         "never a guess). --eflomal-stem/--no-eflomal-stem forces it either way for a "
+                         "one-off A/B.")
     ap.add_argument("--eflomal-content-only", action="store_true",
                     help="protection #1 (blunt): drop non-content source tokens from eflomal's source "
                          "line entirely. Also removes their co-occurrence evidence and leaves target "
@@ -538,12 +556,16 @@ def main() -> int:
                       f"{' (INVERTED placebo)' if args.fertility_invert else ''}"
                       f"{' (R1 lexeme-targets gated)' if lexeme_targets else ''}, "
                       f"lambda={fert_lambda}", file=sys.stderr)
-        eflo = EflomalAligner(anchor=args.anchor, stem=args.eflomal_stem,
+        use_stem, stem_ratio = resolve_eflomal_stem(args.eflomal_stem, publish_iso, args.usj_dir)
+        if use_stem and args.eflomal_stem is None:
+            print(f"[pilot] R10: target-side stemming AUTO-ENABLED (tokens/type={stem_ratio:.2f} "
+                  f"<= target_morph.STEM_RATIO_THRESHOLD)", file=sys.stderr)
+        eflo = EflomalAligner(anchor=args.anchor, stem=use_stem,
                               content_only=args.eflomal_content_only,
                               content_priority=args.eflomal_content_priority,
                               contiguous_only=not args.eflomal_allow_scattered,
                               displace_weak=args.eflomal_displace_weak)
-        if args.eflomal_stem:
+        if use_stem:
             print(f"[pilot] #2 eflomal: aligning on STEMMED target tokens", file=sys.stderr)
         if args.eflomal_load_links:
             print(f"[pilot] Step 3 harness: replaying saved links from {args.eflomal_load_links} "

@@ -55,6 +55,9 @@ pipeline/scripts/adhoc/
 publish/lexeme-alignments/iso=*/
 publish/senses_attested/iso=*/
 publish/aligned_mwe/iso=*/
+publish/senses_attested_ubs/iso=*/
+# manifest write locks (lexeme_aligner/manifest_io.py) — runtime files, never content
+publish/*/*.lock
 # compact-alignments: the `[a-z]` bucket dirs are the per-edition data (<iso[0]>/<iso>/<edition>/);
 # `_index/` (shared verse-ref indices, small, worth committing) starts with `_` so it's unaffected.
 publish/compact-alignments/[a-z]/
@@ -91,3 +94,10 @@ config/edition_struct/
 
 # full-align (docs/architecture.md §4): bulk per-language trees git-ignored, manifest.json + README.md tracked
 publish/full-align/???/
+
+# the publishers copy config/pipeline_decisions.json (the tracked source of truth) into every dataset root; the copies are
+# regenerated on each publish, never edited
+publish/*/pipeline_decisions.json
+# regenerable evidence behind `make text-strip-report` (3 MB, rebuilt from the editions; the tracked decisions live in
+# config/text_strip_rules.json)
+config/text_strip_evidence.json

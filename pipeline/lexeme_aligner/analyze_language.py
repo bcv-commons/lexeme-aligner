@@ -111,27 +111,33 @@ def load_grambank(publish_iso: str, path: Path | None = None) -> dict[str, str] 
     return doc.get("languages", {}).get(publish_iso)
 
 
-def multiword_rates(iso: str, out_dir: Path, lex_pos: dict[str, str], method: str = "eflomal"
+def multiword_rates(iso: str | list[str], out_dir: Path, lex_pos: dict[str, str], method: str = "eflomal"
                     ) -> dict[str, tuple[int, int]]:
     """pos -> (multi_word_pairs, total_pairs), from the base chain's own content pairs — the same
     "how often does this method ever produce more than one target word for this category" question
     asked by hand on Hindi's names this session, generalised to any POS Grambank flags as worth
-    checking."""
+    checking. `iso`: one tag, or a LIST of tags — a pooled multi-edition language's own audit sums
+    counts across EVERY pooled edition's own alignment output rather than reading one arbitrarily
+    (2026-09-28: replaces picking a single "representative" edition, which was both unstable — which
+    edition's scratch files happen to still be on disk isn't a meaningful choice — and, unlike this
+    sum, not a real aggregate of the language's own actual behavior)."""
+    isos = [iso] if isinstance(iso, str) else iso
     counts: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0])   # pos -> [multiword, total]
-    for fp in tag_files(out_dir, method, iso):
-        with fp.open(encoding="utf-8") as fh:
-            for line in fh:
-                rec = json.loads(line)
-                for p in rec.get("pairs", []):
-                    if not (p.get("content") and p.get("t_idx")):
-                        continue
-                    pos = lex_pos.get(p.get("lexeme"))
-                    if not pos:
-                        continue
-                    c = counts[pos]
-                    c[1] += 1
-                    if len(p["t_idx"]) > 1:
-                        c[0] += 1
+    for one_iso in isos:
+        for fp in tag_files(out_dir, method, one_iso):
+            with fp.open(encoding="utf-8") as fh:
+                for line in fh:
+                    rec = json.loads(line)
+                    for p in rec.get("pairs", []):
+                        if not (p.get("content") and p.get("t_idx")):
+                            continue
+                        pos = lex_pos.get(p.get("lexeme"))
+                        if not pos:
+                            continue
+                        c = counts[pos]
+                        c[1] += 1
+                        if len(p["t_idx"]) > 1:
+                            c[0] += 1
     return {pos: tuple(v) for pos, v in counts.items()}
 
 
@@ -145,9 +151,11 @@ _TYPOLOGY_EXISTENCE_SLOT = {"case_marking": "adposition", "articles": "article",
                            "possession_affix": "possessor"}
 
 
-def analyze(iso: str, publish_iso: str, out_dir: Path = OUT, prior_pack: Path = PRIOR_PACK,
+def analyze(iso: str | list[str], publish_iso: str, out_dir: Path = OUT, prior_pack: Path = PRIOR_PACK,
            method: str = "eflomal", use_typology: bool = False) -> dict:
     """The phase-1 report: Grambank coverage, per-POS multi-word rates, and any risk/anomaly matches.
+    `iso`: one tag, or (2026-09-28) a LIST of tags to pool a language's every pooled edition into one
+    aggregate audit — see `multiword_rates`'s own docstring for why this replaced picking one edition.
     `use_typology`: Step 2's typology-table existence fallback (see `_TYPOLOGY_EXISTENCE_SLOT`) — OFF
     by default. MEASURED 2026-09-24 (real Clear gold, whole Bible, conflict-aware breakdown — see
     typology.py's own docstring): net POSITIVE for spa (4,440 improvements vs 3,705 real conflicts)

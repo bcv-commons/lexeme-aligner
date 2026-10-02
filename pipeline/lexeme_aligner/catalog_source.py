@@ -48,6 +48,8 @@ import json
 import sys
 import urllib.request
 from pathlib import Path
+from lexeme_aligner import dns_cache as _dns_cache  # last-known-good DNS fallback; this machine's DNS goes flaky
+_dns_cache.install()
 
 BASE = "https://cdn.bibel.wiki/dbt/_app"
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"

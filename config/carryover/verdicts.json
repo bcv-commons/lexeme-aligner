@@ -1,0 +1,49 @@
+{
+ "_doc": "Measured per-language, per-mechanism verdicts against REAL gold, the input data for carryover_eval.py's same-gold-type leave-one-out harness (plan internal-docs/aim1-three-track-evaluation-plan.md §2.6 E1). `verdict` = the measured effect counted as a real win (stemming: F1 delta >= threshold_delta; spanext: as recorded, see per-item note). `delta` = the raw measured F1 delta where one exists (null where the verdict came from a conflict-aware ledger rather than a single F1 number). `tokens_per_type` = target_morph.sample_tokens_per_type over the named ingest-cache edition, 100k-token cap (recomputed 2026-09-29 by carryover_eval's author, all 16 values match the plan's §2.3-2.4 tables). `gold_type` matters: a mixed-gold-type leave-one-out was uninterpretable in an earlier phase of this project (Swedish, lexicon-vs-positional gold), so carryover_eval reports per-gold-type numbers and labels any mixed one MIXED. `artefact: true` = the verdict is known to be a gold-convention artefact, not a real effect; reported with and without.",
+ "mechanisms": {
+  "stemming": {
+   "threshold_delta": 0.008,
+   "measured": "2026-09-27/28",
+   "source": "plan §9.2 / §2.3: whole-Bible (or gold-covered) surface vs --eflomal-stem eflomal, F1 vs the language's own gold; eflomal is unseeded, run-to-run noise ~1.3% exact_span",
+   "items": [
+    {"iso": "kan", "edition": "knglt",     "gold_type": "door43", "delta": 0.037,  "verdict": true,  "tokens_per_type": 4.23},
+    {"iso": "tel", "edition": "telglt",    "gold_type": "door43", "delta": 0.029,  "verdict": true,  "tokens_per_type": 5.09},
+    {"iso": "arb", "edition": "arb_vdv",   "gold_type": "clear",  "delta": 0.008,  "verdict": true,  "tokens_per_type": 5.82, "note": "smallest clearly-positive; inside the noise band in relative-% terms"},
+    {"iso": "fin", "edition": "fin_helfi", "gold_type": "helfi",  "delta": 0.014,  "verdict": true,  "tokens_per_type": 6.78},
+    {"iso": "mar", "edition": "marglt",    "gold_type": "door43", "delta": 0.034,  "verdict": true,  "tokens_per_type": 7.25},
+    {"iso": "npi", "edition": "neglt",     "gold_type": "door43", "delta": 0.024,  "verdict": true,  "tokens_per_type": 7.74},
+    {"iso": "guj", "edition": "gujglt",    "gold_type": "door43", "delta": 0.031,  "verdict": true,  "tokens_per_type": 9.08},
+    {"iso": "asm", "edition": "asm_irv",   "gold_type": "clear",  "delta": 0.009,  "verdict": true,  "tokens_per_type": 10.44},
+    {"iso": "ory", "edition": "orglt",     "gold_type": "door43", "delta": 0.016,  "verdict": true,  "tokens_per_type": 10.45},
+    {"iso": "ben", "edition": "ben_irv",   "gold_type": "clear",  "delta": 0.011,  "verdict": true,  "tokens_per_type": 12.44},
+    {"iso": "spa", "edition": "spa_r09",   "gold_type": "clear",  "delta": 0.005,  "verdict": false, "tokens_per_type": 14.02},
+    {"iso": "fra", "edition": "fra-lsg",   "gold_type": "clear",  "delta": 0.014,  "verdict": true,  "tokens_per_type": 16.95, "note": "real +.014 at a high ratio; excluded from the automatic rule by the recalibration, left to its own measurement"},
+    {"iso": "hin", "edition": "hinirv",    "gold_type": "clear",  "delta": 0.004,  "verdict": false, "tokens_per_type": 18.54},
+    {"iso": "eng", "edition": "bsb",       "gold_type": "clear",  "delta": -0.004, "verdict": false, "tokens_per_type": 21.76},
+    {"iso": "cmn", "edition": "cmn_cu1",   "gold_type": "sword",  "delta": -0.002, "verdict": false, "tokens_per_type": 51.81, "note": "isolating-language control: 0 productive affixes, a mathematical no-op, its swing is pure eflomal noise"}
+   ]
+  },
+  "spanext": {
+   "threshold_delta": null,
+   "measured": "2026-09-24 .. 2026-09-29",
+   "source": "span_extension.py docstring, config/spanext_flags.json notes, plan §2.4 (Indic Door43 sweep, Finnish HELFI on/off 2026-09-29); verdict True = span_extension helps the language against its gold",
+   "items": [
+    {"iso": "hin", "edition": "hinirv",    "gold_type": "clear",  "delta": 0.024,  "verdict": true,  "tokens_per_type": 18.54, "note": "NT, relation_trigger, Clear gold (.603 -> .627)"},
+    {"iso": "hin", "edition": "higlt",     "gold_type": "door43", "delta": 0.015,  "verdict": true,  "tokens_per_type": 20.37, "note": "Door43 2nd source, .641 -> .656"},
+    {"iso": "spa", "edition": "spa_r09",   "gold_type": "clear",  "delta": 0.010,  "verdict": true,  "tokens_per_type": 14.02, "note": "[conv]-scored (strict F1 reads -.047 from the gold's no-function-word convention, plan E1)"},
+    {"iso": "eng", "edition": "bsb",       "gold_type": "clear",  "delta": 0.003,  "verdict": true,  "tokens_per_type": 21.76, "note": "small (.664 -> .667); eng has no spanext files today"},
+    {"iso": "arb", "edition": "arb_vdv",   "gold_type": "clear",  "delta": 0.003,  "verdict": true,  "tokens_per_type": 5.82, "note": "noise-level positive (.841 -> .844)"},
+    {"iso": "ben", "edition": "ben_irv",   "gold_type": "clear",  "delta": -0.002, "verdict": false, "tokens_per_type": 12.44, "note": "typology_fallback whole Bible .599 -> .597; conflict-aware ledger 87 improvements vs 217 real conflicts"},
+    {"iso": "asm", "edition": "asm_irv",   "gold_type": "clear",  "delta": null,   "verdict": false, "tokens_per_type": 10.44, "note": "F1 delta was flat (+.001); verdict from the conflict-aware ledger (115 vs 258 real conflicts before the guard)"},
+    {"iso": "fra", "edition": "fra-lsg",   "gold_type": "clear",  "delta": null,   "verdict": false, "tokens_per_type": 16.95, "artefact": true, "note": "F1 drop is the documented gold-convention artefact (92% gold-unclaimed); NOT a real regression"},
+    {"iso": "guj", "edition": "gujglt",    "gold_type": "door43", "delta": -0.004, "verdict": false, "tokens_per_type": 9.08},
+    {"iso": "kan", "edition": "knglt",     "gold_type": "door43", "delta": -0.004, "verdict": false, "tokens_per_type": 4.23},
+    {"iso": "mar", "edition": "marglt",    "gold_type": "door43", "delta": -0.002, "verdict": false, "tokens_per_type": 7.25},
+    {"iso": "npi", "edition": "neglt",     "gold_type": "door43", "delta": -0.001, "verdict": false, "tokens_per_type": 7.74},
+    {"iso": "ory", "edition": "orglt",     "gold_type": "door43", "delta": -0.005, "verdict": false, "tokens_per_type": 10.45},
+    {"iso": "tel", "edition": "telglt",    "gold_type": "door43", "delta": -0.005, "verdict": false, "tokens_per_type": 5.09},
+    {"iso": "fin", "edition": "fin_helfi", "gold_type": "helfi",  "delta": -0.006, "verdict": false, "tokens_per_type": 6.78, "note": ".806 -> .800 (2026-09-29), exact_span 150,051 -> 147,603"}
+   ]
+  }
+ }
+}

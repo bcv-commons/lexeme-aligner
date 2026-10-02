@@ -70,7 +70,8 @@ PROMPT_VERSION = "llm-align-v11"     # v5: SEEDS caveat — a seed's majority re
                                       # alignment case has needed it yet, unlike head_idx's direct
                                       # span-grounding role; add it only when one does.
 
-STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "lexeme-verify", "verify")
+STRATEGIES = ("full", "gap", "gap-seeded", "lexeme-grouped", "lexeme-verify", "verify", "verify-widened")
+VERIFY_LIKE = ("verify", "verify-widened")   # one verdict per DECIDE word against a PROPOSED span
 SEEDED = ("full", "gap-seeded", "lexeme-grouped", "lexeme-verify")   # strategies carrying whole-language hints
 
 ALIGNED = ("aligned", "noncompositional")            # statuses that become a pair
@@ -153,7 +154,7 @@ SCHEMA_FULL = {
 
 def schema_for(strategy: str) -> dict:
     return {"lexeme-grouped": SCHEMA_LEXEME, "lexeme-verify": SCHEMA_LEXEME_VERIFY, "verify": SCHEMA_VERIFY,
-            "full": SCHEMA_FULL}.get(strategy, SCHEMA_VERSE)
+            "verify-widened": SCHEMA_VERIFY, "full": SCHEMA_FULL}.get(strategy, SCHEMA_VERSE)
 
 
 def wrap_schema(item_schema: dict) -> dict:
@@ -169,6 +170,17 @@ def wrap_schema(item_schema: dict) -> dict:
 
 
 SCHEMA_FULL_PACKED = wrap_schema(SCHEMA_FULL)
+# 2026-09-29: packing extended to the per-verse residue strategies (the "send only the doubtful words" tiers),
+# whose calls are small enough that the fixed per-call framing is a large share of their cost.
+SCHEMA_VERSE_PACKED = wrap_schema(SCHEMA_VERSE)
+SCHEMA_VERIFY_PACKED = wrap_schema(SCHEMA_VERIFY)
+PACKABLE = ("full", "gap", "gap-seeded", "verify", "verify-widened")   # strategies whose verses may travel several to a call
+
+
+def packed_schema_for(strategy: str) -> dict:
+    """The `results`-wrapped schema for a packed call of `strategy` (only PACKABLE strategies)."""
+    return {"full": SCHEMA_FULL_PACKED, "gap": SCHEMA_VERSE_PACKED, "gap-seeded": SCHEMA_VERSE_PACKED,
+            "verify": SCHEMA_VERIFY_PACKED, "verify-widened": SCHEMA_VERIFY_PACKED}[strategy]
 
 
 # --- packet -------------------------------------------------------------------------------------------
@@ -195,6 +207,7 @@ class Packet:
     meta: dict[str, dict] = field(default_factory=dict)               # lexeme -> {"pos", "translit"}
     lexeme: str | None = None                  # lexeme-grouped: the lexeme this chunk is about
     members: list["Packet"] = field(default_factory=list)            # lexeme-grouped: verse sub-packets
+    widened: dict[int, tuple[list[int], list[int], str]] = field(default_factory=dict)  # verify-widened: h_idx -> (base t_idx, appended t_idx, rule label)
 
     @property
     def n_decide(self) -> int:
@@ -393,6 +406,18 @@ The statistical aligner proposed a span for each DECIDE word but was not sure (`
 the available positions), or `rejected` (no available position is a correct rendering; `t_idx` empty). Return
 {"ref": <int>, "verdicts": [{"h_idx", "status", "t_idx", "note"}, ...]}, one entry per DECIDE word.
 """,
+    "verify-widened": """\
+## Strategy: verify-widened
+For each DECIDE word the statistical aligner found a span, and a rule then APPENDED neighbouring function
+word(s) to it — the case marker, article, possessive or auxiliary the rule believes belongs to this source
+word's noun phrase or verb (`WIDENED`, with the statistical span and the appended positions named). The
+appended word is right only if it expresses THIS source word's own grammar (its case, definiteness,
+possession, tense). It is wrong when it belongs to a neighbouring source word, is a free word with its own
+meaning, or is part of another phrase. For each, answer: `confirmed` (the widened span is right; repeat its
+positions in `t_idx`), `corrected` (give the right span among the available positions — repeat only the
+statistical span to drop the appended word), or `rejected` (neither is right; `t_idx` empty). Return
+{"ref": <int>, "verdicts": [{"h_idx", "status", "t_idx", "note"}, ...]}, one entry per DECIDE word.
+""",
     "lexeme-verify": """\
 ## Strategy: lexeme-verify
 A REVIEW pass over a completed `full` alignment, batched by lexeme instead of by verse — is the SAME
@@ -455,6 +480,20 @@ DECIDE: h3, h4
 ANSWER: {"ref": 1001001, "verdicts": [
  {"h_idx": 3, "status": "confirmed", "t_idx": [6], "note": ""},
  {"h_idx": 4, "status": "corrected", "t_idx": [9], "note": "proposal took the article t8, not the noun"}]}
+""",
+    "verify-widened": """\
+REF 1001001  GEN 1:1  (English, edition example)
+SOURCE:
+  h0 רֵאשִׁית H7225 noun "beginning"  resolved -> t2
+  h1 בָּרָא H1254 verb "to create"  resolved -> t4
+  h2 שָׁמַיִם H8064 noun "heaven"  WIDENED -> t5 t6  [statistical span t6; a rule appended t5 (case_marking_before)]
+  h3 אֶרֶץ H0776 noun "earth"  WIDENED -> t8 t9  [statistical span t9; a rule appended t8 (case_marking_before)]
+TARGET:
+  t0:in~ t1:the~ t2:beginning* t3:god* t4:created* t5:the~ t6:heavens t7:and~ t8:the~ t9:earth
+DECIDE: h2, h3
+ANSWER: {"ref": 1001001, "verdicts": [
+ {"h_idx": 2, "status": "confirmed", "t_idx": [5, 6], "note": "'the' is this noun's own article"},
+ {"h_idx": 3, "status": "corrected", "t_idx": [9], "note": "t8 'the' is the article of the conjoined noun, not this one"}]}
 """,
     "full": """\
 REF 1001001  GEN 1:1  (English, edition example)
@@ -676,9 +715,13 @@ def render_verse_suffix(p: Packet) -> str:
     decide = set(p.decide)
     for tok in p.heb:
         if tok.idx in decide:
-            if p.strategy == "verify" and tok.idx in p.proposed:
+            if p.strategy in VERIFY_LIKE and tok.idx in p.proposed:
                 ts, score = p.proposed[tok.idx]
                 state = f"  PROPOSED -> {_fmt_pos(ts)} (score {score:.1f})"
+                if p.strategy == "verify-widened" and tok.idx in p.widened:
+                    base, added, label = p.widened[tok.idx]
+                    state = (f"  WIDENED -> {_fmt_pos(ts)}  [statistical span {_fmt_pos(base)}; a rule appended "
+                             f"{_fmt_pos(added)}{f' ({label})' if label else ''}]")
             else:
                 state = "  DECIDE"
         elif tok.idx in p.resolved:
@@ -807,14 +850,29 @@ def raw_from_lexeme_verify(resp: dict, group: Packet) -> dict[int, list[dict]]:
 
 def render_packed_suffix(members: list[Packet]) -> str:
     """Several complete verse tasks, one wrapper (the packed-call mode; port of the ASV project's
-    `packing.packed_prompt`, adapted to `full`'s per-verse body). Each member keeps its own
-    REF/SOURCE/TARGET/DECIDE/SEEDS block exactly as a single-verse `full` call renders it — nothing about a
-    verse's own task changes when it travels with others — and the wrapper instruction is stated ONCE at
-    the end, not once per verse, so it never contradicts a per-verse rule."""
-    bodies = [render_full_verse_suffix(m) for m in members]
+    `packing.packed_prompt`, adapted to each strategy's per-verse body). Each member keeps its own
+    REF/SOURCE/TARGET/DECIDE/SEEDS block exactly as a single-verse call of that strategy renders it — nothing
+    about a verse's own task changes when it travels with others — and the wrapper instruction is stated ONCE
+    at the end, not once per verse, so it never contradicts a per-verse rule."""
+    strategy = members[0].strategy
+    body = render_full_verse_suffix if strategy == "full" else render_verse_suffix
+    shape = ('"ref", "alignments", "review_notes"' if strategy == "full"
+             else '"ref", "verdicts"' if strategy in VERIFY_LIKE else '"ref", "alignments"')
+    bodies = [body(m) for m in members]
     return ("\n---\n".join(bodies) +
             f"\n\nReturn ONE object: {{\"results\": [<{len(members)} objects, one per REF above, in the SAME "
-            f"order, each the usual {{\"ref\", \"alignments\", \"review_notes\"}} shape>]}}.\n")
+            f"order, each the usual {{{shape}}} shape>]}}.\n")
+
+
+def raw_from_packed_verify(resp: dict, packet: Packet) -> dict[int, list[dict]]:
+    """A packed `verify` response -> {ref: raw items}; each item's own `ref` picks the member packet whose
+    PROPOSED spans a `confirmed` verdict restores (same identify-by-ref rule as `raw_from_packed`)."""
+    by_ref = {m.ref: m for m in packet.members}
+    out: dict[int, list[dict]] = {}
+    for item in (resp or {}).get("results", []):
+        if isinstance(item, dict) and isinstance(item.get("ref"), int) and item["ref"] in by_ref:
+            out[item["ref"]] = raw_from_verify(item, by_ref[item["ref"]])
+    return out
 
 
 def raw_from_packed(resp: dict) -> dict[int, list[dict]]:
@@ -834,8 +892,10 @@ def render_suffix(p: Packet) -> str:
         return render_lexeme_suffix(p)
     if p.strategy == "lexeme-verify":
         return render_lexeme_verify_suffix(p)
+    if p.members and p.strategy in PACKABLE:
+        return render_packed_suffix(p.members)
     if p.strategy == "full":
-        return render_packed_suffix(p.members) if p.members else render_full_verse_suffix(p)
+        return render_full_verse_suffix(p)
     return render_verse_suffix(p)
 
 
@@ -1059,7 +1119,7 @@ def derive_score(d: Decision, agrees: bool, base: float = 0.75, agree_score: flo
 
 
 def prior_for(strategy: str, d: Decision) -> str:
-    if strategy in ("verify", "lexeme-verify"):
+    if strategy in ("verify", "lexeme-verify", "verify-widened"):
         return f"llm_{strategy.replace('-', '_')}_{d.tag or 'corrected'}"
     return f"llm_{strategy}"
 

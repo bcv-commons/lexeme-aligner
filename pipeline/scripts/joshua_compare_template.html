@@ -1,0 +1,346 @@
+<title>Joshua Alignment Compare</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a sticky title bar, a row of summary figures, a per-layer table, then one card per verse.
+     Two colour systems that never share a surface: the CELL TINT of every one of our columns is how it compares
+     with the ASV example (green exact, amber shares a word, red no shared word, grey no data), as on the original page;
+     the LEFT EDGE and letter badge of a "chain now" word is the layer that decided it (teal eflomal, blue gloss,
+     amber gap-fill, violet residual, orange span extension). The last column repeats every verdict except exact as text. */
+  :root{
+    --bg:#f5f6f3; --surface:#ffffff; --surface-2:#eceee8; --border:#dde0d7;
+    --text:#1c211d; --text-dim:#5c645a; --text-faint:#7d8479;
+    --accent:#1f6f66; --accent-soft:#e3f0ed;
+    --agree:#3f7d4f; --agree-bg:#e7f2e8;
+    --overlap:#8f6a15; --overlap-bg:#f6eed9;
+    --differ:#b34a4a; --differ-bg:#f8e8e6;
+    --nodata:#7d8479; --nodata-bg:#eceee8;
+    --m-E:#1f6f66; --m-E-bg:#e3f0ed;
+    --m-e:#5f8a83; --m-e-bg:#edf4f2;
+    --m-G:#2f5fa3; --m-G-bg:#e4ecf7;
+    --m-g:#5f7fb0; --m-g-bg:#edf1f8;
+    --m-f:#a3781f; --m-f-bg:#f6eed9;
+    --m-r:#7b4fa0; --m-r-bg:#efe8f6;
+    --m-x:#b5541d; --m-x-bg:#f9e9df;
+    --up:#2e7d4a; --down:#b34a4a;
+    --font-display:"Fraunces",Georgia,serif; --font-body:"Work Sans",system-ui,sans-serif;
+    --font-mono:"IBM Plex Mono",ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12151a; --surface:#191d23; --surface-2:#1f242b; --border:#2a3038;
+      --text:#e6e8e3; --text-dim:#a2ab9b; --text-faint:#7f877a;
+      --accent:#5fc2b3; --accent-soft:#183430;
+      --agree:#6fbf7f; --agree-bg:#1b2f20;
+      --overlap:#d9a94a; --overlap-bg:#332912;
+      --differ:#e08080; --differ-bg:#33201f;
+      --nodata:#7f877a; --nodata-bg:#1f242b;
+      --m-E:#5fc2b3; --m-E-bg:#183430;
+      --m-e:#7fa8a1; --m-e-bg:#1c2b29;
+      --m-G:#7da6e0; --m-G-bg:#1b2738;
+      --m-g:#8aa4cc; --m-g-bg:#1e2533;
+      --m-f:#d9a94a; --m-f-bg:#332912;
+      --m-r:#b28ad6; --m-r-bg:#2b2036;
+      --m-x:#e8915a; --m-x-bg:#382419;
+      --up:#6fbf7f; --down:#e08080;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12151a; --surface:#191d23; --surface-2:#1f242b; --border:#2a3038;
+    --text:#e6e8e3; --text-dim:#a2ab9b; --text-faint:#7f877a;
+    --accent:#5fc2b3; --accent-soft:#183430;
+    --agree:#6fbf7f; --agree-bg:#1b2f20;
+    --overlap:#d9a94a; --overlap-bg:#332912;
+    --differ:#e08080; --differ-bg:#33201f;
+    --nodata:#7f877a; --nodata-bg:#1f242b;
+    --m-E:#5fc2b3; --m-E-bg:#183430;
+    --m-e:#7fa8a1; --m-e-bg:#1c2b29;
+    --m-G:#7da6e0; --m-G-bg:#1b2738;
+    --m-g:#8aa4cc; --m-g-bg:#1e2533;
+    --m-f:#d9a94a; --m-f-bg:#332912;
+    --m-r:#b28ad6; --m-r-bg:#2b2036;
+    --m-x:#e8915a; --m-x-bg:#382419;
+    --up:#6fbf7f; --down:#e08080;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--text); margin:0; font-family:var(--font-body);
+       padding-inline:16px; padding-block:0 28px;}
+  h1,h2,h3{font-family:var(--font-display); text-wrap:balance; margin:0;}
+  .hebrew{font-family:var(--font-display),"Noto Sans Hebrew",serif; direction:rtl; unicode-bidi:isolate;}
+  .mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+
+  header.top{position:sticky; top:env(safe-area-inset-top,0px); z-index:20; background:var(--bg);
+    padding-block:16px 12px; border-bottom:1px solid var(--border); max-width:1240px; margin-inline:auto;}
+  header.top h1{font-size:25px; font-weight:600; letter-spacing:-0.01em;}
+  header.top p{margin:6px 0 0; color:var(--text-dim); font-size:14px; max-width:80ch; line-height:1.5;}
+  .wrap{max-width:1240px; margin-inline:auto;}
+
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-block:16px;}
+  .stat{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; min-width:0;}
+  .stat .label{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint);}
+  .stat .value{font-family:var(--font-display); font-size:23px; font-weight:600; margin-top:3px;}
+  .stat .sub{font-size:12px; color:var(--text-dim); margin-top:3px; line-height:1.4;}
+  .stat.key{border-color:var(--accent);}
+
+  section.layers{background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:16px; overflow:hidden;}
+  section.layers h2{font-size:16px; padding:12px 14px 4px;}
+  section.layers p{margin:0; padding:0 14px 10px; color:var(--text-dim); font-size:13px; line-height:1.5; max-width:90ch;}
+  .tablewrap{overflow-x:auto;}
+  table{width:100%; border-collapse:collapse;}
+  thead th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint);
+    font-weight:500; padding:6px 10px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  tbody td{padding:8px 10px; font-size:13.5px; vertical-align:top; border-bottom:1px solid var(--border);}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num{text-align:right; font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .bar{display:inline-block; height:8px; border-radius:4px; background:var(--accent); vertical-align:middle; margin-right:6px;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; font-size:12.5px; color:var(--text-dim); margin-block:2px 14px;}
+  .legend .sw{display:inline-flex; align-items:center; gap:6px;}
+  .legend .dot{width:12px; height:12px; border-radius:3px; display:inline-block;}
+
+  .controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; margin-bottom:16px; position:sticky;
+    top:calc(env(safe-area-inset-top,0px) + 86px); z-index:15;}
+  .controls input[type=search]{flex:1 1 200px; min-width:140px; background:var(--bg); border:1px solid var(--border);
+    border-radius:7px; padding:7px 10px; color:var(--text); font-size:13.5px; font-family:inherit;}
+  .chip{border:1px solid var(--border); background:var(--bg); color:var(--text-dim); border-radius:999px;
+    padding:5px 12px; font-size:12.5px; cursor:pointer; user-select:none; white-space:nowrap; font-family:inherit;}
+  .chip[aria-pressed="true"]{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:500;}
+  .chip:focus-visible,.controls input:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .count-pill{font-size:12px; color:var(--text-faint); margin-left:auto; white-space:nowrap;}
+
+  .verse{background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:12px; overflow:hidden;}
+  .verse-head{display:flex; align-items:baseline; gap:10px; padding:10px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);}
+  .verse-head .ref{font-family:var(--font-display); font-weight:600; font-size:15.5px;}
+  .verse-head .n{font-size:12px; color:var(--text-faint);}
+  .verse table{min-width:880px;}
+  td.src{white-space:nowrap;}
+  td.src .surf{font-size:17px;}
+  td.src .gloss{color:var(--text-dim); font-size:11.5px; display:block;}
+  td.src .strong{color:var(--text-faint); font-size:11px;}
+
+  .w{display:inline-block; padding:1px 4px 1px 8px; border-left:4px solid var(--nodata); line-height:1.4; background:transparent;}
+  .w .b{font-family:var(--font-mono); font-size:10px; margin-left:7px; white-space:nowrap; font-weight:500; color:var(--text-dim);}
+  .w.m-E{border-left-color:var(--m-E);} .w.m-E .b{color:var(--m-E);}
+  .w.m-e{border-left-color:var(--m-e);} .w.m-e .b{color:var(--m-e);}
+  .w.m-G{border-left-color:var(--m-G);} .w.m-G .b{color:var(--m-G);}
+  .w.m-g{border-left-color:var(--m-g);} .w.m-g .b{color:var(--m-g);}
+  .w.m-f{border-left-color:var(--m-f);} .w.m-f .b{color:var(--m-f);}
+  .w.m-r{border-left-color:var(--m-r);} .w.m-r .b{color:var(--m-r);}
+  .w.m-x{border-left-color:var(--m-x);} .w.m-x .b{color:var(--m-x);}
+  td.ag-exact{background:var(--agree-bg);} td.ag-overlap{background:var(--overlap-bg);}
+  td.ag-differ{background:var(--differ-bg);} td.ag-no_data{background:var(--nodata-bg);}
+  td.same{border-inline:1px dashed var(--border);}
+  .vline{display:block; margin-bottom:3px; white-space:nowrap;}
+  .vline .who{font-size:11px; color:var(--text-faint); margin-right:4px;}
+  .w .alt{font-size:10.5px; color:var(--differ); margin-left:6px;}
+  .plain{padding:2px 0;}
+  .muted{color:var(--text-faint); font-style:italic;}
+  .tag{display:inline-block; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:1px 6px; border-radius:5px; margin:0 4px 3px 0; white-space:nowrap;}
+  .tag.exact{background:var(--agree-bg); color:var(--agree);}
+  .tag.overlap{background:var(--overlap-bg); color:var(--overlap);}
+  .tag.differ{background:var(--differ-bg); color:var(--differ);}
+  .tag.no_data{background:var(--nodata-bg); color:var(--nodata);}
+  .tag.up{background:var(--agree-bg); color:var(--up);}
+  .tag.down{background:var(--differ-bg); color:var(--down);}
+  .empty-state{text-align:center; padding:40px 20px; color:var(--text-dim);}
+
+  footer.note{max-width:1240px; margin:24px auto 0; font-size:12.5px; color:var(--text-dim); line-height:1.65;}
+  footer.note h2{font-size:15px; color:var(--text); margin-bottom:6px;}
+  footer.note ul{margin:6px 0 14px; padding-left:18px;}
+  footer.note li{margin-bottom:6px; max-width:100ch;}
+  footer.note code{font-family:var(--font-mono); font-size:11.5px;}
+  footer.note .date{font-family:var(--font-mono); color:var(--text);}
+</style>
+
+<header class="top">
+  <h1>Joshua 1&ndash;4 alignment compare</h1>
+  <p>Every content word of Joshua 1&ndash;4 in the American Standard Version, under five views: our current chain
+  (coloured by the layer that decided each word), the chain as it was on the previous version of this page, our
+  LLM whole-verse pass, the <span class="mono">American-Standard-Version-Bible-Alignment-Data</span> project's own
+  alignment of the same verses, and Bible Hub's BSB interlinear (a different translation, for corroboration).</p>
+</header>
+
+<div class="wrap">
+  <div class="stats" id="stats"></div>
+
+  <section class="layers">
+    <h2>What each layer of our chain decides</h2>
+    <p>Each word's left edge shows the layer that won it, read from the same sidecar channels that ship with the
+    published compact alignments. Agreement is measured against the ASV example: exact means the same words, shared
+    means at least one word in common.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Layer</th><th style="text-align:right">Words</th><th style="text-align:right">Exact</th><th style="text-align:right">Share a word</th><th>Share of words</th></tr></thead>
+      <tbody id="layerRows"></tbody>
+    </table></div>
+  </section>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Search a word, gloss, or Strong&#8217;s number&hellip;" aria-label="Search">
+    <button class="chip" data-filter="all" aria-pressed="true">All</button>
+    <button class="chip" data-filter="differ">Chain differs from ASV</button>
+    <button class="chip" data-filter="up">Better than earlier chain</button>
+    <button class="chip" data-filter="down">Worse than earlier chain</button>
+    <button class="chip" data-filter="layers">Gap-fill, residual, extension</button>
+    <button class="chip" data-filter="llmdiff">LLM differs from ASV</button>
+    <span class="count-pill" id="countPill"></span>
+  </div>
+
+  <div id="verses"></div>
+  <div class="empty-state" id="emptyState" hidden>No rows match that filter.</div>
+</div>
+
+<footer class="note" id="footer"></footer>
+
+<script>
+(function(){
+  const PAYLOAD = /*DATA*/null;
+  const BUILT = /*BUILT*/"";
+  const STATS = PAYLOAD.stats, ROWS = PAYLOAD.rows;
+  const METHODS = {
+    E:{name:"eflomal, both directions agree", note:"high confidence"},
+    e:{name:"eflomal, one direction", note:"score 0.6"},
+    G:{name:"gloss, exact or stem match", note:""},
+    g:{name:"gloss, weaker match", note:""},
+    f:{name:"gap-fill", note:"fills a word the two methods left empty"},
+    r:{name:"residual layer", note:"opt-in, separate from the main alignment"},
+    x:{name:"span extension", note:"widens a span with a function word"}
+  };
+  const pct = (x,d=1) => x.toFixed(d) + "%";
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  // ---- summary figures
+  const S = document.getElementById("stats");
+  function stat(label, value, sub, key){ const d = el("div","stat" + (key ? " key" : "")); d.append(el("div","label",label), el("div","value",value), el("div","sub",sub)); S.append(d); }
+  stat("Chain now vs ASV example", pct(STATS.now.shared_pct), STATS.now.exact + " exact (" + pct(STATS.now.exact_pct) + "), " + STATS.now.differ + " share no word", true);
+  stat("Earlier chain vs ASV example", pct(STATS.before.shared_pct), STATS.before.exact + " exact (" + pct(STATS.before.exact_pct) + "), " + STATS.before.differ + " share no word");
+  const unchanged = ROWS.filter(r => r.before && (((r.now && r.now.text) || r.resid || "") !== "") && (((r.now && r.now.text) || r.resid || "").toLowerCase().replace(/[\u2019'`]/g,"").split(/\s+/).sort().join(" ") === r.before.toLowerCase().replace(/[\u2019'`]/g,"").split(/\s+/).sort().join(" "))).length;
+  stat("Rows that changed", STATS.improved + " better", STATS.regressed + " worse against the ASV example; " + unchanged + " words identical to the earlier chain", true);
+  stat("LLM pass vs ASV example", pct(STATS.llm.shared_pct), STATS.llm.exact + " exact (" + pct(STATS.llm.exact_pct) + "), " + STATS.llm.differ + " share no word");
+  stat("Words compared", STATS.rows.toLocaleString(), STATS.verses + " verses, " + STATS.unaligned_now + " left unaligned by the chain");
+  const b = (p) => p[1] ? pct(100*p[0]/p[1]) : "-";
+  stat("BSB content-word overlap", b(STATS.bsb_now), "earlier chain " + b(STATS.bsb_before) + ", LLM " + b(STATS.bsb_llm) + ", ASV example " + b(STATS.bsb_asv));
+
+  // ---- layer table
+  const L = document.getElementById("layerRows");
+  const total = STATS.rows;
+  STATS.methods.forEach(m => {
+    const tr = el("tr");
+    const first = el("td"); const w = el("span","w m-" + m.m); w.append(document.createTextNode(m.name));
+    if (m.m !== "-") w.append(el("span","b",m.m)); first.append(w);
+    const share = el("td"); const bar = el("span","bar"); bar.style.width = Math.max(2, 140 * m.n / total) + "px";
+    share.append(bar, document.createTextNode(pct(100*m.n/total)));
+    tr.append(first, el("td","num",String(m.n)), el("td","num", m.judged ? pct(m.exact_pct,0) : "-"), el("td","num", m.judged ? pct(m.shared_pct,0) : "-"), share);
+    L.append(tr);
+  });
+
+  // ---- legend
+  const LG = document.getElementById("legend");
+  LG.append(el("span",null,"Cell tint = comparison with the ASV example:"));
+  [["exact","exact"],["overlap","shares a word"],["differ","no shared word"],["no_data","one side has no answer"]].forEach(([k,label]) => {
+    const sw = el("span","sw"); const d = el("span","dot"); d.style.background = k === "exact" ? "var(--agree)" : k === "overlap" ? "var(--overlap)" : k === "differ" ? "var(--differ)" : "var(--nodata)";
+    sw.append(d, document.createTextNode(label)); LG.append(sw); });
+  LG.append(el("span",null,"\u00b7 Word edge on the chain = layer:"));
+  Object.keys(METHODS).forEach(k => { if (!STATS.methods.some(m => m.m === k)) return;
+    const s = el("span","sw"); const d = el("span","dot"); d.style.background = "var(--m-" + k + ")"; s.append(d, document.createTextNode(k + " " + METHODS[k].name)); LG.append(s); });
+  LG.append(el("span",null,"Badge = layer letter and how many methods agreed (1-9)."));
+
+  // ---- verses
+  const byVerse = new Map();
+  ROWS.forEach(r => { if (!byVerse.has(r.ref)) byVerse.set(r.ref, []); byVerse.get(r.ref).push(r); });
+  const V = document.getElementById("verses");
+  const LABEL = {exact:"exact", overlap:"shares a word", differ:"no shared word", no_data:"no data"};
+
+  const canon = t => (t || "").toLowerCase().replace(/[\u2019'`]/g, "").split(/\s+/).filter(Boolean).sort().join(" ");
+  const nowText = r => (r.now && r.now.text) || r.resid || "";
+  function wordNow(r){
+    if (r.now){
+      const w = el("span","w m-" + r.now.m); w.append(document.createTextNode(r.now.text));
+      w.append(el("span","b", r.now.m + (r.now.c ? "\u00b7" + r.now.c : "")));
+      if (r.now.alt) w.append(el("span","alt","\u2260 contested"));
+      w.title = [METHODS[r.now.m] ? METHODS[r.now.m].name : r.now.m, r.now.c ? r.now.c + " method(s) agreed" : "", r.now.rule ? "rule: " + r.now.rule : "", r.now.alt || ""].filter(Boolean).join("; ");
+      return w;
+    }
+    if (r.resid){ const w = el("span","w m-r"); w.append(document.createTextNode(r.resid), el("span","b","r")); w.title = "residual layer (opt-in)"; return w; }
+    return el("span","muted","unaligned");
+  }
+  function tinted(verdict){ const td = el("td"); td.className = "ag-" + verdict; return td; }
+  function nowCells(r, tr){
+    const same = !!(r.before && nowText(r) && canon(nowText(r)) === canon(r.before));
+    if (same){                                   // the chain did not change this word: show it once, across both columns
+      const td = tinted(r.v_now); td.colSpan = 2; td.classList.add("same");
+      td.append(wordNow(r));
+      tr.append(td); return true;
+    }
+    const a = tinted(r.v_now); a.append(wordNow(r));
+    const b = tinted(r.v_before); if (r.before) b.append(el("span","plain",r.before)); else b.append(el("span","muted","\u2014"));
+    tr.append(a, b); return false;
+  }
+  function refCell(text){ const td = el("td"); if (text) td.append(el("span","plain",text)); else td.append(el("span","muted","\u2014")); return td; }
+  function llmCell(r){ const td = tinted(r.v_llm); if (r.llm) td.append(el("span","plain",r.llm)); else td.append(el("span","muted","\u2014")); return td; }
+  // "exact" is the expected state and the cell tint already says it, so only the other verdicts get a line
+  function addVerdict(st, who, verdict){ if (verdict === "exact") return; const d = el("span","vline"); d.append(el("span","who",who), el("span","tag " + verdict, LABEL[verdict])); st.append(d); }
+
+  byVerse.forEach((rows, ref) => {
+    const card = el("div","verse"); card.dataset.ref = ref;
+    const head = el("div","verse-head"); head.append(el("span","ref",ref), el("span","n",rows.length + " words")); card.append(head);
+    const wrap = el("div","tablewrap"); const t = el("table");
+    const thead = el("thead"); const hr = el("tr");
+    ["Hebrew","Chain now","Earlier chain","LLM","ASV example","BSB","Compared with ASV example"].forEach(h => hr.append(el("th",null,h))); thead.append(hr); t.append(thead);
+    const tb = el("tbody");
+    rows.forEach(r => {
+      const tr = el("tr");
+      tr.dataset.differ = r.v_now === "differ" ? "1" : ""; tr.dataset.up = r.delta > 0 ? "1" : ""; tr.dataset.down = r.delta < 0 ? "1" : "";
+      tr.dataset.layers = (r.now && "fxr".includes(r.now.m)) || (!r.now && r.resid) ? "1" : ""; tr.dataset.llmdiff = r.v_llm === "differ" ? "1" : "";
+      tr.dataset.q = [r.surface, r.lemma, r.strong, r.gloss, r.now && r.now.text, r.before, r.llm, r.asv, r.bsb].filter(Boolean).join(" ").toLowerCase();
+      const src = el("td","src"); const s = el("span","surf hebrew",r.surface); src.append(s, el("span","gloss",(r.gloss || "") ), el("span","strong mono",r.strong || "")); tr.append(src);
+      const merged = nowCells(r, tr);
+      tr.append(llmCell(r), refCell(r.asv), refCell(r.bsb));
+      const st = el("td");
+      if (merged) addVerdict(st, "chain", r.v_now); else { addVerdict(st, "chain now", r.v_now); if (r.before) addVerdict(st, "earlier", r.v_before); }
+      addVerdict(st, "LLM", r.v_llm);
+      if (r.delta > 0) st.append(el("span","tag up","↑ better than earlier")); else if (r.delta < 0) st.append(el("span","tag down","↓ worse than earlier"));
+      tr.append(st); tb.append(tr);
+    });
+    t.append(tb); wrap.append(t); card.append(wrap); V.append(card);
+  });
+
+  // ---- filters
+  let filter = "all";
+  const search = document.getElementById("search"), pill = document.getElementById("countPill"), empty = document.getElementById("emptyState");
+  function apply(){
+    const q = search.value.trim().toLowerCase(); let shown = 0;
+    V.querySelectorAll(".verse").forEach(card => {
+      let any = 0;
+      card.querySelectorAll("tbody tr").forEach(tr => {
+        const okFilter = filter === "all" || tr.dataset[filter] === "1";
+        const okQ = !q || tr.dataset.q.includes(q);
+        const show = okFilter && okQ; tr.hidden = !show; if (show) { any++; shown++; }
+      });
+      card.hidden = any === 0;
+    });
+    pill.textContent = shown.toLocaleString() + " of " + ROWS.length.toLocaleString() + " words"; empty.hidden = shown !== 0;
+  }
+  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+    filter = c.dataset.filter; document.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === c ? "true" : "false")); apply();
+  }));
+  search.addEventListener("input", apply); apply();
+
+  // ---- footer: current state and a running change log (newest first; add entries above the first one)
+  const F = document.getElementById("footer");
+  F.innerHTML =
+    '<h2>Change log</h2><ul>' +
+    '<li><span class="date">' + BUILT + '</span> The page was regenerated without any new model calls. The chain column is now the current chain for the ASV edition, ' +
+    'decoded the way the published compact-alignments sidecar is built, so every word shows the layer that decided it, how many methods agreed, and any contested alternative or named rule. ' +
+    'The previous chain column stays only as the baseline for the better/worse marks. The change history that used to fill this footer was dropped; new entries go above this one.</li></ul>' +
+    '<h2>How to read this page</h2><ul>' +
+    '<li><strong>Layers.</strong> The main alignment is the eflomal and gloss methods merged by the contest rule, then gap-fill for words both left empty. Span extension widens a span with a function word; it produced no widening for this edition, so no word is marked with it. The residual layer is opt-in and kept out of the main alignment, it is shown here in violet.</li>' +
+    '<li><strong>Agreement.</strong> Compared with the ASV example word by word after removing case and apostrophes: exact is the same words, shares a word is at least one in common, no shared word is none. The ASV example is a reference, not a gold standard: it credits function words differently from our chain, which is why "shares a word" is common.</li>' +
+    '<li><strong>BSB overlap.</strong> The share of words where our rendering and the BSB cell have at least one content word in common, ignoring a short list of function words. A blank BSB cell means the word count did not line up for that verse, not that BSB omits the word.</li>' +
+    '<li><strong>Not re-run.</strong> The LLM column is the Sonnet 5 whole-verse pass with the lexeme-verify review applied where it spoke. The ASV example and BSB columns are external reference data and are unchanged. The Hebrew words come from the current spine; all 1,000 rows and their positions match the previous version.</li>' +
+    '<li><strong>Display.</strong> The tokenizer splits English at an apostrophe, so a possessive arrives as two words. The page re-attaches them for reading only; no aligned data is changed.</li></ul>';
+})();
+</script>

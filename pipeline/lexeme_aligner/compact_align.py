@@ -40,6 +40,7 @@ from lexeme_aligner.config import OUT
 from lexeme_aligner.merge_align import _norm as _merge_norm, _tier as _merge_tier
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS, _BOOK_FILE_NUM, pooled_verse_groups
+from lexeme_aligner.manifest_io import update_json
 from lexeme_aligner.usj_source import (TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw,
                                        _rules_for, annotation_spans, _token_spans, tokenize)
 from lexeme_aligner.reverse_align_check import load_lexeme_vocab_scored
@@ -69,7 +70,15 @@ _AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods p
 #   x   = spanext (opt-in layer, like residual — see LAYER_METHODS/build_layer's docstring for why)
 _METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l",
                "spanext": "x"}
-SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus")
+SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus", "rule")
+# "rule" (2026-09-28) — sparse, srcOrd:label[+label], the SPECIFIC named mechanism (span_extension's own
+# `prior` tag, e.g. "possessor_after"/"name_after"/"struct_before", or gapfill's own bare prior label
+# like "strong"/"name"/"phrase") that produced/widened a position whose `method` char is 'x' or 'f' —
+# `method` only says WHICH STAGE won (spanext/gapfill), not which of that stage's several internal
+# mechanisms did. `config/pipeline_decisions.json` (a separate, per-LANGUAGE companion file, NOT
+# per-position) is the complementary piece: it says whether/why a given mechanism was enabled for this
+# language at all. See pipeline_decisions.py's own module docstring for the full relationship.
+_RULE_PREFIX = "spanext_"
 _GLOSS_STRONG = {"exact", "stem"}
 
 
@@ -82,6 +91,39 @@ def load_contest_rule(path: Path = CONTEST_RULE) -> dict:
     if not p.exists():
         return {}
     return {tuple(k.split(" | ")): v for k, v in json.loads(p.read_text(encoding="utf-8")).items()}
+
+
+def _rule_label(prior: str | None, raw_idx_of: list[int] | None = None) -> str | None:
+    """span_extension's own `prior` field is `"spanext_<label>_<direction>:<clean_text_position>"`,
+    possibly two joined with `+` (a leading AND a trailing extension on the same occurrence — at most
+    one per direction). Strips the redundant `spanext_` prefix (the `rule` CHANNEL NAME already scopes
+    it to "a named mechanism fired here") and, the 2026-09-28 REVERSIBILITY addition, remaps the
+    embedded position from span_extension's own clean-text coordinates to the RAW-text coordinates
+    this file's main array publishes in (via `raw_idx_of`, the same per-verse mapping `build_compact`
+    already computes for the main span itself) — so the published position lines up with the
+    positions in the compact string, and a client can compute `original_span = published_span -
+    {every position named here}` to fully undo the fold, no extra data needed. If a position can't be
+    remapped (e.g. `raw_idx_of` wasn't given), the label is kept but its position is dropped rather
+    than publish a clean-text index in a raw-text array, which would silently point at the wrong word.
+    gapfill's own prior labels (`"strong"`/`"name"`/`"phrase"`/...) carry no `:position` at all — there
+    is no more primitive span to revert to (gapfill fills a total gap, it doesn't widen one) — and pass
+    through unchanged."""
+    if not prior:
+        return None
+    parts = []
+    for lbl in prior.split("+"):
+        if lbl.startswith(_RULE_PREFIX):
+            lbl = lbl[len(_RULE_PREFIX):]
+        if ":" in lbl:
+            name, clean_pos_str = lbl.rsplit(":", 1)
+            clean_pos = int(clean_pos_str)
+            if raw_idx_of and 0 <= clean_pos < len(raw_idx_of) and raw_idx_of[clean_pos] >= 0:
+                parts.append(f"{name}:{raw_idx_of[clean_pos]}")
+            else:
+                parts.append(name)
+        else:
+            parts.append(lbl)
+    return "+".join(parts)
 
 
 def _method_char(pair: dict) -> str:
@@ -122,6 +164,34 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "threshold. srcOrd here is ALWAYS a gap in the main alignment file (annotation text never "
           "wins a slot there, even when eflomal/gloss/gapfill's own decode landed on it — see "
           "build_compact's docstring), so a bonus entry only ever ADDS information, never contests one.",
+          "rule is SPARSE — 'srcOrd:label[+label]' for a position whose winning method (x=spanext, "
+          "f=gapfill) recorded which SPECIFIC named mechanism produced/widened it (e.g. 'possessor_after', "
+          "'name_after', 'struct_before', or gapfill's own 'strong'/'name'/'phrase'); '' where the "
+          "winning method didn't record one (plain eflomal/gloss/residual never do). REVERSIBLE fold "
+          "(2026-09-28): a spanext label always carries the WIDENED position too, 'label:targetIdx' "
+          "(e.g. 'possessor_after:48'), in this array's own RAW-text coordinates — a client who wants "
+          "the pre-extension (un-folded) span computes `published_span - {every :targetIdx named here}` "
+          "and needs nothing else (no second lookup, no separate schema): e.g. main-array '10:47-48' + "
+          "rule '10:name_after:48' reverts to the original eflomal/gloss span {47}. A double-sided "
+          "extension (one leading, one trailing — at most one per side) lists both, '+'-joined, each "
+          "with its own position. gapfill's own bare labels ('strong'/'name'/...) carry no position at "
+          "all — a gapfill fill has no more primitive span to revert TO, it filled a total gap, so "
+          "'reverting' it just means dropping the position back to unaligned, which method='f' alone "
+          "already tells a client without needing rule at all. method/conf/rule "
+          "together answer 'what produced this span, and specifically how' at the PER-POSITION level; "
+          "config/pipeline_decisions.json (a separate, per-LANGUAGE, catalog-wide companion file, "
+          "published alongside every dataset) answers the complementary question — whether/why that "
+          "named mechanism was enabled for this language at all, with its own source attribution "
+          "(Grambank / gram_struct fallback / self-derived). See pipeline_decisions.py's module "
+          "docstring for the full three-layer relationship (method -> rule -> pipeline_decisions.json). "
+          "LOOKUP: pipeline_decisions.json is keyed by the bare published iso — the SAME `<iso>` "
+          "segment already in this file's own path (`<iso[0]>/<iso>/<edition>/...`) and in the "
+          "manifest's own nesting (`languages.<iso>.editions.<edition>`), so no separate pointer field "
+          "is published per edition — you already have the key. This also covers a fact NOT visible "
+          "anywhere in this per-position sidecar at all: target-side stemming (`target_normalization` "
+          "in pipeline_decisions.json) is a per-LANGUAGE eflomal-training setting, constant across every "
+          "position in an edition's alignment, so it is never represented as a per-token `method`/`rule` "
+          "entry — look it up in pipeline_decisions.json[iso], not here.",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
           "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
@@ -135,14 +205,12 @@ def update_manifest(path: Path, iso: str, edition: str, entry: dict) -> None:
     """Merge one (iso, edition)'s entry into the deterministic (sorted, timestamp-free) manifest —
     same pattern as export_lex.py's own update_manifest, so both datasets' manifests stay diffable the
     same way. A language can carry several editions (each independently aligned/hashed)."""
-    doc = {"schema": _SCHEMA, "languages": {}}
-    if path.exists():
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    doc["schema"] = _SCHEMA
-    doc["tokenizer_version"] = TOKENIZER_VERSION
-    doc.setdefault("languages", {}).setdefault(iso, {}).setdefault("editions", {})[edition] = entry
-    path.write_text(json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    def _merge(doc: dict) -> None:
+        doc["schema"] = _SCHEMA
+        doc["tokenizer_version"] = TOKENIZER_VERSION
+        doc.setdefault("languages", {}).setdefault(iso, {}).setdefault("editions", {})[edition] = entry
+
+    update_json(path, _merge, default={"schema": _SCHEMA, "languages": {}})
 
 
 def build_index(heb: HebrewSource, books: list[str] = ALL_BOOKS) -> list[str]:
@@ -275,7 +343,8 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS, contest: 
                 continue
             agree = sum(1 for p in mp.values() if _merge_norm(p.get("target")) == _merge_norm(win.get("target")))
             out[h_idx] = {"t_idx": win["t_idx"], "char": _method_char(win), "agree": agree,
-                          "alt": ({"char": _method_char(alt), "t_idx": alt["t_idx"]} if alt else None)}
+                          "alt": ({"char": _method_char(alt), "t_idx": alt["t_idx"]} if alt else None),
+                          "rule": win.get("prior")}
     return by_verse
 
 
@@ -337,7 +406,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     except SystemExit:
         vocab_scored = {}
     by_ref: dict[str, str] = {}                        # "BOOK C:V" -> compact string, filled as we go
-    side: dict[str, dict[str, str]] = {"method": {}, "conf": {}, "contested": {}, "bonus": {}}
+    side: dict[str, dict[str, str]] = {"method": {}, "conf": {}, "contested": {}, "bonus": {}, "rule": {}}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         strip_rules = _rules_for(usj_path)
@@ -358,7 +427,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 annot_spans = annotation_spans(raw_text) if raw_text else []
                 raw_toks = tokenize(raw_text) if raw_text else []
                 raw_spans = _token_spans(raw_text) if raw_text else []
-                parts, meth, conf, contested, bonus = [], [], [], [], []
+                parts, meth, conf, contested, bonus, rule = [], [], [], [], [], []
                 gap_ordinals: list[tuple[int, object]] = []
                 for ordinal, tok in enumerate(anchor_content):
                     rec = pairs.get(tok.idx)
@@ -384,6 +453,9 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                     # loop as `parts` so they cannot drift out of step with it.
                     meth.append(rec["char"])
                     conf.append(str(min(9, rec["agree"])))
+                    label = _rule_label(rec.get("rule"), raw_idx_of)
+                    if label:
+                        rule.append(f"{ordinal}:{label}")
                     alt = rec["alt"]
                     if alt:
                         alt_mapped = [raw_idx_of[i] for i in alt["t_idx"]
@@ -404,6 +476,8 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                         if not cand:
                             continue
                         for ti in annot_tok_idxs:
+                            if ti >= len(raw_toks):          # spans and tokens must index identically (usj_source._token_spans)
+                                continue
                             hit = cand.get(raw_toks[ti].lower())
                             if hit:
                                 count, pct = hit
@@ -414,6 +488,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 side["conf"][ref] = "".join(conf)
                 side["contested"][ref] = " ".join(contested)
                 side["bonus"][ref] = " ".join(bonus)
+                side["rule"][ref] = " ".join(rule)
                 for orig_v, _tok in members:
                     if orig_v != vs:
                         by_ref.setdefault(f"{book} {ch}:{orig_v}", "")   # pooled non-anchor member
@@ -506,9 +581,13 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
             continue
         lexemes_fp = index_root / f"{book}_lexemes.json"
         if not lexemes_fp.exists():
-            lexemes_fp.parent.mkdir(parents=True, exist_ok=True)
-            lexemes_fp.write_text(json.dumps(build_source_lexemes(heb, book), ensure_ascii=False) + "\n",
-                                  encoding="utf-8")
+            from lexeme_aligner.source_index import refresh as _refresh_index
+            _refresh_index(heb, index_root, [book])          # writes the file AND (re)stamps the index
+        else:
+            # 2026-09-29: the index used to be trusted blindly once written. Refuse to write an array whose
+            # srcOrd values would disagree with the published index (spine changed since it was built).
+            from lexeme_aligner.source_index import ensure_current as _ensure_index_current
+            _ensure_index_current(heb, book, index_root)
         book_index = list(json.loads(lexemes_fp.read_text(encoding="utf-8")).keys())
         array = [by_ref.get(ref, "") for ref in book_index]
         digest = book_content_hash(usj_path)[-hash_len:]

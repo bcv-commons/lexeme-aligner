@@ -18,6 +18,7 @@ import unicodedata
 from pathlib import Path
 
 from lexeme_aligner import config as _config
+from lexeme_aligner import span_roles as _span_roles
 
 # Non-scripture paragraph markers (digits stripped before lookup): headers, titles,
 # section headings, psalm titles (d), speaker lines, intro material. `b` is a blank line.
@@ -125,6 +126,35 @@ def annotation_spans(raw_text: str) -> list[tuple[int, int]]:
     return merged
 
 
+def alternate_spans(text: str, rules: dict) -> list[tuple[int, int]]:
+    """Character ranges of `[...]` / `(...)` spans that REPEAT their own verse, for the kinds the edition opts
+    into (`strip_alternate_brackets`, `strip_alternate_parens` in config/text_strip_rules.json).
+
+    An alternate is a second rendering of the same text (engwmv's parenthesised paraphrase of each clause,
+    Wycliffe's "[or ...]" variants): left in, the verse is counted twice and the repeated words compete for the
+    same source tokens. The decision is per SPAN, not per kind: a span is an alternate when at least
+    `span_roles.ALT_SPAN_SHARE` of its content words also occur in the rest of the verse, i.e. outside every
+    `[...]` and `(...)` span of the verse. Spans with fewer than `span_roles.MIN_CONTENT_WORDS` content words
+    give no evidence and are kept. `text` must be the verse's whole text (all its pieces joined with a space,
+    which is what `read_verse_ranges` returns), because the repeated words can sit in another piece."""
+    kinds = []
+    if rules.get("strip_alternate_brackets"):
+        kinds.append(_BRACKET_NOTE_RE)
+    if rules.get("strip_alternate_parens"):
+        kinds.append(_PAREN_RE)
+    if not kinds or not text:
+        return []
+    masked = _PAREN_RE.sub(" ", _BRACKET_NOTE_RE.sub(" ", text))
+    outside = _span_roles.content_words(tokenize(masked))
+    spans = []
+    for span_re in kinds:
+        for m in span_re.finditer(text):
+            share = _span_roles.repetition_share(tokenize(m.group(0)[1:-1]), outside)
+            if share is not None and share >= _span_roles.ALT_SPAN_SHARE:
+                spans.append((m.start(), m.end()))
+    return spans
+
+
 def removed_spans(raw_text: str, rules: dict) -> list[tuple[int, int]]:
     """Character (start, end) ranges in `raw_text` that `_strip_bracket_notes`/`_strip_paren_notes`
     would DELETE OUTRIGHT under `rules` — i.e. text present in raw_text with no trace in the stripped
@@ -136,9 +166,9 @@ def removed_spans(raw_text: str, rules: dict) -> list[tuple[int, int]]:
     for the failure mode this replaces (a repeated word straddling a deletion boundary can fool a
     generic diff into matching the wrong occurrence; character removal has no such ambiguity, since
     it never has to choose between candidates)."""
-    spans: list[tuple[int, int]] = []
+    spans: list[tuple[int, int]] = list(alternate_spans(raw_text, rules))
     if rules.get("strip_brackets"):
-        work = raw_text
+        work = raw_text if not spans else _blank(raw_text, spans)
         while True:
             found = [(m.start(), m.end()) for m in _BRACKET_NOTE_RE.finditer(work)]
             if not found:
@@ -255,11 +285,37 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
     if rules is None:
         rules = _rules_for(usj_path)
 
-    def emit(text: str):
+    alt = bool(rules.get("strip_alternate_brackets") or rules.get("strip_alternate_parens"))
+    buffered: list[tuple[int, int, int, str]] = []          # (chapter, verse, verse_end, raw piece), one verse
+
+    def clean(text: str) -> str:
         if rules.get("strip_brackets"):
             text = _strip_bracket_notes(text)
         if rules.get("strip_parens_noise"):
             text = _strip_paren_notes(text)
+        return text
+
+    def flush():
+        """Alternate detection needs the whole verse, so its pieces are held back until the verse ends."""
+        spans = alternate_spans(" ".join(b[3] for b in buffered), rules)
+        pos = 0
+        for ch, vs, ve, piece in buffered:
+            end = pos + len(piece)
+            local = [(max(s, pos) - pos, min(e, end) - pos) for s, e in spans if s < end and e > pos]
+            text = clean(_blank(piece, local) if local else piece)
+            if text:
+                yield (ch, vs, ve, text)
+            pos = end + 1
+        buffered.clear()
+
+    def emit(text: str):
+        if alt:
+            if state["ch"] and state["vs"] and text:
+                if buffered and buffered[0][:2] != (state["ch"], state["vs"]):
+                    yield from flush()
+                buffered.append((state["ch"], state["vs"], state["ve"], text))
+            return
+        text = clean(text)
         if state["ch"] and state["vs"] and text:
             yield (state["ch"], state["vs"], state["ve"], text)
 
@@ -305,6 +361,8 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
                 yield from walk(it["content"])
 
     yield from walk(usj.get("content", []))
+    if buffered:
+        yield from flush()
 
 
 def read_verses(usj_path: Path, warn=sys.stderr, *, rules: dict | None = None) -> dict[tuple[int, int], str]:
@@ -458,20 +516,54 @@ def _split_unspaced(tok: str) -> list[str]:
 
 
 def _token_spans(text: str) -> list[tuple[int, int]]:
-    """(start, end) character offsets for every tokenize()-equivalent token, in order — letter+mark
-    runs, same grain as tokenize()'s own L/M category walk (marks-stripping doesn't move boundaries:
-    strip_marks only DROPS characters of category Mn, it never merges or splits an adjacent run)."""
-    spans = []
+    """(start, end) character offsets for every tokenize() token, in order, so `_token_spans(t)[i]` is exactly
+    the text of `tokenize(t)[i]` — the index compact-alignments publishes and clients reproduce with tokenize.js.
+
+    Walks the same letter+mark runs as tokenize(). Two places where a run is NOT simply one token, both fixed
+    2026-10-01 after a scan of 2,103 editions found 34 whose span count differed from their token count:
+      * a run that `strip_marks` reduces to nothing (a stray combining mark on its own, e.g. a lone Sinhala
+        virama U+0DCA) is no token at all, so it yields no span; counting it shifted every later index by one;
+      * a run of an unspaced script that tokenize() splits further (Han per character, Japanese at script
+        boundaries, Myanmar per syllable) yields one span per piece; it used to yield a single span, so those
+        editions disagreed with tokenize() in every verse.
+    A multi-piece run is mapped back by matching each piece's characters in order (marks that strip_marks
+    dropped sit between them); if that ever fails (NFC recomposition), the whole run stays one span."""
+    spans: list[tuple[int, int]] = []
     start = None
+
+    def close(end: int) -> None:
+        run = text[start:end]
+        kept = strip_marks(run)
+        if not kept:
+            return
+        pieces = _split_unspaced(kept)
+        if len(pieces) == 1:
+            spans.append((start, end))
+            return
+        found: list[tuple[int, int]] = []
+        p = 0
+        for piece in pieces:
+            first = None
+            for k, ch in enumerate(piece):
+                j = run.find(ch, p)
+                if j < 0:
+                    spans.append((start, end))
+                    return
+                if k == 0:
+                    first = j
+                p = j + 1
+            found.append((start + first, start + p))
+        spans.extend(found)
+
     for i, ch in enumerate(text):
         if unicodedata.category(ch)[0] in ("L", "M"):
             if start is None:
                 start = i
         elif start is not None:
-            spans.append((start, i))
+            close(i)
             start = None
     if start is not None:
-        spans.append((start, len(text)))
+        close(len(text))
     return spans
 
 

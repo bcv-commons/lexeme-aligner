@@ -47,3 +47,8 @@ PRIOR_PACK = _p("ALIGNER_PRIOR_PACK", _PIPELINE / "vendor" / "prior-pack" / "pri
 HF_CHUNK_SIZE = int(os.environ.get("ALIGNER_HF_CHUNK_SIZE", "200"))  # files per HF commit, project-wide
 # per-edition opt-in bracket/paren text-strip decisions (usj_source.py) — see config/text_strip_rules.json
 TEXT_STRIP_RULES = _p("ALIGNER_TEXT_STRIP_RULES", _REPO_ROOT / "config" / "text_strip_rules.json")
+
+
+# Last-known-good DNS fallback for every aligner process (this machine's DNS goes flaky for minutes) — see dns_cache.py.
+from lexeme_aligner import dns_cache as _dns_cache  # noqa: E402
+_dns_cache.install()

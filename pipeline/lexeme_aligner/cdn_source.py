@@ -28,6 +28,8 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from lexeme_aligner import dns_cache as _dns_cache  # last-known-good DNS fallback; this machine's DNS goes flaky
+_dns_cache.install()
 
 CDN = "https://cdn.bibel.wiki/pkf"
 

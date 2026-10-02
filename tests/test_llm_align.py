@@ -944,6 +944,170 @@ def test_max_tokens_for_scales_by_ids_to_decide_not_by_verse_count():
     assert max_tokens_for(huge) == 64000
 
 
+# ── packed residue strategies (gap / gap-seeded / verify), 2026-09-29 ─────────────────────────────────
+
+
+def _multi(n=3):
+    """n verses that ALL have a gap and a low-confidence pair, so gap and verify each yield n packets."""
+    recs = [verse(v) for v in range(1, n + 1)]
+    refs = [encode("MAT", 1, v) for v in range(1, n + 1)]
+    return inputs(recs=recs,
+                  covered_h={r: {0} for r in refs}, taken_t={r: {0} for r in refs},
+                  spans={r: {0: [0]} for r in refs}, low_conf={r: {1: ([2], 0.6)} for r in refs},
+                  candidates={r: {2, 3} for r in refs}, others={}), refs
+
+
+def test_packing_covers_the_residue_strategies_and_leaves_the_others_alone():
+    from lexeme_aligner.llm_prompt import PACKABLE
+    assert set(PACKABLE) == {"full", "gap", "gap-seeded", "verify", "verify-widened"}
+    inp, refs = _multi(3)
+    for strat in ("gap", "gap-seeded", "verify"):
+        packets, base, stats = build_packets(strat, inp, pack_size=2)
+        assert [len(p.members) for p in packets] == [2, 1] and stats["packs"] == 2, strat
+        assert all(p.strategy == strat for p in packets) and set(base) == set(refs), strat
+        unpacked, _, ustats = build_packets(strat, inp, pack_size=1)
+        assert len(unpacked) == 3 and "packs" not in ustats and all(not p.members for p in unpacked), strat
+    packets, _, _ = build_packets("lexeme-grouped", inp, pack_size=2)          # ignores pack_size
+    assert all(p.lexeme for p in packets)
+
+
+def test_packed_residue_suffix_uses_each_strategys_own_body_and_wrapper_shape():
+    inp, _ = _multi(2)
+    (gp,), _, _ = build_packets("gap-seeded", inp, pack_size=5)
+    text = render_suffix(gp)
+    assert text.count("SOURCE:") == 2 and text.count("Return ONE object") == 1
+    assert '"ref", "alignments"}' in text and "review_notes" not in text and "SEEDS:" in text
+    (vp,), _, _ = build_packets("verify", inp, pack_size=5)
+    vtext = render_suffix(vp)
+    assert vtext.count("PROPOSED ->") == 2 and '"ref", "verdicts"}' in vtext
+
+
+def test_resolve_reassembles_a_packed_gap_response_per_verse():
+    inp, (r1, r2, r3) = _multi(3)
+    (pack,), base, _ = build_packets("gap", inp, pack_size=5)
+    resp = {"results": [
+        {"ref": r2, "alignments": [{"h_idx": 1, "t_idx": [3], "status": "aligned", "note": ""},
+                                   {"h_idx": 2, "t_idx": [], "status": "unrepresented", "note": ""}]},
+        {"ref": r1, "alignments": [{"h_idx": 1, "t_idx": [2], "status": "aligned", "note": ""},
+                                   {"h_idx": 2, "t_idx": [], "status": "unrepresented", "note": ""}]}]}
+    decisions, tally, _ = resolve([(pack, resp, None)], base, "gap")
+    assert next(d for d in decisions[r1] if d.h_idx == 1).t_idx == [2]          # reordered items still land by ref
+    assert next(d for d in decisions[r2] if d.h_idx == 1).t_idx == [3]
+    assert all(d.status == "invalid" for d in decisions[r3])                    # omitted verse is reported, not guessed
+
+
+def test_resolve_reassembles_a_packed_verify_response_and_confirmed_restores_the_proposal():
+    inp, (r1, r2, _r3) = _multi(3)
+    (pack,), base, _ = build_packets("verify", inp, pack_size=5)
+    resp = {"results": [
+        {"ref": r1, "verdicts": [{"h_idx": 1, "status": "confirmed", "t_idx": [], "note": ""}]},
+        {"ref": r2, "verdicts": [{"h_idx": 1, "status": "corrected", "t_idx": [3], "note": ""}]}]}
+    decisions, _, _ = resolve([(pack, resp, None)], base, "verify")
+    assert next(d for d in decisions[r1] if d.h_idx == 1).t_idx == [2]          # proposal (t2) restored
+    assert next(d for d in decisions[r2] if d.h_idx == 1).t_idx == [3]          # model's own correction
+
+
+def test_packed_residue_max_tokens_is_budgeted_per_decided_id_within_bounds():
+    inp, _ = _multi(3)
+    (gp,), _, _ = build_packets("gap", inp, pack_size=5)                        # 3 verses x 2 gap ids
+    assert max_tokens_for(gp) == 4096                                           # 6 ids * 300 < the floor
+    singles, _, _ = build_packets("gap", inp)
+    assert all(max_tokens_for(p) == 4096 for p in singles)
+    big, _ = _multi(300)                                                        # 300 verses x 2 ids = 600 ids
+    (huge,), _, _ = build_packets("gap", big, pack_size=1000)
+    assert max_tokens_for(huge) == min(600 * 300, 64000) == 64000
+
+
+def test_mock_provider_answers_packed_residue_calls_end_to_end(tmp_path):
+    from lexeme_aligner.llm_prompt import packed_schema_for
+    from lexeme_aligner.llm_providers import MockProvider
+    inp, refs = _multi(3)
+    for strat in ("gap", "verify"):
+        (pack,), base, _ = build_packets(strat, inp, pack_size=5)
+        resp, _u = MockProvider(oracle=lambda ref, h: [2]).complete(
+            "prefix", render_suffix(pack), packed_schema_for(strat), max_tokens=4096)
+        assert [it["ref"] for it in resp["results"]] == refs, strat
+        decisions, _, _ = resolve([(pack, resp, None)], base, strat)
+        assert all(d.status != "invalid" for r in refs for d in decisions[r]), strat
+
+
+# ── verify-widened: the check of span_extension's appended function words (2026-09-29) ──────────────────
+
+
+def _widened_inputs(n=1):
+    """n verses where h1's statistical span is t3 and span_extension appended the ADJACENT function word t4 ('de')."""
+    recs = [verse(v) for v in range(1, n + 1)]
+    refs = [encode("MAT", 1, v) for v in range(1, n + 1)]
+    inp = inputs(recs=recs, covered_h={r: {0, 1} for r in refs}, taken_t={r: {0, 3} for r in refs},
+                 spans={r: {0: [0], 1: [3]} for r in refs}, low_conf={}, candidates={}, others={},
+                 widened={r: {1: ([3], [3, 4], "case_marking_after:4")} for r in refs})
+    return inp, refs
+
+
+def test_scan_widened_keeps_only_real_widenings_with_a_base(tmp_path):
+    import json as _json
+    from lexeme_aligner.llm_align import scan_widened
+    fp = tmp_path / "align_spanext_xx_MAT.jsonl"
+    rec = {"ref": REF, "pairs": [
+        {"h_idx": 1, "t_idx": [2, 4], "content": True, "target": "gamma de", "prior": "case_marking_after:4"},
+        {"h_idx": 2, "t_idx": [3], "content": True, "target": "delta", "prior": "x"},        # not wider than base
+        {"h_idx": 5, "t_idx": [1, 2], "content": True, "target": "b c", "prior": "y"}]}      # no base span
+    fp.write_text(_json.dumps(rec) + "\n", encoding="utf-8")
+    got = scan_widened("xx", tmp_path, {REF: {1: [2], 2: [3]}})
+    assert got == {REF: {1: ([2], [2, 4], "case_marking_after:4")}}
+
+
+def test_verify_widened_packet_proposes_the_widened_span_and_records_the_appended_positions():
+    inp, (ref,) = _widened_inputs()
+    (p,), base, stats = build_packets("verify-widened", inp)
+    assert p.decide == [1] and p.proposed == {1: ([3, 4], 0.9)}
+    assert p.widened == {1: ([3], [4], "case_marking_after:4")}
+    assert 4 in p.allowed and 3 in p.allowed                 # the appended function word stays choosable
+    assert 0 not in p.allowed                                # t0 is taken by another token
+    assert base[ref] is p and stats["tokens_to_decide"] == 1
+
+
+def test_verify_widened_suffix_names_the_statistical_span_and_what_was_appended():
+    inp, _ = _widened_inputs()
+    (p,), _, _ = build_packets("verify-widened", inp)
+    text = render_suffix(p)
+    assert "WIDENED -> t3 t4" in text and "statistical span t3" in text and "appended t4 (case_marking_after:4)" in text
+    assert "PROPOSED" not in text and "DECIDE: h1" in text
+
+
+def test_verify_widened_prefix_and_schema_are_the_verify_ones():
+    from lexeme_aligner.llm_prompt import SCHEMA_VERIFY, SCHEMA_VERIFY_PACKED, packed_schema_for, prior_for, render_prefix, schema_for
+    assert schema_for("verify-widened") == SCHEMA_VERIFY and packed_schema_for("verify-widened") == SCHEMA_VERIFY_PACKED
+    prefix = render_prefix("xx", "Xish", "verify-widened")
+    assert "Strategy: verify-widened" in prefix and "APPENDED" in prefix and "WIDENED ->" in prefix
+    from lexeme_aligner.llm_prompt import Decision
+    assert prior_for("verify-widened", Decision(1, [2], "aligned", tag="confirmed")) == "llm_verify_widened_confirmed"
+
+
+def test_verify_widened_resolves_confirmed_corrected_and_rejected(tmp_path):
+    inp, refs = _widened_inputs(3)
+    (pack,), base, _ = build_packets("verify-widened", inp, pack_size=5)
+    r1, r2, r3 = refs
+    resp = {"results": [
+        {"ref": r1, "verdicts": [{"h_idx": 1, "status": "confirmed", "t_idx": [], "note": ""}]},
+        {"ref": r2, "verdicts": [{"h_idx": 1, "status": "corrected", "t_idx": [3], "note": "drop the appended word"}]},
+        {"ref": r3, "verdicts": [{"h_idx": 1, "status": "rejected", "t_idx": [], "note": ""}]}]}
+    decisions, tally, _ = resolve([(pack, resp, None)], base, "verify-widened")
+    assert next(d for d in decisions[r1] if d.h_idx == 1).t_idx == [3, 4]      # confirmed restores the WIDENED span
+    assert next(d for d in decisions[r2] if d.h_idx == 1).t_idx == [3]         # corrected back to the statistical span
+    assert next(d for d in decisions[r3] if d.h_idx == 1).status == "rejected"
+
+
+def test_mock_provider_answers_a_packed_verify_widened_call():
+    from lexeme_aligner.llm_prompt import packed_schema_for
+    from lexeme_aligner.llm_providers import MockProvider
+    inp, refs = _widened_inputs(3)
+    (pack,), base, _ = build_packets("verify-widened", inp, pack_size=5)
+    resp, _u = MockProvider().complete("prefix", render_suffix(pack), packed_schema_for("verify-widened"), max_tokens=4096)
+    decisions, _, _ = resolve([(pack, resp, None)], base, "verify-widened")
+    assert all(next(d for d in decisions[r] if d.h_idx == 1).t_idx == [3, 4] for r in refs)
+
+
 # ── repair pass for a `full` response truncated mid-verse ────────────────────────────────────────────
 
 def test_build_repair_packets_only_for_missing_ids_and_marks_first_pass_claims_taken():

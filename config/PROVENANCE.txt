@@ -392,3 +392,15 @@ config/ebible/translations.csv — BibleNLP/ebible's own translation metadata (r
   edition-level info for 435 of 551 (the other 116 already had a script from `languages_db`, at the
   language level, not the edition level). Wired additively into `edition_struct.build_record()`'s
   `derived.ebible` field — nothing else changed, no existing reader affected.
+
+ubs-senses.db — UBS SENSE LAYER for the Hebrew Bible (sense, token_sense, ubs_meta)  [ALIGNER_UBS_SENSES_DB]
+  built 2026-09-30 by `python3 -m lexeme_aligner.ubs_senses --build` from the UBS Dictionary of Biblical Hebrew v0.9.3
+  (English JSON, https://github.com/ubsicap/ubs-open-license/tree/main/dictionaries/hebrew, an extract of SDBH,
+  (c) United Bible Societies 2000-2023). LICENSE: CC BY-SA 4.0 (share-alike) — UNLIKE the CC-BY spine. Anything derived from
+  this file (sense ids bound to tokens, the senses_attested `ubs_sense` column) must be released under CC BY-SA 4.0 with the
+  credit "UBS Dictionary of Biblical Hebrew (c) United Bible Societies, adapted from SDBH". The UBS JSON itself lives in
+  pipeline/work/ubs-dictionary/ (gitignored, out-of-band); this DB is gitignored (*.db) and rebuilt from it in seconds.
+  pins: UBS JSON sha256 and the spine sha are recorded in the DB's ubs_meta table.
+  binding: 285,376 sense-tagged references -> 265,429 spine tokens (unique 202,405, anchored 60,800, nearest 2,494; 18,693
+  unbound); validation = UBS-gloss/spine-gloss word overlap 61% (unique), 52% (anchored) vs 13% for senses shuffled within the
+  verse. Method and caveats: lexeme_aligner/ubs_senses.py docstring, internal-docs/aim1-three-track-evaluation-plan.md §8.11-8.12.

@@ -1,6 +1,6 @@
-"""aligned_mwe walkthrough — runs `export_mwe.py` for every currently-published language's PRIMARY
-edition tag (this dataset's schema has no per-edition column, unlike compact-alignments — one MWE
-partition per LANGUAGE, matching lexeme-alignments' pooling). Reuses `gapfill_batch.discover_tags()`/
+"""aligned_mwe walkthrough — runs `export_mwe.py` once per currently-published language, POOLING EVERY
+data-bearing edition of it (one MWE partition per LANGUAGE, rows tagged by `base_text`, matching
+lexeme-alignments' pooling; no edition is privileged). Reuses `gapfill_batch.discover_tags()`/
 `has_eflomal()` so this can never drift out of sync with how a language was actually onboarded — same
 discipline as `compact_align_batch.py`.
 
@@ -45,30 +45,29 @@ def main() -> int:
 
     print(f"[export_mwe_batch] {len(isos)} language(s) to check", file=sys.stderr)
 
-    plan: dict[str, str] = {}   # iso -> primary tag
+    plan: dict[str, list[str]] = {}   # iso -> [tag, ...] every edition with alignment data
     for iso in isos:
-        tags = discover_tags(iso)
-        if not tags:
-            continue
-        primary = tags[0][0]
-        if has_eflomal(primary, args.out):
-            plan[iso] = primary
+        tags = [t for t, _ in discover_tags(iso) if has_eflomal(t, args.out)]
+        if tags:
+            plan[iso] = tags
 
     print(f"[export_mwe_batch] {len(plan)} language(s) with alignment data to process", file=sys.stderr)
 
     if args.dry_run:
-        for iso, tag in plan.items():
-            print(f"  {iso:<8} {tag}", file=sys.stderr)
+        for iso, tags in plan.items():
+            print(f"  {iso:<8} {', '.join(tags)}", file=sys.stderr)
         return 0
 
     failed = []
-    for iso, tag in plan.items():
+    for iso, tags in plan.items():
         lang_name = all_isos.get(iso, {}).get("language")
-        cmd = [sys.executable, "-m", "lexeme_aligner.export_mwe", "--iso", tag, "--publish-iso", iso,
+        cmd = [sys.executable, "-m", "lexeme_aligner.export_mwe", "--iso", tags[0], "--publish-iso", iso,
               "--method", "all", "--out", str(args.out), "--root", str(args.root)]
+        if len(tags) > 1:
+            cmd += ["--pool", ",".join(tags[1:])]
         if lang_name:
             cmd += ["--lang-name", lang_name]
-        if not _run(cmd, f"{iso}/{tag}"):
+        if not _run(cmd, f"{iso}/{'+'.join(tags)}"):
             failed.append(iso)
 
     print(f"\n[export_mwe_batch] done — {len(plan) - len(failed)}/{len(plan)} language(s) exported "

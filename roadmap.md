@@ -14,7 +14,7 @@ of data**, not a service.
 
 ## Status
 Standalone repo, extracted from the `bcv-query` monorepo. Package is **`lexeme_aligner`** (imports
-are `from lexeme_aligner.…`; console script `lexeme-align`). All modules byte-compile and imports
+are `from lexeme_aligner.…`; console script `lexeme-aligner`; the old `lexeme-align` / `lexeme-pipeline` scripts were removed 2026-10-02). All modules byte-compile and imports
 resolve; `refs.encode('GEN',1,1)=1001001`.
 
 **Standalone extraction validated.** Full-OT eflomal run (39 books, 23,145 verses, `ind`) reproduces

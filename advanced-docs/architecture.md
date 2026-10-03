@@ -34,22 +34,34 @@ git clone https://github.com/robertostling/eflomal && cd eflomal
 pip install Cython && pip install --no-build-isolation .
 ```
 
-**The `Makefile` is the primary entry point** (`make help` lists every target); it fronts a 9-step
-per-language chain, `full_chain.py`, ingest through the local exports — publish to Hugging Face is
-always a separate, deliberate step, never automatic:
+**One front door: `lexeme-aligner`** (`python -m lexeme_aligner …`, or the `lexeme-aligner` command after `pip install -e .`). It is a thin
+dispatcher over the entry points below — every subcommand passes its remaining arguments straight through, so `<subcommand> --help` shows that
+entry point's own options. The `Makefile` keeps short aliases (`make help`). Publishing to Hugging Face is always a separate, deliberate step.
 ```bash
-make new-language ISO=ceb LANG_NAME=Cebuano   # or update-language for an already-onboarded language
-make new-batch SPEC=<hand-curated JSON list>  # onboard_batch.py — new-batch skips already-done langs
-make new-catalog                              # onboard_catalog.py --full — sweep the ~1,876-lang catalog
-make status                                   # pipeline/scripts/status.py
-make publish ISO=ceb                          # publish_lang.py — push one language to HF
-make publish-all                              # sweep every already-exported language + companion datasets
+lexeme-aligner run tgl                             # one language, the full chain  (= full_chain --iso tgl --clean-out)
+lexeme-aligner batch --all --workers 3 --nice 10   # resumable chain over every onboarded language; also --isos a,b, --list FILE, --stale-before DATE
+lexeme-aligner batch --catalog --include-dbt       # onboard catalog languages that are not done yet (onboard_catalog)
+lexeme-aligner grammar all                         # article_bound -> derive_typology -> gram_struct: the grammar facts the chain reads
+lexeme-aligner grammar regate --snapshot           # BEFORE a grammar rebuild; afterwards `grammar regate --before <dir>` lists the languages to re-run
+lexeme-aligner publish --list-ready                # which languages are safe to publish now, and why the others are not
+lexeme-aligner publish --ready-file pipeline/work/logs/publish_ready_latest.json [--push]   # dry run unless --push
+lexeme-aligner status | eval … | text-strip        # coverage report | positional gold scoring | bracket/paren evidence
+make new-catalog / update-language ISO=ceb / publish ISO=ceb [PUSH=1] / publish-all [PUSH=1]  # the same things as Makefile aliases
 ```
-`full_chain.py`'s 9 steps: ingest → eflomal align → export eflomal-only (local) → gloss align
-(bootstraps priors from that export) → gapfill → export final union (local) → aligned_mwe (local) →
-senses_attested (local) → compact-alignments (local). Steps 1-3 delegate to `onboard.py`; steps 4-9 are
-individually best-effort (a failure warns and the chain continues) except step 6's final export, which
-is load-bearing for everything published downstream.
+The chain's steps (`full_chain.py`): ingest → eflomal align → export eflomal-only (local) → gloss align (priors bootstrapped from that export) →
+span extension (4b) → gap-fill → residual re-alignment (5b) → export the final union (local) → `aligned_mwe` (pooled over every edition) →
+`senses_attested` (+ the UBS-keyed variant, 8b) → `compact-alignments` (one run per edition). Steps 1-3 delegate to `onboard.py`; the later steps are
+individually best-effort (a failure warns and the chain continues) except the final export, which is load-bearing for everything published
+downstream. The chain does not write a language's `pipeline_decisions` ledger entry; `lexeme-aligner batch` does that after each language.
+
+**Publishing is always `publish_safe.py`** (`lexeme-aligner publish`): it merges only the selected languages into the manifest that is on Hugging Face
+now, never deletes, runs a per-language preflight, guards the schema and verifies afterwards — a dry run unless `--push`. `compact-alignments` is
+three repos with identical relative paths: the alignment arrays (`bcv-commons/compact-alignments`) and the optional `.meta.json` / `.extra.json`
+sidecars (`compact-alignments-meta` / `-extra`). Do not publish a language while a chain for it is running.
+
+**Measuring a change on gold:** `pipeline/scripts/tools/measure_flag.py --flag typology_fallback --langs spa,ben,asm,hin --convention-aware`
+A/B-tests one span-extension flag in a private scratch folder (the live output is only read) and prints a win / wash / loss table per language;
+the grammar-phase protocol it belongs to is in `internal-docs/pipeline-consolidation-plan.md` (section 5).
 
 The older direct CLI still exists underneath and is useful for iterating on one stage without re-running
 the others, or for a single edition/book:

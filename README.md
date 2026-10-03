@@ -68,3 +68,6 @@ The above is everything most people need. If you want to run the alignment pipel
 cloned copy of this repo, add a new language, or understand how the data is produced: see
 [**advanced-docs/**](advanced-docs/), starting with
 [**advanced-docs/architecture.md**](advanced-docs/architecture.md).
+
+In short: `pip install -e '.[ingest,publish]'`, then `lexeme-aligner run <iso>` aligns one language end to end (local files only),
+`lexeme-aligner batch --all` does many, and `lexeme-aligner publish` is a dry run unless you add `--push`.

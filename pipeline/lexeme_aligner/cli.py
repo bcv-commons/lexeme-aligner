@@ -8,7 +8,7 @@ remaining argument through unchanged. Nothing here re-implements a step, so the 
     lexeme-aligner batch --list spec.json [--force]                   a hand-curated language list              (= onboard_batch)
     lexeme-aligner batch --all|--isos a,b|--stale-before DATE [--workers N --nice N --skip-ingest --fresh --retry-failed]
                                                                       resumable chain over many languages (= lexeme_aligner.batch)
-    lexeme-aligner grammar derive|article-bound|gram-struct|check|all grammar facts (derive_typology / article_bound / gram_struct)
+    lexeme-aligner grammar derive|article-bound|gram-struct|check|all|regate   grammar facts; `regate` lists languages to re-run after a rebuild
     lexeme-aligner publish [--iso a,b | --ready-file F] [--push]      safe partial publish (= scripts/publish_safe.py; dry run unless --push)
     lexeme-aligner status                                             coverage report                          (= scripts/status.py)
     lexeme-aligner eval ...                                           positional gold scoring                   (= pos_score)
@@ -70,7 +70,8 @@ def plan(argv: list[str]) -> list[list[str]]:
                          "[--workers N --nice N --skip-ingest --fresh --retry-failed --dry-run ...]")
     if sub == "grammar":
         what, rest = (rest[0], rest[1:]) if rest else ("", [])
-        steps = {"derive": [_module("derive_typology", "--build", *rest)],
+        steps = {"regate": [_module("regate", *rest)],
+                 "derive": [_module("derive_typology", "--build", *rest)],
                  "article-bound": [_module("article_bound", "--build", *rest)],
                  "gram-struct": [_module("gram_struct", "--build", *rest)],
                  "check": [_module("derive_typology", "--check-known-answers", *rest)]}
@@ -78,7 +79,7 @@ def plan(argv: list[str]) -> list[list[str]]:
             return [_module("article_bound", "--build"), _module("derive_typology", "--build"), _module("gram_struct", "--build")]
         if what in steps:
             return steps[what]
-        raise SystemExit("usage: lexeme-aligner grammar (derive | article-bound | gram-struct | check | all) [options]")
+        raise SystemExit("usage: lexeme-aligner grammar (derive | article-bound | gram-struct | check | regate | all) [options]")
     if sub == "publish":
         return [_script("publish_safe.py", *rest)]
     if sub == "status":

@@ -33,6 +33,7 @@ def test_grammar_all_runs_in_dependency_order():
     names = [c[2] for c in cli.plan(["grammar", "all"])]
     assert names == ["lexeme_aligner.article_bound", "lexeme_aligner.derive_typology", "lexeme_aligner.gram_struct"]
     assert _mods(cli.plan(["grammar", "check"])) == [["lexeme_aligner.derive_typology", "--check-known-answers"]]
+    assert _mods(cli.plan(["grammar", "regate", "--before", "d"])) == [["lexeme_aligner.regate", "--before", "d"]]
 
 
 def test_publish_is_always_the_safe_publisher_and_a_dry_run_by_default():

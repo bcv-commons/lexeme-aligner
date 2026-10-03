@@ -203,6 +203,27 @@ def paths_info_batched(api, repo: str, paths: list[str], batch: int = 100, retri
     return found
 
 
+LEDGER_SRC = REPO / "config" / "pipeline_decisions.json"
+
+
+def sync_ledger(roots: list[Path], src: Path = LEDGER_SRC) -> list[Path]:
+    """The ledger the datasets ship (`<dataset root>/pipeline_decisions.json`) is a COPY of config/pipeline_decisions.json. The batch runner and the old
+    fleet scripts refresh only the config file, so the copies silently go stale (2026-10-03: 1,695 entries published-side vs 1,727 in config). Refresh every
+    existing root's copy from the config file before anything is staged; returns the roots that were updated."""
+    if not src.exists():
+        return []
+    data = src.read_bytes()
+    updated = []
+    for root in roots:
+        if not Path(root).is_dir():
+            continue
+        dst = Path(root) / "pipeline_decisions.json"
+        if not dst.exists() or dst.read_bytes() != data:
+            dst.write_bytes(data)
+            updated.append(Path(root))
+    return updated
+
+
 def ready_report(isos: list[str], ledger: dict, busy: set[str], lex: dict, comp: dict, allow_stale: bool) -> tuple[list[str], dict[str, list[str]]]:
     """(ready languages, {language: reasons}) from the same preflight a push uses — one definition of "safe to publish"."""
     ready, blocked = [], {}
@@ -346,6 +367,9 @@ def main() -> int:
     if not ok:
         return 1
     scratch = REPO / "pipeline/work/publish-scratch"
+    synced = sync_ledger([REPO / "publish" / n for n in names])
+    if synced:
+        print(f"[publish_safe] refreshed the shipped ledger copy from config/pipeline_decisions.json in: {[p.name for p in synced]}", file=sys.stderr)
     results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch) for n in names]
     if "compact-alignments" in names:                          # the two optional sidecar layers live in their own repos
         results += [publish_layer(layer, ok, args.push, args.chunk_size) for layer in compact_layers.LAYERS]

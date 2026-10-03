@@ -137,3 +137,18 @@ def test_ready_report_splits_ready_from_blocked_with_reasons():
     assert ready == [] and blocked["nolang"] == ["no lexeme-alignments manifest entry"]
     ready2, blocked2 = ps.ready_report([], {}, set(), {"languages": {}}, {"languages": {}}, False)
     assert ready2 == [] and blocked2 == {}
+
+
+def test_sync_ledger_refreshes_stale_copies_and_skips_missing_roots(tmp_path):
+    src = tmp_path / "config_ledger.json"
+    src.write_text('{"a": 1, "b": 2}', encoding="utf-8")
+    fresh, stale, missing = tmp_path / "fresh", tmp_path / "stale", tmp_path / "missing"
+    fresh.mkdir()
+    stale.mkdir()
+    (fresh / "pipeline_decisions.json").write_text('{"a": 1, "b": 2}', encoding="utf-8")
+    (stale / "pipeline_decisions.json").write_text('{"a": 1}', encoding="utf-8")
+    updated = ps.sync_ledger([fresh, stale, missing], src)
+    assert updated == [stale]                                          # only the stale one was rewritten, the missing root is ignored
+    assert (stale / "pipeline_decisions.json").read_text() == '{"a": 1, "b": 2}'
+    assert ps.sync_ledger([fresh, stale], src) == []                   # idempotent
+    assert ps.sync_ledger([stale], tmp_path / "nope.json") == []       # no source -> nothing to do

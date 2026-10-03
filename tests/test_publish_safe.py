@@ -152,3 +152,15 @@ def test_sync_ledger_refreshes_stale_copies_and_skips_missing_roots(tmp_path):
     assert (stale / "pipeline_decisions.json").read_text() == '{"a": 1, "b": 2}'
     assert ps.sync_ledger([fresh, stale], src) == []                   # idempotent
     assert ps.sync_ledger([stale], tmp_path / "nope.json") == []       # no source -> nothing to do
+
+
+def test_forget_pushed_drops_only_the_named_paths_from_the_cache(tmp_path):
+    import json
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    (stage / ".publish_state.json").write_text(json.dumps({"org/repo": {"a.json": "sha-a", "b.json": {"sha256": "sha-b"}, "c.json": "sha-c"},
+                                                           "org/other": {"a.json": "keep"}}), encoding="utf-8")
+    assert ps.forget_pushed(stage, "org/repo", ["a.json", "b.json", "missing.json"]) == 2
+    st = json.loads((stage / ".publish_state.json").read_text())
+    assert st["org/repo"] == {"c.json": "sha-c"} and st["org/other"] == {"a.json": "keep"}
+    assert ps.forget_pushed(tmp_path / "nowhere", "org/repo", ["a.json"]) == 0

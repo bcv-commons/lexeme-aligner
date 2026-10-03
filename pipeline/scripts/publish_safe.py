@@ -286,6 +286,23 @@ def layer_files(isos: list[str], layer: str, local_root: Path) -> list[str]:
     return sorted(str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob(f"*{suffix}"))
 
 
+def forget_pushed(stage: Path, repo: str, paths: list[str]) -> int:
+    """Drop `paths` from the push cache (`.publish_state.json`) of a staging root, so the next run uploads them again. Needed when HF turns out to hold
+    something other than what the cache believes (e.g. a file restored out of band, 2026-10-03): without this the cache keeps saying "already pushed"
+    and a re-run would skip the very files that failed verification."""
+    sf = Path(stage) / ".publish_state.json"
+    if not sf.exists():
+        return 0
+    state = json.loads(sf.read_text(encoding="utf-8"))
+    entries = state.get(repo, {})
+    n = sum(1 for p in paths if entries.pop(p, None) is not None)
+    if n:
+        tmp = sf.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state), encoding="utf-8")
+        os.replace(tmp, sf)
+    return n
+
+
 def publish_layer(layer: str, isos: list[str], push: bool, chunk: int) -> dict:
     """Push one sidecar layer of the selected languages to its own repo (same relative paths as the main repo). No manifest to merge: the repo
     holds only the sidecars plus its README. Verify = every pushed file exists on HF with the local byte size (batched, rate-limit safe)."""
@@ -305,7 +322,11 @@ def publish_layer(layer: str, isos: list[str], push: bool, chunk: int) -> dict:
         from huggingface_hub import HfApi
         infos = paths_info_batched(HfApi(), repo, files, batch=200)
         bad = [f for f in files if f not in infos or getattr(infos[f], "size", None) != (stage / f).stat().st_size]
-        result.update(verified=not bad, entry_mismatch=bad[:50], other_entries_changed=[])
+        if bad:
+            forget = forget_pushed(stage, repo, bad)
+            print(f"[publish_safe] {name}: {len(bad)} file(s) failed verification — forgot {forget} cache entr(ies); re-run the same command to upload them",
+                  file=sys.stderr)
+        result.update(verified=not bad, entry_mismatch=bad[:50], mismatch_count=len(bad), other_entries_changed=[])
         print(f"[publish_safe] {name}: VERIFY {'OK' if not bad else 'FAILED'} — {len(files) - len(bad)}/{len(files)} files present with the right size"
               f"{'; first problems ' + str(bad[:5]) if bad else ''}", file=sys.stderr)
     return result

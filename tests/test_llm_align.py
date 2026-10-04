@@ -7,7 +7,7 @@ synthetic corpus. Design: internal-docs/llm-align-experiment-plan.md.
 import pytest
 
 from lexeme_aligner.hebrew_source import HebToken
-from lexeme_aligner.llm_prompt import (
+from lexeme_aligner.eval.llm_prompt import (
     SCHEMA_FULL, STRATEGIES, Decision, Packet, PROMPT_VERSION, derive_score, derive_score_full, normalize,
     normalize_full, prior_for, raw_from_lexeme, raw_from_verify, raw_from_verse, render_full_verse_suffix,
     render_lexeme_suffix, render_prefix, render_suffix, render_verse_suffix, review_notes_from, schema_for,
@@ -497,8 +497,8 @@ import json
 import subprocess
 from types import SimpleNamespace
 
-from lexeme_aligner.llm_prompt import SCHEMA_LEXEME, SCHEMA_VERIFY, SCHEMA_VERSE
-from lexeme_aligner.llm_providers import (
+from lexeme_aligner.eval.llm_prompt import SCHEMA_LEXEME, SCHEMA_VERIFY, SCHEMA_VERSE
+from lexeme_aligner.eval.llm_providers import (
     AnthropicProvider, ClaudeCliProvider, Job, MockProvider, Price, Provider, ProviderError, ResponseCache, Usage,
     cache_key, load_prices, make_provider, supports_effort)
 
@@ -740,7 +740,7 @@ def test_cli_prices_the_uncached_counterfactual_when_prices_are_given():
     envelope = {"is_error": False, "structured_output": {"ref": 1, "alignments": []},
                 "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 2000,
                           "cache_creation_input_tokens": 0}, "total_cost_usd": 0.0123}
-    from lexeme_aligner.llm_providers import PRICES
+    from lexeme_aligner.eval.llm_providers import PRICES
     p = ClaudeCliProvider("claude-sonnet-5", runner=Recorder(json.dumps(envelope)), prices=PRICES)
     _, usage = p.complete("P", "S", SCHEMA_VERSE, max_tokens=10)
     assert usage.cost_usd == 0.0123                                    # real billed cost: untouched
@@ -800,10 +800,10 @@ def test_anthropic_route_needs_a_key(monkeypatch):
 # driver: packet building per strategy, execute (cache/retry/budget/breaker), write -> read -> score
 # ═════════════════════════════════════════════════════════════════════════════════════════════════════
 from lexeme_aligner.align_files import tag_files
-from lexeme_aligner.llm_align import (
+from lexeme_aligner.eval.llm_align import (
     Inputs, Ledger, _even_packs, build_packets, build_repair_packets, estimate, execute, max_tokens_for,
     merge_repairs, model_short, recompute_full_stats, resolve, to_records, write_outputs)
-from lexeme_aligner.llm_prompt import FullDecision, raw_from_packed
+from lexeme_aligner.eval.llm_prompt import FullDecision, raw_from_packed
 from lexeme_aligner.refs import encode
 from lexeme_aligner.run_pilot import VerseRec
 
@@ -958,7 +958,7 @@ def _multi(n=3):
 
 
 def test_packing_covers_the_residue_strategies_and_leaves_the_others_alone():
-    from lexeme_aligner.llm_prompt import PACKABLE
+    from lexeme_aligner.eval.llm_prompt import PACKABLE
     assert set(PACKABLE) == {"full", "gap", "gap-seeded", "verify", "verify-widened"}
     inp, refs = _multi(3)
     for strat in ("gap", "gap-seeded", "verify"):
@@ -1019,8 +1019,8 @@ def test_packed_residue_max_tokens_is_budgeted_per_decided_id_within_bounds():
 
 
 def test_mock_provider_answers_packed_residue_calls_end_to_end(tmp_path):
-    from lexeme_aligner.llm_prompt import packed_schema_for
-    from lexeme_aligner.llm_providers import MockProvider
+    from lexeme_aligner.eval.llm_prompt import packed_schema_for
+    from lexeme_aligner.eval.llm_providers import MockProvider
     inp, refs = _multi(3)
     for strat in ("gap", "verify"):
         (pack,), base, _ = build_packets(strat, inp, pack_size=5)
@@ -1046,7 +1046,7 @@ def _widened_inputs(n=1):
 
 def test_scan_widened_keeps_only_real_widenings_with_a_base(tmp_path):
     import json as _json
-    from lexeme_aligner.llm_align import scan_widened
+    from lexeme_aligner.eval.llm_align import scan_widened
     fp = tmp_path / "align_spanext_xx_MAT.jsonl"
     rec = {"ref": REF, "pairs": [
         {"h_idx": 1, "t_idx": [2, 4], "content": True, "target": "gamma de", "prior": "case_marking_after:4"},
@@ -1076,11 +1076,11 @@ def test_verify_widened_suffix_names_the_statistical_span_and_what_was_appended(
 
 
 def test_verify_widened_prefix_and_schema_are_the_verify_ones():
-    from lexeme_aligner.llm_prompt import SCHEMA_VERIFY, SCHEMA_VERIFY_PACKED, packed_schema_for, prior_for, render_prefix, schema_for
+    from lexeme_aligner.eval.llm_prompt import SCHEMA_VERIFY, SCHEMA_VERIFY_PACKED, packed_schema_for, prior_for, render_prefix, schema_for
     assert schema_for("verify-widened") == SCHEMA_VERIFY and packed_schema_for("verify-widened") == SCHEMA_VERIFY_PACKED
     prefix = render_prefix("xx", "Xish", "verify-widened")
     assert "Strategy: verify-widened" in prefix and "APPENDED" in prefix and "WIDENED ->" in prefix
-    from lexeme_aligner.llm_prompt import Decision
+    from lexeme_aligner.eval.llm_prompt import Decision
     assert prior_for("verify-widened", Decision(1, [2], "aligned", tag="confirmed")) == "llm_verify_widened_confirmed"
 
 
@@ -1099,8 +1099,8 @@ def test_verify_widened_resolves_confirmed_corrected_and_rejected(tmp_path):
 
 
 def test_mock_provider_answers_a_packed_verify_widened_call():
-    from lexeme_aligner.llm_prompt import packed_schema_for
-    from lexeme_aligner.llm_providers import MockProvider
+    from lexeme_aligner.eval.llm_prompt import packed_schema_for
+    from lexeme_aligner.eval.llm_providers import MockProvider
     inp, refs = _widened_inputs(3)
     (pack,), base, _ = build_packets("verify-widened", inp, pack_size=5)
     resp, _u = MockProvider().complete("prefix", render_suffix(pack), packed_schema_for("verify-widened"), max_tokens=4096)
@@ -1269,7 +1269,7 @@ def test_max_tokens_by_strategy():
 
 
 def test_resolve_to_records_write_and_the_scorer_reads_it_back(tmp_path):
-    from lexeme_aligner.score_gapfill import _gap_pairs
+    from lexeme_aligner.eval.score_gapfill import _gap_pairs
     pkts, base, _ = build_packets("gap", inputs())
     results = [(pkts[0], {"ref": REF, "alignments": [
         {"h_idx": 1, "t_idx": [2], "status": "aligned", "note": "picked beta"},
@@ -1335,7 +1335,7 @@ def _write_llm_output(out_dir, tag, book, records):
 
 
 def test_build_lexeme_verify_packets_reviews_only_lexemes_with_a_peer(tmp_path):
-    from lexeme_aligner.llm_align import build_lexeme_verify_packets
+    from lexeme_aligner.eval.llm_align import build_lexeme_verify_packets
     ref1, ref2 = encode("MAT", 1, 1), encode("MAT", 1, 2)
     inp = inputs(recs=[verse(1, ("grc:1", "grc:2", "grc:3")), verse(2, ("grc:1", "grc:9", "grc:9"))])
     _write_llm_output(tmp_path, "srctag", "MAT", [
@@ -1361,7 +1361,7 @@ def test_build_lexeme_verify_packets_reviews_only_lexemes_with_a_peer(tmp_path):
 
 
 def test_build_lexeme_verify_packets_skips_a_lexeme_seen_only_once(tmp_path):
-    from lexeme_aligner.llm_align import build_lexeme_verify_packets
+    from lexeme_aligner.eval.llm_align import build_lexeme_verify_packets
     ref1 = encode("MAT", 1, 1)
     inp = inputs(recs=[verse(1, ("grc:1", "grc:2", "grc:3"))])
     _write_llm_output(tmp_path, "srctag", "MAT", [
@@ -1373,7 +1373,7 @@ def test_build_lexeme_verify_packets_skips_a_lexeme_seen_only_once(tmp_path):
 
 
 def test_lexeme_verify_end_to_end_confirmed_corrected_rejected(tmp_path):
-    from lexeme_aligner.llm_align import build_lexeme_verify_packets
+    from lexeme_aligner.eval.llm_align import build_lexeme_verify_packets
     ref1, ref2, ref3 = encode("MAT", 1, 1), encode("MAT", 1, 2), encode("MAT", 1, 3)
     inp = inputs(recs=[verse(1), verse(2), verse(3)])
     _write_llm_output(tmp_path, "srctag", "MAT", [
@@ -1400,7 +1400,7 @@ def test_lexeme_verify_end_to_end_confirmed_corrected_rejected(tmp_path):
 
 
 def test_estimate_and_model_short_and_the_ledger_arithmetic():
-    from lexeme_aligner.llm_providers import PRICES
+    from lexeme_aligner.eval.llm_providers import PRICES
     pkts, _, _ = build_packets("gap", inputs())
     est = estimate(pkts, "PFX" * 100, "claude-sonnet-5", PRICES, batch=False)
     assert est["calls"] == 1 and est["est_cost_usd"] > 0

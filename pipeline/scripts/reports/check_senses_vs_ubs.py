@@ -185,7 +185,8 @@ def within_stem(bound, only_unique=True, min_tokens=10):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ubs", type=Path, default=Path("pipeline/work/ubs-dictionary/UBSHebrewDic-v0.9.3-en.JSON"))
-    ap.add_argument("--spine", type=Path, default=Path("pipeline/lexeme-spine.db"))
+    ap.add_argument("--spine", type=Path, default=Path("pipeline/lexeme-spine-bhsa-baseline.db"),
+                    help="needs the BHSA `sense` column (the private baseline spine); the MACULA-only spine has none")
     ap.add_argument("--out", type=Path, default=Path("pipeline/work/ubs-dictionary/sense_check.json"))
     a = ap.parse_args(argv)
     verse = load_spine(a.spine)

@@ -1,7 +1,5 @@
 """xedition_transfer: pure projection/voting/emission logic plus the eflomal plumbing (fake aligner)."""
-from lexeme_aligner import xedition_transfer as xt
-
-
+from lexeme_aligner.eval import xedition_transfer as xt
 def test_project_basic_and_unmapped():
     links = {0: {2}, 1: {3}}
     assert xt.project_span([0, 1], links, set()) == (2, 3)

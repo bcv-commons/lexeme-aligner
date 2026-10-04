@@ -2,7 +2,7 @@
 the REAL usfmtc parser (no network calls; usfmtc itself is already a dependency of this repo, used by
 cdn_source.py/dbt_source.py/helloao_source.py). Fixtures mirror the real shape confirmed against
 ar_arst's live data (git.door43.org/BSOJ/ar_arst)."""
-import lexeme_aligner.door43_align as da
+import lexeme_aligner.eval.door43_align as da
 
 _HEADER = "\\id TIT\n\\usfm 3.0\n"
 

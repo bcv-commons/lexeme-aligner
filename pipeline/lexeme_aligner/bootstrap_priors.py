@@ -19,7 +19,7 @@ import collections
 import re
 from pathlib import Path
 
-from lexeme_aligner.benchmark import norm_strong    # lexeme "hbo:0871a" -> strong "H0871"
+from lexeme_aligner.refs import norm_strong    # lexeme "hbo:0871a" -> strong "H0871"
 from lexeme_aligner.config import LEX_ROOT, PRIOR_PACK
 
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)

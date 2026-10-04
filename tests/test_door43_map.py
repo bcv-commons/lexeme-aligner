@@ -1,7 +1,7 @@
 """Offline tests for door43_map.py (F4 follow-up, 2026-09-27) — the spine-side occurrence mapping for
 door43_align.py's raw rows. No network calls, no real spine DB: `_FakeHeb` stands in for
 `HebrewSource.verse_tokens`."""
-import lexeme_aligner.door43_map as dm
+import lexeme_aligner.eval.door43_map as dm
 
 
 def test_normalize_greek_strong_strips_trailing_augment_char():

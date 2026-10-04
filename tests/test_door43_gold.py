@@ -1,6 +1,6 @@
 """E2 (2026-09-27): Door43 human alignment -> Clear-shaped gold parquet rows. Offline; synthetic spans
 in the shape door43_align.usj_verses_for_book produces."""
-import lexeme_aligner.door43_gold as dg
+import lexeme_aligner.eval.door43_gold as dg
 
 
 def test_word_positions_to_clear_maps_words_onto_clear_tokens():

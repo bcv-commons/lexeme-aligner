@@ -34,5 +34,5 @@ translit = ["uroman"]                     # M4 (2026-09-27) — gloss_align.roma
 lexeme-aligner = "lexeme_aligner.cli:main"   # run | batch | grammar | publish | status | eval | text-strip
 
 [tool.setuptools]
-packages = ["lexeme_aligner"]
+packages = ["lexeme_aligner", "lexeme_aligner.eval", "lexeme_aligner.generators"]
 package-dir = { "lexeme_aligner" = "pipeline/lexeme_aligner" }

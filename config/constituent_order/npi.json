@@ -1,731 +1,255 @@
 {
  "function_drift": {
-  "Adju": {
-   "mean_drift": -0.0849,
-   "n": 13885
+  "adv": {
+   "mean_drift": -0.0442,
+   "n": 7739
   },
-  "Cmpl": {
-   "mean_drift": -0.0701,
-   "n": 37018
+  "o": {
+   "mean_drift": -0.0107,
+   "n": 37307
   },
-  "Frnt": {
-   "mean_drift": 0.0729,
-   "n": 1780
+  "o2": {
+   "mean_drift": -0.0239,
+   "n": 1624
   },
-  "Loca": {
-   "mean_drift": -0.1246,
-   "n": 3913
+  "p": {
+   "mean_drift": -0.006,
+   "n": 15348
   },
-  "Modi": {
-   "mean_drift": 0.024,
-   "n": 1399
+  "pp": {
+   "mean_drift": -0.0734,
+   "n": 58171
   },
-  "Objc": {
-   "mean_drift": -0.0125,
-   "n": 36461
-  },
-  "PrAd": {
-   "mean_drift": -0.0216,
-   "n": 392
-  },
-  "PreC": {
-   "mean_drift": -0.0072,
-   "n": 27279
-  },
-  "PreO": {
-   "mean_drift": 0.0249,
-   "n": 8180
-  },
-  "PreS": {
-   "mean_drift": -0.0356,
-   "n": 1166
-  },
-  "Pred": {
-   "mean_drift": 0.0477,
-   "n": 83340
-  },
-  "PtcO": {
-   "mean_drift": -0.0149,
-   "n": 265
-  },
-  "Subj": {
+  "s": {
    "mean_drift": -0.0285,
-   "n": 48141
+   "n": 50851
   },
-  "Time": {
-   "mean_drift": -0.0872,
-   "n": 5716
-  },
-  "Voct": {
-   "mean_drift": -0.0583,
-   "n": 2804
+  "v": {
+   "mean_drift": 0.0418,
+   "n": 109039
   }
  },
+ "label_scheme": "macula_phrase_role",
  "pair_order_kept": {
-  "Adju>Adju": {
-   "kept": 621,
-   "rate": 0.731,
-   "total": 850
-  },
-  "Adju>Cmpl": {
-   "kept": 567,
-   "rate": 0.69,
-   "total": 822
-  },
-  "Adju>Loca": {
-   "kept": 85,
-   "rate": 0.503,
-   "total": 169
-  },
-  "Adju>Objc": {
-   "kept": 806,
-   "rate": 0.756,
-   "total": 1066
-  },
-  "Adju>PreC": {
-   "kept": 761,
-   "rate": 0.742,
-   "total": 1026
-  },
-  "Adju>PreO": {
-   "kept": 439,
-   "rate": 0.765,
-   "total": 574
-  },
-  "Adju>PreS": {
-   "kept": 14,
-   "rate": 0.412,
-   "total": 34
-  },
-  "Adju>Pred": {
-   "kept": 3055,
-   "rate": 0.798,
-   "total": 3828
-  },
-  "Adju>Subj": {
-   "kept": 1064,
-   "rate": 0.763,
-   "total": 1395
-  },
-  "Adju>Time": {
-   "kept": 99,
-   "rate": 0.529,
-   "total": 187
-  },
-  "Adju>Voct": {
-   "kept": 26,
-   "rate": 0.329,
-   "total": 79
-  },
-  "Cmpl>Adju": {
-   "kept": 854,
-   "rate": 0.518,
-   "total": 1649
-  },
-  "Cmpl>Cmpl": {
-   "kept": 1783,
-   "rate": 0.787,
-   "total": 2266
-  },
-  "Cmpl>Frnt": {
-   "kept": 109,
-   "rate": 0.886,
-   "total": 123
-  },
-  "Cmpl>Loca": {
-   "kept": 243,
-   "rate": 0.45,
-   "total": 540
-  },
-  "Cmpl>Modi": {
-   "kept": 137,
-   "rate": 0.749,
-   "total": 183
-  },
-  "Cmpl>Objc": {
-   "kept": 2193,
-   "rate": 0.773,
-   "total": 2836
-  },
-  "Cmpl>PreC": {
-   "kept": 1822,
-   "rate": 0.701,
-   "total": 2598
-  },
-  "Cmpl>PreO": {
-   "kept": 1318,
-   "rate": 0.85,
-   "total": 1551
-  },
-  "Cmpl>PreS": {
-   "kept": 84,
-   "rate": 0.622,
-   "total": 135
-  },
-  "Cmpl>Pred": {
-   "kept": 10659,
-   "rate": 0.837,
-   "total": 12729
-  },
-  "Cmpl>Subj": {
-   "kept": 2409,
-   "rate": 0.775,
-   "total": 3110
-  },
-  "Cmpl>Time": {
-   "kept": 337,
-   "rate": 0.459,
-   "total": 735
-  },
-  "Cmpl>Voct": {
-   "kept": 57,
-   "rate": 0.377,
-   "total": 151
-  },
-  "Frnt>Cmpl": {
-   "kept": 75,
-   "rate": 0.743,
-   "total": 101
-  },
-  "Frnt>Objc": {
-   "kept": 53,
-   "rate": 0.768,
-   "total": 69
-  },
-  "Frnt>PreC": {
-   "kept": 331,
-   "rate": 0.72,
-   "total": 460
-  },
-  "Frnt>PreO": {
-   "kept": 87,
-   "rate": 0.806,
-   "total": 108
-  },
-  "Frnt>Pred": {
-   "kept": 460,
-   "rate": 0.753,
-   "total": 611
-  },
-  "Frnt>Subj": {
-   "kept": 192,
-   "rate": 0.733,
-   "total": 262
-  },
-  "Loca>Adju": {
-   "kept": 116,
-   "rate": 0.641,
-   "total": 181
-  },
-  "Loca>Cmpl": {
-   "kept": 142,
-   "rate": 0.759,
-   "total": 187
-  },
-  "Loca>Loca": {
-   "kept": 93,
-   "rate": 0.699,
-   "total": 133
-  },
-  "Loca>Objc": {
-   "kept": 234,
-   "rate": 0.818,
-   "total": 286
-  },
-  "Loca>PreC": {
-   "kept": 218,
-   "rate": 0.703,
-   "total": 310
-  },
-  "Loca>PreO": {
-   "kept": 78,
-   "rate": 0.857,
-   "total": 91
-  },
-  "Loca>Pred": {
-   "kept": 863,
-   "rate": 0.821,
-   "total": 1051
-  },
-  "Loca>Subj": {
-   "kept": 259,
-   "rate": 0.746,
-   "total": 347
-  },
-  "Loca>Time": {
-   "kept": 52,
-   "rate": 0.5,
-   "total": 104
-  },
-  "Modi>Cmpl": {
-   "kept": 43,
-   "rate": 0.394,
-   "total": 109
-  },
-  "Modi>Modi": {
-   "kept": 26,
-   "rate": 0.839,
-   "total": 31
-  },
-  "Modi>Objc": {
-   "kept": 89,
-   "rate": 0.546,
-   "total": 163
-  },
-  "Modi>PreC": {
-   "kept": 51,
-   "rate": 0.699,
-   "total": 73
-  },
-  "Modi>PreO": {
-   "kept": 21,
-   "rate": 0.677,
-   "total": 31
-  },
-  "Modi>Pred": {
-   "kept": 258,
-   "rate": 0.759,
-   "total": 340
-  },
-  "Modi>Subj": {
+  "adv>adv": {
    "kept": 100,
-   "rate": 0.465,
-   "total": 215
-  },
-  "Objc>Adju": {
-   "kept": 1160,
-   "rate": 0.53,
-   "total": 2187
-  },
-  "Objc>Cmpl": {
-   "kept": 2999,
-   "rate": 0.556,
-   "total": 5394
-  },
-  "Objc>Frnt": {
-   "kept": 78,
-   "rate": 0.848,
-   "total": 92
-  },
-  "Objc>Loca": {
-   "kept": 229,
-   "rate": 0.356,
-   "total": 643
-  },
-  "Objc>Modi": {
-   "kept": 125,
-   "rate": 0.839,
-   "total": 149
-  },
-  "Objc>Objc": {
-   "kept": 2338,
-   "rate": 0.843,
-   "total": 2775
-  },
-  "Objc>PrAd": {
-   "kept": 45,
-   "rate": 0.703,
-   "total": 64
-  },
-  "Objc>PreC": {
-   "kept": 1568,
-   "rate": 0.674,
-   "total": 2325
-  },
-  "Objc>PreO": {
-   "kept": 893,
-   "rate": 0.787,
-   "total": 1134
-  },
-  "Objc>PreS": {
-   "kept": 65,
-   "rate": 0.485,
+   "rate": 0.746,
    "total": 134
   },
-  "Objc>Pred": {
-   "kept": 9347,
-   "rate": 0.803,
-   "total": 11635
+  "adv>o": {
+   "kept": 455,
+   "rate": 0.751,
+   "total": 606
   },
-  "Objc>Subj": {
-   "kept": 1576,
-   "rate": 0.762,
-   "total": 2069
+  "adv>p": {
+   "kept": 168,
+   "rate": 0.718,
+   "total": 234
   },
-  "Objc>Time": {
-   "kept": 349,
-   "rate": 0.495,
-   "total": 705
+  "adv>pp": {
+   "kept": 836,
+   "rate": 0.625,
+   "total": 1338
   },
-  "Objc>Voct": {
-   "kept": 69,
-   "rate": 0.315,
-   "total": 219
+  "adv>s": {
+   "kept": 512,
+   "rate": 0.652,
+   "total": 785
   },
-  "PrAd>Pred": {
-   "kept": 82,
-   "rate": 0.739,
-   "total": 111
+  "adv>v": {
+   "kept": 2330,
+   "rate": 0.814,
+   "total": 2863
   },
-  "PreC>Adju": {
-   "kept": 724,
-   "rate": 0.472,
-   "total": 1533
+  "o2>o": {
+   "kept": 130,
+   "rate": 0.67,
+   "total": 194
   },
-  "PreC>Cmpl": {
-   "kept": 1199,
-   "rate": 0.338,
-   "total": 3551
+  "o2>pp": {
+   "kept": 136,
+   "rate": 0.416,
+   "total": 327
   },
-  "PreC>Frnt": {
-   "kept": 96,
-   "rate": 0.881,
-   "total": 109
+  "o2>s": {
+   "kept": 64,
+   "rate": 0.877,
+   "total": 73
   },
-  "PreC>Loca": {
-   "kept": 160,
-   "rate": 0.361,
-   "total": 443
+  "o2>v": {
+   "kept": 370,
+   "rate": 0.701,
+   "total": 528
   },
-  "PreC>Modi": {
-   "kept": 54,
-   "rate": 0.651,
-   "total": 83
+  "o>adv": {
+   "kept": 628,
+   "rate": 0.633,
+   "total": 992
   },
-  "PreC>Objc": {
-   "kept": 994,
-   "rate": 0.44,
-   "total": 2260
+  "o>o": {
+   "kept": 1538,
+   "rate": 0.884,
+   "total": 1739
   },
-  "PreC>PreC": {
-   "kept": 2261,
-   "rate": 0.763,
-   "total": 2962
+  "o>o2": {
+   "kept": 462,
+   "rate": 0.794,
+   "total": 582
   },
-  "PreC>PreO": {
-   "kept": 306,
-   "rate": 0.795,
-   "total": 385
-  },
-  "PreC>PreS": {
-   "kept": 50,
-   "rate": 0.417,
-   "total": 120
-  },
-  "PreC>Pred": {
-   "kept": 3054,
-   "rate": 0.774,
-   "total": 3946
-  },
-  "PreC>Subj": {
-   "kept": 3278,
-   "rate": 0.636,
-   "total": 5156
-  },
-  "PreC>Time": {
-   "kept": 207,
-   "rate": 0.461,
-   "total": 449
-  },
-  "PreC>Voct": {
-   "kept": 32,
-   "rate": 0.264,
-   "total": 121
-  },
-  "PreO>Adju": {
-   "kept": 249,
-   "rate": 0.44,
-   "total": 566
-  },
-  "PreO>Cmpl": {
-   "kept": 729,
-   "rate": 0.505,
-   "total": 1444
-  },
-  "PreO>Loca": {
-   "kept": 57,
-   "rate": 0.422,
-   "total": 135
-  },
-  "PreO>Objc": {
-   "kept": 358,
-   "rate": 0.649,
-   "total": 552
-  },
-  "PreO>PreC": {
-   "kept": 208,
-   "rate": 0.806,
-   "total": 258
-  },
-  "PreO>PreO": {
-   "kept": 394,
-   "rate": 0.853,
-   "total": 462
-  },
-  "PreO>Pred": {
-   "kept": 1133,
-   "rate": 0.826,
-   "total": 1372
-  },
-  "PreO>Subj": {
-   "kept": 488,
-   "rate": 0.382,
-   "total": 1277
-  },
-  "PreO>Time": {
-   "kept": 50,
-   "rate": 0.347,
-   "total": 144
-  },
-  "PreO>Voct": {
-   "kept": 38,
-   "rate": 0.259,
-   "total": 147
-  },
-  "PreS>Cmpl": {
-   "kept": 80,
-   "rate": 0.272,
-   "total": 294
-  },
-  "PreS>Objc": {
-   "kept": 73,
-   "rate": 0.242,
-   "total": 302
-  },
-  "PreS>Pred": {
-   "kept": 167,
-   "rate": 0.773,
-   "total": 216
-  },
-  "Pred>Adju": {
-   "kept": 1361,
-   "rate": 0.45,
-   "total": 3027
-  },
-  "Pred>Cmpl": {
-   "kept": 4260,
-   "rate": 0.337,
-   "total": 12637
-  },
-  "Pred>Frnt": {
-   "kept": 186,
-   "rate": 0.838,
-   "total": 222
-  },
-  "Pred>Loca": {
-   "kept": 249,
-   "rate": 0.287,
-   "total": 867
-  },
-  "Pred>Modi": {
-   "kept": 217,
-   "rate": 0.648,
-   "total": 335
-  },
-  "Pred>Objc": {
-   "kept": 6255,
-   "rate": 0.36,
-   "total": 17369
-  },
-  "Pred>PrAd": {
-   "kept": 51,
-   "rate": 0.537,
-   "total": 95
-  },
-  "Pred>PreC": {
-   "kept": 2163,
-   "rate": 0.672,
-   "total": 3219
-  },
-  "Pred>PreO": {
-   "kept": 906,
-   "rate": 0.776,
-   "total": 1168
-  },
-  "Pred>PreS": {
-   "kept": 119,
-   "rate": 0.607,
-   "total": 196
-  },
-  "Pred>Pred": {
-   "kept": 10332,
-   "rate": 0.792,
-   "total": 13044
-  },
-  "Pred>Subj": {
-   "kept": 5960,
-   "rate": 0.291,
-   "total": 20472
-  },
-  "Pred>Time": {
-   "kept": 414,
-   "rate": 0.382,
-   "total": 1085
-  },
-  "Pred>Voct": {
-   "kept": 478,
-   "rate": 0.474,
+  "o>p": {
+   "kept": 718,
+   "rate": 0.712,
    "total": 1008
   },
-  "Subj>Adju": {
-   "kept": 1514,
-   "rate": 0.719,
-   "total": 2105
+  "o>pp": {
+   "kept": 4735,
+   "rate": 0.503,
+   "total": 9408
   },
-  "Subj>Cmpl": {
-   "kept": 6146,
-   "rate": 0.835,
-   "total": 7359
+  "o>s": {
+   "kept": 1579,
+   "rate": 0.728,
+   "total": 2168
   },
-  "Subj>Frnt": {
-   "kept": 111,
-   "rate": 0.895,
-   "total": 124
+  "o>v": {
+   "kept": 11707,
+   "rate": 0.785,
+   "total": 14912
   },
-  "Subj>Loca": {
-   "kept": 336,
-   "rate": 0.599,
-   "total": 561
+  "p>adv": {
+   "kept": 132,
+   "rate": 0.657,
+   "total": 201
   },
-  "Subj>Modi": {
-   "kept": 156,
-   "rate": 0.872,
-   "total": 179
+  "p>o": {
+   "kept": 404,
+   "rate": 0.878,
+   "total": 460
   },
-  "Subj>Objc": {
-   "kept": 4316,
-   "rate": 0.886,
-   "total": 4869
+  "p>p": {
+   "kept": 732,
+   "rate": 0.879,
+   "total": 833
   },
-  "Subj>PrAd": {
-   "kept": 21,
-   "rate": 0.7,
-   "total": 30
+  "p>pp": {
+   "kept": 1023,
+   "rate": 0.526,
+   "total": 1946
   },
-  "Subj>PreC": {
-   "kept": 6812,
-   "rate": 0.706,
-   "total": 9646
+  "p>s": {
+   "kept": 2817,
+   "rate": 0.617,
+   "total": 4568
   },
-  "Subj>PreO": {
-   "kept": 1040,
-   "rate": 0.867,
-   "total": 1199
+  "p>v": {
+   "kept": 2453,
+   "rate": 0.769,
+   "total": 3190
   },
-  "Subj>PreS": {
-   "kept": 79,
-   "rate": 0.552,
-   "total": 143
+  "pp>adv": {
+   "kept": 931,
+   "rate": 0.678,
+   "total": 1373
   },
-  "Subj>Pred": {
-   "kept": 10087,
-   "rate": 0.857,
-   "total": 11767
+  "pp>o": {
+   "kept": 3612,
+   "rate": 0.795,
+   "total": 4542
   },
-  "Subj>PtcO": {
-   "kept": 50,
-   "rate": 0.758,
-   "total": 66
+  "pp>o2": {
+   "kept": 134,
+   "rate": 0.779,
+   "total": 172
   },
-  "Subj>Subj": {
-   "kept": 2877,
-   "rate": 0.88,
-   "total": 3268
+  "pp>p": {
+   "kept": 1773,
+   "rate": 0.724,
+   "total": 2450
   },
-  "Subj>Time": {
-   "kept": 464,
-   "rate": 0.6,
-   "total": 773
+  "pp>pp": {
+   "kept": 2980,
+   "rate": 0.834,
+   "total": 3574
   },
-  "Subj>Voct": {
-   "kept": 115,
-   "rate": 0.494,
-   "total": 233
-  },
-  "Time>Adju": {
-   "kept": 128,
-   "rate": 0.703,
-   "total": 182
-  },
-  "Time>Cmpl": {
-   "kept": 208,
-   "rate": 0.575,
-   "total": 362
-  },
-  "Time>Objc": {
-   "kept": 309,
-   "rate": 0.87,
-   "total": 355
-  },
-  "Time>PreC": {
-   "kept": 301,
+  "pp>s": {
+   "kept": 4558,
    "rate": 0.768,
-   "total": 392
+   "total": 5932
   },
-  "Time>PreO": {
-   "kept": 131,
-   "rate": 0.829,
-   "total": 158
+  "pp>v": {
+   "kept": 20694,
+   "rate": 0.81,
+   "total": 25562
   },
-  "Time>PreS": {
-   "kept": 21,
-   "rate": 0.256,
-   "total": 82
+  "s>adv": {
+   "kept": 890,
+   "rate": 0.838,
+   "total": 1062
   },
-  "Time>Pred": {
-   "kept": 1618,
-   "rate": 0.863,
-   "total": 1875
+  "s>o": {
+   "kept": 4394,
+   "rate": 0.878,
+   "total": 5007
   },
-  "Time>Subj": {
-   "kept": 602,
-   "rate": 0.84,
-   "total": 717
+  "s>o2": {
+   "kept": 92,
+   "rate": 0.92,
+   "total": 100
   },
-  "Time>Time": {
-   "kept": 167,
-   "rate": 0.865,
-   "total": 193
+  "s>p": {
+   "kept": 4691,
+   "rate": 0.742,
+   "total": 6320
   },
-  "Voct>Adju": {
-   "kept": 77,
-   "rate": 0.917,
-   "total": 84
+  "s>pp": {
+   "kept": 8861,
+   "rate": 0.752,
+   "total": 11788
   },
-  "Voct>Cmpl": {
-   "kept": 186,
-   "rate": 0.935,
-   "total": 199
+  "s>s": {
+   "kept": 2634,
+   "rate": 0.864,
+   "total": 3047
   },
-  "Voct>Objc": {
-   "kept": 242,
-   "rate": 0.953,
-   "total": 254
+  "s>v": {
+   "kept": 14717,
+   "rate": 0.833,
+   "total": 17673
   },
-  "Voct>PreC": {
-   "kept": 238,
-   "rate": 0.844,
-   "total": 282
+  "v>adv": {
+   "kept": 1443,
+   "rate": 0.438,
+   "total": 3292
   },
-  "Voct>PreO": {
-   "kept": 136,
-   "rate": 0.907,
-   "total": 150
+  "v>o": {
+   "kept": 7854,
+   "rate": 0.362,
+   "total": 21674
   },
-  "Voct>Pred": {
-   "kept": 972,
-   "rate": 0.903,
-   "total": 1077
+  "v>o2": {
+   "kept": 311,
+   "rate": 0.526,
+   "total": 591
   },
-  "Voct>Subj": {
-   "kept": 256,
-   "rate": 0.921,
-   "total": 278
+  "v>p": {
+   "kept": 1506,
+   "rate": 0.766,
+   "total": 1967
   },
-  "Voct>Voct": {
-   "kept": 73,
-   "rate": 0.849,
-   "total": 86
+  "v>pp": {
+   "kept": 9101,
+   "rate": 0.367,
+   "total": 24806
+  },
+  "v>s": {
+   "kept": 7567,
+   "rate": 0.303,
+   "total": 24945
+  },
+  "v>v": {
+   "kept": 15978,
+   "rate": 0.78,
+   "total": 20482
   }
  },
  "tag": "npi_ncb+npi_ulb",
@@ -733,5 +257,5 @@
   "npi_ncb",
   "npi_ulb"
  ],
- "verses_measured": 44370
+ "verses_measured": 44499
 }

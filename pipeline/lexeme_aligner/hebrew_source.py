@@ -14,13 +14,31 @@ the pragmatic id-bridge from advanced-docs/aligner-plan.md §Design gotchas.
 from __future__ import annotations
 
 import collections
+import os
 import sqlite3
+import sys
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from lexeme_aligner.config import HBO_DB, SPINE_DB
 from lexeme_aligner.refs import BOOK_NUMBERS, encode  # vendored — no cross-package import
+
+
+SYNTAX_SOURCES = ("bhsa", "macula")
+
+
+def syntax_source(explicit: str | None = None) -> str:
+    """Which syntax features the pipeline may read: `macula` (the default since the 2026-10-04 switch, see
+    internal-docs/macula-only-migration-plan.md) or `bhsa` (needs a spine that still has the BHSA columns — only the private baseline
+    pipeline/lexeme-spine-bhsa-baseline.db — and exists for A/B measurements). `macula` makes HebrewSource IGNORE the
+    BHSA-derived spine columns (phrase_id, function, rela, sense, sense_conf, sense_source) and the hbo.db
+    sidecar even when the spine still carries them, so a MACULA arm can be measured on the current spine
+    and behaves exactly like the stripped spine bcv-query delivers. Set with ALIGNER_SYNTAX_SOURCE."""
+    v = (explicit or os.environ.get("ALIGNER_SYNTAX_SOURCE") or "macula").strip().lower()
+    if v not in SYNTAX_SOURCES:
+        raise ValueError(f"ALIGNER_SYNTAX_SOURCE must be one of {SYNTAX_SOURCES}, got {v!r}")
+    return v
 
 
 def spine_corpus(spine_db: Path = SPINE_DB) -> str:
@@ -134,6 +152,12 @@ class HebToken:
     # ids are a token's construct partners directly, instead of the model inferring adjacency from verse
     # position — the fix for a SCATTERED (non-adjacent) construct chain, which `state` alone can't signal.
     construct_group: str | None = None
+    # `construct_role` (MACULA-only spine, 2026-10-03): the token's role inside its construct chain from the
+    # lowfat NPofNP groups — "regens" (head), "rectum", or "regens+rectum" (a middle link, "custody of / house
+    # of / captain of / the guards"). Hebrew rows only. The MACULA replacement for BHSA `rela == "rec"`: covers
+    # 84% of those tokens (precision .72; the extras are possessive-suffix tokens and articles inside the
+    # rectum phrase — filter on part of speech for nouns only).
+    construct_role: str | None = None
     # `head_idx` is this token's syntactic head's own spine `idx` (Hebrew/OT only, from MACULA's lowfat
     # treebank — no Greek lowfat distribution exists to build one from); `phrase_role` is the token's
     # phrase-level role (v/s/o/o2/p/pp/adv/...). Both bcv-query deliveries, not yet consumed anywhere in
@@ -182,7 +206,8 @@ def _tag_psalm_superscriptions(toks: list["HebToken"]) -> None:
 
 
 class HebrewSource:
-    def __init__(self, spine_db: Path = SPINE_DB, hbo_db: Path = HBO_DB):
+    def __init__(self, spine_db: Path = SPINE_DB, hbo_db: Path = HBO_DB, syntax: str | None = None):
+        self.syntax_source = syntax_source(syntax)
         self.spine = sqlite3.connect(f"file:{spine_db}?mode=ro", uri=True)
         # Forward-compat with the lexeme-anchored spine (advanced-docs/data-contracts.md): use the spine's own
         # `lexeme` column when it lands; until then derive a lexeme from (strong, lemma) so the rest of
@@ -218,6 +243,17 @@ class HebrewSource:
         self.has_superscription_col = "is_superscription" in _spine_cols  # 0/1 flag — presence is the signal
         # BHSA phrase syntax (phrase_id/function/rela land together — one flag): see HebToken.
         self.has_phrase = _populated("phrase_id")
+        if self.syntax_source == "macula":
+            # MACULA arm: the BHSA-derived columns do not exist as far as the pipeline is concerned.
+            self.has_phrase = False
+            self.has_sense = False
+        elif not self.has_phrase:
+            # a spine without the BHSA columns (the stripped MACULA-only variant) run in bhsa mode: every
+            # consumer guards on the field being None, so nothing crashes, but features go quiet. Say so.
+            print("[hebrew_source] WARNING: spine has no BHSA phrase columns (phrase_id/function/rela) and "
+                  "ALIGNER_SYNTAX_SOURCE=bhsa: gap-fill phrase tier, relation_trigger's rela path, the "
+                  "fertility rectum gate and constituent-order profiles are OFF. Set ALIGNER_SYNTAX_SOURCE="
+                  "macula to make this deliberate.", file=sys.stderr)
         # Morphological agreement features (number/gender land together — same build as phrase syntax).
         self.has_morph_features = _populated("number")
         # Hebrew construct/absolute state (same build; OT-only, see HebToken.state).
@@ -233,6 +269,7 @@ class HebrewSource:
         # construct_group/head_idx/phrase_role land independently (three separate bcv-query deliveries,
         # not one build) — probe each on its own, same reasoning as has_gloss/has_stem/has_sense above.
         self.has_construct_group = _populated("construct_group")
+        self.has_construct_role = _populated("construct_role")
         self.has_head_idx = _populated("head_idx")
         self.has_phrase_role = _populated("phrase_role")
         self.has_role = _populated("role")            # Greek clause role (see HebToken.role) — NT-only
@@ -240,7 +277,7 @@ class HebrewSource:
         # Statistical methods (eflomal/IBM-1) need only spine + target USJ, so a
         # missing hbo.db must not be fatal — connect only when the file is present.
         self.hbo = (sqlite3.connect(f"file:{hbo_db}?mode=ro", uri=True)
-                    if Path(hbo_db).exists() else None)
+                    if Path(hbo_db).exists() and self.syntax_source != "macula" else None)  # hbo.db = BHSA layer
 
         # `spine_assimilated_articles` — a COMPANION TABLE (book, chapter, verse, after_idx, lemma,
         # gloss, strong), not a spine_words column: a Hebrew preposition can phonologically SWALLOW the
@@ -337,6 +374,8 @@ class HebrewSource:
                 tok.degree = r.get("degree") or None
             if self.has_construct_group:               # construct-chain grouping (see HebToken)
                 tok.construct_group = r.get("construct_group") or None
+            if self.has_construct_role:                # construct-chain role (see HebToken.construct_role)
+                tok.construct_role = r.get("construct_role") or None
             if self.has_head_idx:                      # syntactic head idx (OT-only; see HebToken)
                 tok.head_idx = r.get("head_idx")
             if self.has_phrase_role:                   # phrase-level role (see HebToken.phrase_role)

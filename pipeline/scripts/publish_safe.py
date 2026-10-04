@@ -38,11 +38,13 @@ from lexeme_aligner import compact_layers  # noqa: E402
 
 DATASETS = {                                   # local dir name -> (HF repo, kind)
     "lexeme-alignments": ("bcv-commons/lexeme-alignments", "partition"),
-    "senses_attested": ("bcv-commons/senses-attested", "partition"),
+    "senses_attested": ("bcv-commons/senses-attested-bhsa", "partition"),     # LEGACY (BHSA-derived sense numbers, retired 2026-10-03; HF repo renamed 2026-10-04): explicit --datasets only
+    "senses_attested_ubs": ("bcv-commons/senses-attested", "partition"),       # keyed on UBS sense ids, CC BY-SA 4.0 (local folder keeps its name; HF repo renamed 2026-10-04)
     "compact-alignments": ("bcv-commons/compact-alignments", "compact"),
     "aligned_mwe": ("bcv-commons/aligned-mwe", "partition"),
 }
-DEFAULT = ["lexeme-alignments", "senses_attested", "compact-alignments"]
+DEFAULT = ["lexeme-alignments", "senses_attested_ubs", "compact-alignments"]
+NO_LEDGER = {"senses_attested_ubs"}             # the published UBS repo carries no pipeline_decisions.json; do not add one
 STAGING = REPO / "pipeline/work/publish-staging"
 STALE_BEFORE = time.mktime(time.strptime("2026-09-28", "%Y-%m-%d"))
 
@@ -388,7 +390,7 @@ def main() -> int:
     if not ok:
         return 1
     scratch = REPO / "pipeline/work/publish-scratch"
-    synced = sync_ledger([REPO / "publish" / n for n in names])
+    synced = sync_ledger([REPO / "publish" / n for n in names if n not in NO_LEDGER])
     if synced:
         print(f"[publish_safe] refreshed the shipped ledger copy from config/pipeline_decisions.json in: {[p.name for p in synced]}", file=sys.stderr)
     results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch) for n in names]

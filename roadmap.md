@@ -23,7 +23,7 @@ The `publish/lexeme-alignments` producer (`lexeme_aligner.export_lex`) aggregate
 contracted lexeme-anchored schema — 63.5k rows / 34k surfaces / 7.7k Strong's for `ind`.
 
 **Gold benchmark passed — promotion gate cleared.** eflomal scored against Clear-Bible manual gold
-(`lexeme_aligner.benchmark`): **91.8% (fra) / 95.6% (hau)** token-weighted top-1. Hausa (distant,
+(`lexeme_aligner.eval.benchmark`): **91.8% (fra) / 95.6% (hau)** token-weighted top-1. Hausa (distant,
 lower-resource) beats French, so the method generalizes rather than overfitting — trustworthy for
 no-gold languages like `ind`. Full write-up + recipe: **`advanced-docs/benchmark.md`**.
 
@@ -59,7 +59,7 @@ a **dial**: auto pass ~50–80% → LLM/manual raise → re-harvest → derive. 
    `lexeme_aligner.export_lex` writes an `iso=<iso>/`-partitioned Parquet dataset (additive union of
    methods, lexeme-anchored, `strong` a rollup bridge) + a committed
    `publish/lexeme-alignments/manifest.json`; bulk data git-ignored, published out-of-band (see `publish/lexeme-alignments/README.md`).
-3. ~~Benchmark vs gold.~~ **Done + generalized** — `lexeme_aligner.benchmark` now scores any
+3. ~~Benchmark vs gold.~~ **Done + generalized** — `lexeme_aligner.eval.benchmark` now scores any
    `--method` against `--gold clear|lexicon`: Clear-Bible attestations (91.8% fra / 95.6% hau) *and* a
    manual Strong's→translation lexicon (karnbibeln.se Swedish — Greek ~92% both translations, Hebrew
    ~87% swk / ~79% swe). `advanced-docs/benchmark.md`. **Only the statistical (eflomal) mode is scored so far;**

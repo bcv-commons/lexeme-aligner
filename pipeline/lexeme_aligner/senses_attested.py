@@ -306,7 +306,7 @@ Function words (prepositions, conjunctions) carry senses too and are included. `
 (c) United Bible Societies 2023, adapted from the Semantic Dictionary of Biblical Hebrew (c) 2000-2023 United Bible
 Societies, released under CC BY-SA 4.0 (https://github.com/ubsicap/ubs-open-license). Anything you build from these
 files must be released under the same or a compatible license with this credit. It is deliberately a SEPARATE dataset
-from `bcv-commons/senses-attested` (CC BY, our own sense numbers) so the two licenses never mix.
+from `bcv-commons/senses-attested-bhsa` (the retired legacy set: sense numbers from a BHSA-derived clustering, CC BY-NC-SA) so the two licenses never mix.
 
 **Known limits.** Hebrew Bible only (the UBS Greek dictionary is not used yet); the UBS Hebrew dictionary covers about
 90% of Old Testament words; ids are bound to tokens by verse-level matching (unique / anchored / nearest, see
@@ -318,7 +318,7 @@ from `bcv-commons/senses-attested` (CC BY, our own sense numbers) so the two lic
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--scheme", choices=["legacy", "ubs"], default="legacy",
-                    help="sense key: 'legacy' = our spine's sense number (CC-BY dataset, publish/senses_attested); "
+                    help="sense key: 'legacy' = the BHSA-derived spine sense number (RETIRED 2026-10-03, dataset relabelled CC BY-NC-SA 4.0, needs a BHSA spine; publish/senses_attested); "
                          "'ubs' = UBS Dictionary of Biblical Hebrew sense ids (CC BY-SA dataset, "
                          "publish/senses_attested_ubs)")
     ap.add_argument("--publish-all", metavar="REPO_ID", default=None,

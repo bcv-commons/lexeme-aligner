@@ -1,23 +1,34 @@
 {
  "function_drift": {
-  "Cmpl": {
-   "mean_drift": 0.0036,
-   "n": 40
+  "pp": {
+   "mean_drift": 0.0217,
+   "n": 65
   },
-  "Pred": {
-   "mean_drift": 0.0673,
-   "n": 126
+  "s": {
+   "mean_drift": 0.0348,
+   "n": 52
   },
-  "Subj": {
-   "mean_drift": -0.0243,
-   "n": 56
+  "v": {
+   "mean_drift": 0.0087,
+   "n": 150
   }
  },
+ "label_scheme": "macula_phrase_role",
  "pair_order_kept": {
-  "Pred>Subj": {
-   "kept": 22,
-   "rate": 0.647,
-   "total": 34
+  "pp>v": {
+   "kept": 21,
+   "rate": 0.636,
+   "total": 33
+  },
+  "v>pp": {
+   "kept": 24,
+   "rate": 0.686,
+   "total": 35
+  },
+  "v>s": {
+   "kept": 27,
+   "rate": 0.75,
+   "total": 36
   }
  },
  "tag": "trcpkf",

@@ -102,8 +102,13 @@ merged away, full provenance. Consumers:
 - ✅ Dataset name: `publish/lexeme-alignments` / `bcv-commons/lexeme-alignments`.
 - ✅ `share` semantics: within-`(method, base_text)`, computed on demand (not stored) — the "recommend"
   option above was adopted.
-- Merged best-pick view: still a consumer-side recipe (`merge_align.py` + `--contest-rule`), not a
+- Merged best-pick view: still a consumer-side recipe (the retired `merge_align.py` + `--contest-rule`; `compact_align` now implements the same contest), not a
   separate published dataset — matches the "left as a recipe" option.
 - ✅ Headline benchmark grain: `benchmark.py --grain lexeme` implemented; tool default left at `strong`
   for continuity with older gold comparisons (decided 2026-07 — see `benchmark.md` for the lexeme-
   vs-strong grain comparison and why `strong` stayed the tool default).
+
+## Third-party inputs and their licences (lineage note)
+- **MACULA** (Clear Bible, CC BY 4.0): the source backbone. The spine we use is the MACULA-only variant (no ETCBC BHSA-derived columns; BHSA is CC BY-NC-SA and is not used in any published output since 2026-10-04).
+- **UBS Dictionary of Biblical Hebrew** (CC BY-SA 4.0): the sense ids of `bcv-commons/senses-attested`, a separate share-alike dataset.
+- **`bcv-commons/prior-pack`** (CC BY-SA 4.0 since 2026-10-04): we read `pos`, `translit`, `lxx_greek`, `lxx_hebrew` and `keyness`. Its `keyness` column uses modern-Hebrew word frequencies from the `wordfreq` package (data CC BY-SA 4.0). We use only the null / not-null bit of keyness, as a content-word filter when seeding gloss priors and in the stopword content rescue; no keyness value or column is published in any dataset. Decision (owner, 2026-10-04): documented here, no licence change to our outputs.

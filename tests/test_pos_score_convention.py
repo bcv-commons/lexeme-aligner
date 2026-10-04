@@ -2,7 +2,7 @@
 Synthetic gold/ours/spine — no real corpus."""
 import collections
 
-import lexeme_aligner.pos_score as ps
+import lexeme_aligner.eval.pos_score as ps
 
 
 def _spine(ref, keys):

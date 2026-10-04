@@ -31,7 +31,7 @@ from lexeme_aligner.config import LEX_ROOT, OUT
 def build(iso: str, root: Path, method: str, min_share: float, hi_conf: float, min_count: int,
           base_text: str | None = None):
     import pyarrow.parquet as pq
-    from lexeme_aligner.benchmark import norm_strong    # lexeme "hbo:0871a" -> strong "H0871"
+    from lexeme_aligner.refs import norm_strong    # lexeme "hbo:0871a" -> strong "H0871"
 
     fp = root / f"iso={iso}" / "data.parquet"
     if not fp.exists():

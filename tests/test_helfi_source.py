@@ -1,7 +1,7 @@
 """Offline tests for helfi_source.py's parsing (Step G0). No network needed — synthetic HELFI-shaped
 lines, modeled on the real files (verified by hand against github.com/amikael/HELFI, see the module's
 own docstring for the cross-checked Strong's numbers)."""
-from lexeme_aligner.helfi_source import (
+from lexeme_aligner.eval.helfi_source import (
     build_gold_and_text, build_usj_book, parse_alignment_file, parse_source_file,
     parse_source_morphemes,
 )

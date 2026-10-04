@@ -281,7 +281,7 @@ def test_gbt_positional_gold_has_the_same_shape_as_clear(tmp_path):
     """contest_rule/score_gapfill plug gbt straight into the Clear code path, so the key shape
     ((zero-padded ref, strong) -> {surfaces}) must match exactly."""
     import json as _json
-    from lexeme_aligner.benchmark import load_gold_gbt_positional
+    from lexeme_aligner.eval.benchmark import load_gold_gbt_positional
     (tmp_path / "gbt_xx.jsonl").write_text("\n".join(_json.dumps(r, ensure_ascii=False) for r in [
         {"kind": "1:1", "verse_ref": 8001001, "source_strong": ["H1961"],
          "target_gloss": ["Et il fut"], "target_ids": [1], "source_ids": [1]},
@@ -312,7 +312,7 @@ def test_gbt_gold_langs_are_inert_until_aligned():
     # The four typology candidates are unvalidated and must not enter the trust matrix until aligned.
     # rus is excluded from this check: it is a deliberate, measured rehabilitation (see below), not a
     # speculative addition, so it is *meant* to rejoin GOLD as soon as it has alignment output.
-    from lexeme_aligner.contest_rule import GOLD
+    from lexeme_aligner.eval.contest_rule import GOLD
     assert not ((gbt - {"rus"}) & set(GOLD)), "an unvalidated gbt language leaked into GOLD"
 
 
@@ -411,7 +411,7 @@ def _write(tmp_path, method, pairs):
 def test_agreement_counts_only_IDENTICAL_spans(tmp_path):
     """Two methods picking DIFFERENT targets is disagreement; counting it as corroboration would make
     the whole signal meaningless."""
-    from lexeme_aligner.verse_checks import agreement
+    from lexeme_aligner.eval.verse_checks import agreement
     _write(tmp_path, "eflomal", [{"h_idx": 0, "t_idx": [3]}, {"h_idx": 1, "t_idx": [5]}])
     _write(tmp_path, "gloss",   [{"h_idx": 0, "t_idx": [3]}, {"h_idx": 1, "t_idx": [9]}])
     a = agreement(tmp_path, "xx")[(1, 1)]
@@ -419,7 +419,7 @@ def test_agreement_counts_only_IDENTICAL_spans(tmp_path):
 
 
 def test_agreement_ignores_pairs_with_no_span(tmp_path):
-    from lexeme_aligner.verse_checks import agreement
+    from lexeme_aligner.eval.verse_checks import agreement
     _write(tmp_path, "eflomal", [{"h_idx": 0, "t_idx": [3]}])
     _write(tmp_path, "gloss",   [{"h_idx": 0, "t_idx": []}])
     assert agreement(tmp_path, "xx")[(1, 1)] == {0: 1}
@@ -427,7 +427,7 @@ def test_agreement_ignores_pairs_with_no_span(tmp_path):
 
 def test_annotate_is_idempotent(tmp_path):
     import json as _json
-    from lexeme_aligner.verse_checks import annotate
+    from lexeme_aligner.eval.verse_checks import annotate
     _write(tmp_path, "eflomal", [{"h_idx": 0, "t_idx": [3]}])
     _write(tmp_path, "gloss",   [{"h_idx": 0, "t_idx": [3]}])
     annotate(tmp_path, "xx")
@@ -602,12 +602,3 @@ def test_method_char_encodes_the_tier_the_rule_keys_on():
     assert ca._method_char({"_method": "gloss", "method": "head"}) == "g"
     assert ca._method_char({"_method": "gapfill"}) == "f"
     assert ca._method_char({"_method": "residual"}) == "r"
-
-
-def test_contest_pick_survives_a_light_gloss_only_position():
-    """Latent crash fixed alongside: gl is zeroed for being light, no eflomal, no gapfill -> the old
-    code did None.get('score'). Callers already handle a None winner."""
-    from lexeme_aligner.merge_align import _contest_pick
-    mp = {"gloss": {"method": "exact", "score": 1.0, "target": "x", "light": True}}
-    win, voters, score = _contest_pick(mp, {})
-    assert win is None and voters == [] and score == 0.0

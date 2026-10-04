@@ -1,7 +1,7 @@
 """Offline tests for contest_rule.py's gold_health (roadmap F2, 2026-09-25): the canonical,
 gold-source-agnostic core moved here from gold_to_fullalign.py's own local reimplementation. Pure
 logic, synthetic surf_at/agg/ours — no real Clear parquet or align_*.jsonl needed."""
-import lexeme_aligner.contest_rule as cr
+import lexeme_aligner.eval.contest_rule as cr
 
 
 def test_gold_health_separates_positional_from_lexical_agreement():

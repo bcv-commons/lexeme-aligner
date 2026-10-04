@@ -34,6 +34,13 @@ FLAGS = ("typology_fallback", "typology_fallback_articles", "definite_trigger", 
 LIVE_OUT = REPO / "pipeline/work/out"
 INGEST = REPO / "pipeline/work/ingest-cache"
 BASE_METHODS = ("eflomal", "gloss")
+BASELINE_SPINE = REPO / "pipeline/lexeme-spine-bhsa-baseline.db"      # private BHSA arm — never published, never the source of a published artifact
+MACULA_SPINE = REPO / "pipeline/lexeme-spine-macula.db"
+
+
+def spine_for(syntax_source: str) -> str:
+    """ALIGNER_SPINE_DB for an A/B arm: the BHSA arm reads the private baseline spine, the MACULA arm the MACULA-only spine."""
+    return str(BASELINE_SPINE if syntax_source == "bhsa" else MACULA_SPINE)
 
 
 # ---- pure helpers (unit-tested) -------------------------------------------------------------------------------------------------
@@ -56,7 +63,7 @@ def span_extension_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, f
 
 
 def pos_score_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, specs: list[str], scope: str, conv: bool) -> list[str]:
-    cmd = [py, "-m", "lexeme_aligner.pos_score", "--iso", tag, "--publish-iso", lang, "--usj-dir", str(usj), scope_arg(scope),
+    cmd = [py, "-m", "lexeme_aligner.eval.pos_score", "--iso", tag, "--publish-iso", lang, "--usj-dir", str(usj), scope_arg(scope),
            "--out", str(scratch), "--json"]
     for s in specs:
         cmd += ["--method", s]
@@ -180,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
 
     sys.path.insert(0, str(REPO / "pipeline"))
-    from lexeme_aligner.contest_rule import gold_edition
+    from lexeme_aligner.eval.contest_rule import gold_edition
     langs = gold_languages() if a.all_gold else [x.strip() for x in a.langs.split(",") if x.strip()]
     work = a.work or REPO / "pipeline/work/measure" / f"{a.flag}-{time.strftime('%Y%m%d-%H%M%S')}"
     busy = running_names(subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True).stdout)

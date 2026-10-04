@@ -37,7 +37,6 @@ from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
-from lexeme_aligner.merge_align import _norm as _merge_norm, _tier as _merge_tier
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS, _BOOK_FILE_NUM, pooled_verse_groups
 from lexeme_aligner.manifest_io import update_json
@@ -61,7 +60,24 @@ METHODS = ("eflomal", "gloss", "gapfill")
 LAYER_METHODS = ("residual",)
 
 CONTEST_RULE = Path("config/contest_rule.json")
-_AGREE_SCORE = 0.97          # same constant merge_align uses when >=2 methods produce the same span
+_AGREE_SCORE = 0.97          # >=2 methods produce the same span -> hi-conf (>= export_lex _HI_SCORE 0.9)
+
+
+def _merge_norm(target: str | None) -> str:
+    """Comparison form of a produced target string (two methods "agree" when these are equal)."""
+    return (target or "").strip().lower()
+
+
+def _merge_tier(mode: str, p: dict) -> str:
+    """The confidence tier a pair belongs to inside its method — the key config/contest_rule.json is written in (contest_rule.py imports this)."""
+    if mode == "eflomal":
+        return f"score {p.get('score')}"
+    if mode == "gloss":
+        return p.get("method", "?")
+    if mode == "gapfill":
+        return p.get("prior", "?")                          # 'strong' or 'name'
+    return "all"
+
 
 # One character per aligned token in the `.method.json` sidecar. Case carries the method's OWN
 # high-confidence tier — free, and it is the exact input the contest rule keys on:

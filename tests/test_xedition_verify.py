@@ -2,7 +2,7 @@
 All synthetic, hand-computable."""
 import json
 
-import lexeme_aligner.xedition_verify as xv
+import lexeme_aligner.eval.xedition_verify as xv
 
 
 # --- geometry: which side did spanext widen? (independent of the `prior` label format) -------------------

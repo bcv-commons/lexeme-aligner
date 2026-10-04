@@ -79,3 +79,16 @@ def test_several_workers_each_language_runs_exactly_once(tmp_path):
     rc = batch.run_batch([f"l{i}" for i in range(20)], lambda iso: seen.append(iso) or True, st, workers=4, free=lambda: 100.0, log=lambda m: None)
     assert rc == 0 and sorted(seen) == sorted(f"l{i}" for i in range(20)) and len(set(seen)) == 20
     assert json.loads((tmp_path / "s.json").read_text())["failed"] == []
+
+
+def test_runner_leaves_the_ledger_to_the_chain_and_can_switch_it_off(monkeypatch):
+    seen = []
+
+    class _R:
+        returncode = 0
+    monkeypatch.setattr(batch.subprocess, "run", lambda cmd, **kw: (seen.append(cmd), _R())[1])
+    assert batch.make_runner(False, 0, ledger=True)("tgl") is True
+    assert batch.make_runner(True, 0, ledger=False)("tgl") is True
+    assert "--no-ledger" not in seen[0] and "--skip-ingest" not in seen[0]
+    assert "--no-ledger" in seen[1] and "--skip-ingest" in seen[1]
+    assert not hasattr(batch, "refresh_ledger")                         # one implementation: full_chain step 9b

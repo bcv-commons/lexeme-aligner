@@ -43,7 +43,9 @@ Two kinds of decision get folded into one shape here, `{"value": ..., "source": 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -204,6 +206,12 @@ def build_decisions(tags: str | list[str], publish_iso: str,
     return doc
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def write_decisions(iso_entries: dict[str, dict], config_path: Path = _DECISIONS_FILE,
                     publish_roots: list[Path] = _PUBLISH_ROOTS) -> None:
     """Merges `iso_entries` into the canonical, deterministic (sorted-keys, timestamp-free) config file
@@ -213,17 +221,24 @@ def write_decisions(iso_entries: dict[str, dict], config_path: Path = _DECISIONS
     contest_rule.json's own copy into publish/lexeme-alignments/contest_rule.json already drifted out
     of sync silently (no generator, someone placed it once by hand) — this function is the fix for that
     failure mode being repeated with a second file."""
-    doc = {"_doc": _DOC}
-    if config_path.exists():
-        doc.update({k: v for k, v in json.loads(config_path.read_text(encoding="utf-8")).items()
-                   if k != "_doc"})
-    doc.update(iso_entries)
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
-    config_path.write_text(text, encoding="utf-8")
-    for root in publish_roots:
-        if root.exists():
-            (root / "pipeline_decisions.json").write_text(text, encoding="utf-8")
+    # Every chain now writes its own language's entry as its last step (2026-10-04), so several PROCESSES can arrive here at once: the whole
+    # read-merge-write holds an exclusive lock on a sidecar file and the replace is atomic, so no entry is lost and no reader sees half a file.
+    with open(config_path.with_name(config_path.name + ".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            doc = {"_doc": _DOC}
+            if config_path.exists():
+                doc.update({k: v for k, v in json.loads(config_path.read_text(encoding="utf-8")).items()
+                           if k != "_doc"})
+            doc.update(iso_entries)
+            text = json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+            _atomic_write(config_path, text)
+            for root in publish_roots:
+                if root.exists():
+                    _atomic_write(root / "pipeline_decisions.json", text)
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def main(argv=None) -> int:

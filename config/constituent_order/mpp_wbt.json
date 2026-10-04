@@ -1,46 +1,57 @@
 {
  "function_drift": {
-  "Cmpl": {
-   "mean_drift": -0.0347,
-   "n": 65
+  "o": {
+   "mean_drift": -0.0098,
+   "n": 56
   },
-  "Objc": {
-   "mean_drift": -0.0118,
-   "n": 51
+  "p": {
+   "mean_drift": -0.0296,
+   "n": 32
   },
-  "PreC": {
-   "mean_drift": -0.0247,
-   "n": 44
+  "pp": {
+   "mean_drift": -0.0436,
+   "n": 92
   },
-  "Pred": {
-   "mean_drift": 0.0408,
-   "n": 260
+  "s": {
+   "mean_drift": -0.0338,
+   "n": 102
   },
-  "Subj": {
-   "mean_drift": -0.023,
-   "n": 96
+  "v": {
+   "mean_drift": 0.0371,
+   "n": 288
   }
  },
+ "label_scheme": "macula_phrase_role",
  "pair_order_kept": {
-  "Pred>Cmpl": {
-   "kept": 18,
-   "rate": 0.486,
-   "total": 37
+  "pp>v": {
+   "kept": 34,
+   "rate": 0.708,
+   "total": 48
   },
-  "Pred>Pred": {
-   "kept": 53,
-   "rate": 0.697,
-   "total": 76
-  },
-  "Pred>Subj": {
+  "s>v": {
    "kept": 27,
-   "rate": 0.474,
-   "total": 57
+   "rate": 0.692,
+   "total": 39
   },
-  "Subj>Pred": {
+  "v>o": {
    "kept": 22,
-   "rate": 0.688,
-   "total": 32
+   "rate": 0.611,
+   "total": 36
+  },
+  "v>pp": {
+   "kept": 25,
+   "rate": 0.543,
+   "total": 46
+  },
+  "v>s": {
+   "kept": 32,
+   "rate": 0.492,
+   "total": 65
+  },
+  "v>v": {
+   "kept": 62,
+   "rate": 0.639,
+   "total": 97
   }
  },
  "tag": "mpp_wbt",

@@ -1,5 +1,4 @@
-"""source_index.py + scripts/migrate_source_index.py: the stamp, the check, and the lossless srcOrd shift."""
-import importlib.util
+"""source_index.py: the stamp, the check, and the lossless srcOrd shift helpers."""
 import json
 import os
 import sys
@@ -8,11 +7,6 @@ from pathlib import Path
 import pytest
 
 import lexeme_aligner.source_index as si
-
-_spec = importlib.util.spec_from_file_location(
-    "migrate_source_index", Path(__file__).resolve().parents[1] / "pipeline/scripts/migrate_source_index.py")
-mig = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(mig)
 
 
 # --- shift_entry -------------------------------------------------------------------------------------------
@@ -136,32 +130,6 @@ def _trio(tmp_path, main, extra=None, meta=None, age=-1000):
     for f in d.iterdir():
         os.utime(f, (t, t))
     return fp
-
-
-def test_migrate_group_shifts_main_extra_and_sparse_meta_but_not_dense_meta(tmp_path):
-    fp = _trio(tmp_path, ["", "0:1 1:2 2:3"], extra=["", "2:9"],
-               meta={"method": ["", "EEE"], "conf": ["", "111"], "contested": ["", "2:G:5"],
-                     "bonus": ["", ""], "rule": ["", "1:name_after:7"]})
-    status, writes = mig.migrate_group(fp, {1: (1, 3)}, spine_mtime=1_000_000)
-    assert status == "migrate"
-    by = {p.name: json.loads(b) for p, b in writes.items()}
-    assert by["AAA_abc12.json"][1] == "0:1 2:2 3:3"
-    assert by["AAA_abc12.extra.json"][1] == "3:9"
-    meta = by["AAA_abc12.meta.json"]
-    assert meta["contested"][1] == "3:G:5" and meta["rule"][1] == "2:name_after:7"
-    assert meta["method"] == ["", "EEE"] and meta["conf"] == ["", "111"]           # dense: untouched
-
-
-def test_migrate_group_skips_files_built_after_the_spine_or_showing_new_numbering(tmp_path):
-    new = _trio(tmp_path, ["0:1 1:2"], age=+10)
-    assert mig.migrate_group(new, {0: (1, 3)}, spine_mtime=1_000_000)[0] == "newer-than-spine"
-    ev = _trio(tmp_path, ["0:1 3:2"], age=-10)                                      # ordinal 3 >= old length 3
-    assert mig.migrate_group(ev, {0: (1, 3)}, spine_mtime=1_000_000)[0] == "new-numbering-evidence"
-
-
-def test_migrate_group_skips_a_file_it_cannot_parse(tmp_path):
-    fp = _trio(tmp_path, ["0:1 weird"], age=-10)
-    assert mig.migrate_group(fp, {0: (0, 3)}, spine_mtime=1_000_000)[0] == "unparseable"
 
 
 # --- compact_align.publish_compact refuses to write against a disagreeing index -------------------------------

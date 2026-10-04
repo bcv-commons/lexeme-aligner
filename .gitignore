@@ -58,6 +58,8 @@ publish/aligned_mwe/iso=*/
 publish/senses_attested_ubs/iso=*/
 # manifest write locks (lexeme_aligner/manifest_io.py) — runtime files, never content
 publish/*/*.lock
+# ledger write lock (pipeline_decisions.write_decisions) — runtime file
+config/*.lock
 # compact-alignments: the `[a-z]` bucket dirs are the per-edition data (<iso[0]>/<iso>/<edition>/);
 # `_index/` (shared verse-ref indices, small, worth committing) starts with `_` so it's unaffected.
 publish/compact-alignments/[a-z]/

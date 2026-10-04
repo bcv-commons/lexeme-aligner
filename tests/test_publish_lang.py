@@ -11,15 +11,15 @@ spec.loader.exec_module(pl)
 def test_default_is_a_dry_run_through_publish_safe():
     cmd = pl.build_command("tgl", push=False, skip=[], include_mwe=False)
     assert cmd[1].endswith("publish_safe.py") and "--push" not in cmd
-    assert cmd[cmd.index("--datasets") + 1] == "lexeme-alignments,senses_attested,compact-alignments"
+    assert cmd[cmd.index("--datasets") + 1] == "lexeme-alignments,senses_attested_ubs,compact-alignments"
 
 
 def test_push_skip_and_mwe():
-    cmd = pl.build_command("tgl", push=True, skip=["senses_attested"], include_mwe=True)
+    cmd = pl.build_command("tgl", push=True, skip=["senses_attested_ubs"], include_mwe=True)
     assert "--push" in cmd and "--include-mwe" in cmd
     assert cmd[cmd.index("--datasets") + 1] == "lexeme-alignments,compact-alignments,aligned_mwe"
 
 
 def test_skipping_everything_is_an_error():
     with pytest.raises(SystemExit):
-        pl.build_command("tgl", push=True, skip=["lexeme-alignments", "senses_attested", "compact-alignments"], include_mwe=False)
+        pl.build_command("tgl", push=True, skip=["lexeme-alignments", "senses_attested_ubs", "compact-alignments"], include_mwe=False)

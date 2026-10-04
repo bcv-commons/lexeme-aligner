@@ -2,7 +2,7 @@
 import json
 from types import SimpleNamespace as NS
 
-import lexeme_aligner.source_map as sm
+import lexeme_aligner.eval.source_map as sm
 from lexeme_aligner.compact_align import build_source_lexemes
 
 

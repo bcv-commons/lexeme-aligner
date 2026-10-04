@@ -1,7 +1,7 @@
 """Offline tests for bsb_tables.py: column parsing, HTML → structure and back, empty-row retention, sort
 keys, the 1:n source mapping, the target letters-walk, and the 23-column round trip — all on synthetic
 rows, no vendor file needed."""
-import lexeme_aligner.bsb_tables as bt
+import lexeme_aligner.eval.bsb_tables as bt
 
 
 def _cells(**kw):

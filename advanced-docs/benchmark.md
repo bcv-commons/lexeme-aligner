@@ -1,6 +1,6 @@
 # Gold benchmark — alignment modes vs manual references
 
-`lexeme_aligner.benchmark` scores **any alignment mode** (`--method gloss|stat|eflomal|…`, reading
+`lexeme_aligner.eval.benchmark` scores **any alignment mode** (`--method gloss|stat|eflomal|…`, reading
 `align_<method>_<iso>_*.jsonl`) against a manual gold, with two backends (`--gold`):
 
 - **`clear`** — Clear-Bible attestations (surface→Strong's, per-occurrence manual). Metric: token-
@@ -41,7 +41,7 @@ much of the gold vocabulary the aligner also committed to.
 # 1. produce the alignment (NT, French Louis Segond)
 python -m lexeme_aligner.run_pilot --method eflomal --nt --usj-dir pipeline/work/ingest-cache/usj-fra-lsg --iso fra
 # 2. score it against the manual gold
-python -m lexeme_aligner.benchmark --iso fra --tag eflomal        # add --misses to inspect errors
+python -m lexeme_aligner.eval.benchmark --iso fra --tag eflomal        # add --misses to inspect errors
 ```
 Same for `--iso hau --usj-dir pipeline/work/ingest-cache/usj-hau-ohcb`. The benchmark reads
 `$ALIGNER_OUT/align_eflomal_<iso>_*.jsonl` (from step 1) and
@@ -67,7 +67,7 @@ synonyms or vowel-alternations (`man/män`), so true agreement is higher.
 
 ```bash
 python -m lexeme_aligner.full_chain --iso swe   # align (every edition of the language; this doc's numbers predate the pooled chain)
-python -m lexeme_aligner.benchmark --gold lexicon --iso swk --method eflomal --testament greek --min-count 10
+python -m lexeme_aligner.eval.benchmark --gold lexicon --iso swk --method eflomal --testament greek --min-count 10
 ```
 Needs the `[validate]` extra (`pyarrow` + `snowballstemmer`). The lexicon is fetched from karnbibeln.se
 and cached under `pipeline/work/karnbibeln/` (git-ignored); disagreements are written to a sorted md report.

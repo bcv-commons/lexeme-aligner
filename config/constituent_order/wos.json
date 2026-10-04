@@ -1,19 +1,36 @@
 {
  "function_drift": {
-  "Cmpl": {
-   "mean_drift": -0.0141,
-   "n": 41
+  "pp": {
+   "mean_drift": -0.0563,
+   "n": 57
   },
-  "Pred": {
-   "mean_drift": 0.0394,
-   "n": 110
+  "s": {
+   "mean_drift": 0.0271,
+   "n": 53
   },
-  "Subj": {
-   "mean_drift": 0.0141,
-   "n": 45
+  "v": {
+   "mean_drift": 0.0175,
+   "n": 132
   }
  },
- "pair_order_kept": {},
+ "label_scheme": "macula_phrase_role",
+ "pair_order_kept": {
+  "v>pp": {
+   "kept": 18,
+   "rate": 0.581,
+   "total": 31
+  },
+  "v>s": {
+   "kept": 17,
+   "rate": 0.548,
+   "total": 31
+  },
+  "v>v": {
+   "kept": 15,
+   "rate": 0.5,
+   "total": 30
+  }
+ },
  "tag": "wospkf",
  "tags": [
   "wospkf"

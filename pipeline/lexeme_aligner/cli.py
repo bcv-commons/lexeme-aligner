@@ -87,7 +87,7 @@ def plan(argv: list[str]) -> list[list[str]]:
     if sub == "text-strip":
         return [_script("text_strip_candidates.py", *rest)]
     if sub == "eval":
-        return [_module("pos_score", *rest)]
+        return [_module("eval.pos_score", *rest)]
     raise SystemExit(f"unknown subcommand '{sub}'. Subcommands: run, batch, grammar, publish, status, eval, text-strip")
 
 

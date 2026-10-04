@@ -1,19 +1,35 @@
 {
  "function_drift": {
-  "Cmpl": {
-   "mean_drift": 0.0135,
-   "n": 43
+  "o": {
+   "mean_drift": 0.0137,
+   "n": 31
   },
-  "Pred": {
-   "mean_drift": 0.0329,
-   "n": 100
+  "pp": {
+   "mean_drift": 0.0457,
+   "n": 61
   },
-  "Subj": {
-   "mean_drift": 0.0838,
-   "n": 54
+  "s": {
+   "mean_drift": 0.1068,
+   "n": 57
+  },
+  "v": {
+   "mean_drift": 0.047,
+   "n": 137
   }
  },
- "pair_order_kept": {},
+ "label_scheme": "macula_phrase_role",
+ "pair_order_kept": {
+  "pp>v": {
+   "kept": 18,
+   "rate": 0.562,
+   "total": 32
+  },
+  "v>s": {
+   "kept": 24,
+   "rate": 0.649,
+   "total": 37
+  }
+ },
  "tag": "lacpkf",
  "verses_measured": 47
 }

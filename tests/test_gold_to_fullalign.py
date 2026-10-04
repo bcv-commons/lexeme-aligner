@@ -4,9 +4,9 @@ manifest coverage math. No real spine/gold/corpus needed."""
 import collections
 import json
 
-import lexeme_aligner.gold_to_fullalign as gf
+import lexeme_aligner.eval.gold_to_fullalign as gf
 from lexeme_aligner.hebrew_source import HebToken
-from lexeme_aligner.pos_score import GoldVerse
+from lexeme_aligner.eval.pos_score import GoldVerse
 
 
 def tok(idx, strong, lexeme=None, content=True):
@@ -162,7 +162,7 @@ def test_llm_cells_excludes_mock(tmp_path):
 
 # --- foreign-owned partitions survive a regeneration of the language (bsb_tables.py's BSB-tables) ----------
 def test_carry_over_foreign_partitions_keeps_owned_entries_and_never_overrides_new_ones():
-    from lexeme_aligner.gold_to_fullalign import carry_over_foreign_partitions
+    from lexeme_aligner.eval.gold_to_fullalign import carry_over_foreign_partitions
     prev = {"editions": {"engbsb": {"layers": {"manual": {
         "BSB": {"source": "clear", "rows": 1},                              # ours — regenerated, not carried
         "BSB-tables": {"source": "bsb-tables", "owner": "bsb_tables", "rows": 3}}}}}}

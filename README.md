@@ -50,7 +50,7 @@ Mined as a byproduct of the same alignment work — each is its own standalone, 
 
 | dataset | what it is | license |
 |---|---|---|
-| [`senses-attested`](https://huggingface.co/datasets/bcv-commons/senses-attested) | which word-sense (of several a Strong's number can carry) each rendering attests | CC-BY |
+| [`senses-attested`](https://huggingface.co/datasets/bcv-commons/senses-attested) | which UBS Dictionary of Biblical Hebrew sense (of several a word can carry) each rendering attests (the retired BHSA-numbered legacy set is [`senses-attested-bhsa`](https://huggingface.co/datasets/bcv-commons/senses-attested-bhsa)) | CC BY-SA 4.0 |
 | [`target-stopwords`](https://huggingface.co/datasets/bcv-commons/target-stopwords) | induced function-word lists per target language — many have no other curated list anywhere | CC0-1.0 |
 | [`target-morphology`](https://huggingface.co/datasets/bcv-commons/target-morphology) | learned per-language morphology (prefixes/suffixes) used internally for alignment | CC0-1.0 |
 | [`cross-lingual-span-profile`](https://huggingface.co/datasets/bcv-commons/cross-lingual-span-profile) | per-lexeme "does this typically need one word or a phrase," aggregated across every aligned language | CC0-1.0 |

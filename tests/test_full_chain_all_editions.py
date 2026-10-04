@@ -5,7 +5,7 @@ from pathlib import Path
 from lexeme_aligner import full_chain as fc
 
 
-def _run_chain(monkeypatch, tmp_path, editions):
+def _run_chain(monkeypatch, tmp_path, editions, extra=()):
     calls = []
 
     def fake_run(mod, *args, **kw):
@@ -16,7 +16,7 @@ def _run_chain(monkeypatch, tmp_path, editions):
     monkeypatch.setattr(fc, "_run", fake_run)
     monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
     monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": e} for e in editions])
-    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest"])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", *extra])
     tags = [fc._tag("xyz", e, is_primary=(i == 0)) for i, e in enumerate(editions)]
     for t in tags[:3]:
         (tmp_path / "pipeline/work/ingest-cache" / f"usj-{t}").mkdir(parents=True)
@@ -49,3 +49,24 @@ def test_single_edition_language_has_no_pool_flag(monkeypatch, tmp_path):
     (mwe,) = [a for m, a in calls if m == "export_mwe"]
     assert "--pool" not in mwe
     assert len([1 for m, _ in calls if m == "compact_align"]) == 1
+
+
+def test_ledger_entry_is_the_last_chain_step_with_every_edition(monkeypatch, tmp_path):
+    calls, tags = _run_chain(monkeypatch, tmp_path, ["AAA", "BBB", "CCC"])
+    assert calls[-1][0] == "pipeline_decisions"                    # after compact_align, nothing runs behind it
+    args = calls[-1][1]
+    assert [args[i + 1] for i, a in enumerate(args) if a == "--tag"] == tags
+    assert [Path(args[i + 1]).name for i, a in enumerate(args) if a == "--usj-dir"] == [f"usj-{t}" for t in tags]
+    assert _arg(args, "--publish-iso") == "xyz" and "--no-publish" in args       # dataset-root copies are publish_safe's job
+
+
+def test_no_ledger_flag_skips_the_step(monkeypatch, tmp_path):
+    calls, _ = _run_chain(monkeypatch, tmp_path, ["AAA"], extra=("--no-ledger",))
+    assert "pipeline_decisions" not in [m for m, _ in calls]
+
+
+def test_only_the_ubs_senses_scheme_runs_in_the_chain(monkeypatch, tmp_path):
+    calls, tags = _run_chain(monkeypatch, tmp_path, ["AAA", "BBB"])
+    (senses,) = [a for m, a in calls if m == "senses_attested"]      # exactly one call: the legacy (BHSA-numbered) scheme is gone
+    assert _arg(senses, "--scheme") == "ubs" and _arg(senses, "--iso") == tags[0]
+    assert _arg(senses, "--pool").split(",") == tags[1:]

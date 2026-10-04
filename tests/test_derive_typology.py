@@ -191,6 +191,7 @@ def test_derive_one_gate_passed_but_no_ot_books_writes_no_ot_slots(monkeypatch):
 
 
 def test_derive_one_audit_facts_never_collide_with_slot_keys(monkeypatch):
+    monkeypatch.setenv("ALIGNER_SYNTAX_SOURCE", "bhsa")           # the BHSA branch (A/B baseline); the macula default has its own test below
     monkeypatch.setattr(dt, "resolve_tag", lambda tag: (tag, Path("/mocked")))
     monkeypatch.setattr(dt, "quality_gate", lambda *a, **k: ({"passed": True}, {"ref1": {0: 1}}, []))
     monkeypatch.setattr(dt, "build_corpus", lambda *a, **k: [])
@@ -828,3 +829,46 @@ def test_validate_subject_pronoun_need_skips_languages_grambank_has_no_data_for(
     derived_docs = {"eng": {"subject_pronoun_need": {"needs_free_subject_pronoun": True}}}
     result = dt.validate_subject_pronoun_need(derived_docs)
     assert result["reference_total"] == 0
+
+
+def test_derive_one_macula_default_uses_the_macula_statistics(monkeypatch):
+    """Default syntax source = macula (2026-10-04): possessor from construct_after_stat, subject_verb/object_verb from clause_role_stat — never
+    from the BHSA compute_order_stats / _hebrew_clause_role_stat."""
+    monkeypatch.delenv("ALIGNER_SYNTAX_SOURCE", raising=False)
+    monkeypatch.setattr(dt, "resolve_tag", lambda tag: (tag, Path("/mocked")))
+    monkeypatch.setattr(dt, "quality_gate", lambda *a, **k: ({"passed": True}, {"ref1": {0: 1}}, []))
+    monkeypatch.setattr(dt, "build_corpus", lambda *a, **k: [])
+
+    def boom(*a, **k):
+        raise AssertionError("the BHSA statistic must not run in macula mode")
+    monkeypatch.setattr(dt, "compute_order_stats", boom)
+    monkeypatch.setattr(dt, "_hebrew_clause_role_stat", boom)
+    monkeypatch.setattr(dt.macula_syntax, "construct_after_stat", lambda recs, anchors: {"rec_after_rate": 0.9, "rec_after_n": 60})
+    seen = []
+
+    def clause(recs, anchors, role):
+        seen.append(role)
+        return {"n_opportunities": 400, "n_fused": 0, "n_before": 360, "n_after": 40, "n_resolved": 400, "rate_after": 0.1}
+    monkeypatch.setattr(dt.macula_syntax, "clause_role_stat", clause)
+    monkeypatch.setattr(dt, "constituent_profile", lambda *a, **k: {"label_scheme": "macula_phrase_role", "verses_measured": 10,
+                                                                   "pair_order_kept": {}, "function_drift": {}})
+    monkeypatch.setattr(dt, "multiword_rates", lambda *a, **k: {})
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        monkeypatch.setattr(dt, "_CONSTITUENT_DIR", Path(td) / "co")
+        doc = dt.derive_one("zzz", "zzztag", ot_books=["GEN"], all_books=["GEN"], with_diagnose=False)
+    assert seen == ["s", "o"]
+    assert doc["possessor"]["direction"] == "after" and doc["subject_verb"]["direction"] == "before" and doc["object_verb"]["direction"] == "before"
+    assert doc["audit"]["constituent_order"]["label_scheme"] == "macula_phrase_role"
+
+
+def test_pool_constituent_carries_the_label_scheme():
+    p = {"verses_measured": 5, "label_scheme": "macula_phrase_role", "pair_order_kept": {"v>s": {"kept": 1, "total": 2}}, "function_drift": {}}
+    assert dt.pool_constituent({"a": dict(p), "b": dict(p)})["label_scheme"] == "macula_phrase_role"
+
+
+def test_pool_constituent_marks_mixed_vocabularies_instead_of_relabelling():
+    a = {"verses_measured": 1, "label_scheme": "macula_phrase_role", "pair_order_kept": {"v>s": {"kept": 1, "total": 2}}, "function_drift": {}}
+    b = {"verses_measured": 1, "label_scheme": "bhsa_function", "pair_order_kept": {"Pred>Subj": {"kept": 1, "total": 2}}, "function_drift": {}}
+    assert dt.pool_constituent({"a": a, "b": b})["label_scheme"] == "mixed"
+    assert dt.pool_constituent({"a": {"verses_measured": 1}})["label_scheme"] is None     # a profile with no scheme (pre-switch) stays visibly unlabelled

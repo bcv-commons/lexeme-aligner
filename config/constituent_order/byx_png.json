@@ -1,53 +1,64 @@
 {
  "function_drift": {
-  "Cmpl": {
-   "mean_drift": -0.0055,
-   "n": 69
+  "o": {
+   "mean_drift": -0.0093,
+   "n": 60
   },
-  "Objc": {
-   "mean_drift": -0.0037,
-   "n": 55
+  "p": {
+   "mean_drift": 0.035,
+   "n": 34
   },
-  "PreC": {
-   "mean_drift": -0.0301,
-   "n": 44
+  "pp": {
+   "mean_drift": -0.0544,
+   "n": 107
   },
-  "Pred": {
-   "mean_drift": 0.0335,
-   "n": 255
+  "s": {
+   "mean_drift": -0.0229,
+   "n": 102
   },
-  "Subj": {
-   "mean_drift": 0.0263,
-   "n": 89
+  "v": {
+   "mean_drift": -0.0182,
+   "n": 336
   }
  },
+ "label_scheme": "macula_phrase_role",
  "pair_order_kept": {
-  "Pred>Cmpl": {
-   "kept": 25,
-   "rate": 0.714,
-   "total": 35
-  },
-  "Pred>Objc": {
+  "o>v": {
    "kept": 20,
-   "rate": 0.541,
-   "total": 37
+   "rate": 0.588,
+   "total": 34
   },
-  "Pred>Pred": {
-   "kept": 43,
-   "rate": 0.606,
-   "total": 71
+  "pp>v": {
+   "kept": 44,
+   "rate": 0.667,
+   "total": 66
   },
-  "Pred>Subj": {
-   "kept": 30,
-   "rate": 0.526,
-   "total": 57
+  "s>v": {
+   "kept": 29,
+   "rate": 0.659,
+   "total": 44
   },
-  "Subj>Pred": {
-   "kept": 21,
-   "rate": 0.656,
-   "total": 32
+  "v>o": {
+   "kept": 29,
+   "rate": 0.644,
+   "total": 45
+  },
+  "v>pp": {
+   "kept": 38,
+   "rate": 0.633,
+   "total": 60
+  },
+  "v>s": {
+   "kept": 46,
+   "rate": 0.59,
+   "total": 78
+  },
+  "v>v": {
+   "kept": 73,
+   "rate": 0.67,
+   "total": 109
   }
  },
  "tag": "byx_png",
- "verses_measured": 79
+ "verses_measured": 80
 }

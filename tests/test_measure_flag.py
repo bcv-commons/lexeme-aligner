@@ -65,8 +65,8 @@ def test_measure_language_runs_off_then_on_and_clears_the_previous_variant(tmp_p
         return "noise?\n" + json.dumps({"results": res})
 
     out = mf.measure_language("spa", "t", Path("/u"), scratch, "typology_fallback", "all", True, run, "py", 0.002, 0.01)
-    assert [c[2] for c in calls] == ["lexeme_aligner.span_extension", "lexeme_aligner.pos_score",
-                                     "lexeme_aligner.span_extension", "lexeme_aligner.pos_score"]
+    assert [c[2] for c in calls] == ["lexeme_aligner.span_extension", "lexeme_aligner.eval.pos_score",
+                                     "lexeme_aligner.span_extension", "lexeme_aligner.eval.pos_score"]
     assert out["strict"]["delta"]["link_f1"] == pytest.approx(0.01) and out["strict"]["delta"]["exact_span"] == 30
     assert out["strict"]["verdict"] == "WIN" and out["conv"]["verdict"] == "WIN"
     assert out["strict"]["baseline"]["link_f1"] == 0.60

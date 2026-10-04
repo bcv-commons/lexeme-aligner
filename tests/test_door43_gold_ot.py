@@ -2,7 +2,7 @@
 zaln rows (`c:H1961`, `d:H8199`, bare `H8199a` for augmented content) mapped onto the spine's own prefix
 tokens (matched by NFC-normalised lemma, not the placeholder strong) and content tokens (augment-stripped
 strong). Offline; a lightweight fake HebrewSource stands in for the real spine."""
-import lexeme_aligner.door43_gold as dg
+import lexeme_aligner.eval.door43_gold as dg
 
 
 def test_split_hebrew_strong():

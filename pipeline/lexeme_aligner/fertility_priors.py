@@ -90,6 +90,7 @@ import collections
 import json
 from pathlib import Path
 
+from lexeme_aligner import macula_syntax
 from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES
 from lexeme_aligner.span_extension import (DIRECTION_FEATURES, compute_definite, direction_for,
                                            load_grambank_raw)
@@ -185,6 +186,7 @@ def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb,
 
     n: collections.Counter = collections.Counter()
     k: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    macula = getattr(heb, "syntax_source", "bhsa") == "macula"     # MACULA-only syntax: no BHSA `rela`
     for r in recs:
         definite = compute_definite(r.heb, lex_pos, heb.assimilated_after_idx(r.book, r.ch, r.v))
         for t in r.heb:
@@ -192,7 +194,7 @@ def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb,
             if not a:
                 continue
             n[a] += 1
-            if has_adp and (t.rela == "rec" or t.case_ == "genitive"):
+            if has_adp and ((macula_syntax.is_rectum(t) if macula else t.rela == "rec") or t.case_ == "genitive"):
                 k[a]["possessor"] += 1
             if has_adp and t.case_ == "dative":
                 k[a]["dative"] += 1

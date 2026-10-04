@@ -34,6 +34,7 @@ from pathlib import Path
 
 from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.gapfill import load_covered, load_priors
+from lexeme_aligner import macula_syntax
 from lexeme_aligner.hebrew_source import HebrewSource
 from lexeme_aligner.refs import encode
 from lexeme_aligner.run_pilot import OT_BOOKS, build_corpus
@@ -49,6 +50,12 @@ def profile(tag: str, usj_dir: Path, out_dir: Path = OUT, methods=("eflomal", "g
     pair_keep: dict[tuple, list] = collections.defaultdict(lambda: [0, 0])   # (fa,fb) -> [kept, total]
     drift: dict[str, list] = collections.defaultdict(list)                   # function -> [drifts]
     n_verses = 0
+    # MACULA-only mode: constituents come from phrase_role + head_idx (see macula_syntax), labels are the 7 phrase_role
+    # values instead of BHSA function labels; the BHSA loop below is then skipped entirely.
+    scheme = "macula_phrase_role" if heb.syntax_source == "macula" else "bhsa_function"
+    if scheme == "macula_phrase_role":
+        pair_keep, drift, n_verses = macula_syntax.profile_pairs(recs, anchors)
+        recs = ()
     for r in recs:
         ref = encode(r.book, r.ch, r.v)
         anch = anchors.get(ref)
@@ -75,6 +82,7 @@ def profile(tag: str, usj_dir: Path, out_dir: Path = OUT, methods=("eflomal", "g
 
     return {
         "tag": tag,
+        "label_scheme": scheme,
         "verses_measured": n_verses,
         "pair_order_kept": {f"{fa}>{fb}": {"kept": k, "total": n, "rate": round(k / n, 3)}
                             for (fa, fb), (k, n) in sorted(pair_keep.items()) if n >= 30},

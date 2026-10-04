@@ -586,7 +586,7 @@ is this *edition* and what do I need to know to align it". Keyed by the **editio
 `arb_vdv`, `aaamlt`), never by the bare language iso; it carries the bare iso as a field.
 
 **Status: built 2026-09-26 (roadmap E2), the same additive pattern as gram-struct.** `python -m
-lexeme_aligner.edition_struct --build` writes `config/edition_struct/<tag>.json` for all 2,042 pinned
+lexeme_aligner.eval.edition_struct --build` writes `config/edition_struct/<tag>.json` for all 2,042 pinned
 editions, without changing any existing reader. Real coverage: **1,774 of 2,042 editions get a
 resolved `iso`** (626 from the pin's own field, 1,148 falling back to compact-alignments' reverse
 index; 268 genuinely unresolved — no valid pin `iso` and never aligned/published under any language),

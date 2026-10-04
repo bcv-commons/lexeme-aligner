@@ -37,20 +37,20 @@ Everything below is read-only with respect to published data; outputs go to `pip
 
 ```bash
 # 1. $0 self-check of the whole write → validate → score loop (the mock answers with gapfill's own fills):
-python3 -m lexeme_aligner.llm_align --iso hinirv --publish-iso hin \
+python3 -m lexeme_aligner.eval.llm_align --iso hinirv --publish-iso hin \
     --usj-dir pipeline/work/ingest-cache/usj-hinirv --nt --strategy gap-seeded --provider mock
 
 # 2. see exactly what a model would be sent, and an estimate, without calling anything:
-python3 -m lexeme_aligner.llm_align ... --strategy gap-seeded --model claude-sonnet-5 --dry-run [--ref 40001003]
+python3 -m lexeme_aligner.eval.llm_align ... --strategy gap-seeded --model claude-sonnet-5 --dry-run [--ref 40001003]
 
 # 3. a real cell — Anthropic API (needs ANTHROPIC_API_KEY in .env; prompt caching + optional --batch at 50% off):
-python3 -m lexeme_aligner.llm_align ... --nt --strategy gap-seeded --provider anthropic \
+python3 -m lexeme_aligner.eval.llm_align ... --nt --strategy gap-seeded --provider anthropic \
     --model claude-sonnet-5 --effort low --batch --max-usd 10
 #    …or through your Claude subscription (no API key; `claude -p` with tools and customizations off):
-python3 -m lexeme_aligner.llm_align ... --provider cli
+python3 -m lexeme_aligner.eval.llm_align ... --provider cli
 
 # 4. score it against gold and append a comparable row to pipeline/work/out/llm_report.md:
-python3 -m lexeme_aligner.llm_align --report --iso hinirv --publish-iso hin \
+python3 -m lexeme_aligner.eval.llm_align --report --iso hinirv --publish-iso hin \
     --out-tag hinirv.gap-seeded.sonnet5 --gold-iso hin
 ```
 

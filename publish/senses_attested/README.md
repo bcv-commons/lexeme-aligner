@@ -5,7 +5,7 @@ tags:
   - word-sense
   - lexeme
   - hebrew
-license: cc-by-4.0
+license: cc-by-nc-sa-4.0
 configs:
   - config_name: default
     data_files:
@@ -13,12 +13,20 @@ configs:
         path: iso=*/data.parquet
 ---
 
-# senses_attested — attested target renderings per lexeme sense
+# senses_attested-bhsa — attested target renderings per lexeme sense (retired legacy set)
+
+> **Renamed 2026-10-04:** this repository was `bcv-commons/senses-attested`; it is now `bcv-commons/senses-attested-bhsa` so the name says what it is. The name `senses-attested` now belongs to the UBS-keyed dataset.
+
+> **Superseded, and relabelled (2026-10-03).** The `sense` number in this dataset is the sense number from a lexeme-sense
+> clustering that is built on **ETCBC BHSA** clauses (BHSA is CC BY-NC-SA 4.0). This dataset is therefore now labelled
+> **CC BY-NC-SA 4.0** (non-commercial, share-alike); up to this date it carried a CC BY 4.0 label, and copies obtained earlier keep the
+> label they came with. **For an open licence and a sense key you can trust, use [`bcv-commons/senses-attested`](https://huggingface.co/datasets/bcv-commons/senses-attested)**
+> (CC BY-SA 4.0, keyed on UBS Dictionary of Biblical Hebrew sense ids, no BHSA-derived content). This dataset receives no further updates.
 
 > **Note (2026-09-30).** The `sense` number in this dataset comes from our own automatic disambiguation and is
 > `1` for about 97% of tokens; checked against the manually built UBS Dictionary of Biblical Hebrew it agrees no better
 > than chance when it says "same sense" (though where it does split, the split is informative). For a sense key you can
-> trust, use the sibling dataset **`senses_attested_ubs`** (CC BY-SA 4.0), keyed on UBS sense ids. This dataset is kept
+> trust, use the dataset **`bcv-commons/senses-attested`** (CC BY-SA 4.0), keyed on UBS sense ids. This dataset is kept
 > unchanged for existing consumers.
 
 Many Hebrew words carry more than one distinguishable meaning depending on their grammatical form —
@@ -80,10 +88,10 @@ After exclusion, survivor `share`s **renormalise** (per edition), so a removed r
 the manifest records `excluded: {rules, rows_dropped}` for the audit trail. To action a takedown: add
 a rule, re-run `senses_attested` for the affected language, republish.
 
-## Licensing — CC-BY-4.0, deliberately label-free
-The **key is MACULA-derived** (`lexeme` + binyan), so this dataset is **CC-BY-4.0** — attribute
-Clear-Bible MACULA. We carry the sense **number** only and **no English sense label**: shoresh's sense
-labels are UBS-MARBLE "used with permission" (not redistributable), so the payload is pure attestation
-`(lexeme, stem, sense#, surface, count)` — CC-BY clean. Regenerate:
+## Licensing — CC BY-NC-SA 4.0 (since 2026-10-03; earlier CC BY 4.0)
+The `lexeme` + binyan key is MACULA-derived (CC BY 4.0, attribute Clear-Bible MACULA), but the `sense` number comes from a clustering built on
+**ETCBC BHSA** clauses, so the dataset as a whole follows BHSA's **CC BY-NC-SA 4.0**: attribute both, non-commercial use only, share alike.
+We carry the sense **number** only and **no English sense label** (shoresh's sense labels are UBS-MARBLE "used with permission", not
+redistributable). The open-licence replacement is `bcv-commons/senses-attested` (UBS sense ids, CC BY-SA 4.0). Regenerate (legacy scheme):
 `python -m lexeme_aligner.senses_attested --iso <iso> --method eflomal`.
 Same git-ignored-Parquet + committed-`manifest.json` layout as `lexeme-alignments`.

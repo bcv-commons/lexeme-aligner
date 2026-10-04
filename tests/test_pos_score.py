@@ -3,7 +3,7 @@ with vetoes, and the link metrics — all on synthetic data, no parquet needed."
 import collections
 import pytest
 
-from lexeme_aligner.pos_score import GoldVerse, Metrics, Ours, Spine, clear_tokens, map_positions, score, union
+from lexeme_aligner.eval.pos_score import GoldVerse, Metrics, Ours, Spine, clear_tokens, map_positions, score, union
 from lexeme_aligner.usj_source import tokenize
 
 
@@ -24,7 +24,7 @@ def test_map_positions_hyphen_apostrophe_punctuation_and_digits():
 
 
 def test_map_positions_refuses_when_the_tokenizations_disagree(monkeypatch):
-    import lexeme_aligner.pos_score as ps
+    import lexeme_aligner.eval.pos_score as ps
     monkeypatch.setattr(ps, "tokenize", lambda t: ["not", "this", "text"])
     assert map_positions("Généalogie de Jésus") is None
 

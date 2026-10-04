@@ -49,7 +49,8 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 
-PY := python3
+# the project's venv when it exists (the system python3 has neither lexeme_aligner nor pyarrow); falls back to python3
+PY := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 LOAD_ENV = if [ -f .env ]; then export $$(grep -v '^\#' .env | xargs); fi
 
 .PHONY: llm-align llm-score help new-language update-language new-edition update-edition update-batch update-all \
@@ -69,7 +70,7 @@ _require-spec:
 
 new-language: _require-iso
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" --clean-out \
+	$(PY) -m lexeme_aligner run "$(ISO)" \
 	  $(if $(LANG_NAME),--lang-name "$(LANG_NAME)") \
 	  $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
 
@@ -78,7 +79,7 @@ new-language: _require-iso
 # (e.g. the gloss bootstrap-iso bug) without re-downloading anything.
 update-language: _require-iso
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" --clean-out \
+	$(PY) -m lexeme_aligner run "$(ISO)" \
 	  $(if $(LANG_NAME),--lang-name "$(LANG_NAME)") \
 	  $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest)
 
@@ -92,7 +93,7 @@ new-edition: _require-iso
 	@echo "  config/language_editions.json for '$(ISO)' first — then this re-runs the full chain," >&2
 	@echo "  which re-derives the pool from current config and ingests whatever's new." >&2
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.full_chain --iso "$(ISO)" --clean-out $(if $(LANG_NAME),--lang-name "$(LANG_NAME)")
+	$(PY) -m lexeme_aligner run "$(ISO)" $(if $(LANG_NAME),--lang-name "$(LANG_NAME)")
 
 update-edition: new-edition
 
@@ -107,7 +108,7 @@ update-batch: _require-spec
 
 update-all:
 	$(LOAD_ENV)
-	$(PY) pipeline/scripts/update_all.py --clean-out $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest) $(if $(filter 1,$(FRESH)),--fresh) $(if $(MIN_FREE_GB),--min-free-gb $(MIN_FREE_GB))
+	$(PY) -m lexeme_aligner batch --all $(if $(filter 1,$(SKIP_INGEST)),--skip-ingest) $(if $(filter 1,$(FRESH)),--fresh) $(if $(MIN_FREE_GB),--min-free-gb $(MIN_FREE_GB))
 
 new-batch: _require-spec
 	$(LOAD_ENV)
@@ -163,7 +164,7 @@ publish-span-profile:
 # Hebrew), deliberately NOT part of publish-all: publishing it is its own decision.
 publish-senses-ubs:
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.senses_attested --scheme ubs --publish-all bcv-commons/senses-attested-ubs --create
+	$(PY) -m lexeme_aligner.senses_attested --scheme ubs --publish-all bcv-commons/senses-attested --create
 
 # cross-lingual-span-profile is now sourced from lexeme-alignments+aligned_mwe (both persisted local
 # datasets, not transient out/), so it's no longer timing-sensitive — safe to fold in as the last step.
@@ -189,12 +190,12 @@ publish-extras: publish-span-profile
 #        PROVIDER=anthropic MODEL=claude-sonnet-5 EXTRA="--nt --batch --max-usd 10"
 llm-align: _require-iso
 	$(LOAD_ENV)
-	$(PY) -m lexeme_aligner.llm_align --iso "$(ISO)" --publish-iso "$(or $(PUBLISH_ISO),$(ISO))" \
+	$(PY) -m lexeme_aligner.eval.llm_align --iso "$(ISO)" --publish-iso "$(or $(PUBLISH_ISO),$(ISO))" \
 	  --usj-dir "$(USJ_DIR)" --strategy "$(or $(STRATEGY),gap-seeded)" --provider "$(or $(PROVIDER),anthropic)" \
 	  --model "$(or $(MODEL),claude-sonnet-5)" $(if $(BOOKS),$(foreach b,$(BOOKS),--book $(b)),$(if $(findstring --nt,$(EXTRA))$(findstring --ot,$(EXTRA))$(findstring --all,$(EXTRA)),,--nt)) $(EXTRA)
 
 llm-score: _require-iso
 	$(LOAD_ENV)
 	@if [ -z "$${OUT_TAG:-}" ]; then echo "OUT_TAG is required, e.g. make llm-score ISO=hinirv OUT_TAG=hinirv.gap-seeded.sonnet5 GOLD_ISO=hin" >&2; exit 1; fi
-	$(PY) -m lexeme_aligner.llm_align --report --iso "$(ISO)" --publish-iso "$(or $(PUBLISH_ISO),$(ISO))" \
+	$(PY) -m lexeme_aligner.eval.llm_align --report --iso "$(ISO)" --publish-iso "$(or $(PUBLISH_ISO),$(ISO))" \
 	  --out-tag "$(OUT_TAG)" --gold-iso "$(or $(GOLD_ISO),$(or $(PUBLISH_ISO),$(ISO)))"

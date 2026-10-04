@@ -212,3 +212,20 @@ def test_target_normalization_records_editions_that_disagree_with_the_pooled_dec
     assert out["value"] == "stem" and out["edition_overrides"] == {"b": "surface"}
     single = pd.target_normalization_decision("zz", [Path("x/usj-a")])
     assert "edition_overrides" not in single
+
+
+def test_write_decisions_loses_no_entry_when_many_processes_write_at_once(tmp_path):
+    """Every chain now writes its own entry as its last step, so several PROCESSES finish together; an unlocked read-merge-write lost entries."""
+    import json
+    import subprocess
+    import sys
+    cfg = tmp_path / "pipeline_decisions.json"
+    code = ("import sys\nfrom pathlib import Path\nimport lexeme_aligner.pipeline_decisions as pd\n"
+            "for iso in sys.argv[2:]:\n"
+            "    pd.write_decisions({iso: {'target_normalization': {'value': 'surface'}}}, config_path=Path(sys.argv[1]), publish_roots=[])\n")
+    isos = [f"l{i:02d}" for i in range(24)]
+    procs = [subprocess.Popen([sys.executable, "-c", code, str(cfg), *isos[k::8]]) for k in range(8)]     # 8 writers, 3 entries each, all at once
+    assert [p.wait(timeout=120) for p in procs] == [0] * 8
+    doc = json.loads(cfg.read_text(encoding="utf-8"))
+    assert sorted(k for k in doc if k != "_doc") == isos
+    assert not list(tmp_path.glob(".*.tmp"))                      # no temp file left behind

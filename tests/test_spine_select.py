@@ -3,7 +3,7 @@ parameters, no real edition_struct/textual_basis files or sibling spine DBs need
 import json
 from pathlib import Path
 
-import lexeme_aligner.spine_select as ss
+import lexeme_aligner.eval.spine_select as ss
 
 
 def _w(path, obj):

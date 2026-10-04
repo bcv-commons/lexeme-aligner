@@ -69,7 +69,7 @@ the others, or for a single edition/book:
 python3 -m lexeme_aligner.run_pilot --method eflomal --ot --usj-dir <dir> --iso ind --lang-name Indonesian
 # methods: gloss | stat | eflomal | gapfill | all
 python3 -m lexeme_aligner.export_lex --iso ind --lang-name Indonesian
-python3 -m lexeme_aligner.benchmark --gold clear --iso ind --method eflomal
+python3 -m lexeme_aligner.eval.benchmark --gold clear --iso ind --method eflomal
 ```
 `lexeme_aligner.pipeline` (the old "one command per language, ingest through publish" driver this doc
 used to lead with) was removed on 2026-10-02. The single front door is now `lexeme-aligner`
@@ -123,7 +123,7 @@ No single method covers every language; they run as an ensemble (agreement ⇒ c
   when no external gloss CSVs are supplied (`bootstrap_priors`). Tags semantically **light** source
   lexemes (light verbs, generic nouns — `cross_lang_prior.build_light_lexemes`) so their gloss calls
   don't outvote eflomal on exactly the class of word where a dictionary approach is least reliable
-  (`merge_align`'s contest resolution reads this tag — see below).
+  (`compact_align`'s contest resolution reads this tag — see below).
 - **gapfill** (`gapfill_align`, `gapfill.py`) — model-free gap-filling for tokens neither eflomal nor
   gloss aligned. No target-language model — works for any language, same as eflomal/gloss. A neural
   (LaBSE/bge-m3) approach was tried and retired: measured ~7.5% target-selection contribution on its
@@ -142,7 +142,7 @@ No single method covers every language; they run as an ensemble (agreement ⇒ c
   a genuine no-op — kept as documented inert code, not ripped out (see `gapfill_align.py`). All of this
   stays sub-hi_conf (score 0.75) except strong/name/cross-edition hi-conf fills (0.9) — additive coverage
   on otherwise-zero tokens, never out-voting eflomal/gloss.
-- **merge** (`merge_align`, optional, not published) — a single-best-answer-per-token derived view.
+- **merge** (the retired `merge_align.py`, removed 2026-10-04 — git history; `compact_align` now owns the contest) — a single-best-answer-per-token derived view.
   When eflomal and gloss disagree, `contest_rule.json` (empirically validated, leave-one-out tested
   across 10 gold languages) decides the winner. Lossy by design — drops valid alternatives — so it's a
   convenience regenerable from the union, never the published source of truth
@@ -205,7 +205,7 @@ yields a new, equally-valid partition with a new hash (~1% drift). See `publish/
 ## Module map
 **Core pipeline:** `config` (paths) · `refs` (BBCCCVVV + `BOOK_NUMBERS`, vendored) · `usj_source` ·
 `hebrew_source` (spine + optional hbo.db; NT→G/OT→H) · `gloss_priors` · `bootstrap_priors` ·
-`gloss_align` · `stat_align` · `eflomal_align` · `gapfill_align` · `gapfill` · `merge_align` ·
+`gloss_align` · `stat_align` · `eflomal_align` · `gapfill_align` · `gapfill` ·
 `run_pilot` (runner + report) · `export_lex` (→ Parquet + manifest).
 
 **Ingest:** `cdn_source` (PKF) · `helloao_source` (JSON) · `dbt_source` (Bible Brain API, needs
@@ -216,7 +216,7 @@ Proskomma PKF→USFM).
 language: ingest every edition, align, export one pooled partition, stops before publish) ·
 `onboard_batch.py` (hand-curated spec list, resumable) · `onboard_catalog.py` (full ~1,876-language
 catalog walk) · `full_chain.py` (the 9-step orchestrator both `new-language` and the batch paths call)
-· `pipeline/scripts/{status,publish_lang,publish_all,update_all,clean_out*}.py` (ops scripts).
+· `pipeline/scripts/{status,publish_lang,publish_safe,clean_out*}.py` (ops scripts).
 
 **Benchmark & correctness:** `benchmark` (clear|lexicon golds) · `greek_morph_strong` ·
 `hebrew_lexeme_strong` · `cross_lang_prior` (span profile + light-lexeme detection) ·

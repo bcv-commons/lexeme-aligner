@@ -2,7 +2,7 @@
 
 Replaces `scripts/update_all.py` and the one-off batch scripts written during the fleet refresh (fleet_refresh, stem_555_batch, regen_post_batch,
 repair_all_editions, run_catalog_sweeps): same ingredients every time — a queue of languages, N workers, `full_chain` per language, a state file so a
-restart skips what is done, a free-space guard, a retry pass for failures, and the ledger entry refreshed after each success.
+restart skips what is done, a free-space guard, a retry pass for failures, and the ledger entry written by the chain itself (full_chain step 9b).
 
     lexeme-aligner batch --all [--workers 3] [--nice 10] [--skip-ingest]              every onboarded language
     lexeme-aligner batch --stale-before 2026-09-28 --workers 3 --skip-ingest          languages whose partition is older than a date
@@ -29,12 +29,7 @@ from typing import Callable
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_STATE = REPO / "pipeline/work/logs/batch_state.json"
-INGEST = REPO / "pipeline/work/ingest-cache"
-OUT_DIR = REPO / "pipeline/work/out"
-LEDGER = REPO / "config/pipeline_decisions.json"
 LEX_MANIFEST = REPO / "publish/lexeme-alignments/manifest.json"
-
-_ledger_lock = threading.Lock()
 
 
 # ---- pure helpers (unit-tested) -------------------------------------------------------------------------------------------------
@@ -134,27 +129,11 @@ def load_env() -> None:
                 os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
 
-def refresh_ledger(iso: str) -> None:
-    """The chain never writes a language's pipeline_decisions entry; do it after a successful run (under a lock; a failure is only a warning)."""
-    try:
-        from lexeme_aligner import onboard as ob
-        from lexeme_aligner import pipeline_decisions as pd
-        eds = ob.editions_for(iso, ob.allowed_testaments(iso, ob._EXCLUSIONS), ob._EDITIONS_CONFIG)
-        tags = [ob._tag(iso, e["edition_code"], is_primary=(i == 0)) for i, e in enumerate(eds)]
-        tags = [t for t in tags if (INGEST / f"usj-{t}").exists()]
-        doc = pd.build_decisions(tags, iso, usj_dirs=[INGEST / f"usj-{t}" for t in tags], out_dir=OUT_DIR)
-        with _ledger_lock:
-            pd.write_decisions({iso: doc}, config_path=LEDGER, publish_roots=[])
-    except Exception as e:                                               # noqa: BLE001
-        print(f"[batch] {iso}: ledger refresh failed (non-fatal): {e!r}", file=sys.stderr)
-
-
 def make_runner(skip_ingest: bool, nice: int, ledger: bool) -> Callable[[str], bool]:
     def run_one(iso: str) -> bool:
-        cmd = [sys.executable, "-m", "lexeme_aligner.full_chain", "--iso", iso, "--clean-out", *(["--skip-ingest"] if skip_ingest else [])]
+        cmd = [sys.executable, "-m", "lexeme_aligner.full_chain", "--iso", iso, "--clean-out",
+               *(["--skip-ingest"] if skip_ingest else []), *([] if ledger else ["--no-ledger"])]     # the chain writes the ledger entry itself
         rc = subprocess.run(cmd, cwd=str(REPO), preexec_fn=(lambda: os.nice(nice)) if nice else None).returncode
-        if rc == 0 and ledger:
-            refresh_ledger(iso)
         return rc == 0
     return run_one
 

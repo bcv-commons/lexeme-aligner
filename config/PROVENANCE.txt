@@ -1,4 +1,18 @@
-lexeme-spine.db — LEXEME-anchored backbone (the current spine; spine_words table)  [ALIGNER_SPINE_DB]
+lexeme-spine-macula.db — THE ACTIVE SPINE since 2026-10-04 (config.SPINE_DB default; ALIGNER_SYNTAX_SOURCE default = macula)  [pipeline/lexeme-spine-macula.db, git-ignored]
+  MACULA-ONLY variant of the spine (delivered 2026-10-03).
+  from bcv-query (shoresh/macula/lexeme-spine-macula.db), CC BY 4.0 (spine_meta: variant, license). sha256
+    1019da0107b2fe673dc7bc049aadf724f5ab13d1fa85294001ff6240629af323  (verified here with sha256sum after copying).
+  Same 607,255 rows and keys as lexeme-spine.db; the 26 shared columns are identical (checked row by row: 0 differences);
+  spine_assimilated_articles unchanged. DROPPED the six BHSA-derived columns (ETCBC BHSA is CC BY-NC-SA 4.0): phrase_id, function, rela,
+  sense, sense_conf, sense_source. ADDED `construct_role` (regens | rectum | regens+rectum, from lowfat NPofNP groups; Hebrew rows only).
+  Why: bcv-query's licence question of 2026-10-03; decision = MACULA-only pipeline (internal-docs/macula-only-migration-plan.md).
+  pipeline/lexeme-spine-bhsa-baseline.db = PRIVATE copy of the previous spine (sha256 4bfd0cdd...2125; pipeline/lexeme-spine.db is the same file) kept ONLY
+    as the BHSA arm of the A/B measurements (the measure_*.py tools pass ALIGNER_SPINE_DB + ALIGNER_SYNTAX_SOURCE=bhsa for it). Since the switch nothing
+    reads either file by default. Provenance values written into published rows are unchanged by the switch (verified 2026-10-04: spine_corpus
+    'macula-wlc+nestle1904' and the source-index stamp macula_spine_sha256 9a1f8bd5... are identical in both spines). bcv-query's terms: internal measurement use is fine as long as NOTHING derived from the
+    BHSA columns is published. The baseline is never published and never used to produce published data after the switch.
+
+lexeme-spine.db — LEXEME-anchored backbone (the PREVIOUS spine, BHSA columns included — a private baseline since 2026-10-04, see the entry above; spine_words table)  [ALIGNER_SPINE_DB]
   from bcv-commons/shoresh MACULA export, 2026-07, CC-BY. 607,255 words (finer MACULA tokenization).
   anchor: lexeme = lang:augmented-strong (e.g. hbo:0871a) ; strong = augment-stripped rollup
     (Hebrew equivalence-canonicalized for spine.db parity). Adds gloss + role columns.
@@ -114,10 +128,21 @@ usj-fra-lsg/ — French target text (66 USJ books, WHOLE BIBLE) — GOLD BENCHMA
 prior-pack/ — LANGUAGE-INDEPENDENT prior pack, PULLED from bcv-commons/prior-pack (HF dataset, CC-BY-4.0)
   one row per MACULA lexeme (14,720): keyness, lxx_greek/lxx_hebrew, senses inventory, neighbors,
   xling_confidence — feeds the recipes (R1 keyness-filter, R2 sense-surface, R3 gap-map, LXX NT-gap).
-  PIN — prior_pack.parquet sha256: 9874ac4a5ecd88f8f6a1bc74c8bf5be408d78c67bbd98bd501ddeb882bdb13a8
-  pull: huggingface_hub.snapshot_download(repo_id='bcv-commons/prior-pack', repo_type='dataset',
-        local_dir='resources/prior-pack'). Bulk parquet gitignored; manifest.json + README committed as
-  the pin. Rebuilt/re-pulled only on a shoresh component bump. Contract: internal-docs/aligner-handover.md.
+  PIN — prior_pack.parquet sha256: f41f6d4c1ad5a12ce55d0ff7b8230e487f29abb2e35dc18499ca501fdd535e0a (bcv-commons/prior-pack commit f1a0ef2, re-vendored 2026-10-04,
+    BHSA-FREE republish by bcv-query; 14,720 rows; columns lexeme strong testament is_content lemma pos translit word_class keyness lxx_greek lxx_hebrew neighbors
+    xling_confidence; with_neighbors 4,783). Verified here lexeme by lexeme against the previous pull: only `pos` changed among the columns we read (34 Hebrew proper
+    nouns noun -> name, e.g. hbo:0011, hbo:0435); `senses` (their BHSA-based clustering) removed; `neighbors` rebuilt from the BHSA-free semantic-neighbors pack on
+    MACULA keys. Our code reads only lexeme, pos, translit, keyness, lxx_greek, lxx_hebrew.
+    LICENSE: CC BY-SA 4.0 since 2026-10-04 (bcv-query commit 228c9f4; was CC BY 4.0; parquet byte-identical, only card + manifest.json changed): the `keyness` column uses
+    modern-Hebrew frequencies from the `wordfreq` package, whose data is CC BY-SA 4.0 (share-alike; attribution Robyn Speer / wordfreq). AUDIT 2026-10-04 of what we derive
+    from keyness: only its NULL / NOT-NULL bit (never a value) — bootstrap_priors (gloss seed filter: keyness not null = content) and target_stopwords (content-word rescue);
+    no published file has a keyness column or value (checked lexeme-alignments, aligned_mwe, senses-attested, target-stopwords schemas). DECISION (owner, 2026-10-04): option A — keep as is, document it,
+    NO licence change on our side; our published outputs keep their own licences. Rationale: only a 1-bit null/not-null signal is used, no keyness value is carried into
+    any published file. (Alternatives considered and not taken: drop keyness from the gates in favour of word_class/pos; compute an own frequency signal from an open source.) The pack's own manifest still names
+    spine_sha256 4bfd0cdd... (the old spine file it was built against; lineage only).
+  PREVIOUS pull (2026-07-10, sha 3282b31f3c45b439..., contained the BHSA-derived `senses` column) is archived OUTSIDE the repo at ~/archive/prior-pack-2026-07-10/.
+  pull: huggingface_hub.snapshot_download(repo_id='bcv-commons/prior-pack', repo_type='dataset', local_dir=<tmp>) then copy prior_pack.parquet + manifest.json + README.md
+        into pipeline/vendor/prior-pack/. Bulk parquet gitignored; manifest.json + README committed as the pin. Rebuilt/re-pulled only on a bcv-query republish.
 
 resources/lexeme-alignments_gold_derived/ — {fra,por,hau}.tsv
   copied from monorepo resources/lexeme-alignments/ — CAUTION: these were DERIVED FROM the Clear gold

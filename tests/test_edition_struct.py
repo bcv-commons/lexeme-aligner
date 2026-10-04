@@ -2,7 +2,7 @@
 config files or sibling DB needed."""
 import json
 
-import lexeme_aligner.edition_struct as es
+import lexeme_aligner.eval.edition_struct as es
 
 
 def _w(path, obj):

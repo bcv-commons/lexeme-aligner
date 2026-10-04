@@ -1,6 +1,6 @@
 """Offline tests for family_consistency.py (roadmap D5) — synthetic derived-doc/family fixtures, no
 real gram-struct output or sibling DB needed."""
-import lexeme_aligner.family_consistency as fc
+import lexeme_aligner.eval.family_consistency as fc
 
 
 def _doc(direction, reason=None):

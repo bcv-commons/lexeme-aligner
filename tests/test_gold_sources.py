@@ -1,6 +1,6 @@
 """E2 (2026-09-27): contest_rule's gold_langs.json lookups accept a `gold_method` to select a SECOND gold
 source built against a different text (Door43 hi_glt beside Clear IRVHin for hin)."""
-import lexeme_aligner.contest_rule as cr
+import lexeme_aligner.eval.contest_rule as cr
 
 
 def test_primary_entry_when_no_method(monkeypatch):

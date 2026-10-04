@@ -224,3 +224,32 @@ def test_gloss_multiword_relation_fires_ungated_by_grambank(monkeypatch):
         def assimilated_after_idx(self, *a): return set()
     priors = fpm.build_fertility_priors([rec], "xx", {}, _Heb())
     assert set(priors) == {"H1"}                # fires from gloss_multiword alone, no typology needed
+
+
+class _MaculaHeb(_FakeHeb):
+    syntax_source = "macula"
+
+
+def test_macula_mode_possessor_uses_construct_role_not_rela(monkeypatch):
+    monkeypatch.setattr(fp, "load_grambank_raw", lambda iso, path=None: HAS_ADP)
+    rect = tok(0, "H1", rela=None)                       # BHSA rela is gone in macula mode; the MACULA column decides
+    rect.construct_group, rect.construct_role = "g", "rectum"
+    head = tok(1, "H2")
+    head.construct_group, head.construct_role = "g", "regens"
+    recs = [_Rec("RUT", 1, 1, [rect, head])]
+    assert fp.build_fertility_priors(recs, "fake", {}, _MaculaHeb()) == {"H1": (2, 1.0)}     # only the rectum; the regens (head) is not a possessor
+
+
+def test_macula_mode_ignores_bhsa_rela_even_when_present(monkeypatch):
+    monkeypatch.setattr(fp, "load_grambank_raw", lambda iso, path=None: HAS_ADP)
+    recs = [_Rec("RUT", 1, 1, [tok(0, "H1", rela="rec")])]     # a stale BHSA value must not count in macula mode
+    assert fp.build_fertility_priors(recs, "fake", {}, _MaculaHeb()) == {}
+    assert fp.build_fertility_priors(recs, "fake", {}, _FakeHeb()) == {"H1": (2, 1.0)}   # bhsa default unchanged
+
+
+def test_macula_mode_does_not_credit_function_tokens_in_a_rectum_phrase(monkeypatch):
+    monkeypatch.setattr(fp, "load_grambank_raw", lambda iso, path=None: HAS_ADP)
+    suffix = tok(0, "H1")
+    suffix.is_content = False                                   # possessive suffix / article inside the rectum phrase
+    suffix.construct_group, suffix.construct_role = "g", "rectum"
+    assert fp.build_fertility_priors([_Rec("RUT", 1, 1, [suffix])], "fake", {}, _MaculaHeb()) == {}

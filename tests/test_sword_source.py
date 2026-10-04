@@ -1,6 +1,6 @@
 """Offline tests for sword_source.py's OSIS/GBF Strong's-tag parsing (Step G0). No pysword module or
 network needed — these exercise the regex/positional logic against synthetic tagged text."""
-from lexeme_aligner.sword_source import (
+from lexeme_aligner.eval.sword_source import (
     _cipherkey_for, _format_for, extract_verse_rows, extract_verse_rows_gbf, parse_strong_ids,
 )
 
@@ -91,7 +91,7 @@ def test_extract_verse_rows_gbf_drops_tag_with_no_preceding_word():
 
 
 def test_extract_verse_rows_gbf_drops_verse_on_tag_boundary_tokenization_mismatch(monkeypatch):
-    import lexeme_aligner.sword_source as ss
+    import lexeme_aligner.eval.sword_source as ss
 
     calls = {"n": 0}
     real = ss.clear_tokens
@@ -175,7 +175,7 @@ def test_extract_verse_rows_ignores_untagged_function_words():
 
 
 def test_extract_verse_rows_drops_verse_on_tag_boundary_tokenization_mismatch(monkeypatch):
-    import lexeme_aligner.sword_source as ss
+    import lexeme_aligner.eval.sword_source as ss
 
     calls = {"n": 0}
     real = ss.clear_tokens

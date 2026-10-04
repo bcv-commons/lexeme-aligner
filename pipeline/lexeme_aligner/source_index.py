@@ -26,8 +26,8 @@ WHAT THIS ADDS
     python3 -m lexeme_aligner.source_index --refresh [--books DAN ISA ...]
 
 The index files are compared by content, not by mtime. Alignment files written BEFORE a spine change keep
-the old numbering; see pipeline/scripts/migrate_source_index.py for the exact, lossless shift that brings
-them onto the new one.
+the old numbering and must be regenerated (the one-time lossless-shift script used for the 2026-09-23 spine
+rebuild, migrate_source_index.py, was retired 2026-10-03; it lives in git history).
 """
 from __future__ import annotations
 
@@ -221,8 +221,8 @@ def ensure_current(heb, book: str, index_root: Path, spine_db: Path = SPINE_DB) 
         raise IndexMismatch(
             f"published source index for {book} disagrees with the current spine in {n}: writing this "
             f"language's array would give srcOrd values that do not match {fp}. Run "
-            f"`python3 -m lexeme_aligner.source_index --refresh --books {book}` (and "
-            f"pipeline/scripts/migrate_source_index.py for files already published) first.")
+            f"`python3 -m lexeme_aligner.source_index --refresh --books {book}` (and regenerate "
+            f"the alignment files already built against the old numbering) first.")
 
 
 def main(argv=None) -> int:

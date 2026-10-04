@@ -89,6 +89,7 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner.align_files import tag_files
+from lexeme_aligner import macula_syntax
 from lexeme_aligner.analyze_language import multiword_rates
 from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.constituent_order import profile as constituent_profile
@@ -1091,7 +1092,9 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
     if ot_books:
         heb = HebrewSource()
         recs_ot = build_corpus(ot_books, usj_dir, heb, remap=remapper(tag, str(usj_dir)))
-        stats = compute_order_stats(recs_ot, anchors)
+        macula = heb.syntax_source == "macula"      # MACULA-only syntax (macula_syntax.py): no phrase_id/function/rela
+        stats = (macula_syntax.construct_after_stat(recs_ot, anchors) if macula
+                 else compute_order_stats(recs_ot, anchors))
 
         possessor = _order_slot(stats["rec_after_rate"], stats["rec_after_n"], min_n=50)
         combined = _combine_testaments(possessor, d2_greek.get("possessor"))
@@ -1102,8 +1105,10 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
         # (order-kept relative to Hebrew's own source order — see `_hebrew_clause_role_stat`'s own
         # docstring for why that's unsound here). `possessor` above is UNCHANGED (rec_after_rate's
         # order-kept approach is sound for construct chains, which really are consistently head-first).
-        for func, slot_name in (("Subj", "subject_verb"), ("Objc", "object_verb")):
-            heb_stat = _hebrew_clause_role_stat(recs_ot, anchors, func)
+        for func, slot_name in ((("s", "subject_verb"), ("o", "object_verb")) if macula
+                                else (("Subj", "subject_verb"), ("Objc", "object_verb"))):
+            heb_stat = (macula_syntax.clause_role_stat(recs_ot, anchors, func) if macula
+                        else _hebrew_clause_role_stat(recs_ot, anchors, func))
             heb_slot = _direction_slot(heb_stat, _D2_MIN_N[slot_name])
             combined = _combine_testaments(heb_slot, d2_greek.get(slot_name))
             if combined is not None:
@@ -1115,7 +1120,7 @@ def derive_one(iso: str, tag: str, ot_books: list[str], all_books: list[str], ou
             json.dumps(prof, indent=1, sort_keys=True) + "\n", encoding="utf-8")   # <iso>.json is pooled by combine_language
         doc.setdefault("audit", {})["constituent_order"] = {
             "source": "derived",
-            **{k: prof[k] for k in ("verses_measured", "pair_order_kept", "function_drift") if k in prof}}
+            **{k: prof[k] for k in ("label_scheme", "verses_measured", "pair_order_kept", "function_drift") if k in prof}}
     else:
         # NT-only language (D2's entire reason to exist — the 1,211 languages D0's OT-only pass never
         # reached): no Hebrew counterpart to combine against, so `d2_greek`'s own facts (already tagged
@@ -1167,7 +1172,11 @@ def pool_constituent(profiles: dict[str, dict]) -> dict | None:
             acc[0] += float(v.get("mean_drift", 0.0)) * int(v.get("n", 0))
             acc[1] += int(v.get("n", 0))
     tags = sorted(profiles)
-    return {"tag": "+".join(tags), "tags": tags, "verses_measured": verses,
+    schemes = {p.get("label_scheme") for p in profiles.values()}
+    # The label vocabulary (bhsa_function | macula_phrase_role) must travel with the pooled counts: pair keys mean different things in each. Mixed
+    # inputs would sum incomparable labels, so they are marked "mixed" (visible in the file and in the scheme scan) and never silently relabelled.
+    scheme = next(iter(schemes)) if len(schemes) == 1 else "mixed"
+    return {"tag": "+".join(tags), "tags": tags, "label_scheme": scheme, "verses_measured": verses,
             "pair_order_kept": {k: {"kept": kp, "rate": round(kp / tot, 3) if tot else None, "total": tot}
                                 for k, (kp, tot) in sorted(pairs.items())},
             "function_drift": {k: {"mean_drift": round(dsum / n, 4) if n else None, "n": n}

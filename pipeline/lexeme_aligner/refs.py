@@ -5,6 +5,8 @@ lifted into a standalone repo unchanged. USFM book code → canonical number (GE
 """
 from __future__ import annotations
 
+import re
+
 BOOK_NUMBERS = {
     "GEN": 1, "EXO": 2, "LEV": 3, "NUM": 4, "DEU": 5, "JOS": 6, "JDG": 7, "RUT": 8, "1SA": 9,
     "2SA": 10, "1KI": 11, "2KI": 12, "1CH": 13, "2CH": 14, "EZR": 15, "NEH": 16, "EST": 17,
@@ -16,6 +18,18 @@ BOOK_NUMBERS = {
     "HEB": 58, "JAS": 59, "1PE": 60, "2PE": 61, "1JN": 62, "2JN": 63, "3JN": 64, "JUD": 65,
     "REV": 66,
 }
+
+
+def norm_strong(raw, prefix: str = "H") -> str | None:
+    """Normalize a Strong's key to `<prefix><4 digits>`, dropping any suffix letter. A MACULA lexeme "hbo:0871a" -> "H0871" (the bare Strong's
+    bridge); the letter found in `raw` wins over `prefix`."""
+    if raw is None or raw == "":
+        return None
+    m = re.search(r"(\d+)", str(raw))
+    if not m:
+        return None
+    letter = "".join(c for c in str(raw) if c.isalpha())[:1].upper() or prefix
+    return f"{letter}{int(m.group(1)):04d}"
 
 
 def encode(book_code: str, chapter: int, verse: int) -> int:

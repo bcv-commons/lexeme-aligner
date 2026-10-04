@@ -5,8 +5,8 @@ import json
 import sqlite3
 from pathlib import Path
 
-import lexeme_aligner.carryover_eval as ce
-from lexeme_aligner.carryover_eval import Item
+import lexeme_aligner.eval.carryover_eval as ce
+from lexeme_aligner.eval.carryover_eval import Item
 
 
 def item(iso, verdict, ratio=None, gold="clear", mech="m", artefact=False):

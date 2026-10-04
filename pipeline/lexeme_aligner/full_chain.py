@@ -21,7 +21,7 @@ edition-discovery logic, no risk of drift between the two.
   5b. residual align                     2nd eflomal pass on the remainder -> compact's opt-in layer
   6. export (final)                      re-aggregates eflomal+gloss+spanext+gapfill -> same partition
   7. aligned_mwe                         multi-word expressions (EVERY edition pooled, rows tagged by base_text)
-  8. senses_attested                     OT/Hebrew sense attestation (degrades to a no-op off-OT); 8b: the same keyed on UBS sense ids
+  8. senses_attested                     OT/Hebrew sense attestation keyed on UBS sense ids (degrades to a no-op off-OT); the legacy BHSA-numbered scheme is retired
   9. compact-alignments                  per-book, content-addressed (one run per EDITION, all of them) —
                                           MAIN array includes spanext (compact_align.py's _resolve()
                                           fixed 2026-09-23 to let it win unconditionally, never
@@ -80,6 +80,8 @@ def main() -> int:
     ap.add_argument("--skip-ingest", action="store_true", help="USJ already present for every edition")
     ap.add_argument("--exclusions", type=Path, default=_EXCLUSIONS)
     ap.add_argument("--editions-config", type=Path, default=_EDITIONS_CONFIG)
+    ap.add_argument("--no-ledger", action="store_true",
+                    help="do not write this language's pipeline_decisions entry at the end (default: write it)")
     ap.add_argument("--clean-out", action="store_true",
                     help="gzip-compress (NOT delete — see the clean-out block below for why) this "
                          "language's out/ raw jsonl once every step succeeds")
@@ -171,18 +173,17 @@ def main() -> int:
          *(["--pool", ",".join(pool)] if pool else []),
          *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
 
-    # step 8: senses_attested (OT-only; degrades to a no-op print if this language has no OT/no senses)
-    senses_args: list[object] = ["--iso", primary, "--publish-iso", args.iso, "--method", _METHODS]
+    # step 8: senses_attested keyed on the UBS Dictionary of Biblical Hebrew's sense ids (OT-only; a no-op with a clear message off-OT or when
+    # pipeline/ubs-senses.db has not been built). Separate CC BY-SA dataset root (publish/senses_attested_ubs).
+    # The LEGACY scheme (sense numbers from the BHSA-derived spine columns; CC BY-NC-SA, "superseded" on Hugging Face) is no longer produced by the
+    # chain (2026-10-04, MACULA-only migration): in macula mode those numbers do not exist, and the dataset receives no further updates. It can still
+    # be built explicitly with `senses_attested --scheme legacy` on a BHSA spine.
+    senses_args: list[object] = ["--iso", primary, "--publish-iso", args.iso, "--method", _METHODS, "--scheme", "ubs"]
     if pool:
         senses_args += ["--pool", ",".join(pool)]
     if lang_name:
         senses_args += ["--lang-name", lang_name]
     _run("senses_attested", *senses_args, env=env, soft=True)
-
-    # step 8b (2026-09-30): the same attestation keyed on the UBS Dictionary of Biblical Hebrew's sense ids — the trusted
-    # sense inventory (our own sense number is '1' for 97% of tokens, plan §8.11). Separate CC BY-SA dataset root
-    # (publish/senses_attested_ubs); a no-op with a clear message when pipeline/ubs-senses.db has not been built.
-    _run("senses_attested", *senses_args, "--scheme", "ubs", env=env, soft=True)
 
     # step 9: compact-alignments (per-book, content-addressed; ONE RUN PER EDITION — compact_align's manifest merge
     # keeps every edition under the language; local write, no HF push)
@@ -194,6 +195,13 @@ def main() -> int:
     for tag in tags:
         _run("compact_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              "--methods", _METHODS, env=env, soft=True)
+
+    # step 9b: the language's pipeline_decisions ledger entry (config/pipeline_decisions.json) — always-on mechanisms, opt-in flags and the stemming
+    # decision this run actually used. Before 2026-10-04 only the batch runner / ad-hoc scripts wrote it, so a chain run by hand left it stale. Best-effort;
+    # the write is locked + atomic (several chains finish at once). Dataset-root copies are refreshed by publish_safe at publish time (--no-publish).
+    if not args.no_ledger:
+        _run("pipeline_decisions", *[x for t in tags for x in ("--tag", t)], "--publish-iso", args.iso,
+             *[x for t in tags for x in ("--usj-dir", usj_dirs[t])], "--no-publish", env=env, soft=True)
 
     print(f"\n[full_chain] ✓ '{args.iso}' — full 9-step chain complete "
           f"({len(tags)} edition(s): {', '.join(tags)})", file=sys.stderr)

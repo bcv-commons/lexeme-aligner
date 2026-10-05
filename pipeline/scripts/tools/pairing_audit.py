@@ -30,7 +30,7 @@ from lexeme_aligner.usj_source import read_verse_ranges  # noqa: E402
 from lexeme_aligner.versification import edition_scheme, remapper  # noqa: E402
 
 
-def install_table(table: Path, label: str) -> Path:
+def install_table(table: Path, label: str, multiverse: Path | None = None) -> Path:
     """Audit with a CANDIDATE scheme table instead of the vendored one: bcv-commons/bibles-style JSON ({"map": [{"s","t"}, ...]})
     or our TSV. Copies the vendored tables to a temp dir, replaces the one `label` uses, and points versification at it."""
     import shutil
@@ -50,6 +50,8 @@ def install_table(table: Path, label: str) -> Path:
             f"{r['s']}\t{r['t']}\t{r.get('a', 'Renumber verse')}\n" for r in rows), encoding="utf-8")
     else:
         shutil.copy(table, tmp / f"{fname}.tsv")
+    if multiverse:
+        shutil.copy(multiverse, tmp / f"{fname}.multiverse.json")
     vf._REG_DIR = tmp
     return tmp
 
@@ -81,6 +83,8 @@ def main(argv=None) -> int:
     ap.add_argument("--tag", required=True, help="edition ingest tag (pipeline/work/ingest-cache/usj-<tag>)")
     ap.add_argument("--books", nargs="*", default=OT_BOOKS)
     ap.add_argument("--examples", type=int, default=4)
+    ap.add_argument("--multiverse", type=Path, default=None,
+                    help="with --table: the scheme's multi-verse relations file (bcv-commons/bibles <scheme>-to-eng.multiverse.json)")
     ap.add_argument("--table", type=Path, default=None,
                     help="audit with this candidate scheme table (bibles JSON or TSV) instead of the vendored one")
     a = ap.parse_args(argv)
@@ -88,7 +92,7 @@ def main(argv=None) -> int:
     heb = HebrewSource()
     if a.table:
         from lexeme_aligner.versification import scheme_of
-        install_table(a.table, scheme_of(a.tag, str(usj)))
+        install_table(a.table, scheme_of(a.tag, str(usj)), a.multiverse)
     remap = remapper(a.tag, str(usj))
     print(f"[pairing_audit] {a.tag}: scheme {edition_scheme(a.tag, str(usj))}, remap {'yes' if remap else 'none (identity)'}")
     tot = {"no_text": 0, "title": 0, "untargeted": 0}

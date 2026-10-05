@@ -273,3 +273,48 @@ def test_load_reverse_all_keeps_every_scheme_verse_and_load_reverse_keeps_the_la
     ra = vf.load_reverse_all("rso")
     assert ra[("PSA", 51, 0)] == [("PSA", 50, 1), ("PSA", 50, 2)]
     assert vf.load_reverse("rso")[("PSA", 51, 0)] == ("PSA", 50, 2)
+
+
+# --- 2026-10-06: bcv-commons/bibles' multi-verse relations file for rso (<table>.multiverse.json) -----------------
+def test_expand_ref_handles_single_ranges_and_cross_chapter_ranges():
+    assert vf.expand_ref("LEV 14:55") == [("LEV", 14, 55)]
+    assert vf.expand_ref("PSA 13:5-6") == [("PSA", 13, 5), ("PSA", 13, 6)]
+    assert vf.expand_ref("NUM 25:19-26:1") == [("NUM", 25, 19), ("NUM", 26, 1)]
+    assert vf.expand_ref("1SA 20:42-43") == [("1SA", 20, 42), ("1SA", 20, 43)]
+    assert vf.expand_ref("PSA 3:title") == [("PSA", 3, 0)]
+
+
+def _scheme_dir(tmp_path, monkeypatch, tsv_rows, multiverse):
+    import json as _json
+    d = tmp_path / "schemes"
+    d.mkdir()
+    (d / "hebrew.tsv").write_text(Path("pipeline/vendor/versification/schemes/hebrew.tsv").read_text(encoding="utf-8"), encoding="utf-8")
+    (d / "rso.tsv").write_text("source_ref\tstandard_ref\taction\n" + "".join(f"{s}\t{t}\tRenumber verse\n" for s, t in tsv_rows),
+                               encoding="utf-8")
+    if multiverse is not None:
+        (d / "rso.multiverse.json").write_text(_json.dumps({"map": multiverse}), encoding="utf-8")
+    monkeypatch.setattr(vf, "_REG_DIR", d)
+
+
+from pathlib import Path  # noqa: E402
+
+
+def test_one_synodal_verse_covering_two_english_verses_pairs_both_spine_verses_with_it(tmp_path, monkeypatch):
+    _scheme_dir(tmp_path, monkeypatch, [("LEV 14:56", "LEV 14:57")], [{"s": "LEV 14:55", "t": "LEV 14:55-56"}])
+    f = vf.remapper_for_scheme("rso")
+    assert f("LEV", 14, 55) == ("LEV", 14, 55) and f("LEV", 14, 56) == ("LEV", 14, 55)      # both land on Synodal 14:55
+    assert f("LEV", 14, 57) == ("LEV", 14, 56)
+
+
+def test_two_synodal_verses_for_one_english_verse_pair_in_order_with_the_two_spine_verses(tmp_path, monkeypatch):
+    # English 20:42 = Synodal 20:42 + 20:43; the Hebrew spine folds 20:42 and 21:1 into that one English verse (hebrew.tsv)
+    _scheme_dir(tmp_path, monkeypatch, [], [{"s": "1SA 20:42-43", "t": "1SA 20:42"}])
+    f = vf.remapper_for_scheme("rso")
+    assert f("1SA", 20, 42) == ("1SA", 20, 42) and f("1SA", 21, 1) == ("1SA", 20, 43)
+    assert f("1SA", 21, 2) == ("1SA", 21, 1)
+
+
+def test_without_a_multiverse_file_nothing_changes(tmp_path, monkeypatch):
+    _scheme_dir(tmp_path, monkeypatch, [("LEV 14:56", "LEV 14:57")], None)
+    assert vf.multiverse_pairs("rso") == []
+    assert vf.remapper_for_scheme("rso")("LEV", 14, 56) == ("LEV", 14, 56)

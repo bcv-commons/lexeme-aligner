@@ -197,6 +197,42 @@ def scheme_of(iso: str, usj_dir: str | None = None) -> str:
     return cfg.get(iso, "protestant")
 
 
+_REF_RE = __import__("re").compile(r"^(\w{3}) (\d+):(\d+)(?:-(?:(\d+):)?(\d+))?$")
+
+
+def expand_ref(ref: str) -> list[tuple]:
+    """'PSA 13:5-6' -> [(PSA,13,5),(PSA,13,6)]; 'NUM 25:19-26:1' -> the two endpoints (a cross-chapter range keeps only its ends);
+    a single verse -> one tuple. A superscription ('title') is verse 0."""
+    m = _REF_RE.match(ref.strip())
+    if not m:
+        r = _parse(ref)
+        return [r] if r else []
+    book, ch, v1, ch2, v2 = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4), m.group(5)
+    if v2 is None:
+        return [(book, ch, v1)]
+    if ch2:
+        return [(book, ch, v1), (book, int(ch2), int(v2))]
+    return [(book, ch, v) for v in range(v1, int(v2) + 1)]
+
+
+def multiverse_pairs(scheme: str) -> list[tuple]:
+    """[(scheme verse, standard verse)] from the scheme's optional `<table>.multiverse.json` (bcv-commons/bibles' multi-verse
+    relations: {"map": [{"s": "LEV 14:55", "t": "LEV 14:55-56"}, ...]}, `s` in the scheme's numbering, `t` in the standard's).
+    A relation with ONE verse on one side reduces to plain rows: a single scheme verse covering several standard verses
+    (every standard verse -> that scheme verse), or several scheme verses covering one standard verse (every scheme verse ->
+    it). Relations with several verses on BOTH sides are skipped (nothing in the data needs them)."""
+    fname = _SCHEME_FILE.get(scheme)
+    fp = _REG_DIR / f"{fname}.multiverse.json" if fname else None
+    if not fp or not fp.exists():
+        return []
+    out = []
+    for rel in json.loads(fp.read_text(encoding="utf-8")).get("map", []):
+        src, std = expand_ref(rel["s"]), expand_ref(rel["t"])
+        if len(src) == 1 or len(std) == 1:
+            out += [(a, b) for a in src for b in std]
+    return out
+
+
 def load_reverse_all(scheme: str) -> dict:
     """{(book,ch,v)_KJV: [(book,ch,v)_scheme, ...]} — every scheme verse that maps to a KJV verse, in table order.
     More than one only where the scheme splits what the standard keeps together (e.g. a two-line Psalm superscription
@@ -220,6 +256,9 @@ def load_reverse_all(scheme: str) -> dict:
             src, std = _parse(parts[0]), _parse(parts[1])
             if src and std:
                 rev.setdefault(std, []).append(src)
+    for src, std in multiverse_pairs(scheme):
+        if src not in rev.setdefault(std, []):
+            rev[std].append(src)
     return rev
 
 
@@ -295,24 +334,31 @@ def remapper_for_scheme(scheme: str):
         return None
     to_std = load_forward(_SPINE_OT_TABLE)
     rev_all = load_reverse_all(scheme)
-    # Superscription lines (std verse 0): when the scheme numbers MORE title lines than one (Synodal 50:1-2 for English
-    # 51 'title'), pair the spine's title lines with the scheme's in order instead of letting the last one win
-    # (spine PSA 51:1 AND 51:2 both landed on Synodal 50:2, leaving 50:1 unpaired).
-    title_rank: dict[tuple, int] = {}
-    seen: dict[tuple, int] = {}
-    for src_ref in sorted(k for k, std in to_std.items() if std[2] == 0):
-        title_rank[src_ref] = seen.get(to_std[src_ref], 0)
-        seen[to_std[src_ref]] = title_rank[src_ref] + 1
+    # A standard verse that the scheme splits over SEVERAL verses (Synodal 50:1-2 for the English 51 'title'; Synodal 1SA 20:42-43
+    # for English 20:42) while the same number of spine verses fold into it: pair them IN ORDER instead of letting the last
+    # source win (spine PSA 51:1 AND 51:2 both used to land on Synodal 50:2, leaving 50:1 unpaired).
+    spine_of: dict[tuple, list] = collections.defaultdict(list)
+    for src_ref, std_ref in to_std.items():
+        spine_of[std_ref].append(src_ref)
+    rank: dict[tuple, tuple] = {}                       # spine verse -> its scheme verse
+    for std_ref, srcs in rev_all.items():
+        if len(srcs) < 2:
+            continue
+        members = list(spine_of.get(std_ref, ()))
+        if std_ref[2] != 0 and std_ref not in to_std:   # the spine verse with the standard's own number (identity), if it stays put
+            members.append(std_ref)
+        members.sort()
+        if len(members) == len(srcs):
+            for m, sv in zip(members, sorted(srcs)):
+                rank[m] = sv
 
     def f(book: str, ch: int, v: int):
         key = (book, ch, v)
+        if key in rank:
+            return rank[key]
         std = to_std.get(key, key)
         srcs = rev_all.get(std)
-        if not srcs:
-            return std
-        if std[2] == 0 and len(srcs) > 1:
-            return srcs[min(title_rank.get(key, 0), len(srcs) - 1)]
-        return srcs[-1]
+        return srcs[-1] if srcs else std
     return f
 
 

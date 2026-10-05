@@ -19,7 +19,9 @@ def _run_chain(monkeypatch, tmp_path, editions, extra=()):
     monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", *extra])
     tags = [fc._tag("xyz", e, is_primary=(i == 0)) for i, e in enumerate(editions)]
     for t in tags[:3]:
-        (tmp_path / "pipeline/work/ingest-cache" / f"usj-{t}").mkdir(parents=True)
+        d = tmp_path / "pipeline/work/ingest-cache" / f"usj-{t}"
+        d.mkdir(parents=True)
+        (d / "01-GEN.json").write_text("{}")                    # an edition with ingested text (an empty folder is skipped, see the WLOWTG test)
     assert fc.main() == 0
     return calls, tags
 
@@ -70,3 +72,20 @@ def test_only_the_ubs_senses_scheme_runs_in_the_chain(monkeypatch, tmp_path):
     (senses,) = [a for m, a in calls if m == "senses_attested"]      # exactly one call: the legacy (BHSA-numbered) scheme is gone
     assert _arg(senses, "--scheme") == "ubs" and _arg(senses, "--iso") == tags[0]
     assert _arg(senses, "--pool").split(",") == tags[1:]
+
+
+def test_an_edition_whose_text_folder_is_empty_is_not_run(monkeypatch, tmp_path):
+    """WLOWTG case: the folder exists but holds no book file -> no compact run, not pooled, not in the ledger tags."""
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fc, "_run", lambda mod, *a, **k: (calls.append((mod, [str(v) for v in a])), True)[1])
+    monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
+    monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": "AAA"}, {"edition_code": "BBB"}])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest"])
+    a, b = fc._tag("xyz", "AAA", is_primary=True), fc._tag("xyz", "BBB", is_primary=False)
+    (tmp_path / "pipeline/work/ingest-cache" / f"usj-{a}").mkdir(parents=True)
+    (tmp_path / "pipeline/work/ingest-cache" / f"usj-{a}" / "01-GEN.json").write_text("{}")
+    (tmp_path / "pipeline/work/ingest-cache" / f"usj-{b}").mkdir(parents=True)           # empty folder
+    assert fc.main() == 0
+    assert [_arg(args, "--iso") for m, args in calls if m == "compact_align"] == [a]
+    assert fc._has_text(tmp_path / "pipeline/work/ingest-cache" / f"usj-{b}") is False

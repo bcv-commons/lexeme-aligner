@@ -110,12 +110,10 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], methods: list[str]
                             key = (p["target"].strip().lower(), lexeme, method, base_text)
                             counts[key] += 1
                             strong_of[lexeme] = p["strong"]
-                            # coherent=False (BHSA phrase-adjacency, OT-only — annotate_coherence.py):
-                            # gold-validated WITHIN this exact tier as measurably less precise (eng
-                            # hi_conf tier 86.2% coherent vs 78.9% scattered) — score alone can't see
-                            # this, so a scattered pair no longer counts as hi_conf even at score>=0.9.
-                            # Absent (NT, or no phrase-mate to judge by) is NOT penalized.
-                            if (p.get("score") or 0) >= _HI_SCORE and p.get("coherent") is not False:
+                            # hi_conf = eflomal-style score >= _HI_SCORE. (Until 2026-10-04 a pair tagged coherent=False by the BHSA phrase-adjacency
+                            # annotator was excluded here; that annotator was removed and none of 600 sampled alignment files carried the flag, so the
+                            # condition was dead — dropped with the other BHSA-derived inputs.)
+                            if (p.get("score") or 0) >= _HI_SCORE:
                                 hi[key] += 1
     # dedupe while preserving order: two method_specs could share a bare method (e.g. two different
     # llm:<out-tag> runs) — each contributes its own rows above, but "llm" is reported once.

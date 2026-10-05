@@ -59,6 +59,12 @@ from lexeme_aligner.onboard import _EDITIONS_CONFIG, _EXCLUSIONS, _tag, allowed_
 _METHODS = "spanext,eflomal,gloss,gapfill"
 
 
+def _has_text(usj_dir: Path) -> bool:
+    """The edition's ingested text exists: the folder holds at least one book file. An empty folder (a Digital Bible Platform fileset that is audio-only or
+    returned no text, e.g. WLOWTG) used to pass a plain `.exists()` check, got a compact run and left a 0-book edition in the manifest that blocked publishing."""
+    return usj_dir.is_dir() and any(usj_dir.glob("*.json"))
+
+
 def _run(mod: str, *args: object, env: dict, soft: bool = False) -> bool:
     cmd = [sys.executable, "-m", f"lexeme_aligner.{mod}", *map(str, args)]
     print(f"\n\033[1m▶ {mod}\033[0m {' '.join(map(str, args))}", file=sys.stderr)
@@ -108,7 +114,7 @@ def main() -> int:
     editions = editions_for(args.iso, testaments, args.editions_config)
     tags = [_tag(args.iso, ed["edition_code"], is_primary=(i == 0)) for i, ed in enumerate(editions)]
     usj_dirs = {tag: Path(f"pipeline/work/ingest-cache/usj-{tag}") for tag in tags}
-    tags = [t for t in tags if usj_dirs[t].exists()]   # a pooled edition onboard.py skipped has no usj dir
+    tags = [t for t in tags if _has_text(usj_dirs[t])]   # a pooled edition onboard.py skipped has no usj dir; an edition whose fetch returned nothing has an EMPTY one
     if not tags:
         raise SystemExit(f"[full_chain] '{args.iso}': no tag survived ingest — see onboard's own output above")
     # There is NO privileged edition. `primary` is only the first tag in pool order (source priority pkf>helloao>dbt),

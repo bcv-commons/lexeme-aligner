@@ -35,7 +35,7 @@ It is written to its OWN dataset root, `publish/senses_attested_ubs/`, with a **
 naming the ids — never mixed into the CC-BY `senses_attested`, following the license-partition rule. Function words
 carry UBS senses too (prepositions, conjunctions), so unlike the legacy scheme they are included. A pair is joined to a
 UBS sense by (book, chapter, verse, h_idx) and kept only if the pair's lexeme equals the lexeme stored with the binding
-(this drops the few tokens of pooled verse ranges, whose h_idx is renumbered).
+(`h_idx` is first translated to the spine's own (verse, idx) by `SpinePositions`; see there).
 """
 from __future__ import annotations
 
@@ -98,8 +98,48 @@ def hebrew_corpus() -> str:
         return "WLC"
 
 
+class SpinePositions:
+    """Alignment `h_idx` -> (spine verse, spine idx), the key the UBS binding table uses.
+
+    `h_idx` in the align jsonl is a token's POSITION in its verse group (`run_pilot.pooled_verse_groups`
+    renumbers 0..N-1), not the spine's own `idx`: the two differ after any token HebrewSource merges from
+    several spine rows ("בֵּית לֶחֶם" = idx 16+17 -> one token), and a pooled verse range continues the count
+    into the following spine verses. Joining `h_idx` to the binding table directly silently dropped 3.5% of
+    bound OT content tokens (2026-10-05). A group is consecutive spine verses starting at the record's
+    verse, so the position is walked through them; the caller still checks the lexeme."""
+
+    def __init__(self, heb=None):
+        if heb is None:
+            from lexeme_aligner.hebrew_source import HebrewSource
+            heb = HebrewSource()
+        self.heb = heb
+        self._verses: dict = {}
+        self._idx: dict = {}
+
+    def _tokens(self, book, ch, v):
+        key = (book, ch, v)
+        if key not in self._idx:
+            self._idx[key] = [t.idx for t in self.heb.verse_tokens(book, ch, v)]
+        return self._idx[key]
+
+    def __call__(self, book, ch, v, pos):
+        if pos is None:
+            return None
+        if (book, ch) not in self._verses:
+            self._verses[(book, ch)] = list(self.heb.verses(book, ch))
+        verses = self._verses[(book, ch)]
+        if v not in verses:
+            return None
+        for v2 in verses[verses.index(v):]:
+            idx = self._tokens(book, ch, v2)
+            if pos < len(idx):
+                return v2, idx[pos]
+            pos -= len(idx)
+        return None
+
+
 def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all", scheme: str = "legacy",
-              ubs: dict | None = None):
+              ubs: dict | None = None, positions=None):
     """Fold OT content pairs (lexeme, stem, sense) into attested target renderings, per edition.
 
     `editions` is a list of (align_iso, base_text). Pooling several editions of ONE language into a
@@ -117,6 +157,8 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all
         ubs = load_token_senses(with_lexeme=True)
         if not ubs:
             raise SystemExit("no UBS sense database (pipeline/ubs-senses.db) — run `python3 -m lexeme_aligner.ubs_senses --build`")
+    if scheme == "ubs" and positions is None:
+        positions = SpinePositions()
     for align_iso, base_text in editions:
         files = _resolve_files(out_dir, align_iso, method)
         if not files:
@@ -129,9 +171,10 @@ def aggregate(out_dir: Path, editions: list[tuple[str, str]], method: str = "all
                     for p in rec["pairs"]:
                         lexeme, tgt = p.get("lexeme"), p.get("target")
                         if scheme == "ubs":
-                            hit = ubs.get((rec.get("book"), rec.get("chapter"), rec.get("verse"), p.get("h_idx")))
+                            loc = positions(rec.get("book"), rec.get("chapter"), rec.get("verse"), p.get("h_idx"))
+                            hit = ubs.get((rec.get("book"), rec.get("chapter"), *loc)) if loc else None
                             if not (hit and lexeme and tgt and hit[1] == lexeme):
-                                continue                       # no UBS sense, or a renumbered (pooled-range) index
+                                continue                       # no UBS sense here (lexeme check = safety net)
                             se = hit[0]
                         else:
                             se = p.get("sense")

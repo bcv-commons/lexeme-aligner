@@ -111,7 +111,7 @@ usj-ind/ — Indonesian target text (67 USJ books)
 
 resources/strongs/attestations/*.parquet — GOLD word-alignments (10 languages)
   copied 2026-07 from bcv-query monorepo resources/strongs/attestations/
-  source: Clear-Bible/Alignments (manual); base texts per-lang; CC-BY-SA-4.0 (see resources/strongs/README.md)
+  source: Clear-Bible/Alignments (manual); base texts per-lang; CC-BY-4.0 per upstream Clear-Bible/Alignments (attribution only; corrected 2026-10-05, this line said CC-BY-SA-4.0)
   langs: arb asm ben eng fra hau hin por rus spa  (NO Indonesian — Clear has no ind gold)
   schema: strong, lemma, surface, ref, target_id, source_id, method, source_corpus, base_text
   use: benchmark a produced lexeme-alignments/<lang>.tsv against attestations/<lang> (gold). ALIGNER_RESOURCES=data/resources.

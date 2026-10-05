@@ -25,8 +25,8 @@ def main() -> int:
     print(f"lexeme-alignments:      {len(isos)} languages "
           f"({full} full 9-step chain, {eflomal_only} eflomal-only)")
     print(f"aligned_mwe:            {_coverage('publish/aligned_mwe')} languages")
-    print(f"senses_attested:        {_coverage('publish/senses_attested')} languages (OT-only)")
-    print(f"senses_attested_ubs:    {_coverage('publish/senses_attested_ubs')} languages (OT-only, UBS sense ids, CC BY-SA)")
+    print(f"senses_attested:        {_coverage('publish/senses_attested')} languages (OT-only, UBS sense ids, CC BY-SA)")
+    print(f"senses_attested_bhsa:   {_coverage('publish/senses_attested_bhsa')} languages (legacy, frozen)")
     print(f"compact-alignments:     {_coverage('publish/compact-alignments')} languages")
     print(f"target-stopwords:       {_coverage('publish/target-stopwords')} languages")
     print(f"target-morphology:      {_coverage('publish/target-morphology')} languages")

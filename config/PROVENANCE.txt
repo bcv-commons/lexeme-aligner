@@ -1,7 +1,12 @@
 lexeme-spine-macula.db — THE ACTIVE SPINE since 2026-10-04 (config.SPINE_DB default; ALIGNER_SYNTAX_SOURCE default = macula)  [pipeline/lexeme-spine-macula.db, git-ignored]
   MACULA-ONLY variant of the spine (delivered 2026-10-03).
   from bcv-query (shoresh/macula/lexeme-spine-macula.db), CC BY 4.0 (spine_meta: variant, license). sha256
-    1019da0107b2fe673dc7bc049aadf724f5ab13d1fa85294001ff6240629af323  (verified here with sha256sum after copying).
+    c29f901f24550b5ac04ad7a95bf0e7fcd2325d6a84267e38a9b296463c65a69c since 2026-10-05 (fetched from https://shoresh.up.qombi.com/files/lexeme-spine-macula.db,
+    110,415,872 bytes, sha verified). It differs from the previous file ONLY in spine_meta: new keys versification_ot (org), versification_nt
+    (nestle1904), versification_nt_vs_eng (NT chapters differing from eng.vrs) and versification_note; spine_words checked identical here
+    (607,255 rows, same column list, same ordered row digest), so nothing needs re-aligning. Previous file: sha256
+    1019da0107b2fe673dc7bc049aadf724f5ab13d1fa85294001ff6240629af323, kept at ~/archive/lexeme-spine-macula-1019da01-2026-10-03.db.
+    versification.py asserts versification_ot == org (the numbering its Hebrew table assumes) and refuses to remap otherwise.
   Same 607,255 rows and keys as lexeme-spine.db; the 26 shared columns are identical (checked row by row: 0 differences);
   spine_assimilated_articles unchanged. DROPPED the six BHSA-derived columns (ETCBC BHSA is CC BY-NC-SA 4.0): phrase_id, function, rela,
   sense, sense_conf, sense_source. ADDED `construct_role` (regens | rectum | regens+rectum, from lowfat NPofNP groups; Hebrew rows only).
@@ -429,3 +434,12 @@ ubs-senses.db — UBS SENSE LAYER for the Hebrew Bible (sense, token_sense, ubs_
   binding: 285,376 sense-tagged references -> 265,429 spine tokens (unique 202,405, anchored 60,800, nearest 2,494; 18,693
   unbound); validation = UBS-gloss/spine-gloss word overlap 61% (unique), 52% (anchored) vs 13% for senses shuffled within the
   verse. Method and caveats: lexeme_aligner/ubs_senses.py docstring, internal-docs/aim1-three-track-evaluation-plan.md §8.11-8.12.
+
+pipeline/vendor/versification/schemes/{hebrew,rso}.tsv — VERIFIED AGAINST bcv-commons/bibles' TVTMS-derived maps (2026-10-05)
+  Mapping authority: TVTMS, STEPBible-Data commit 902681f77a4a2975b809555ff3c35ffe3c48a1d5 (file sha256 63058e0f20201af4bdaa7d830da5be8f493455d947c5f147d84840b33db9ddf8),
+  CC BY 4.0, attribution STEPBible.org (licence of bibles' derived maps confirmed: CC BY 4.0 — supersedes the "treat as CC BY-SA pending" note above).
+  hebrew.tsv = cdn.bibel.wiki/_vrs/map/org-to-eng.json (sha256 459a4cced2c4e220fb9ebf556e5caff981eb6726cff259f38976d70895e40635, 2,032 rows; row-for-row
+    identical) + the 4 many-to-one relations of org-to-eng.multiverse.json (sha256 c0a6fbf9f6bf10d34cab2e291acace92b835126fb04ed558a4eb888ee68da1c1) as rows
+    (NUM 25:19->26:1, 1SA 21:1->20:42, 1KI 22:44->22:43, 1CH 12:5->12:4). Its 2 one-to-many relations are not consumed (PSA 13:6 keeps its 13:5 row).
+  rso.tsv = cdn.bibel.wiki/_vrs/map/rso-to-eng.json (sha256 3ce56bbe853bd5e429d6b2cb718da1dfe8d33eea381afe80c196c2ac215d3949, 4,132 rows, identical; Psalm 9 corrected at the source).
+  orgw-to-eng.json is NOT used (orgw editions are Hebrew-numbered -> identity remap); bibles reports it still lacks Daniel.

@@ -130,8 +130,8 @@ def pooled_verse_groups(book: str, ch: int, heb: HebrewSource, ranges: dict, rem
 
 
 def build_corpus(books: list[str], usj_dir: Path, heb: HebrewSource, remap=None) -> list[VerseRec]:
-    """`remap`: optional versification map (spine KJV ref → target scheme ref) so a non-KJV target (e.g.
-    Russian Synodal) is fetched at the right verse. None/protestant → identity (existing langs unchanged).
+    """`remap`: versification map (spine ref → target scheme ref; the spine's OT is Hebrew-numbered, see
+    versification.py) so every target is fetched at the right verse. None → identity (a Hebrew-numbered target).
 
     Target verse RANGE markers ("3-4", "10-14", ...) pool several source verses' translation into one
     combined block, keyed at the range's FIRST verse (`read_verse_ranges`/`usj_source.py`). Naively

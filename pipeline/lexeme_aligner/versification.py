@@ -3,8 +3,10 @@ matching lines up.
 
 A target not numbered like the spine (Russian Synodal = LXX Psalm numbering; French/Swedish = Hebrew
 superscription) has its verses shifted against the spine, so alignment silently breaks. Every scheme maps
-to the KJV standard and the spine behaves as KJV, so for a spine ref R we fetch the target verse via
-`from_standard`: the scheme's `standard_ref → source_ref` reverse map. protestant/unlisted → identity.
+to the KJV standard. The spine's OT is HEBREW-numbered (WLC; see `_SPINE_OT_TABLE`), so for a spine ref R we
+go spine → KJV (`hebrew.tsv`, to_standard) → target (the target scheme's `standard_ref → source_ref` reverse
+map; identity for protestant). A Hebrew-numbered target needs no remap at all. (Until 2026-10-05 this module
+assumed the spine itself was KJV-numbered, which mispaired ~2,000 OT verses in every edition.)
 
 SCHEME DETECTION (2026-07-13): the scheme is **auto-detected** by fingerprinting the ingested target's
 verse-count-per-chapter structure against the 7 CDN `/_vrs/` schemes (pinned in resources/versification/vrs/),
@@ -80,10 +82,11 @@ _DETECT_CACHE: dict[str, tuple] = {}                  # usj_dir → (aligner_lab
 
 
 def _parse(ref: str):
+    """'PSA 3:2' -> ('PSA', 3, 2). A superscription ('PSA 3:title', a verse the scheme leaves unnumbered) is verse 0."""
     try:
         book, cv = ref.split(" ")
         ch, v = cv.split(":")
-        return (book, int(ch), int(v))
+        return (book, int(ch), 0 if v == "title" else int(v))
     except ValueError:
         return None
 
@@ -218,19 +221,110 @@ def load_reverse(scheme: str) -> dict:
     return rev
 
 
+# The SPINE's own numbering. The MACULA spine's OT is the WLC, i.e. HEBREW numbering (1CH 5 has 41 verses, JOL 4
+# chapters, MAL 3, a Psalm superscription is verse 1) — NOT the KJV standard this module originally assumed ("the
+# spine behaves as KJV" held for the old STEPBible spine only). Found 2026-10-05: every OT edition was paired by
+# the wrong assumption in the ~2,000 verses where Hebrew and English numbering differ. `hebrew.tsv` (TVTMS) is used
+# rather than bcv-commons/bibles' org-to-eng.json because it is a strict superset (it also has Daniel 3:31-6:29).
+_SPINE_OT_TABLE = "hebrew"
+
+
+_SPINE_OT_SCHEME = "org"          # the bcv-commons/bibles code for the numbering `hebrew.tsv` starts from
+_SPINE_CHECKED: dict[str, str | None] = {}
+
+
+def check_spine_numbering(spine_db=None) -> str | None:
+    """Refuse to remap when the spine DECLARES an OT numbering other than the one this module assumes. bcv-query writes
+    `versification_ot` into spine_meta since 2026-10-05 (the spine's numbering is its fact to state — the July 2026
+    verse-pairing bug came from assuming it). A spine without the key (an older pinned file) is accepted unchecked."""
+    from lexeme_aligner import config
+    path = str(spine_db or config.SPINE_DB)
+    if path not in _SPINE_CHECKED:
+        import sqlite3
+        declared = None
+        try:
+            con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            row = con.execute("SELECT value FROM spine_meta WHERE key = 'versification_ot'").fetchone()
+            con.close()
+            declared = row[0] if row else None
+        except sqlite3.Error:
+            pass
+        _SPINE_CHECKED[path] = declared
+    declared = _SPINE_CHECKED[path]
+    if declared and declared != _SPINE_OT_SCHEME:
+        raise RuntimeError(f"spine {path} declares versification_ot={declared!r}, but versification.py maps from "
+                           f"{_SPINE_OT_SCHEME!r} ({_SPINE_OT_TABLE}.tsv) — update _SPINE_OT_TABLE before aligning")
+    return declared
+
+
+def load_forward(table: str) -> dict:
+    """{(book,ch,v)_scheme: (book,ch,v)_KJV} from one diff table (the `to_standard` direction); titles = verse 0."""
+    fp = _REG_DIR / f"{table}.tsv"
+    fwd: dict[tuple, tuple] = {}
+    if not fp.exists():
+        return fwd
+    with fp.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or line.startswith("source_ref"):
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 2:
+                continue
+            src, std = _parse(parts[0]), _parse(parts[1])
+            if src and std:
+                fwd[src] = std
+    return fwd
+
+
 def remapper_for_scheme(scheme: str):
-    """→ f(book, ch, v): spine (KJV) ref → the given scheme's ref; None if identity. Used by the eflomal
-    validator to force a specific candidate scheme."""
-    rev = load_reverse(scheme)
-    if not rev:
+    """→ f(book, ch, v): SPINE ref → the given scheme's ref; None if identity (the target is numbered like the
+    spine). Spine (Hebrew numbering) → KJV standard via `hebrew.tsv`, then KJV → the target scheme via that
+    scheme's own table (identity for protestant). A spine verse the standard leaves unnumbered (a Psalm
+    superscription → 'title') maps to verse 0, which an English-numbered text does not have, so it gets no
+    target text instead of the wrong one. Also used by the eflomal validator to force a candidate scheme."""
+    check_spine_numbering()
+    if _SCHEME_FILE.get(scheme) == _SPINE_OT_TABLE:
         return None
+    to_std = load_forward(_SPINE_OT_TABLE)
+    rev = load_reverse(scheme)
 
     def f(book: str, ch: int, v: int):
-        return rev.get((book, ch, v), (book, ch, v))
+        std = to_std.get((book, ch, v), (book, ch, v))
+        return rev.get(std, std)
     return f
 
 
+# aligner label -> bcv-commons/bibles scheme code (the vocabulary clients can look up there)
+_LABEL_TO_CDN = {"protestant": "eng", "kjv": "eng", "": "eng", "hebrew": "org", "lxx": "lxx", "septuagint": "lxx",
+                 "vul": "vul", "rso": "rso"}
+
+
+def edition_scheme(iso: str, usj_dir: str | None = None) -> str:
+    """The edition's numbering as a bcv-commons/bibles scheme code (eng, org, orgw, catm, lxx, vul, rso)."""
+    if usj_dir and os.path.isdir(usj_dir):
+        _, cdn, _ = detect_scheme(usj_dir)
+        if cdn:
+            return cdn
+    return _LABEL_TO_CDN.get(scheme_of(iso, usj_dir), "eng")
+
+
+def verse_map(cdn: str, spine_verses) -> dict[str, str]:
+    """{"BOOK C:V" spine ref: "BOOK C:V" target ref} for every spine verse whose target verse DIFFERS, exactly as the
+    aligner pairs them (`remapper_for_scheme`); a verse the target leaves unnumbered (a Psalm superscription) maps to
+    "BOOK C:title". Published as compact-alignments/_index/_versification_<scheme>.json so a client knows which
+    target verse a spine-keyed span indexes. `spine_verses`: iterable of (book, ch, v). Empty for Hebrew numbering."""
+    f = remapper_for_scheme(_CDN_TABLE.get(cdn, "protestant"))
+    out: dict[str, str] = {}
+    if f is None:
+        return out
+    for book, ch, v in spine_verses:
+        _, tc, tv = f(book, ch, v)
+        if (tc, tv) != (ch, v):
+            out[f"{book} {ch}:{v}"] = f"{book} {tc}:{tv if tv else 'title'}"
+    return out
+
+
 def remapper(iso: str, usj_dir: str | None = None):
-    """→ f(book, ch, v) mapping a spine (KJV) ref to the target's scheme ref; None if identity (protestant).
+    """→ f(book, ch, v) mapping a SPINE ref to the target's scheme ref; None if identity (Hebrew-numbered target).
     Auto-detects the scheme from the ingested USJ when usj_dir is given."""
     return remapper_for_scheme(scheme_of(iso, usj_dir))

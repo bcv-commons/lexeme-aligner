@@ -1167,10 +1167,15 @@ def main(argv=None) -> int:
                                   phrase_window_gate=a.phrase_window_gate,
                                   name_guard=a.name_guard,
                                   base_mechanisms=a.base_mechanisms)
-    if stats.get("gated_off"):
-        # a stale layer from before the flip must not survive a re-run that now skips
-        from lexeme_aligner.align_files import tag_files
-        for fp in tag_files(a.out, "spanext", a.iso):
+    # The layer is rebuilt as a whole: remove every existing spanext file of this edition first. Until 2026-10-05
+    # this happened only when the edition was gated off, so a re-run that SKIPPED for any other reason ("no flagged
+    # (pos, direction) combination") or no longer covered a book left the old files in place — and compact_align
+    # lets spanext win every position it touches. 16 editions carried such stale layers (incl. hinirv, arb_vdv).
+    # Only the books this run covers (a `--book` run must not wipe the rest).
+    from lexeme_aligner.align_files import tag_files
+    prefix = f"align_spanext_{a.iso}_"
+    for fp in tag_files(a.out, "spanext", a.iso):
+        if Path(fp).name[len(prefix):].split(".")[0] in books:
             Path(fp).unlink(missing_ok=True)
     if "skipped" in stats:
         print(f"[span_extension] {a.iso}: {stats['skipped']}", file=sys.stderr)

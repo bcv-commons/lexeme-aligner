@@ -280,7 +280,9 @@ def pick_edition(iso: str, base_text: str, gold_method: str, candidates: list[st
         if not usj.exists():
             report[tag] = "no ingest dir"
             continue
-        _, st = load_gold(iso, usj, list(probe_books), base_text, res_dir, gold_methods=(gold_method,))
+        from lexeme_aligner.versification import remapper
+        _, st = load_gold(iso, usj, list(probe_books), base_text, res_dir, gold_methods=(gold_method,),
+                          remap=remapper(tag, str(usj)))
         rate = st["verses_refused"] / max(1, st["verses"])
         report[tag] = {"verses": st["verses"], "refused": st["verses_refused"], "refused_rate": round(rate, 4)}
         if best is None or rate < best[1]:
@@ -292,7 +294,9 @@ def convert_manual(ge: dict, edition: str, books: list[str], corpus: Corpus, out
                    res_dir: Path = RESOURCES, eflomal_rows: list[dict] | None = None) -> dict:
     from lexeme_aligner.eval.pos_score import load_gold
     usj = INGEST / f"usj-{edition}"
-    gold, st = load_gold(ge["iso"], usj, books, ge["base_text"], res_dir, gold_methods=(ge["gold_method"],))
+    from lexeme_aligner.versification import remapper
+    gold, st = load_gold(ge["iso"], usj, books, ge["base_text"], res_dir, gold_methods=(ge["gold_method"],),
+                         remap=remapper(edition, str(usj)))   # gold `ref` is the TARGET verse; key by spine verse
     attribution = {"source": ge["source"], "kind": ge["kind"], "license": ge["license"], "base_text": ge["base_text"]}
     method = "transfer" if ge["kind"] == "transfer" else "manual"
     rows = rows_from_gold(gold, corpus, method, attribution, st)

@@ -100,14 +100,35 @@ def test_scheme_of_defaults_to_protestant_with_no_signal_at_all(tmp_path, monkey
     assert vf.scheme_of("zzz", None) == "protestant"
 
 
-def test_remapper_maps_kjv_ref_to_hebrew_superscription_offset():
-    f = vf.remapper_for_scheme("hebrew")
-    # PSA 51's real hebrew.tsv table: KJV v1 ("Have mercy...") -> Hebrew v3 (past the 2-line title)
-    assert f("PSA", 51, 1) == ("PSA", 51, 3)
+# --- 2026-10-05: the spine's OT is HEBREW-numbered (MACULA = WLC), not KJV. The remap now goes spine -> KJV
+# (hebrew.tsv) -> target. Before this fix, protestant targets got identity (Hebrew PSA 3:1, the superscription,
+# was paired with English 3:1) and hebrew targets got a KJV->Hebrew shift on top of the Hebrew spine.
+def test_hebrew_numbered_target_needs_no_remap():
+    assert vf.remapper_for_scheme("hebrew") is None
 
 
-def test_remapper_is_identity_for_protestant():
-    assert vf.remapper_for_scheme("protestant") is None
+def test_protestant_target_is_remapped_from_the_hebrew_spine():
+    f = vf.remapper_for_scheme("protestant")
+    assert f is not None
+    assert f("PSA", 3, 2) == ("PSA", 3, 1)          # Hebrew v2 = English v1 ("O LORD, how my foes...")
+    assert f("PSA", 51, 3) == ("PSA", 51, 1)        # past a two-verse superscription
+    assert f("1CH", 5, 27) == ("1CH", 6, 1)
+    assert f("1CH", 6, 1) == ("1CH", 6, 16)
+    assert f("MAL", 3, 19) == ("MAL", 4, 1)
+    assert f("JOL", 4, 1) == ("JOL", 3, 1)
+    assert f("DAN", 3, 31) == ("DAN", 4, 1)         # in hebrew.tsv, missing from bcv-commons/bibles' org map
+    assert f("GEN", 1, 1) == ("GEN", 1, 1)          # identity where the numberings agree
+
+
+def test_superscription_maps_to_verse_zero_for_an_english_numbered_target():
+    f = vf.remapper_for_scheme("protestant")
+    assert f("PSA", 3, 1) == ("PSA", 3, 0)          # English leaves the title unnumbered: no text, never the wrong verse
+    assert f("PSA", 51, 1) == ("PSA", 51, 0) and f("PSA", 51, 2) == ("PSA", 51, 0)
+
+
+def test_parse_reads_title_as_verse_zero():
+    assert vf._parse("PSA 3:title") == ("PSA", 3, 0)
+    assert vf._parse("PSA 3:2") == ("PSA", 3, 2)
 
 
 # --- 2026-09-26: real exact tables for vul/rso + the catm->hebrew bug fix, from real bcv-commons/bibles
@@ -163,12 +184,60 @@ def test_rso_gives_a_genuinely_different_remap_than_the_old_lxx_fallback_for_som
     new = vf.load_reverse("rso")
     shared = set(old) & set(new)
     disagreements = [k for k in shared if old[k] != new[k]]
-    assert len(disagreements) > 50                       # real finding: 82 disagreements, not ~0
+    assert len(disagreements) > 50                       # real finding: 53 disagreements (82 before the PSA 9 fix), not ~0
 
 
 def test_remapper_for_scheme_rso_uses_the_new_dedicated_table():
     f = vf.remapper_for_scheme("rso")
     assert f is not None
-    # a real disagreement verse found during verification: KJV PSA 10:8 differs between old/new tables
+    # a real disagreement verse between the two tables. (Until 2026-10-05 this used PSA 10:8 — but that difference was the
+    # rso off-by-one bug in Psalms 9-10, now fixed; JER 27/49 and JOB 29 are where rso and lxx genuinely differ.)
     old_f = vf.remapper_for_scheme("septuagint")
-    assert f("PSA", 10, 8) != old_f("PSA", 10, 8)
+    assert f("JER", 27, 10) != old_f("JER", 27, 10)
+
+
+def test_rso_psalm_9_10_merge_boundary_is_not_shifted():
+    # 2026-10-05: the vendored rso table was off by one from Synodal 9:21 (checked against the rus_syn text:
+    # Synodal 9:22 "Для чего, Господи, стоишь вдали" = English/Hebrew 10:1); confirmed by bcv-commons/bibles.
+    f = vf.remapper_for_scheme("rso")
+    assert f("PSA", 10, 1) == ("PSA", 9, 22)
+    assert f("PSA", 10, 18) == ("PSA", 9, 39)
+    assert f("PSA", 9, 21) == ("PSA", 9, 21)      # Hebrew 9:21 (title = v1 in both) = Synodal 9:21
+
+
+def test_two_hebrew_verses_onto_one_english_verse_merge():
+    # 2026-10-05: TVTMS "Concatenation" cases where two Hebrew verses are ONE English verse — both map to it and the chain
+    # pools them (within a chapter) instead of pairing the second Hebrew verse with the next English verse.
+    f = vf.remapper_for_scheme("protestant")
+    assert f("1KI", 22, 44) == ("1KI", 22, 43) and f("1KI", 22, 45) == ("1KI", 22, 44)
+    assert f("1CH", 12, 5) == ("1CH", 12, 4) and f("1CH", 12, 6) == ("1CH", 12, 5)
+    assert f("NUM", 25, 19) == ("NUM", 26, 1)        # English Numbers 25 has 18 verses: this one used to get no text
+    assert f("1SA", 21, 1) == ("1SA", 20, 42) and f("1SA", 21, 2) == ("1SA", 21, 1)
+    assert f("PSA", 13, 6) == ("PSA", 13, 5)          # one-to-two in truth (13:5-6); the larger half
+
+
+def _spine_with(tmp_path, value):
+    import sqlite3
+    db = tmp_path / f"spine_{value}.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE spine_meta (key TEXT, value TEXT)")
+    if value is not None:
+        con.execute("INSERT INTO spine_meta VALUES ('versification_ot', ?)", (value,))
+    con.commit()
+    con.close()
+    return db
+
+
+def test_spine_numbering_check_accepts_org_and_an_undeclared_spine(tmp_path):
+    assert vf.check_spine_numbering(_spine_with(tmp_path, "org")) == "org"
+    assert vf.check_spine_numbering(_spine_with(tmp_path, None)) is None
+
+
+def test_spine_numbering_check_refuses_another_declared_scheme(tmp_path):
+    import pytest
+    with pytest.raises(RuntimeError, match="versification_ot='eng'"):
+        vf.check_spine_numbering(_spine_with(tmp_path, "eng"))
+
+
+def test_the_active_spine_declares_org():
+    assert vf.check_spine_numbering() in ("org", None)

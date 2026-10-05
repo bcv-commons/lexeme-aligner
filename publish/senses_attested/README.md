@@ -1,11 +1,11 @@
 ---
-pretty_name: Attested target renderings per lexeme sense
+pretty_name: Attested target renderings per UBS Hebrew sense
 tags:
   - bible
   - word-sense
   - lexeme
   - hebrew
-license: cc-by-nc-sa-4.0
+license: cc-by-sa-4.0
 configs:
   - config_name: default
     data_files:
@@ -13,85 +13,35 @@ configs:
         path: iso=*/data.parquet
 ---
 
-# senses_attested-bhsa — attested target renderings per lexeme sense (retired legacy set)
+# senses-attested — attested target renderings per UBS sense
 
-> **Renamed 2026-10-04:** this repository was `bcv-commons/senses-attested`; it is now `bcv-commons/senses-attested-bhsa` so the name says what it is. The name `senses-attested` now belongs to the UBS-keyed dataset.
+For each Hebrew lexeme and each sense of the **UBS Dictionary of Biblical Hebrew**, which target-language words render
+it in practice, with counts, mined from the word alignments of `bcv-commons/lexeme-alignments`. Columns: `lexeme`
+(MACULA anchor), `stem` (binyan, empty for non-verbs), `ubs_sense` (UBS sense id, see `senses.tsv`), `surface`, `count`,
+`share` (within lexeme, stem, sense, method and edition), `method`, `source_corpus`, `base_text` (the target edition).
 
-> **Superseded, and relabelled (2026-10-03).** The `sense` number in this dataset is the sense number from a lexeme-sense
-> clustering that is built on **ETCBC BHSA** clauses (BHSA is CC BY-NC-SA 4.0). This dataset is therefore now labelled
-> **CC BY-NC-SA 4.0** (non-commercial, share-alike); up to this date it carried a CC BY 4.0 label, and copies obtained earlier keep the
-> label they came with. **For an open licence and a sense key you can trust, use [`bcv-commons/senses-attested`](https://huggingface.co/datasets/bcv-commons/senses-attested)**
-> (CC BY-SA 4.0, keyed on UBS Dictionary of Biblical Hebrew sense ids, no BHSA-derived content). This dataset receives no further updates.
+**Why UBS senses.** The senses are the manually built, academically maintained sense inventory of the United Bible
+Societies; each sense id is bound to individual tokens through the dictionary's own per-occurrence Scripture references.
+Function words (prepositions, conjunctions) carry senses too and are included. `senses.tsv` names every id used here
+(entry id, lemma, Strong's codes, short English gloss, lexical domain codes).
 
-> **Note (2026-09-30).** The `sense` number in this dataset comes from our own automatic disambiguation and is
-> `1` for about 97% of tokens; checked against the manually built UBS Dictionary of Biblical Hebrew it agrees no better
-> than chance when it says "same sense" (though where it does split, the split is informative). For a sense key you can
-> trust, use the dataset **`bcv-commons/senses-attested`** (CC BY-SA 4.0), keyed on UBS sense ids. This dataset is kept
-> unchanged for existing consumers.
+**License and credit — CC BY-SA 4.0 (share-alike).** This dataset is derived from the UBS Dictionary of Biblical Hebrew,
+(c) United Bible Societies 2023, adapted from the Semantic Dictionary of Biblical Hebrew (c) 2000-2023 United Bible
+Societies, released under CC BY-SA 4.0 (https://github.com/ubsicap/ubs-open-license). Anything you build from these
+files must be released under the same or a compatible license with this credit. It is deliberately a SEPARATE dataset
+from `bcv-commons/senses-attested-bhsa` (the retired legacy set: sense numbers from a BHSA-derived clustering, CC BY-NC-SA) so the two licenses never mix.
 
-Many Hebrew words carry more than one distinguishable meaning depending on their grammatical form —
-for example, a verb's meaning can shift with its **binyan** (the Hebrew verb-stem pattern: *qal*
-"simple/active" vs. *hiphil* "causative," etc.). This dataset records, for each Hebrew **lexeme**
-(a MACULA-anchored original-language word — see `bcv-commons/lexeme-alignments`'s own README for the
-full definition) in a specific disambiguated *(binyan, sense)*, which target-language translation
-words actually render that sense in practice, with counts — empirical evidence mined directly from
-the alignment data, not a hand-curated gloss list.
+**Known limits.** Hebrew Bible only (the UBS Greek dictionary is not used yet); the UBS Hebrew dictionary covers about
+90% of Old Testament words; ids are bound to tokens by verse-level matching (unique / anchored / nearest, see
+`lexeme_aligner/ubs_senses.py`), validated against the spine's own glosses (61% word overlap for unique bindings against
+13% for shuffled senses). Tokens in pooled verse ranges (one target verse for several source verses) are resolved to their own source verse
+and kept; a token is only counted when its lexeme equals the lexeme stored with the binding.
 
-(Internal note for readers tracking the sibling **shoresh**/**bcv-query** projects — separate repos,
-not part of this codebase: this dataset is the *evidence* layer that fills shoresh's own
-`senses_i18n/_gaps` demand and cross-checks its `llm_strongs_glosses` predictions. It does **not**
-replace shoresh's own curated `senses_i18n/<iso>.tsv`.) Consumed as an HF Parquet dataset.
+## Verse mapping
 
-## Schema (per row)
-| column | meaning |
-|---|---|
-| `lexeme` | MACULA lexeme (the anchor), e.g. `hbo:0006` |
-| `stem` | MACULA binyan (`qal/piel/hiphil/…`); empty for non-verbs |
-| `sense` | sense **number** (ordinal) — see licensing |
-| `surface` | attested target rendering (lowercased) |
-| `count` | times this `(lexeme, stem, sense)` → surface was aligned |
-| `share` | `count / Σ count for that (lexeme, stem, sense)` **within one `base_text`** |
-| `method` | alignment method (`eflomal`) |
-| `source_corpus` | the original Hebrew corpus (e.g. `WLC`) |
-| `base_text` | the **target edition** attested (e.g. `ind_C01`) — the per-row provenance dimension |
-
-Key: **`(lexeme, stem, sense)`** — MACULA lexeme (anchor; BHSA `lex` dropped) + MACULA binyan + sense
-number, read inline from the enriched `lexeme-spine.db`. OT/Hebrew only (senses are Hebrew; Greek tokens
-carry none).
-
-**Multi-version:** `base_text` is per-row, so several translations of a language are **pooled into one
-`iso=<lang>` partition** — a union of per-edition runs, each row tagged by edition; `share` stays
-per-edition. **Cross-edition agreement** (how many `base_text`s attest a given `(lexeme,stem,sense)→
-surface`) is the confidence signal, derivable directly from the rows. (Swedish `iso=swe` pools
-`swe_fol` Folkbibeln + `swe_svk` Kärnbibeln.)
-
-## Removal / takedown policy
-Each row is a **per-edition attestation** carrying its `base_text`, so a rights-holder can request
-removal and it is a **clean row-drop** + republish (the dataset is content-addressed via each
-partition's `content_sha256`). Because most `(lexeme,stem,sense)→surface` facts are attested by
-**more than one edition**, dropping one edition typically leaves the linguistic fact intact via the
-others — properly attributed. Rows are **never** re-emitted with provenance stripped: a removed
-attestation is removed, not anonymized.
-
-Removals are driven by a committed, auditable config: **`data/senses_exclude.json`** (read
-automatically on every build). A row is dropped if it matches any rule; a rule matches when all its
-stated fields equal the row's — fields `lexeme, stem, sense, surface, base_text`, omit to wildcard:
-
-```json
-{"exclude": [
-  {"base_text": "swe_fol"},                       // drop a whole edition
-  {"base_text": "swe_fol", "surface": "herren"}   // drop one surface within an edition
-]}
-```
-
-After exclusion, survivor `share`s **renormalise** (per edition), so a removed row leaves no residue;
-the manifest records `excluded: {rules, rows_dropped}` for the audit trail. To action a takedown: add
-a rule, re-run `senses_attested` for the affected language, republish.
-
-## Licensing — CC BY-NC-SA 4.0 (since 2026-10-03; earlier CC BY 4.0)
-The `lexeme` + binyan key is MACULA-derived (CC BY 4.0, attribute Clear-Bible MACULA), but the `sense` number comes from a clustering built on
-**ETCBC BHSA** clauses, so the dataset as a whole follows BHSA's **CC BY-NC-SA 4.0**: attribute both, non-commercial use only, share alike.
-We carry the sense **number** only and **no English sense label** (shoresh's sense labels are UBS-MARBLE "used with permission", not
-redistributable). The open-licence replacement is `bcv-commons/senses-attested` (UBS sense ids, CC BY-SA 4.0). Regenerate (legacy scheme):
-`python -m lexeme_aligner.senses_attested --iso <iso> --method eflomal`.
-Same git-ignored-Parquet + committed-`manifest.json` layout as `lexeme-alignments`.
+Hebrew and English Bibles number some Old Testament verses differently (Psalm superscriptions, 1 Chronicles 6,
+Joel, Malachi, Daniel 4 and 6, ...). Source and target verses are paired with the verse-mapping tables of **TVTMS**
+(Translators Versification Traditions with Methodology for Standardisation), part of STEPBible Data by Tyndale
+House, Cambridge — **CC BY 4.0**, https://github.com/STEPBible/STEPBible-Data — with each edition's numbering
+detected from its own text (cross-checked against bcv-commons/bibles). Source verse references follow the Hebrew
+(WLC) numbering of the MACULA source text.

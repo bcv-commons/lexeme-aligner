@@ -43,7 +43,7 @@ from lexeme_aligner.manifest_io import update_json
 from lexeme_aligner.usj_source import (TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw,
                                        _rules_for, annotation_spans, _token_spans, tokenize)
 from lexeme_aligner.reverse_align_check import load_lexeme_vocab_scored
-from lexeme_aligner.versification import remapper
+from lexeme_aligner.versification import edition_scheme, remapper, verse_map
 
 ALL_BOOKS = OT_BOOKS + NT_BOOKS
 METHODS = ("eflomal", "gloss", "gapfill")
@@ -86,7 +86,7 @@ def _merge_tier(mode: str, p: dict) -> str:
 #   x   = spanext (opt-in layer, like residual — see LAYER_METHODS/build_layer's docstring for why)
 _METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l",
                "spanext": "x"}
-SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus", "rule")
+SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus", "rule", "rend")
 # "rule" (2026-09-28) — sparse, srcOrd:label[+label], the SPECIFIC named mechanism (span_extension's own
 # `prior` tag, e.g. "possessor_after"/"name_after"/"struct_before", or gapfill's own bare prior label
 # like "strong"/"name"/"phrase") that produced/widened a position whose `method` char is 'x' or 'f' —
@@ -217,7 +217,47 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "positions to the wrong words.",
           "SIDECAR REPOS (since 2026-10-02): the optional <BOOK>_<hash>.meta.json and <BOOK>_<hash>.extra.json files are published in "
           "their own repos, bcv-commons/compact-alignments-meta and bcv-commons/compact-alignments-extra, under the IDENTICAL relative "
-          "path <iso[0]>/<iso>/<edition>/. The alignment arrays, _index/, manifest.json and tokenize.js stay in this repo."]
+          "path <iso[0]>/<iso>/<edition>/. The alignment arrays, _index/, manifest.json and tokenize.js stay in this repo.",
+          "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in "
+          "the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS "
+          "edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned "
+          "raw target words, case-folded, joined by one space. Ids are comparable only within one edition and one lexeme (e.g. "
+          "to split a lexeme's occurrences by how this translation renders them) and carry no text.",
+          "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each "
+          "edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), "
+          "and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity "
+          "elsewhere; 'C:title' = a verse that scheme leaves unnumbered, e.g. a Psalm superscription, which then has no target "
+          "words). Read a span's target words from the MAPPED target verse: spine 'PSA 3:2' -> English 'PSA 3:1'. Mapping "
+          "authority: TVTMS (STEPBible Data, CC BY 4.0)."]
+
+
+def rend_id(rend_ids: dict[str, dict[str, int]], lexeme: str, raw_toks: list[str], positions: list[int]) -> int:
+    """The `rend` id of one aligned entry: n-th distinct rendering (case-folded raw target words, one space) of `lexeme`
+    in this edition, numbered by first appearance — `rend_ids` is the edition-wide state, passed in canonical order."""
+    surface = " ".join(raw_toks[m] for m in positions if m < len(raw_toks)).casefold()
+    ids = rend_ids.setdefault(lexeme, {})
+    return ids.setdefault(surface, len(ids) + 1)
+
+
+def write_verse_map(heb, scheme: str, index_root: Path) -> Path:
+    """`_index/_versification_<scheme>.json`: {spine ref: target ref} for every verse where this numbering scheme differs
+    from the spine (Hebrew/WLC numbering in the OT), exactly as the aligner paired them. Compact arrays are keyed by
+    SPINE verse, so a client reads the target words of spine "PSA 3:2" from target verse "PSA 3:1" (English
+    numbering). Written only when missing or different, so a re-run does not touch an unchanged file."""
+    vm = verse_map(scheme, ((b, ch, v) for b in OT_BOOKS + NT_BOOKS for ch in heb.chapters(b) for v in heb.verses(b, ch)))
+    doc = {"scheme": scheme,
+           "doc": "Spine verse -> this scheme's verse, only where they differ (identity elsewhere). Spine = the MACULA "
+                  "source text's numbering (Hebrew/WLC in the OT). 'C:title' = a verse this scheme leaves unnumbered "
+                  "(Psalm superscription). Mapping authority: TVTMS (STEPBible Data, CC BY 4.0).",
+           "map": vm}
+    fp = index_root / f"_versification_{scheme}.json"
+    data = json.dumps(doc, ensure_ascii=False, indent=0, sort_keys=False) + "\n"
+    if not fp.exists() or fp.read_text(encoding="utf-8") != data:
+        index_root.mkdir(parents=True, exist_ok=True)
+        tmp = fp.with_suffix(".tmp")
+        tmp.write_text(data, encoding="utf-8")
+        tmp.replace(fp)
+    return fp
 
 
 def update_manifest(path: Path, iso: str, edition: str, entry: dict) -> None:
@@ -425,7 +465,12 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     except SystemExit:
         vocab_scored = {}
     by_ref: dict[str, str] = {}                        # "BOOK C:V" -> compact string, filled as we go
-    side: dict[str, dict[str, str]] = {"method": {}, "conf": {}, "contested": {}, "bonus": {}, "rule": {}}
+    side: dict[str, dict[str, str]] = {name: {} for name in SIDECAR_CHANNELS}
+    # `rend` (2026-10-05, for bcv-query's hebrew-word-senses): per aligned entry, the n-th DISTINCT rendering of its
+    # lexeme in this edition, numbered by first appearance in canonical order (books in order, verses in order,
+    # entries in compact-string order). A rendering = the aligned RAW target words, case-folded, joined by one space.
+    # Ids are only comparable within one edition and one lexeme; they carry no text.
+    rend_ids: dict[str, dict[str, int]] = {}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         strip_rules = _rules_for(usj_path)
@@ -435,7 +480,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
         for ch in heb.chapters(book):
             for anchor_v, vs, ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
                 pairs = pairs_by_verse.get((ch, anchor_v), {})
-                anchor_content = [tok for orig_v, tok in members if orig_v == vs and tok.strong and tok.is_content]
+                anchor_content = [tok for orig_v, tok in members if orig_v == anchor_v and tok.strong and tok.is_content]
                 # Same (tc, vs) key pooled_verse_groups used internally to fetch `text` (see its
                 # docstring/source) — re-derived here to fetch the RAW counterpart of the exact same
                 # target block, so the two texts being diffed are guaranteed to correspond.
@@ -446,7 +491,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 annot_spans = annotation_spans(raw_text) if raw_text else []
                 raw_toks = tokenize(raw_text) if raw_text else []
                 raw_spans = _token_spans(raw_text) if raw_text else []
-                parts, meth, conf, contested, bonus, rule = [], [], [], [], [], []
+                parts, meth, conf, contested, bonus, rule, rend = [], [], [], [], [], [], []
                 gap_ordinals: list[tuple[int, object]] = []
                 for ordinal, tok in enumerate(anchor_content):
                     rec = pairs.get(tok.idx)
@@ -467,6 +512,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                         gap_ordinals.append((ordinal, tok))
                         continue
                     parts.append(f"{ordinal}:{_encode_span(mapped)}")
+                    rend.append(str(rend_id(rend_ids, tok.lexeme or tok.strong, raw_toks, mapped)))
                     # The two DENSE channels are one character per aligned token, in the same order as
                     # `parts` — the shape confidence_sidecar() was designed around. Appended in the same
                     # loop as `parts` so they cannot drift out of step with it.
@@ -508,8 +554,9 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 side["contested"][ref] = " ".join(contested)
                 side["bonus"][ref] = " ".join(bonus)
                 side["rule"][ref] = " ".join(rule)
+                side["rend"][ref] = " ".join(rend)
                 for orig_v, _tok in members:
-                    if orig_v != vs:
+                    if orig_v != anchor_v:
                         by_ref.setdefault(f"{book} {ch}:{orig_v}", "")   # pooled non-anchor member
     return by_ref, side
 
@@ -747,8 +794,10 @@ def main() -> int:
                                   index_root=args.index_root, layer_methods=layer_methods)
         for book, fp in sorted(written.items()):
             print(f"[compact_align] {publish_iso}/{book} → {fp}", file=sys.stderr)
+        scheme = edition_scheme(args.iso, str(usj_dir))
+        write_verse_map(heb, scheme, args.index_root)
         manifest_entry = {"tag": args.iso, "books": sorted(written),
-                          "source": sources.get(args.iso, {})}
+                          "source": sources.get(args.iso, {}), "versification": scheme}
         update_manifest(args.publish / "manifest.json", publish_iso, resolved_edition, manifest_entry)
         print(f"[compact_align] {publish_iso}/{resolved_edition}: {len(written)} book file(s) written "
               f"under {args.publish}, manifest updated", file=sys.stderr)

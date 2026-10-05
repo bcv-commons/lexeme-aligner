@@ -167,16 +167,16 @@ def test_forget_pushed_drops_only_the_named_paths_from_the_cache(tmp_path):
 
 
 def test_default_datasets_use_the_ubs_senses_not_the_legacy_ones():
-    assert ps.DEFAULT == ["lexeme-alignments", "senses_attested_ubs", "compact-alignments"]
-    assert ps.DATASETS["senses_attested_ubs"] == ("bcv-commons/senses-attested", "partition")
-    assert ps.DATASETS["senses_attested"][0] == "bcv-commons/senses-attested-bhsa" and "senses_attested" not in ps.DEFAULT          # legacy still reachable, only explicitly
-    assert ps.NO_LEDGER == {"senses_attested_ubs"}
+    assert ps.DEFAULT == ["lexeme-alignments", "senses_attested", "compact-alignments"]
+    assert ps.DATASETS["senses_attested"] == ("bcv-commons/senses-attested", "partition")
+    assert ps.DATASETS["senses_attested_bhsa"][0] == "bcv-commons/senses-attested-bhsa" and "senses_attested_bhsa" not in ps.DEFAULT          # legacy still reachable, only explicitly
+    assert ps.NO_LEDGER == {"senses_attested"}
 
 
 def test_ubs_partition_selection_has_no_ledger_when_the_root_has_none(tmp_path):
-    root = tmp_path / "senses_attested_ubs"
+    root = tmp_path / "senses_attested"
     (root / "iso=tgl").mkdir(parents=True)
     (root / "iso=tgl/data.parquet").write_bytes(b"x")
     (root / "README.md").write_text("card")
-    got = ps.selected_files("senses_attested_ubs", "partition", ["tgl", "zzz"], root)
+    got = ps.selected_files("senses_attested", "partition", ["tgl", "zzz"], root)
     assert got == ["iso=tgl/data.parquet", "README.md"]          # no pipeline_decisions.json, languages without a partition skipped

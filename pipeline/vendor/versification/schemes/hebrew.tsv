@@ -1,4 +1,4 @@
-# hebrew versification -> KJV standard; single-verse diffs only (identity elsewhere). Source: STEPBible TVTMS (CC-BY). shoresh versification.build
+# hebrew versification -> KJV standard; single-verse diffs only (identity elsewhere). Source: STEPBible TVTMS (CC-BY). shoresh versification.build | 2026-10-05 LOCAL PATCH (until bcv-commons/bibles ships them): +5 rows from TVTMS 902681f7 — 4 two-to-one merges (both Hebrew verses -> one English verse, pooled by the chain) and PSA 13:6 -> 13:5. Not representable here: the one-to-two cases PSA 13:6 -> 13:5-6 and ISA 63:19 -> 63:19 + 64:1. | 2026-10-05 later: content = bcv-commons/bibles org-to-eng.json (sha256 459a4cce…, 2,032 rows, TVTMS 902681f7) + the 4 many-to-one relations of their org-to-eng.multiverse.json (sha256 c0a6fbf9…) expressed as rows; their 2 one-to-many relations (PSA 13:6 -> 13:5-6, ISA 63:19 -> 63:19-64:1) are not consumed (no target-range support; PSA 13:6 keeps the 13:5 row)
 source_ref	standard_ref	action
 1CH 12:10	1CH 12:9	Renumber verse
 1CH 12:11	1CH 12:10	Renumber verse
@@ -2031,3 +2031,8 @@ ZEC 2:6	ZEC 2:2	Renumber verse
 ZEC 2:7	ZEC 2:3	Renumber verse
 ZEC 2:8	ZEC 2:4	Renumber verse
 ZEC 2:9	ZEC 2:5	Renumber verse
+NUM 25:19	NUM 26:1	Merge (TVTMS Concatenation: Num 25:19 + 26:1 = Eng 26:1)
+1SA 21:1	1SA 20:42	Merge (TVTMS Concatenation: 1Sa 20:42 + 21:1 = Eng 20:42)
+1KI 22:44	1KI 22:43	Merge (TVTMS Concatenation: 1Ki 22:43-44 = Eng 22:43)
+1CH 12:5	1CH 12:4	Merge (TVTMS Concatenation: 1Ch 12:4-5 = Eng 12:4)
+PSA 13:6	PSA 13:5	Renumber verse (TVTMS: Psa 13:6 = Eng 13:5-6; the larger half, from bcv-commons/bibles' derived map)

@@ -53,9 +53,9 @@ pipeline/scripts/adhoc/
 # --- publish/ — every dataset's bulk data is git-ignored; only manifest.json + README.md (+ small
 # committed companions) stay tracked, matching each dataset's own README for exactly what ships ---
 publish/lexeme-alignments/iso=*/
-publish/senses_attested/iso=*/
+publish/senses_attested_bhsa/iso=*/
 publish/aligned_mwe/iso=*/
-publish/senses_attested_ubs/iso=*/
+publish/senses_attested/iso=*/
 # manifest write locks (lexeme_aligner/manifest_io.py) — runtime files, never content
 publish/*/*.lock
 # ledger write lock (pipeline_decisions.write_decisions) — runtime file

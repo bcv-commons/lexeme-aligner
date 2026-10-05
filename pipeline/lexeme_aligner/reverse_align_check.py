@@ -78,7 +78,7 @@ def check_book(book: str, heb: HebrewSource, usj_dir: Path, iso: str, out_dir: P
 
             for orig_v, tok in members:
                 pair = pairs.get(tok.idx)   # tok.idx is renumbered within the pooled group
-                is_anchor_member = (orig_v == vs)
+                is_anchor_member = (orig_v == anchor_v)
                 if pair is not None:
                     status = "aligned"
                 elif not is_anchor_member:

@@ -89,3 +89,17 @@ def test_an_edition_whose_text_folder_is_empty_is_not_run(monkeypatch, tmp_path)
     assert fc.main() == 0
     assert [_arg(args, "--iso") for m, args in calls if m == "compact_align"] == [a]
     assert fc._has_text(tmp_path / "pipeline/work/ingest-cache" / f"usj-{b}") is False
+
+
+def test_editions_option_limits_per_edition_steps_but_pooled_steps_keep_every_edition(monkeypatch, tmp_path):
+    tags = [fc._tag("xyz", e, is_primary=(i == 0)) for i, e in enumerate(["AAA", "BBB", "CCC"])]
+    calls, _ = _run_chain(monkeypatch, tmp_path, ["AAA", "BBB", "CCC"], extra=("--editions", tags[1]))
+    for step in ("compact_align", "span_extension", "gapfill", "residual_align"):
+        assert [_arg(a, "--iso") for m, a in calls if m == step] == [tags[1]], step
+    assert [_arg(a, "--iso") for m, a in calls if m == "run_pilot"] == [tags[1]]          # gloss
+    (onboard,) = [a for m, a in calls if m == "onboard"]
+    assert _arg(onboard, "--editions") == tags[1]
+    (mwe,) = [a for m, a in calls if m == "export_mwe"]
+    assert [_arg(mwe, "--iso"), *_arg(mwe, "--pool").split(",")] == tags                  # pooled: all three
+    (lex,) = [a for m, a in calls if m == "export_lex"]
+    assert [_arg(lex, "--iso"), *_arg(lex, "--pool").split(",")] == tags

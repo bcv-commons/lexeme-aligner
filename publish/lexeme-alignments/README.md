@@ -241,6 +241,15 @@ the shared `manifest.json`/`README.md`/companion resource files (`light_lexemes.
 small enough to just re-upload each time so they never drift out of sync); other languages' partitions are
 untouched.
 
+## Verse mapping
+
+Hebrew and English Bibles number some Old Testament verses differently (Psalm superscriptions, 1 Chronicles 6,
+Joel, Malachi, Daniel 4 and 6, ...). Source and target verses are paired with the verse-mapping tables of **TVTMS**
+(Translators Versification Traditions with Methodology for Standardisation), part of STEPBible Data by Tyndale
+House, Cambridge — **CC BY 4.0**, https://github.com/STEPBible/STEPBible-Data — with each edition's numbering
+detected from its own text (cross-checked against bcv-commons/bibles). Source verse references follow the Hebrew
+(WLC) numbering of the MACULA source text.
+
 ## License
 **This catalogue is CC0-1.0.** It is *derived, factual* data — lexeme ids, Strong's rollups, alignment
 counts, `share`/`hi_conf` statistics, method tags, and a de-arranged type-level list of word forms. It

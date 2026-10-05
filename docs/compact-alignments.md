@@ -158,7 +158,7 @@ def decode(book, ch, v, iso="ind", usj_dir=Path("pipeline/work/ingest-cache/usj-
         if anchor_v != v:
             continue
         tokens = tokenize(text)
-        content = [t for orig_v, t in members if orig_v == vs and t.strong and t.is_content]
+        content = [t for orig_v, t in members if orig_v == anchor_v and t.strong and t.is_content]
         pairs = {int(ordv): span for ordv, span in
                 (part.split(":") for part in compact.split())}
         for ordinal, tok in enumerate(content):

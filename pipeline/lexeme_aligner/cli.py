@@ -3,7 +3,7 @@
 A thin dispatcher: every subcommand maps onto an entry point that already exists and is already tested, runs it as a subprocess, and passes every
 remaining argument through unchanged. Nothing here re-implements a step, so the chain's behaviour is exactly what `full_chain` etc. do today.
 
-    lexeme-aligner run tgl [--skip-ingest] [--clean-out ...]          one language, the 9-step chain  (= full_chain --iso tgl --clean-out)
+    lexeme-aligner run tgl [--skip-ingest] [--editions TAG,..]        one language, the 9-step chain  (= full_chain --iso tgl --clean-out)
     lexeme-aligner batch --catalog [--include-dbt]                    onboard every catalog language not yet done (= onboard_catalog --full)
     lexeme-aligner batch --list spec.json [--force]                   a hand-curated language list              (= onboard_batch)
     lexeme-aligner batch --all|--isos a,b|--stale-before DATE [--workers N --nice N --skip-ingest --fresh --retry-failed]
@@ -47,7 +47,7 @@ def plan(argv: list[str]) -> list[list[str]]:
     sub, rest = argv[0], argv[1:]
     if sub == "run":
         if not rest or rest[0].startswith("-"):
-            raise SystemExit("usage: lexeme-aligner run ISO [--skip-ingest] [--lang-name NAME] [--no-clean-out]")
+            raise SystemExit("usage: lexeme-aligner run ISO [--skip-ingest] [--lang-name NAME] [--editions TAG,TAG] [--no-clean-out]")
         iso, opts = rest[0], rest[1:]
         no_clean, opts = _take(opts, "--no-clean-out")
         return [_module("full_chain", "--iso", iso, *([] if no_clean else ["--clean-out"]), *opts)]

@@ -60,8 +60,8 @@ from lexeme_aligner.target_morph import should_stem
 _DECISIONS_FILE = Path("config/pipeline_decisions.json")
 # Every dataset a client might independently download — the ledger is published identically into
 # whichever of these already exist on disk (a fresh checkout only has the ones actually built so far).
-_PUBLISH_ROOTS = [Path("publish/lexeme-alignments"), Path("publish/aligned_mwe"),
-                  Path("publish/senses_attested"), Path("publish/compact-alignments")]
+# (no senses dataset: the UBS one carries no ledger, see publish_safe.NO_LEDGER, and the BHSA one is frozen)
+_PUBLISH_ROOTS = [Path("publish/lexeme-alignments"), Path("publish/aligned_mwe"), Path("publish/compact-alignments")]
 
 _DOC = ("Per-language pipeline configuration decisions, with provenance. Per-token attribution for a "
        "SPECIFIC span lives in compact-alignments' own <BOOK>_<hash>.meta.json 'rule' channel instead "

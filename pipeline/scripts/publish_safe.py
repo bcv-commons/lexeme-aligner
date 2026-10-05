@@ -38,13 +38,13 @@ from lexeme_aligner import compact_layers  # noqa: E402
 
 DATASETS = {                                   # local dir name -> (HF repo, kind)
     "lexeme-alignments": ("bcv-commons/lexeme-alignments", "partition"),
-    "senses_attested": ("bcv-commons/senses-attested-bhsa", "partition"),     # LEGACY (BHSA-derived sense numbers, retired 2026-10-03; HF repo renamed 2026-10-04): explicit --datasets only
-    "senses_attested_ubs": ("bcv-commons/senses-attested", "partition"),       # keyed on UBS sense ids, CC BY-SA 4.0 (local folder keeps its name; HF repo renamed 2026-10-04)
+    "senses_attested": ("bcv-commons/senses-attested", "partition"),           # keyed on UBS sense ids, CC BY-SA 4.0 (local folder renamed from senses_attested_ubs 2026-10-05)
+    "senses_attested_bhsa": ("bcv-commons/senses-attested-bhsa", "partition"), # LEGACY, frozen (BHSA-derived sense numbers, retired 2026-10-03): explicit --datasets only
     "compact-alignments": ("bcv-commons/compact-alignments", "compact"),
     "aligned_mwe": ("bcv-commons/aligned-mwe", "partition"),
 }
-DEFAULT = ["lexeme-alignments", "senses_attested_ubs", "compact-alignments"]
-NO_LEDGER = {"senses_attested_ubs"}             # the published UBS repo carries no pipeline_decisions.json; do not add one
+DEFAULT = ["lexeme-alignments", "senses_attested", "compact-alignments"]
+NO_LEDGER = {"senses_attested"}             # the published UBS repo carries no pipeline_decisions.json; do not add one
 STAGING = REPO / "pipeline/work/publish-staging"
 STALE_BEFORE = time.mktime(time.strptime("2026-09-28", "%Y-%m-%d"))
 

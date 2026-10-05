@@ -290,7 +290,12 @@ def main() -> int:
     ap.add_argument("--skip-ingest", action="store_true", help="USJ already present for every edition")
     ap.add_argument("--exclusions", type=Path, default=_EXCLUSIONS)
     ap.add_argument("--editions-config", type=Path, default=_EDITIONS_CONFIG)
+    ap.add_argument("--editions", default=None,
+                    help="comma-separated edition TAGS: ingest + align only these (a pilot / single-edition re-run). "
+                         "The pooled export still folds in every other edition from its EXISTING files, so the "
+                         "language partition never loses editions. Default: all editions.")
     args = ap.parse_args()
+    only = {t.strip() for t in args.editions.split(",") if t.strip()} if args.editions else None
 
     testaments = allowed_testaments(args.iso, args.exclusions)
     if not testaments:
@@ -326,7 +331,7 @@ def main() -> int:
         usj = Path(f"pipeline/work/ingest-cache/usj-{tag}")
         pin = _pin_path(tag)
 
-        if not args.skip_ingest:
+        if not args.skip_ingest and (only is None or tag in only):
             ingest_args = (["cdn_source", "--iso", ed["param"], "--to-usj", usj, "--pin", pin]
                             if ed["source"] == "pkf" else
                             ["helloao_source", "--translation", ed["param"], "--iso", tag,
@@ -381,7 +386,11 @@ def main() -> int:
     # therefore never actually reached a published partition; caught by grepping a full_chain log for
     # "Step 3 fertility priors" and finding zero lines. full_chain.py already passes --publish-iso to
     # its own gloss/spanext/gapfill/residual steps for the same reason; this was the one call that didn't.
+    if only is not None and not only & set(tags):
+        raise SystemExit(f"[onboard] --editions {sorted(only)}: none of them is in the pool {tags}")
     for tag in tags:
+        if only is not None and tag not in only:
+            continue
         _run("run_pilot", "--method", args.method, scope_flag, "--usj-dir", usj_dirs[tag], "--iso", tag,
              "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env)

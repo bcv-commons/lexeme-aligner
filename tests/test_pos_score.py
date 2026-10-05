@@ -3,6 +3,7 @@ with vetoes, and the link metrics — all on synthetic data, no parquet needed."
 import collections
 import pytest
 
+import lexeme_aligner.eval.pos_score as ps
 from lexeme_aligner.eval.pos_score import GoldVerse, Metrics, Ours, Spine, clear_tokens, map_positions, score, union
 from lexeme_aligner.usj_source import tokenize
 
@@ -70,3 +71,37 @@ def test_union_first_wins_and_vetoes_remove_later_claims():
     b = Ours(spans={1: {("G1", 0): {9}, ("G2", 0): {2}, ("G2", 1): {5}}})
     u = union([a, b])
     assert u.spans[1] == {("G1", 0): {0}, ("G2", 1): {5}}                  # a's G1 kept; a's veto removed b's G2#1
+
+
+# --- 2026-10-05: gold is keyed by SPINE verse, not by the gold's own (target-numbered) `ref` -----------------
+def test_source_verse_reads_only_real_clear_ot_ids():
+    assert ps._source_verse("o190030020011") == (19, 3, 2)
+    assert ps._source_verse("n40001001001") is None          # Clear NT
+    assert ps._source_verse("n19003002004") is None          # SWORD/HELFI-style synthetic id (target verse + seq)
+
+
+def test_load_gold_keys_by_spine_verse_and_drops_links_from_another_verse(tmp_path, monkeypatch):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
+    att = tmp_path / "strongs" / "attestations"
+    att.mkdir(parents=True)
+    rows = [  # English PSA 3:1 = Hebrew 3:2; English 3:2 = Hebrew 3:3
+        {"ref": "19003001", "strong": "H3068", "target_id": "19003001002", "source_id": "o190030020011"},
+        {"ref": "19003001", "strong": "H1121", "target_id": "19003001001", "source_id": "o190030010061"},  # superscription word
+        {"ref": "19003002", "strong": "H7227", "target_id": "19003002001", "source_id": "n19003002001"},   # synthetic id
+    ]
+    for r in rows:
+        r.update(method="manual", base_text="X")
+    pq.write_table(pa.Table.from_pylist(rows), att / "zz.parquet")
+    usj = tmp_path / "usj"
+    usj.mkdir()
+    (usj / f"{_BOOK_FILE_NUM['PSA']}-PSA.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(ps, "read_verses", lambda fp: {(3, 1): "O LORD how", (3, 2): "Many say"})
+    monkeypatch.setattr(ps, "spine_ref_of_target", lambda books, remap: {19003001: 19003002, 19003002: 19003003})
+    remap = lambda b, c, v: (b, c, v - 1) if (b, c) == ("PSA", 3) else (b, c, v)      # spine 3:1 -> title (verse 0)
+    gold, st = ps.load_gold("zz", usj, ["PSA"], "X", res_dir=tmp_path, remap=remap)
+    assert set(gold) == {19003002, 19003003}                  # spine verses, not the gold's 19003001/19003002
+    assert gold[19003002].links == {("H3068", 0): {1}}         # target word 2 of ENGLISH 3:1
+    assert gold[19003003].links == {("H7227", 0): {0}}
+    assert st["links_other_verse"] == 1                       # the superscription word lives in another spine verse

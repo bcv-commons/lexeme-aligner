@@ -424,6 +424,15 @@ python3 -m lexeme_aligner.compact_align --iso bsb --publish-iso eng --usj-dir da
     --publish compact-alignments
 ```
 
+## Verse mapping
+
+Hebrew and English Bibles number some Old Testament verses differently (Psalm superscriptions, 1 Chronicles 6,
+Joel, Malachi, Daniel 4 and 6, ...). Source and target verses are paired with the verse-mapping tables of **TVTMS**
+(Translators Versification Traditions with Methodology for Standardisation), part of STEPBible Data by Tyndale
+House, Cambridge — **CC BY 4.0**, https://github.com/STEPBible/STEPBible-Data — with each edition's numbering
+detected from its own text (cross-checked against bcv-commons/bibles). Source verse references follow the Hebrew
+(WLC) numbering of the MACULA source text.
+
 ## License
 
 **CC0-1.0.** As noted above, no Bible text is stored anywhere in this dataset — only integer token

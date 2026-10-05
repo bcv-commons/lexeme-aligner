@@ -27,6 +27,15 @@ Everything else — the README that defines the formats, `manifest.json`, `_inde
 authoritative list of editions and books is its `manifest.json`. The layer was split out because the single repo had passed Hugging Face's
 recommended 100,000 files.
 
+## Verse mapping
+
+Hebrew and English Bibles number some Old Testament verses differently (Psalm superscriptions, 1 Chronicles 6,
+Joel, Malachi, Daniel 4 and 6, ...). Source and target verses are paired with the verse-mapping tables of **TVTMS**
+(Translators Versification Traditions with Methodology for Standardisation), part of STEPBible Data by Tyndale
+House, Cambridge — **CC BY 4.0**, https://github.com/STEPBible/STEPBible-Data — with each edition's numbering
+detected from its own text (cross-checked against bcv-commons/bibles). Source verse references follow the Hebrew
+(WLC) numbering of the MACULA source text.
+
 ## License
 
 CC0-1.0, like the main dataset. Each edition's own source and licence pointer is in the main repo's `manifest.json`.

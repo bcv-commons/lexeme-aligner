@@ -31,7 +31,7 @@ is a clean `base_text` row-drop, never an anonymized re-emit):
 built UBS Dictionary of Biblical Hebrew (SDBH extract, CC BY-SA 4.0) no better than chance when it says "same sense"
 (plan doc §8.11), so the trusted sense key is UBS's. `--scheme ubs` keys on **(lexeme, stem, ubs_sense)** where `ubs_sense`
 is the UBS sense id (`LEXID`, e.g. 000001001001000) bound to each token by `ubs_senses.py` (`pipeline/ubs-senses.db`).
-It is written to its OWN dataset root, `publish/senses_attested_ubs/`, with a **CC BY-SA 4.0** card and a `senses.tsv`
+It is written to its OWN dataset root, `publish/senses_attested/` (named `senses_attested_ubs/` until 2026-10-05; the legacy BHSA one is now `publish/senses_attested_bhsa/`), with a **CC BY-SA 4.0** card and a `senses.tsv`
 naming the ids — never mixed into the CC-BY `senses_attested`, following the license-partition rule. Function words
 carry UBS senses too (prepositions, conjunctions), so unlike the legacy scheme they are included. A pair is joined to a
 UBS sense by (book, chapter, verse, h_idx) and kept only if the pair's lexeme equals the lexeme stored with the binding
@@ -333,7 +333,7 @@ configs:
         path: iso=*/data.parquet
 ---
 
-# senses_attested_ubs — attested target renderings per UBS sense
+# senses-attested — attested target renderings per UBS sense
 
 For each Hebrew lexeme and each sense of the **UBS Dictionary of Biblical Hebrew**, which target-language words render
 it in practice, with counts, mined from the word alignments of `bcv-commons/lexeme-alignments`. Columns: `lexeme`
@@ -354,7 +354,17 @@ from `bcv-commons/senses-attested-bhsa` (the retired legacy set: sense numbers f
 **Known limits.** Hebrew Bible only (the UBS Greek dictionary is not used yet); the UBS Hebrew dictionary covers about
 90% of Old Testament words; ids are bound to tokens by verse-level matching (unique / anchored / nearest, see
 `lexeme_aligner/ubs_senses.py`), validated against the spine's own glosses (61% word overlap for unique bindings against
-13% for shuffled senses). Tokens in pooled verse ranges are dropped rather than guessed.
+13% for shuffled senses). Tokens in pooled verse ranges (one target verse for several source verses) are resolved to their own source verse
+and kept; a token is only counted when its lexeme equals the lexeme stored with the binding.
+
+## Verse mapping
+
+Hebrew and English Bibles number some Old Testament verses differently (Psalm superscriptions, 1 Chronicles 6,
+Joel, Malachi, Daniel 4 and 6, ...). Source and target verses are paired with the verse-mapping tables of **TVTMS**
+(Translators Versification Traditions with Methodology for Standardisation), part of STEPBible Data by Tyndale
+House, Cambridge — **CC BY 4.0**, https://github.com/STEPBible/STEPBible-Data — with each edition's numbering
+detected from its own text (cross-checked against bcv-commons/bibles). Source verse references follow the Hebrew
+(WLC) numbering of the MACULA source text.
 """
 
 
@@ -363,7 +373,7 @@ def main() -> int:
     ap.add_argument("--scheme", choices=["legacy", "ubs"], default="legacy",
                     help="sense key: 'legacy' = the BHSA-derived spine sense number (RETIRED 2026-10-03, dataset relabelled CC BY-NC-SA 4.0, needs a BHSA spine; publish/senses_attested); "
                          "'ubs' = UBS Dictionary of Biblical Hebrew sense ids (CC BY-SA dataset, "
-                         "publish/senses_attested_ubs)")
+                         "publish/senses_attested)")
     ap.add_argument("--publish-all", metavar="REPO_ID", default=None,
                     help="bulk-publish EVERY already-exported iso=*/data.parquet in one chunked batch, "
                          "instead of exporting one language")
@@ -386,7 +396,7 @@ def main() -> int:
     ap.add_argument("--format", choices=["parquet", "tsv"], default="parquet")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--root", type=Path, default=None,
-                    help="dataset root (default: publish/senses_attested, or publish/senses_attested_ubs for --scheme ubs)")
+                    help="dataset root (default: publish/senses_attested for --scheme ubs, publish/senses_attested_bhsa for legacy)")
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--exclude", type=Path, default=Path("config/senses_exclude.json"),
                     help="optional takedown/exclusion config (committed, auditable); absent → no-op. "
@@ -395,7 +405,7 @@ def main() -> int:
     ap.add_argument("--create", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-    args.root = args.root or Path("publish/senses_attested_ubs" if args.scheme == "ubs" else "publish/senses_attested")
+    args.root = args.root or Path("publish/senses_attested" if args.scheme == "ubs" else "publish/senses_attested_bhsa")
 
     if args.publish_all:
         publish_all_to_hf(args.root, args.publish_all, args.create, args.dry_run, args.chunk_size)

@@ -106,7 +106,7 @@ def decode_chain(heb, out_dir: Path, ingest: Path):
         for anchor_v, vs, ve, text, members in pooled_verse_groups("JOS", ch, heb, ranges, remap):
             ref = f"JOS {ch}:{anchor_v}"
             raw = tokenize(text)
-            content = [t for ov, t in members if ov == vs and t.strong and t.is_content]
+            content = [t for ov, t in members if ov == anchor_v and t.strong and t.is_content]
             parts = by_ref.get(ref, "").split()
             meth = side["method"].get(ref, "")
             conf = side["conf"].get(ref, "")

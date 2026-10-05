@@ -101,13 +101,13 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
   and counted in the manifest (`scattered_dropped`). Rides on eflomal's grow-diag-final-and symmetrised
   alignment. Produced by `python3 -m lexeme_aligner.export_mwe --iso <first-tag> --pool <other-tags> --method all` — **needs
   jsonl re-aligned after the `t_idx` change**. Same partitioned-Parquet + committed-manifest layout.
-- `publish/senses_attested/` (**CC-BY**, MACULA-keyed) — the attested-evidence layer shoresh ingests (bcv-query
+- `publish/senses_attested_bhsa/` (legacy, frozen; was `publish/senses_attested/` until 2026-10-05) (**CC-BY**, MACULA-keyed) — the attested-evidence layer shoresh ingests (bcv-query
   data-contract): `lexeme, stem, sense, surface, count, share, method, source_corpus, base_text` — one
   row per target rendering of a lexeme in a disambiguated (binyan, sense); `share = count / Σ count for
   that (lexeme, stem, sense)` *within a `base_text`* (target edition). `base_text` is per-row, so
   **multi-version = several editions POOLED into one `iso=<lang>` partition** (`--iso swe --pool swk`),
   each row edition-tagged; cross-edition agreement = confidence; a takedown = a clean `base_text`
-  row-drop (never an anonymized re-emit — see `publish/senses_attested/README.md`). Keyed on
+  row-drop (never an anonymized re-emit — see `publish/senses_attested_bhsa/README.md`). Keyed on
   **`(lexeme, stem, sense)`** — MACULA lexeme + MACULA binyan (read inline from the enriched
   `lexeme-spine.db`). Produced by
   `python3 -m lexeme_aligner.senses_attested --iso <iso> --method eflomal`. OT/Hebrew only. **Licensing:
@@ -153,9 +153,9 @@ scattered join artifact — the positional data needed to mine MWEs (see `publis
 - per-word interlinear. → published to **bcv-commons**; the monorepo consumes them as external resources.
 
 
-## senses_attested_ubs — the UBS-keyed sense attestation (2026-09-30)
+## senses_attested — the UBS-keyed sense attestation (2026-09-30; folder `senses_attested_ubs/` until 2026-10-05)
 
-`publish/senses_attested_ubs/` (`python3 -m lexeme_aligner.senses_attested --scheme ubs`, chain step 8b): the same evidence as
+`publish/senses_attested/` (`python3 -m lexeme_aligner.senses_attested --scheme ubs`, chain step 8b): the same evidence as
 `senses_attested`, keyed on **(lexeme, stem, ubs_sense)** where `ubs_sense` is a sense id of the UBS Dictionary of Biblical
 Hebrew (SDBH extract, CC BY-SA 4.0) bound to each token by `lexeme_aligner/ubs_senses.py` from the dictionary's own
 per-occurrence Scripture references. `senses.tsv` in the dataset root names every id (entry id, lemma, Strong's codes,

@@ -86,6 +86,10 @@ def main() -> int:
     ap.add_argument("--skip-ingest", action="store_true", help="USJ already present for every edition")
     ap.add_argument("--exclusions", type=Path, default=_EXCLUSIONS)
     ap.add_argument("--editions-config", type=Path, default=_EDITIONS_CONFIG)
+    ap.add_argument("--editions", default=None,
+                    help="comma-separated edition TAGS: run the per-edition steps (ingest, eflomal, gloss, spanext, gapfill, "
+                         "residual, compact) only for these; the pooled steps still fold in every edition's existing files. "
+                         "For a pilot or a targeted re-run. Default: all editions.")
     ap.add_argument("--no-ledger", action="store_true",
                     help="do not write this language's pipeline_decisions entry at the end (default: write it)")
     ap.add_argument("--clean-out", action="store_true",
@@ -104,6 +108,8 @@ def main() -> int:
     if args.skip_ingest:
         onboard_args += ["--skip-ingest"]
     onboard_args += ["--exclusions", args.exclusions, "--editions-config", args.editions_config]
+    if args.editions:
+        onboard_args += ["--editions", args.editions]
     if args.spine_db:
         onboard_args += ["--spine-db", args.spine_db]
     _run("onboard", *onboard_args, env=env)
@@ -122,6 +128,10 @@ def main() -> int:
     # that produces a per-edition artifact (compact-alignments) runs once per tag, and every pooled dataset
     # (lexeme-alignments, aligned_mwe, senses_attested) folds ALL tags in, tagging rows by base_text.
     primary, pool = tags[0], tags[1:]
+    only = {t.strip() for t in args.editions.split(",") if t.strip()} if args.editions else None
+    run_tags = [t for t in tags if only is None or t in only]      # per-edition steps; pooled steps keep `tags`
+    if not run_tags:
+        raise SystemExit(f"[full_chain] --editions {sorted(only)}: none of them is in the pool {tags}")
 
     # the language name onboard.py itself settled on (source-derived, priority pkf>helloao>dbt) — read
     # back from what step 3 just wrote, rather than re-deriving independently and risking drift
@@ -134,7 +144,7 @@ def main() -> int:
     # step 4: gloss (bootstraps from step 3's eflomal-only export, just written by onboard.py) —
     # --publish-iso is essential here: the bootstrap priors + #3 stopword filter must read/cache
     # against the BARE iso's published data (iso=<args.iso>/), not this tag's own jsonl key
-    for tag in tags:
+    for tag in run_tags:
         _run("run_pilot", "--method", "gloss", scope_flag, "--usj-dir", usj_dirs[tag], "--iso", tag,
              "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
@@ -143,7 +153,7 @@ def main() -> int:
     # pairs, writes a SEPARATE align_spanext_<tag>_*.jsonl containing only the widened ones; never
     # touches the eflomal/gloss files themselves. Best-effort: no-ops cleanly (prints, exits 0) for a
     # language with no Grambank coverage or no phase-1-flagged anomaly, which is most languages.
-    for tag in tags:
+    for tag in run_tags:
         _run("span_extension", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              scope_flag, "--methods", "eflomal,gloss", env=env, soft=True)
 
@@ -153,7 +163,7 @@ def main() -> int:
     # additive-only (a widened h_idx already in eflomal/gloss's own taken pool, never a new one), so
     # including it here just makes covered_h/taken_t correctly reflect the widened positions — safe by
     # construction (gapfill.load_covered unions t_idx across methods, never a first-wins overwrite).
-    for tag in tags:
+    for tag in run_tags:
         _run("gapfill", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
              "--methods", "eflomal,gloss,spanext", env=env, soft=True)
 
@@ -162,7 +172,7 @@ def main() -> int:
     # It feeds compact-alignments' OPT-IN `.extra.json` layer only (step 9 emits it); no aggregated
     # dataset includes it, and the main compact array is unchanged by its presence.
     # Runs after gapfill because it stratifies against gap-fill's own fills (combine_with_gapfill).
-    for tag in tags:
+    for tag in run_tags:
         _run("residual_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              scope_flag, "--methods", "eflomal,gloss,spanext", env=env, soft=True)
 
@@ -180,7 +190,7 @@ def main() -> int:
          *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
 
     # step 8: senses_attested keyed on the UBS Dictionary of Biblical Hebrew's sense ids (OT-only; a no-op with a clear message off-OT or when
-    # pipeline/ubs-senses.db has not been built). Separate CC BY-SA dataset root (publish/senses_attested_ubs).
+    # pipeline/ubs-senses.db has not been built). Separate CC BY-SA dataset root (publish/senses_attested; folder renamed from senses_attested_ubs 2026-10-05).
     # The LEGACY scheme (sense numbers from the BHSA-derived spine columns; CC BY-NC-SA, "superseded" on Hugging Face) is no longer produced by the
     # chain (2026-10-04, MACULA-only migration): in macula mode those numbers do not exist, and the dataset receives no further updates. It can still
     # be built explicitly with `senses_attested --scheme legacy` on a BHSA spine.
@@ -198,7 +208,7 @@ def main() -> int:
     # docstring). --layer-methods stays residual-only: tried adding spanext to the opt-in .extra.json
     # layer too and it's a dead end there — build_layer drops any entry the base array already covers,
     # which is every spanext entry by construction, so it can only ever land in the main array.
-    for tag in tags:
+    for tag in run_tags:
         _run("compact_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              "--methods", _METHODS, env=env, soft=True)
 

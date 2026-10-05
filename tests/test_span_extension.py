@@ -1097,3 +1097,14 @@ def test_shipped_config_never_gates_off_an_edition_that_has_opt_in_triggers():
             continue
         eff = dict(doc.get(lang_of(key), {})); eff.update(entry)
         assert not any(eff.get(f) is True for f in opt_in), key
+
+
+def test_a_skipped_rerun_removes_the_stale_layer_of_the_books_it_covers(tmp_path, monkeypatch):
+    """2026-10-05: stale spanext files used to survive any skip except `gated_off` (16 editions, e.g. hinirv)."""
+    for book in ("GEN", "EXO"):
+        (tmp_path / f"align_spanext_zz_{book}.jsonl").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(se, "extend_spans", lambda *a, **k: ({}, {"skipped": "no flagged (pos, direction) combination"}))
+    assert se.main(["--iso", "zz", "--publish-iso", "zz", "--usj-dir", str(tmp_path), "--out", str(tmp_path),
+                    "--book", "GEN"]) == 0
+    assert not (tmp_path / "align_spanext_zz_GEN.jsonl").exists()
+    assert (tmp_path / "align_spanext_zz_EXO.jsonl").exists()          # a book outside this run is left alone

@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 SAFE = Path(__file__).resolve().parent / "publish_safe.py"
-DEFAULT_DATASETS = ["lexeme-alignments", "senses_attested_ubs", "compact-alignments"]
+DEFAULT_DATASETS = ["lexeme-alignments", "senses_attested", "compact-alignments"]
 
 
 def build_command(iso: str, push: bool, skip: list[str], include_mwe: bool) -> list[str]:

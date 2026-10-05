@@ -143,8 +143,32 @@ def _book_file(usj_dir: Path, book: str) -> Path:
     return usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
 
 
+def _source_verse(sid: str) -> tuple[int, int, int] | None:
+    """(book_no, ch, v) of a REAL Clear OT source id ('o' + BB CCC VVV WWW P, 13 chars — WLC numbering, i.e. the
+    spine's own). Every other id (Clear NT, SWORD/HELFI/Door43 synthetic ids built from the TARGET verse) → None."""
+    if len(sid) == 13 and sid[0] == "o" and sid[1:].isdigit():
+        return int(sid[1:3]), int(sid[3:6]), int(sid[6:9])
+    return None
+
+
+def spine_ref_of_target(books: list[str], remap) -> dict[int, int]:
+    """{target ref: spine ref} — the inverse of `remap` over every spine verse of `books` (first spine verse wins
+    when several map to one target verse). The gold's own `ref` is the TARGET verse (the edition's numbering)."""
+    from lexeme_aligner.hebrew_source import HebrewSource
+    from lexeme_aligner.refs import encode
+    heb = HebrewSource()
+    inv: dict[int, int] = {}
+    for b in books:
+        for ch in heb.chapters(b):
+            for v in heb.verses(b, ch):
+                _, tc, tv = remap(b, ch, v) if remap else (b, ch, v)
+                if tv:                                          # verse 0 = a superscription the target leaves unnumbered
+                    inv.setdefault(encode(b, tc, tv), encode(b, ch, v))
+    return inv
+
+
 def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, res_dir: Path = RESOURCES,
-              gold_methods: tuple[str, ...] = ("manual",)
+              gold_methods: tuple[str, ...] = ("manual",), remap=None
               ) -> tuple[dict[int, GoldVerse], collections.Counter]:
     """{ref: GoldVerse} for the `gold_methods` links of `base_text`, mapped onto our token positions; plus
     stats (verses seen / mapped / refused, links kept / dropped). Default is `manual` only — Clear's
@@ -159,19 +183,43 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
     cols = ["ref", "strong", "target_id", "source_id", "method", "base_text"]
     rows = pq.read_table(fp, columns=cols).to_pylist()
     wanted = {BOOK_NUMBERS[b] for b in books}
-    by_ref: dict[int, list[dict]] = collections.defaultdict(list)
+    code_of = {n: b for b, n in BOOK_NUMBERS.items()}
+    stats: collections.Counter = collections.Counter()
+    # 2026-10-05: the gold's `ref` is the TARGET verse (the edition's numbering) while our output is keyed by SPINE
+    # verse (Hebrew numbering in the OT). Keying gold by `ref` compared e.g. English PSA 3:2 gold against spine
+    # PSA 3:2 (= English 3:1) and so rewarded the old, wrong verse pairing. Now: spine verse from a real Clear OT
+    # source id, else from the inverse of the edition's verse remap; target text always from the gold's `ref`.
+    inv = spine_ref_of_target(books, remap) if remap else None
+    by_ref: dict[int, list[dict]] = collections.defaultdict(list)     # spine ref -> rows (one target verse)
+    target_of: dict[int, int] = {}                                     # spine ref -> target ref
     for r in rows:
         if r["method"] not in gold_methods or (base_text and r["base_text"] != base_text):
             continue
-        ref = int(r["ref"])
-        if ref // 1_000_000 in wanted:
-            by_ref[ref].append(r)
+        tref = int(r["ref"])
+        if tref // 1_000_000 not in wanted:
+            continue
+        sv = _source_verse(r["source_id"])
+        if sv:
+            sref = sv[0] * 1_000_000 + sv[1] * 1000 + sv[2]
+            _, tc, tv = remap(code_of[sv[0]], sv[1], sv[2]) if remap else (None, sv[1], sv[2])
+            if sv[0] * 1_000_000 + tc * 1000 + tv != tref:
+                stats["links_other_verse"] += 1                        # e.g. a superscription word inside English v1
+                continue
+        elif inv is not None:
+            if tref not in inv:
+                stats["links_unpaired_verse"] += 1
+                continue
+            sref = inv[tref]
+        else:
+            sref = tref
+        by_ref[sref].append(r)
+        target_of[sref] = tref
     texts = {b: read_verses(_book_file(usj_dir, b)) for b in books if _book_file(usj_dir, b).exists()}
-    stats: collections.Counter = collections.Counter()
     gold: dict[int, GoldVerse] = {}
     for ref, links in by_ref.items():
-        book = next(b for b, n in BOOK_NUMBERS.items() if n == ref // 1_000_000)
-        text = texts.get(book, {}).get((ref // 1000 % 1000, ref % 1000))
+        tref = target_of[ref]
+        book = code_of[tref // 1_000_000]
+        text = texts.get(book, {}).get((tref // 1000 % 1000, tref % 1000))
         stats["verses"] += 1
         if not text:
             stats["verses_no_text"] += 1
@@ -488,7 +536,9 @@ def main(argv=None) -> int:
         raise SystemExit(f"[pos_score] --usj-dir is not the gold edition for {a.publish_iso} "
                          f"(method {gold_methods[0]}: {want})")
     books = _books(a)
-    gold, stats = load_gold(a.publish_iso, a.usj_dir, books, base_text, gold_methods=gold_methods)
+    from lexeme_aligner.versification import remapper
+    gold, stats = load_gold(a.publish_iso, a.usj_dir, books, base_text, gold_methods=gold_methods,
+                            remap=remapper(a.iso, str(a.usj_dir)))
     print(f"[pos_score] gold {a.publish_iso}/{base_text} (method={','.join(gold_methods)}): "
           f"{stats['verses_mapped']}/{stats['verses']} verses mapped "
           f"({stats['verses_refused']} refused: tokenization mismatch; {stats['verses_no_text']} no text) · "

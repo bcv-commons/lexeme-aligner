@@ -443,3 +443,12 @@ pipeline/vendor/versification/schemes/{hebrew,rso}.tsv — VERIFIED AGAINST bcv-
     (NUM 25:19->26:1, 1SA 21:1->20:42, 1KI 22:44->22:43, 1CH 12:5->12:4). Its 2 one-to-many relations are not consumed (PSA 13:6 keeps its 13:5 row).
   rso.tsv = cdn.bibel.wiki/_vrs/map/rso-to-eng.json (sha256 3ce56bbe853bd5e429d6b2cb718da1dfe8d33eea381afe80c196c2ac215d3949, 4,132 rows, identical; Psalm 9 corrected at the source).
   orgw-to-eng.json is NOT used (orgw editions are Hebrew-numbered -> identity remap); bibles reports it still lacks Daniel.
+
+pipeline/vendor/versification/{schemes/rso.tsv, schemes/rso.multiverse.json, vrs/rso.vrs} — bcv-commons/bibles' REBUILT rso, adopted 2026-10-06
+  Fetched from https://cdn.bibel.wiki/_vrs/ and verified (byte-identical to the candidate audited the same day):
+    map/rso-to-eng.json            3,004 rows  sha256 cf324586456ab280dbc421a08a368f19ddd4fe295f87562ec88d3375f64c4637  -> converted to schemes/rso.tsv (TVTMS 902681f7)
+    map/rso-to-eng.multiverse.json 4 relations sha256 c712b0efcee7a04190a11c02272b8f6dabac3b9843a28238e0fa9757ecb62602  -> schemes/rso.multiverse.json (PSA 12:6, LEV 14:55, 1SA 20:42-43, ISA 3:19)
+    rso.vrs                                    sha256 56e9042dabaf53017bac48f8e82ff4cfffca91e5f9aba4d0d9caab937a33c761  -> vrs/rso.vrs
+  CC BY 4.0, STEPBible.org (TVTMS). Reference text: helloAO rus_syn. Replaces the 2026-09-26 table (and our local Psalm 9 patch). Daniel = canonical 66-book layout (Dan 3/4 Hebrew numbering, 5-6 English);
+  Esther, Proverbs 4:28-29, Proverbs 13:14, Joshua 24:34-36, Psalm 151, Joel 3:1-5: no rows. Audit on rus_syn: 0 spine verses without text, 8 unreached (all expected additions / known one-to-two).
+  Effect on classification: rus_syn now matches rso.vrs exactly (0.9968 -> 1.0000); ukr_npu moves lxx -> rso (1.0000); no other edition changes. 15 editions are now rso.

@@ -184,7 +184,9 @@ def test_rso_gives_a_genuinely_different_remap_than_the_old_lxx_fallback_for_som
     new = vf.load_reverse("rso")
     shared = set(old) & set(new)
     disagreements = [k for k in shared if old[k] != new[k]]
-    assert len(disagreements) > 50                       # real finding: 53 disagreements (82 before the PSA 9 fix), not ~0
+    # 2026-10-06: bcv-commons/bibles' rebuilt rso table (Synodal = English layout in Jeremiah/Exodus/1 Kings/1 Chronicles) no longer
+    # carries the LXX-style rows there, so the two tables now differ in 9 verses (all Job 41; was 53, 82 before the PSA 9 fix).
+    assert len(disagreements) >= 5 and all(k[0] == "JOB" for k in disagreements)
 
 
 def test_remapper_for_scheme_rso_uses_the_new_dedicated_table():

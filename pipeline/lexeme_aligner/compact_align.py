@@ -221,8 +221,11 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in "
           "the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS "
           "edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned "
-          "raw target words, case-folded, joined by one space. Ids are comparable only within one edition and one lexeme (e.g. "
-          "to split a lexeme's occurrences by how this translation renders them) and carry no text.",
+          "raw target words, case-folded, with the language's target-stopwords removed (exact match against the published "
+          "target-stopwords list; if every word is a stopword the original rendering is kept), joined by one space. The edition's "
+          "manifest entry records `rend_stopwords` = sha256 of the list used (null = none, nothing dropped). Ids are comparable only "
+          "within one edition and one lexeme (e.g. to split a lexeme's occurrences by how this translation renders them) and "
+          "carry no text.",
           "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each "
           "edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), "
           "and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity "
@@ -231,10 +234,30 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "authority: TVTMS (STEPBible Data, CC BY 4.0)."]
 
 
-def rend_id(rend_ids: dict[str, dict[str, int]], lexeme: str, raw_toks: list[str], positions: list[int]) -> int:
-    """The `rend` id of one aligned entry: n-th distinct rendering (case-folded raw target words, one space) of `lexeme`
-    in this edition, numbered by first appearance — `rend_ids` is the edition-wide state, passed in canonical order."""
-    surface = " ".join(raw_toks[m] for m in positions if m < len(raw_toks)).casefold()
+_STOPWORD_DIR = Path("publish/target-stopwords")
+
+
+def load_rend_stopwords(iso: str, root: Path | None = None) -> tuple[frozenset[str], str | None]:
+    """(case-folded stopwords, sha256 of the list file) of the language's PUBLISHED target-stopwords list, or
+    (frozenset(), None) when the language has none (nothing is dropped then)."""
+    fp = (root or _STOPWORD_DIR) / f"{iso}.txt"
+    if not fp.exists():
+        return frozenset(), None
+    data = fp.read_bytes()
+    words = frozenset(w.strip().casefold() for w in data.decode("utf-8").splitlines() if w.strip())
+    return words, hashlib.sha256(data).hexdigest()
+
+
+def rend_id(rend_ids: dict[str, dict[str, int]], lexeme: str, raw_toks: list[str], positions: list[int],
+            stopwords: frozenset[str] = frozenset()) -> int:
+    """The `rend` id of one aligned entry: n-th distinct rendering of `lexeme` in this edition, numbered by first
+    appearance — `rend_ids` is the edition-wide state, passed in canonical order. A rendering = the aligned raw target
+    words, case-folded, with the language's target-stopwords removed (exact match; if EVERY word is a stopword the
+    original rendering is kept), joined by one space — bcv-query's measured recommendation (2026-10-06): it keeps
+    "the spirit", "spirit" and "his spirit" together, where plain numbering gave them three ids."""
+    words = [raw_toks[m].casefold() for m in positions if m < len(raw_toks)]
+    kept = [w for w in words if w not in stopwords] or words
+    surface = " ".join(kept)
     ids = rend_ids.setdefault(lexeme, {})
     return ids.setdefault(surface, len(ids) + 1)
 
@@ -314,6 +337,20 @@ def build_source_lexemes(heb: HebrewSource, book: str) -> dict[str, list[str]]:
             toks = heb.verse_tokens(book, ch, v)
             out[f"{book} {ch}:{v}"] = [t.lexeme.split(":", 1)[-1] for t in toks
                                        if t.strong and t.is_content]
+    return out
+
+
+def build_source_function_words(heb: HebrewSource, book: str) -> dict[str, list[str]]:
+    """{"BOOK C:V": [lexeme, ...]} — the tokens of each RAW spine verse that have NO `srcOrd` slot (everything
+    `build_source_lexemes` leaves out: articles, prepositions, conjunctions, suffix pronouns, particles), in source order.
+    The position in this list is the token's `fnOrd`, used by the full-align `fn` channel the same way `srcOrd` indexes
+    `_lexemes.json`. Same `lang:`-less lexeme form; a token the spine gives no lexeme is an empty string."""
+    out: dict[str, list[str]] = {}
+    for ch in heb.chapters(book):
+        for v in heb.verses(book, ch):
+            toks = heb.verse_tokens(book, ch, v)
+            out[f"{book} {ch}:{v}"] = [(t.lexeme or "").split(":", 1)[-1] for t in toks
+                                       if not (t.strong and t.is_content)]
     return out
 
 
@@ -468,9 +505,11 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     side: dict[str, dict[str, str]] = {name: {} for name in SIDECAR_CHANNELS}
     # `rend` (2026-10-05, for bcv-query's hebrew-word-senses): per aligned entry, the n-th DISTINCT rendering of its
     # lexeme in this edition, numbered by first appearance in canonical order (books in order, verses in order,
-    # entries in compact-string order). A rendering = the aligned RAW target words, case-folded, joined by one space.
+    # entries in compact-string order). A rendering = the aligned RAW target words, case-folded, minus the language's
+    # target-stopwords (see rend_id), joined by one space.
     # Ids are only comparable within one edition and one lexeme; they carry no text.
     rend_ids: dict[str, dict[str, int]] = {}
+    rend_stop, _ = load_rend_stopwords(cross_edition_iso or iso)
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         strip_rules = _rules_for(usj_path)
@@ -512,7 +551,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                         gap_ordinals.append((ordinal, tok))
                         continue
                     parts.append(f"{ordinal}:{_encode_span(mapped)}")
-                    rend.append(str(rend_id(rend_ids, tok.lexeme or tok.strong, raw_toks, mapped)))
+                    rend.append(str(rend_id(rend_ids, tok.lexeme or tok.strong, raw_toks, mapped, rend_stop)))
                     # The two DENSE channels are one character per aligned token, in the same order as
                     # `parts` — the shape confidence_sidecar() was designed around. Appended in the same
                     # loop as `parts` so they cannot drift out of step with it.
@@ -797,7 +836,8 @@ def main() -> int:
         scheme = edition_scheme(args.iso, str(usj_dir))
         write_verse_map(heb, scheme, args.index_root)
         manifest_entry = {"tag": args.iso, "books": sorted(written),
-                          "source": sources.get(args.iso, {}), "versification": scheme}
+                          "source": sources.get(args.iso, {}), "versification": scheme,
+                          "rend_stopwords": load_rend_stopwords(publish_iso)[1]}
         update_manifest(args.publish / "manifest.json", publish_iso, resolved_edition, manifest_entry)
         print(f"[compact_align] {publish_iso}/{resolved_edition}: {len(written)} book file(s) written "
               f"under {args.publish}, manifest updated", file=sys.stderr)

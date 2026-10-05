@@ -708,6 +708,13 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
     none_rows: list[dict] = []
     nh = [i for i, k in enumerate(KEYS) if k not in HTML_KEYS]
     hi = [i for i, k in enumerate(KEYS) if k in HTML_KEYS]
+    # 2026-10-06: the table's verse numbers are ENGLISH; our spine verses are Hebrew-numbered in the OT. Rows are looked up
+    # through the inverse of the edition's verse remap (English verse -> the spine verse whose pooled group holds its
+    # text) and written under the SPINE ref, like every other full-align layer. An English verse with no spine verse
+    # keeps its English ref (the codec files those rows under `offindex`).
+    from lexeme_aligner.eval.pos_score import spine_ref_of_target
+    from lexeme_aligner.versification import remapper
+    remap = remapper(EDITION, str(usj_dir))
     for book in books:
         brows = by_book.get(book)
         if not brows:
@@ -720,8 +727,11 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
         for r in brows:
             by_verse[encode(book, r["chapter"], r["verse"])].append(r)
         records, sidecar = [], []
+        inv = spine_ref_of_target([book], remap)
         for ref, vrows in sorted(by_verse.items()):
-            rec = spine.get(ref)
+            sref = inv.get(ref)
+            rec = spine.get(sref) if sref is not None else None
+            out_ref = sref if rec is not None else ref
             bt["verses"] += 1
             if rec is None:
                 bt["verses_no_spine"] += 1
@@ -749,7 +759,7 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
                     if t_idx:
                         bt["target_rows_positioned"] += 1
                 records.append({
-                    "ref": ref, "book": book, "chapter": r["chapter"], "verse": r["verse"],
+                    "ref": out_ref, "book": book, "chapter": out_ref // 1000 % 1000, "verse": out_ref % 1000,
                     "h_idx": s["h_idx"] or None, "h_idx_key": s["h_idx_key"],
                     "lexeme": key_tok.lexeme if key_tok else None,
                     "strong": r["strong"], "t_idx": t_idx, "target": r["text"],
@@ -762,7 +772,7 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
                 })
                 if key_tok is not None:
                     for idx in s["h_idx"]:
-                        sidecar.append({"ref": ref, "h_idx": idx, "keyed": idx == s["h_idx_key"],
+                        sidecar.append({"ref": out_ref, "h_idx": idx, "keyed": idx == s["h_idx_key"],
                                         "bsb_sort": r["bsb_sort"], "base": r["base"],
                                         "base_variants": r["base_variants"], "translit": r["translit"],
                                         "parsing": r["parsing"], "strong": r["strong"],

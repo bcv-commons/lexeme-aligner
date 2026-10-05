@@ -62,6 +62,7 @@ class _Heb:
 def world(tmp_path, monkeypatch):
     books = {"AAA": {"AAA 1:1": ["l1", "l2"], "AAA 1:2": ["l3"]}}
     monkeypatch.setattr(si, "_lexemes", lambda heb, book: books[book])
+    monkeypatch.setattr(si, "_function_words", lambda heb, book: {"AAA 1:1": ["f1", "f2", "f3"], "AAA 1:2": []})
     monkeypatch.setattr(si, "spine_sha", lambda *a, **k: "spine-v1")
     monkeypatch.setattr("lexeme_aligner.compact_align.ALL_BOOKS", ["AAA"])
     return books, tmp_path
@@ -139,6 +140,7 @@ def _publish(tmp_path, monkeypatch, lexemes, spine="spine-v1"):
     monkeypatch.setattr(ca, "build_compact", lambda *a, **k: ({"RUT 1:1": "0:1"}, {}))
     monkeypatch.setattr(ca, "build_layer", lambda *a, **k: {})
     monkeypatch.setattr(ca, "build_source_lexemes", lambda heb, book: lexemes)
+    monkeypatch.setattr(ca, "build_source_function_words", lambda heb, book: {})
     monkeypatch.setattr(ca, "book_content_hash", lambda p: "0" * 10 + "abcde")
     monkeypatch.setattr(si, "spine_sha", lambda *a, **k: spine)
     usj = tmp_path / "usj"
@@ -160,3 +162,31 @@ def test_publish_compact_raises_when_the_spine_gained_a_token_since_the_index_wa
     _publish(tmp_path, monkeypatch, {"RUT 1:1": ["a", "b"]})
     with pytest.raises(si.IndexMismatch, match="RUT"):                              # a rebuilt spine, one more token
         _publish(tmp_path, monkeypatch, {"RUT 1:1": ["a", "NEW", "b"]}, spine="spine-v2")
+
+
+# --- the function-word index (full-align `fn` channel), 2026-10-06 -------------------------------------------
+def test_refresh_writes_the_function_word_index_and_stamps_its_hash(world):
+    books, root = world
+    res = si.refresh(_Heb(), root, ["AAA"])
+    assert res["rewritten_fn"] == ["AAA"]
+    assert json.loads((root / "AAA_fn.json").read_text(encoding="utf-8")) == {"AAA 1:1": ["f1", "f2", "f3"], "AAA 1:2": []}
+    st = json.loads((root / "_source.json").read_text(encoding="utf-8"))["books"]["AAA"]
+    assert st["fn_tokens"] == 3 and len(st["fn_sha256"]) == 64
+    assert si.refresh(_Heb(), root, ["AAA"])["rewritten_fn"] == []              # idempotent
+
+
+def test_check_flags_a_function_word_index_that_differs_from_the_spine(world):
+    books, root = world
+    si.refresh(_Heb(), root, ["AAA"])
+    (root / "AAA_fn.json").write_text(json.dumps({"AAA 1:1": ["f1"], "AAA 1:2": []}) + "\n", encoding="utf-8")
+    res = si.check_index(_Heb(), root, ["AAA"])
+    assert not res["ok"] and any("AAA_fn.json" in e for e in res["errors"])
+
+
+def test_a_missing_function_word_index_is_a_warning_unless_strict(world):
+    books, root = world
+    si.refresh(_Heb(), root, ["AAA"])
+    (root / "AAA_fn.json").unlink()
+    assert si.check_index(_Heb(), root, ["AAA"])["ok"]
+    res = si.check_index(_Heb(), root, ["AAA"], strict=True)
+    assert not res["ok"] and any("AAA_fn.json" in e for e in res["errors"])

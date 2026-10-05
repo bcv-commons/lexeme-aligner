@@ -84,6 +84,11 @@ def _lexemes(heb, book: str) -> dict[str, list[str]]:
     return build_source_lexemes(heb, book)
 
 
+def _function_words(heb, book: str) -> dict[str, list[str]]:
+    from lexeme_aligner.compact_align import build_source_function_words
+    return build_source_function_words(heb, book)
+
+
 def shift_entry(entry: str, insert_pos: int) -> str:
     """Renumber one verse entry after ONE lexeme was inserted at content position `insert_pos`: every
     whitespace-separated item begins with its srcOrd ('5:9-10', '10:G:23', '10:name_after:48',
@@ -145,6 +150,17 @@ def check_index(heb, index_root: Path = INDEX_ROOT, books: list[str] | None = No
         (errors if strict else warnings).append(
             f"index stamped from spine {str(stamp.get('spine_sha256'))[:12]}…, current spine is {cur_sha[:12]}…")
     for book in books:
+        fnp = index_root / f"{book}_fn.json"                 # the function-word index (full-align `fn` channel)
+        if fnp.exists():
+            fn_raw = fnp.read_bytes()
+            fn_cmp = compare_book(_function_words(heb, book), json.loads(fn_raw.decode("utf-8")))
+            if not fn_cmp["keys_equal"] or fn_cmp["differing"]:
+                errors.append(f"{book}: {fnp.name} differs from the spine's function words")
+            want_fn = ((stamp or {}).get("books") or {}).get(book, {}).get("fn_sha256")
+            if want_fn is not None and want_fn != _digest(fn_raw):
+                errors.append(f"{book}: {fnp.name} no longer matches its stamped sha256 (edited after stamping)")
+        else:
+            (errors if strict else warnings).append(f"{book}: {fnp.name} is missing (needed for full-align)")
         fp = index_root / f"{book}_lexemes.json"
         if not fp.exists():
             errors.append(f"{book}: {fp.name} is missing")
@@ -179,6 +195,11 @@ def write_stamp(index_root: Path, spine_db: Path = SPINE_DB, books: list[str] | 
         doc = json.loads(raw.decode("utf-8"))
         per_book[book] = {"verses": len(doc), "content_tokens": sum(len(v) for v in doc.values()),
                           "sha256": _digest(raw)}
+        fnp = index_root / f"{book}_fn.json"
+        if fnp.exists():
+            fn_raw = fnp.read_bytes()
+            fn_doc = json.loads(fn_raw.decode("utf-8"))
+            per_book[book].update(fn_tokens=sum(len(v) for v in fn_doc.values()), fn_sha256=_digest(fn_raw))
     stamp = {"stamp_version": STAMP_VERSION, "spine_sha256": spine_sha(spine_db),
              "note": "srcOrd in every compact-alignments file indexes these per-verse lexeme lists; "
                      "`python3 -m lexeme_aligner.source_index --check` verifies them against the spine.",
@@ -193,7 +214,7 @@ def refresh(heb, index_root: Path = INDEX_ROOT, books: list[str] | None = None,
     """Rewrite the `_lexemes.json` of every requested (default: every) book whose content differs from the
     spine's or that is missing, then re-stamp. Returns {'rewritten': [books], 'stamp': stamp}."""
     from lexeme_aligner.compact_align import ALL_BOOKS
-    rewritten = []
+    rewritten, rewritten_fn = [], []
     for book in books or list(ALL_BOOKS):
         fp = index_root / f"{book}_lexemes.json"
         cur = _lexemes(heb, book)
@@ -201,7 +222,12 @@ def refresh(heb, index_root: Path = INDEX_ROOT, books: list[str] | None = None,
         if not fp.exists() or fp.read_bytes() != data:
             _atomic_write(fp, data)
             rewritten.append(book)
-    return {"rewritten": rewritten, "stamp": write_stamp(index_root, spine_db)}
+        fnp = index_root / f"{book}_fn.json"
+        fn_data = file_bytes(_function_words(heb, book))
+        if not fnp.exists() or fnp.read_bytes() != fn_data:
+            _atomic_write(fnp, fn_data)
+            rewritten_fn.append(book)
+    return {"rewritten": rewritten, "rewritten_fn": rewritten_fn, "stamp": write_stamp(index_root, spine_db)}
 
 
 def ensure_current(heb, book: str, index_root: Path, spine_db: Path = SPINE_DB) -> None:

@@ -241,3 +241,35 @@ def test_spine_numbering_check_refuses_another_declared_scheme(tmp_path):
 
 def test_the_active_spine_declares_org():
     assert vf.check_spine_numbering() in ("org", None)
+
+
+def test_two_line_psalm_titles_pair_in_order_in_the_synodal_scheme():
+    # 2026-10-06: Synodal 50:1-2 / 51:1-2 / 53:1-2 / 59:1-2 are two title lines (verified against the Russian text);
+    # both Hebrew title lines used to land on the LAST Synodal one (collision), leaving the first unpaired.
+    f = vf.remapper_for_scheme("rso")
+    for heb, syn in ((51, 50), (52, 51), (54, 53), (60, 59)):
+        assert f("PSA", heb, 1) == ("PSA", syn, 1)
+        assert f("PSA", heb, 2) == ("PSA", syn, 2)
+        assert f("PSA", heb, 3) == ("PSA", syn, 3)        # Synodal n:3 = English (n+1):1
+
+
+def test_one_line_psalm_titles_are_unchanged_in_the_synodal_scheme():
+    f = vf.remapper_for_scheme("rso")
+    assert f("PSA", 53, 1) == ("PSA", 52, 1) and f("PSA", 53, 2) == ("PSA", 52, 2)     # Synodal 52: ONE title line
+    assert f("PSA", 3, 1) == ("PSA", 3, 1)
+
+
+def test_english_titles_still_map_to_verse_zero_even_with_two_title_lines():
+    f = vf.remapper_for_scheme("protestant")
+    assert f("PSA", 51, 1) == ("PSA", 51, 0) and f("PSA", 51, 2) == ("PSA", 51, 0)
+
+
+def test_verse_map_records_the_ordered_title_pairing_for_rso():
+    vm = vf.verse_map("rso", [("PSA", 51, 1), ("PSA", 51, 2), ("PSA", 51, 3)])
+    assert vm == {"PSA 51:1": "PSA 50:1", "PSA 51:2": "PSA 50:2", "PSA 51:3": "PSA 50:3"}
+
+
+def test_load_reverse_all_keeps_every_scheme_verse_and_load_reverse_keeps_the_last():
+    ra = vf.load_reverse_all("rso")
+    assert ra[("PSA", 51, 0)] == [("PSA", 50, 1), ("PSA", 50, 2)]
+    assert vf.load_reverse("rso")[("PSA", 51, 0)] == ("PSA", 50, 2)

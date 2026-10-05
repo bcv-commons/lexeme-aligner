@@ -197,8 +197,10 @@ def scheme_of(iso: str, usj_dir: str | None = None) -> str:
     return cfg.get(iso, "protestant")
 
 
-def load_reverse(scheme: str) -> dict:
-    """{(book,ch,v)_KJV: (book,ch,v)_scheme} — from_standard. Empty (identity) for protestant/kjv/unknown."""
+def load_reverse_all(scheme: str) -> dict:
+    """{(book,ch,v)_KJV: [(book,ch,v)_scheme, ...]} — every scheme verse that maps to a KJV verse, in table order.
+    More than one only where the scheme splits what the standard keeps together (e.g. a two-line Psalm superscription
+    that is verses 1-2 in the scheme and the single unnumbered 'title' in the standard)."""
     if scheme in _IDENTITY:
         return {}
     fname = _SCHEME_FILE.get(scheme)
@@ -207,7 +209,7 @@ def load_reverse(scheme: str) -> dict:
     fp = _REG_DIR / f"{fname}.tsv"
     if not fp.exists():
         return {}
-    rev: dict[tuple, tuple] = {}
+    rev: dict[tuple, list] = {}
     with fp.open(encoding="utf-8") as fh:
         for line in fh:
             if line.startswith("#") or line.startswith("source_ref"):
@@ -217,8 +219,14 @@ def load_reverse(scheme: str) -> dict:
                 continue
             src, std = _parse(parts[0]), _parse(parts[1])
             if src and std:
-                rev[std] = src                                # from_standard[KJV ref] = scheme's ref
+                rev.setdefault(std, []).append(src)
     return rev
+
+
+def load_reverse(scheme: str) -> dict:
+    """{(book,ch,v)_KJV: (book,ch,v)_scheme} — from_standard (the LAST scheme verse wins where several map to one KJV
+    verse; `load_reverse_all` keeps them all). Empty (identity) for protestant/kjv/unknown."""
+    return {std: srcs[-1] for std, srcs in load_reverse_all(scheme).items()}
 
 
 # The SPINE's own numbering. The MACULA spine's OT is the WLC, i.e. HEBREW numbering (1CH 5 has 41 verses, JOL 4
@@ -286,11 +294,25 @@ def remapper_for_scheme(scheme: str):
     if _SCHEME_FILE.get(scheme) == _SPINE_OT_TABLE:
         return None
     to_std = load_forward(_SPINE_OT_TABLE)
-    rev = load_reverse(scheme)
+    rev_all = load_reverse_all(scheme)
+    # Superscription lines (std verse 0): when the scheme numbers MORE title lines than one (Synodal 50:1-2 for English
+    # 51 'title'), pair the spine's title lines with the scheme's in order instead of letting the last one win
+    # (spine PSA 51:1 AND 51:2 both landed on Synodal 50:2, leaving 50:1 unpaired).
+    title_rank: dict[tuple, int] = {}
+    seen: dict[tuple, int] = {}
+    for src_ref in sorted(k for k, std in to_std.items() if std[2] == 0):
+        title_rank[src_ref] = seen.get(to_std[src_ref], 0)
+        seen[to_std[src_ref]] = title_rank[src_ref] + 1
 
     def f(book: str, ch: int, v: int):
-        std = to_std.get((book, ch, v), (book, ch, v))
-        return rev.get(std, std)
+        key = (book, ch, v)
+        std = to_std.get(key, key)
+        srcs = rev_all.get(std)
+        if not srcs:
+            return std
+        if std[2] == 0 and len(srcs) > 1:
+            return srcs[min(title_rank.get(key, 0), len(srcs) - 1)]
+        return srcs[-1]
     return f
 
 

@@ -163,12 +163,21 @@ class Corpus:
         self.toks: dict[int, list[str]] = {}
         self.by_key: dict[int, dict[tuple[str, int], object]] = {}
         self.counts: dict[int, collections.Counter] = {}
+        self.by_id: dict[int, dict[str, object]] = {}       # ref -> spine row key -> token (OT; Clear's ids are 'o' + key)
+        self.anchor_of: dict[int, int] = {}                 # spine verse folded into another verse's pooled group -> that group's ref
         recs = build_corpus(books, usj_dir, HebrewSource(), remap=remapper(iso, str(usj_dir)))
         for r in recs:
             ref = encode(r.book, r.ch, r.v)
             self.toks[ref] = list(r.toks)
             seen: collections.Counter = collections.Counter()
             self.by_key[ref] = {}
+            self.by_id[ref] = {}
+            for t in r.heb:
+                for key in t.keys:
+                    self.by_id[ref][key] = t
+                    kref = encode(r.book, int(key[2:5]), int(key[5:8])) if len(key) == 12 and key.isdigit() else ref
+                    if kref != ref:
+                        self.anchor_of[kref] = ref
             for t in sorted(r.heb, key=lambda t: t.idx):
                 if not t.strong:
                     continue
@@ -190,27 +199,40 @@ def rows_from_gold(gold: dict, corpus: Corpus, method: str, attribution: dict, s
     occurs a different number of times on the two sides is AMBIGUOUS (its k may not denote the same
     token) — excluded and counted, the same rule `pos_score.score` applies; nothing is guessed."""
     rows = []
-    for ref, gv in gold.items():
-        if ref not in corpus.by_key:
+    for gref, gv in gold.items():
+        # a spine verse folded into another verse's pooled group (two Hebrew verses = one English verse) lives under the
+        # group's anchor ref in the corpus; the gold's target positions index that same pooled text
+        ref = gref if gref in corpus.by_key else corpus.anchor_of.get(gref)
+        if ref is None or ref not in corpus.by_key:
             stats["verses_outside_corpus"] += 1
             continue
         stats["verses_converted"] += 1
         g_count = collections.Counter(s for s, _k in gv.links)
         for (strong, k), pos in gv.links.items():
-            if g_count[strong] != corpus.counts[ref][strong]:
-                stats["links_ambiguous"] += 1
-                continue
-            tok = corpus.by_key[ref].get((strong, k))
+            sid, tids = gv.raw.get((strong, k), (None, []))
+            tok = None
+            how = None
+            if sid and len(sid) == 13 and sid[0] == "o":            # Clear OT id = 'o' + spine key: exact, no counting
+                tok = corpus.by_id.get(ref, {}).get(sid[1:])
+                how = "id"
+                if tok is not None and tok.strong and strong and tok.strong != strong:
+                    stats["links_id_strong_differs"] += 1             # QA: the gold's Strong's vs the spine's at that key
             if tok is None:
-                stats["links_no_spine_token"] += 1
-                continue
+                if g_count[strong] != corpus.counts[ref][strong]:
+                    stats["links_ambiguous"] += 1
+                    continue
+                tok = corpus.by_key[ref].get((strong, k))
+                how = "strong"
+                if tok is None:
+                    stats["links_no_spine_token"] += 1
+                    continue
             t_idx = sorted(pos)
             toks = corpus.toks[ref]
             target = " ".join(toks[p] for p in t_idx if p < len(toks))
-            sid, tids = gv.raw.get((strong, k), (None, []))
             attr = dict(attribution, source_ids=[sid] if sid else [], target_ids=list(tids))
             rows.append(make_row(ref, _book_of(ref), _tok_pair(tok, target, t_idx, method), attr))
             stats["links_converted"] += 1
+            stats[f"links_by_{how}"] += 1
     return rows
 
 
@@ -391,14 +413,22 @@ def _read_align(fp) -> list[dict]:
         return [json.loads(l) for l in fh if l.strip()]
 
 
+# Full-align edition (the path name) -> the chain tag whose align_*.jsonl hold its alignments, where they differ. engbsb and bsb
+# are the SAME text (byte-identical ingests; config/sources.json registers both as BSB) but the chain runs under `bsb`, so the
+# `engbsb` files are a stale 2026-09-23 run.
+ALIGN_TAG_OF = {"engbsb": "bsb"}
+
+
 def convert_statistical(iso: str, edition: str, books: list[str], out_dir: Path, out_root: Path,
-                        methods: tuple[str, ...] = STAT_METHODS) -> tuple[dict | None, list[dict]]:
+                        methods: tuple[str, ...] = STAT_METHODS, align_tag: str | None = None
+                        ) -> tuple[dict | None, list[dict]]:
     """Every base-chain row for `edition`, each method kept (no first-wins union — consumers union).
+    `align_tag` = the chain tag the alignments were run under (default: the edition itself; see ALIGN_TAG_OF).
     Returns (manifest entry or None when no base-chain output exists, the eflomal rows for health)."""
     wanted = {BOOK_NUMBERS[b] for b in books}
     rows, per_method = [], collections.Counter()
     for m in methods:
-        for fp in tag_files(out_dir, m, edition):
+        for fp in tag_files(out_dir, m, align_tag or edition):
             for rec in _read_align(fp):
                 if rec["ref"] // 1_000_000 not in wanted:
                     continue
@@ -495,7 +525,8 @@ def convert_language(iso: str, books: list[str], out: Path, internal_out: Path, 
         entry: dict = {"layers": {}}
         eflomal_rows: list[dict] = []
         if not skip_statistical:
-            stat, eflomal_rows = convert_statistical(iso, edition, books, out_dir, out)
+            stat, eflomal_rows = convert_statistical(iso, edition, books, out_dir, out,
+                                                     align_tag=ALIGN_TAG_OF.get(edition))
             entry["layers"]["statistical"] = stat or {"absent": "no base-chain output on disk for this edition"}
         if not skip_llm:
             llm = convert_llm(iso, edition, books, out_dir, out)

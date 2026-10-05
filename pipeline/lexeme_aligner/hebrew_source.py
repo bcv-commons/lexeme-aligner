@@ -158,6 +158,10 @@ class HebToken:
     # 84% of those tokens (precision .72; the extras are possessive-suffix tokens and articles inside the
     # rectum phrase — filter on part of speech for nouns only).
     construct_role: str | None = None
+    # The spine `key` of EVERY row this token covers (OT: 12 digits = BB CCC VVV WWW P, e.g. '080010010021'; Clear-Bible's OT
+    # source ids are 'o' + this key). More than one when adjacent same-lexeme rows were merged into one token (see below).
+    # Lets a gold alignment keyed by Clear's source id land on the exact token with no Strong's-count guesswork.
+    keys: list = field(default_factory=list)
     # `head_idx` is this token's syntactic head's own spine `idx` (Hebrew/OT only, from MACULA's lowfat
     # treebank — no Greek lowfat distribution exists to build one from); `phrase_role` is the token's
     # phrase-level role (v/s/o/o2/p/pp/adv/...). Both bcv-query deliveries, not yet consumed anywhere in
@@ -339,9 +343,13 @@ class HebrewSource:
             # intended case and blocks the false-positive one.
             if padded and toks and toks[-1].strong == padded and toks[-1].lexeme == lexeme:
                 toks[-1].surface += " " + r.get("surface", "")
+                if r.get("key"):
+                    toks[-1].keys.append(r["key"])
                 continue
             tok = HebToken(r.get("idx"), r.get("surface"), padded, lexeme,
                            r.get("lemma"), r.get("morph"), bool(r.get("is_content")))
+            if r.get("key"):
+                tok.keys.append(r["key"])
             if self.has_superscription_col:          # real spine flag — see HebToken.is_superscription
                 tok.is_superscription = bool(r.get("is_superscription"))
                 if tok.is_superscription:

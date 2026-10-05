@@ -15,15 +15,19 @@ def tok(idx, strong, lexeme=None, content=True):
 
 class _Corpus:
     """Stand-in for gold_to_fullalign.Corpus with hand-built verses."""
-    def __init__(self, verses):
-        self.toks, self.by_key, self.counts = {}, {}, {}
+    def __init__(self, verses, anchor_of=None):
+        self.toks, self.by_key, self.counts, self.by_id = {}, {}, {}, {}
+        self.anchor_of = dict(anchor_of or {})
         for ref, (toks, heb) in verses.items():
             self.toks[ref] = toks
             seen = collections.Counter()
             self.by_key[ref] = {}
+            self.by_id[ref] = {}
             for t in heb:
                 self.by_key[ref][(t.strong, seen[t.strong])] = t
                 seen[t.strong] += 1
+                for key in t.keys:
+                    self.by_id[ref][key] = t
             self.counts[ref] = seen
 
 
@@ -177,3 +181,59 @@ def test_carry_over_foreign_partitions_keeps_owned_entries_and_never_overrides_n
     # an edition that vanished from the new report still keeps its foreign partition
     out2 = carry_over_foreign_partitions(prev, {"editions": {}})
     assert set(out2["editions"]["engbsb"]["layers"]["manual"]) == {"BSB-tables"}
+
+
+# --- 2026-10-06: Clear OT links are mapped by source id ('o' + spine key), not by Strong's counting ------------
+def _gold_ids(ref, links):
+    """links: {(strong, k): (target positions, source id)} — a GoldVerse that carries the gold's own source ids."""
+    gv = GoldVerse(ref)
+    for key, (pos, sid) in links.items():
+        gv.links[key] = set(pos)
+        gv.raw[key] = (sid, [f"{ref}00{p + 1}" for p in pos])
+    return {ref: gv}
+
+
+def _tok_keys(idx, strong, *keys):
+    t = tok(idx, strong)
+    t.keys = list(keys)
+    return t
+
+
+def test_ot_link_maps_by_id_even_when_the_strong_count_is_ambiguous():
+    # the gold has one H1 link, the spine two H1 tokens: by (strong, k) this is ambiguous and dropped; the id picks the token
+    corpus = _Corpus({8001001: (["a", "b"], [_tok_keys(0, "H0001", "080010010011"), _tok_keys(1, "H0001", "080010010021")])})
+    gold = _gold_ids(8001001, {("H0001", 0): ([1], "o080010010021")})
+    st = collections.Counter()
+    rows = gf.rows_from_gold(gold, corpus, "manual", {}, st)
+    assert len(rows) == 1 and rows[0]["h_idx"] == 1                      # the SECOND token, by id
+    assert st["links_by_id"] == 1 and st["links_ambiguous"] == 0
+
+
+def test_merged_token_is_reachable_by_either_of_its_row_keys():
+    corpus = _Corpus({8001001: (["a"], [_tok_keys(0, "H1035", "080010010161", "080010010171")])})
+    for sid in ("o080010010161", "o080010010171"):
+        rows = gf.rows_from_gold(_gold_ids(8001001, {("H1035", 0): ([0], sid)}), corpus, "manual", {}, collections.Counter())
+        assert len(rows) == 1 and rows[0]["h_idx"] == 0
+
+
+def test_an_id_that_is_not_in_the_corpus_falls_back_to_strong_counting():
+    corpus = _Corpus({8001001: (["a"], [_tok_keys(0, "H0001", "080010010011")])})
+    st = collections.Counter()
+    rows = gf.rows_from_gold(_gold_ids(8001001, {("H0001", 0): ([0], "o080010019991")}), corpus, "manual", {}, st)
+    assert len(rows) == 1 and st["links_by_strong"] == 1 and st["links_by_id"] == 0
+
+
+def test_the_gold_strong_disagreeing_with_the_spine_at_that_id_is_counted_for_qa():
+    corpus = _Corpus({8001001: (["a"], [_tok_keys(0, "H0002", "080010010011")])})
+    st = collections.Counter()
+    rows = gf.rows_from_gold(_gold_ids(8001001, {("H0001", 0): ([0], "o080010010011")}), corpus, "manual", {}, st)
+    assert len(rows) == 1 and st["links_id_strong_differs"] == 1
+
+
+def test_a_verse_folded_into_another_verses_group_is_rehomed_to_the_anchor():
+    # two Hebrew verses = one English verse: the corpus holds both under the anchor ref 11022043
+    corpus = _Corpus({11022043: (["a", "b"], [_tok_keys(0, "H0001", "110220430011"), _tok_keys(1, "H0002", "110220440011")])},
+                     anchor_of={11022044: 11022043})
+    st = collections.Counter()
+    rows = gf.rows_from_gold(_gold_ids(11022044, {("H0002", 0): ([1], "o110220440011")}), corpus, "manual", {}, st)
+    assert len(rows) == 1 and rows[0]["ref"] == 11022043 and rows[0]["h_idx"] == 1

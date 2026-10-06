@@ -201,7 +201,8 @@ extra data.
 
 **What is true today, so you can rely on it (the data does not yet follow the rule everywhere).**
 - This array indexes **content tokens only** (`_index/<BOOK>_lexemes.json`), so a function token's own row is
-  not represented here yet. Function-token alignments exist upstream but are not published.
+  not represented in this array. Their source tokens ARE published, as `_index/<BOOK>_fn.json` (since 2026-10; see
+  "The function-word index" below); the function-token *alignments* are not part of this array.
 - Where the chain folded a function word into a content span, that fold is **always labelled** in the
   `rule` sidecar (`'srcOrd:label:targetIdx'`), and is reversible with `published_span - {targetIdx ...}`.
   That covers exactly the words the convention says to fold *unless* the word has an own source token, in
@@ -423,6 +424,47 @@ python3 -c "from huggingface_hub import login; login()"
 python3 -m lexeme_aligner.compact_align --iso bsb --publish-iso eng --usj-dir data/usj-eng \
     --publish compact-alignments
 ```
+
+## The function-word index — `_index/<BOOK>_fn.json` (since 2026-10)
+
+```json
+{"RUT 1:1": ["", "5921", "...", ...], ...}
+```
+
+Same shape and key order as `_index/<BOOK>_lexemes.json`, but it lists the source tokens of each verse that have **no**
+`srcOrd` slot: articles, prepositions, conjunctions, suffix pronouns, particles, in source order. The position in a verse's
+list is the token's `fnOrd`. A token the source gives no lexeme is an empty string. Lexemes carry no `hbo:`/`grc:` prefix,
+as in `_lexemes.json`. Nothing in the alignment arrays refers to `fnOrd`; the index is the source side for layers that
+align function words (the full-alignment format uses it). It is stamped in `_index/_source.json` (`fn_sha256` per book) and
+checked at publish, like the content index.
+
+## Edition-side channel `rend` (meta repo, since 2026-10)
+
+`<BOOK>_<hash>.meta.json` in [`compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta)
+has a `rend` array, position-parallel to the book index like the other channels. Entry `i` is ONE string of integers
+separated by spaces, one per `srcOrd:span` entry of verse `i` in the main array, in the same order.
+
+- **id** = the n-th *distinct rendering* of that entry's lexeme in this edition, numbered by first appearance in canonical
+  order (books, verses, entries in order).
+- **rendering** = the aligned raw target words, case-folded, with the language's published `target-stopwords` removed (exact
+  match; if every word is a stopword the original words are kept), joined by one space.
+- The manifest entry's `rend_stopwords` is the sha256 of the list used (`null` = nothing dropped).
+- Ids are comparable only within one edition and one lexeme, and are only valid with the main array of the **same file**: they
+  are renumbered on every rebuild. They carry no text. Use them to split a lexeme's occurrences by how this translation
+  renders them.
+
+## Verse numbering — spine verses and the verse map (since 2026-10)
+
+Every array here is keyed by **spine verse**: the verse numbering of the source text (Hebrew/WLC in the Old Testament,
+Nestle 1904 in the New). Many editions number some verses differently (Psalm superscriptions, 1 Chronicles 6, Joel, Malachi,
+Daniel, ...). Each edition's manifest entry carries `versification`, a bcv-commons/bibles scheme code (`eng`, `org`, `orgw`,
+`catm`, `lxx`, `vul`, `rso`), and `_index/_versification_<scheme>.json` lists every spine verse whose *edition* verse differs,
+as the edition's reference (identity everywhere not listed). `C:title` means the scheme leaves that verse unnumbered (for
+example an English Psalm superscription), so the verse has no target words.
+
+**Read a span's target words from the mapped edition verse**, not from the verse with the same number: spine `PSA 3:2` is
+English `PSA 3:1`. A client that ignores the map gets correct results for every verse the scheme leaves unchanged and wrong
+words for the rest.
 
 ## Verse mapping
 

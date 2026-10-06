@@ -45,7 +45,7 @@ def _gap_pairs(iso: str, out_dir: Path, method: str = "gapfill"):
                                [norm_surface(w) for w in p["target"].split()], p.get("prior", method if method != "gapfill" else "embedding"))
 
 
-def clear_gold(iso: str, res_dir: Path, gold_iso: str | None = None) -> dict[tuple, set]:
+def clear_gold(iso: str, res_dir: Path, gold_iso: str | None = None, tag: str | None = None) -> dict[tuple, set]:
     """Clear-Bible positional gold: {(ref '00000000' string, strong): {normalized target surfaces}}."""
     import pyarrow.parquet as pq
     base = res_dir / "strongs" / "attestations"
@@ -57,12 +57,13 @@ def clear_gold(iso: str, res_dir: Path, gold_iso: str | None = None) -> dict[tup
     for ref, strong, surf in zip(t["ref"], t["strong"], t["surface"]):
         # gold refs for books 1-9 are stored as 7 digits ("1001001"); every lookup pads to 8 — pad here too
         gold[(str(ref).zfill(8), strong)].add(norm_surface(surf))
-    return gold
+    from lexeme_aligner.eval.gold_refs import to_spine
+    return to_spine(gold, tag)         # gold refs are TARGET verses, our output is keyed by SPINE verse
 
 
 def score_clear(iso: str, out_dir: Path, res_dir: Path, gold_iso: str | None = None,
                 method: str = "gapfill"):
-    gold = clear_gold(iso, res_dir, gold_iso)
+    gold = clear_gold(iso, res_dir, gold_iso, tag=iso)
     tally = {pr: [0, 0] for pr in _PRIORS}                     # prior -> [scorable, correct]
     for ref, strong, words, prior in _gap_pairs(iso, out_dir, method):
         key = (f"{ref:08d}", strong)

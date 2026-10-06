@@ -231,7 +231,12 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity "
           "elsewhere; 'C:title' = a verse that scheme leaves unnumbered, e.g. a Psalm superscription, which then has no target "
           "words). Read a span's target words from the MAPPED target verse: spine 'PSA 3:2' -> English 'PSA 3:1'. Mapping "
-          "authority: TVTMS (STEPBible Data, CC BY 4.0)."]
+          "authority: TVTMS (STEPBible Data, CC BY 4.0).",
+          "FUNCTION-WORD INDEX (since 2026-10): _index/<BOOK>_fn.json = {\"BOOK C:V\": [lexeme, ...]} has the same key order as "
+          "_index/<BOOK>_lexemes.json and lists each verse's source tokens that have NO srcOrd slot (articles, prepositions, "
+          "conjunctions, suffix pronouns, particles) in source order; the list position is the token's fnOrd. A token without a "
+          "lexeme is ''. Nothing in the alignment arrays uses fnOrd; it is the source side for layers that align function words. "
+          "Stamped in _index/_source.json as fn_sha256 per book."]
 
 
 _STOPWORD_DIR = Path("publish/target-stopwords")

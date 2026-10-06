@@ -108,7 +108,7 @@ def _judge(iso, res):
     # comparable to a Clear language's; it is for A/B-ing our own variants and for reaching the ~30
     # languages Clear has no gold for at all.
     if GOLD[iso] in ("clear", "gbt"):
-        gold = _gold_clear(iso, res) if GOLD[iso] == "clear" else load_gold_gbt_positional(iso)
+        gold = _gold_clear(iso, res, tag=gold_edition(iso) or iso) if GOLD[iso] == "clear" else load_gold_gbt_positional(iso)
         return (lambda ref, s: (f"{ref:08d}", s) in gold,
                 lambda ref, s, words: any(w in gold[(f"{ref:08d}", s)] for w in words))
     heb = load_gold_lexicon("karnbibeln", "hebrew", _KARN)
@@ -230,7 +230,7 @@ def gold_health_clear(iso, res, out_dir) -> dict | None:
     documented in exactly one place rather than re-derived at the call site."""
     if GOLD.get(iso) != "clear":
         return None
-    gold = _gold_clear(iso, res)                              # {(ref8, strong): {surfaces}}
+    gold = _gold_clear(iso, res, tag=gold_edition(iso) or iso)   # {(ref8, strong): {surfaces}}
     agg: dict[str, set] = collections.defaultdict(set)
     for (_ref8, s), surfs in gold.items():
         agg[s] |= surfs

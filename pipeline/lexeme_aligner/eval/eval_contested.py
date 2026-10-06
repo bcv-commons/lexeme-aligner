@@ -64,7 +64,7 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
-    gold = _gold_clear(args.iso, args.resources)
+    gold = _gold_clear(args.iso, args.resources, tag=args.iso)
     ef, gl = _index(args.iso, "eflomal", args.out), _index(args.iso, "gloss", args.out)
     trust, mode_default, pos_map = load_trust(args.trust, args.prior_pack)
 

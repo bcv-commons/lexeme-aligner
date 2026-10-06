@@ -30,7 +30,7 @@ _HEADER = ("| cell | strategy | model | effort | route | calls | to decide | fil
 def _gold(a):
     if a.gold == "clear":
         from lexeme_aligner.eval.score_gapfill import clear_gold
-        return clear_gold(a.publish_iso, RESOURCES, a.gold_iso)
+        return clear_gold(a.publish_iso, RESOURCES, a.gold_iso, tag=a.iso)
     if a.gold == "gbt":
         return load_gold_gbt_positional(a.gold_iso or a.publish_iso)
     raise SystemExit("[llm report] --gold lexicon is type-level, not positional; use clear or gbt")

@@ -62,7 +62,7 @@ def _pairs(iso: str, method: str, out_dir: Path, pos_map: dict, by: str):
                                [norm_surface(w) for w in p["target"].split()], bucket)
 
 
-def _gold_clear(iso: str, res_dir: Path):
+def _gold_clear(iso: str, res_dir: Path, tag: str | None = None):
     import pyarrow.parquet as pq
     fp = res_dir / "strongs" / "attestations" / f"{iso}.parquet"
     if not fp.exists():
@@ -71,7 +71,8 @@ def _gold_clear(iso: str, res_dir: Path):
     g: dict[tuple, set] = collections.defaultdict(set)
     for ref, s, su in zip(t["ref"], t["strong"], t["surface"]):
         g[(str(ref).zfill(8), s)].add(norm_surface(su))     # 7-digit refs for books 1-9 in the parquet
-    return g
+    from lexeme_aligner.eval.gold_refs import to_spine
+    return to_spine(g, tag)                                 # gold refs are TARGET verses, our output is keyed by SPINE verse
 
 
 def main() -> int:
@@ -91,7 +92,7 @@ def main() -> int:
     pos_map = _load_pos(args.prior_pack) if args.by != "tier" else {}
     tally: dict[str, list] = collections.defaultdict(lambda: [0, 0])   # bucket -> [scorable, correct]
     if args.gold == "clear":
-        gold = _gold_clear(args.iso, args.resources)
+        gold = _gold_clear(args.iso, args.resources, tag=args.iso)
         for ref, strong, words, bucket in _pairs(args.iso, args.method, args.out, pos_map, args.by):
             key = (f"{ref:08d}", strong)
             if key not in gold:

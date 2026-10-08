@@ -19554,8 +19554,11 @@
             "ZEC",
             "ZEP"
           ],
+          "rend_stopwords": "b3f0a1f9115e5a68f6954b8068bfee120070a6bee9bb7fbd59127f3ac60afe27",
           "source": {},
-          "tag": "cukpkf"
+          "statistics_pool": false,
+          "tag": "cukpkf",
+          "versification": "eng"
         }
       }
     },
@@ -24063,12 +24066,14 @@
             "MAT",
             "MRK"
           ],
+          "rend_stopwords": "21310903d942a1671545f1d5c046d0761878af7b2a6d2ff6f7e0dc21e424ff50",
           "source": {
             "edition": "eko_wbt",
             "license_url": "https://ebible.org/Scriptures/details.php?id=eko",
             "provider": "bible.helloao.org"
           },
-          "tag": "eko_wbt"
+          "tag": "eko_wbt",
+          "versification": "eng"
         },
         "ekopkf": {
           "books": [
@@ -63011,12 +63016,15 @@
             "ZEC",
             "ZEP"
           ],
+          "rend_stopwords": "c4a0173340fc737e2e6a1917134bd25db0379fcdaac68a44768cb225addaf32b",
           "source": {
             "edition": "nhe_nhe",
             "license_url": "https://cdn.bibel.wiki/pkf/nhe/app-config.json",
             "provider": "cdn.bibel.wiki"
           },
-          "tag": "nhetbl"
+          "statistics_pool": false,
+          "tag": "nhetbl",
+          "versification": "eng"
         },
         "nhe_tbl": {
           "books": [
@@ -76896,12 +76904,15 @@
             "ZEC",
             "ZEP"
           ],
+          "rend_stopwords": "0e8fff45e04eb3194f984d7dfc3a0c2d61d7770a963219afa503d5783a908204",
           "source": {
             "edition": "RUGWBT",
             "license_url": "https://www.wycliffe.org/",
             "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
           },
-          "tag": "rugwbt"
+          "statistics_pool": false,
+          "tag": "rugwbt",
+          "versification": "eng"
         },
         "rug_wbt": {
           "books": [
@@ -102797,7 +102808,8 @@
     "SIDECAR REPOS (since 2026-10-02): the optional <BOOK>_<hash>.meta.json and <BOOK>_<hash>.extra.json files are published in their own repos, bcv-commons/compact-alignments-meta and bcv-commons/compact-alignments-extra, under the IDENTICAL relative path <iso[0]>/<iso>/<edition>/. The alignment arrays, _index/, manifest.json and tokenize.js stay in this repo.",
     "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned raw target words, case-folded, with the language's target-stopwords removed (exact match against the published target-stopwords list; if every word is a stopword the original rendering is kept), joined by one space. The edition's manifest entry records `rend_stopwords` = sha256 of the list used (null = none, nothing dropped). Ids are comparable only within one edition and one lexeme (e.g. to split a lexeme's occurrences by how this translation renders them) and carry no text.",
     "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity elsewhere; 'C:title' = a verse that scheme leaves unnumbered, e.g. a Psalm superscription, which then has no target words). Read a span's target words from the MAPPED target verse: spine 'PSA 3:2' -> English 'PSA 3:1'. Mapping authority: TVTMS (STEPBible Data, CC BY 4.0).",
-    "FUNCTION-WORD INDEX (since 2026-10): _index/<BOOK>_fn.json = {\"BOOK C:V\": [lexeme, ...]} has the same key order as _index/<BOOK>_lexemes.json and lists each verse's source tokens that have NO srcOrd slot (articles, prepositions, conjunctions, suffix pronouns, particles) in source order; the list position is the token's fnOrd. A token without a lexeme is ''. Nothing in the alignment arrays uses fnOrd; it is the source side for layers that align function words. Stamped in _index/_source.json as fn_sha256 per book."
+    "FUNCTION-WORD INDEX (since 2026-10): _index/<BOOK>_fn.json = {\"BOOK C:V\": [lexeme, ...]} has the same key order as _index/<BOOK>_lexemes.json and lists each verse's source tokens that have NO srcOrd slot (articles, prepositions, conjunctions, suffix pronouns, particles) in source order; the list position is the token's fnOrd. A token without a lexeme is ''. Nothing in the alignment arrays uses fnOrd; it is the source side for layers that align function words. Stamped in _index/_source.json as fn_sha256 per book.",
+    "SOURCE TOKEN KEYS (since 2026-10): _index/<BOOK>_keys.json and _index/<BOOK>_fn_keys.json = {\"BOOK C:V\": [key, ...]} are position-parallel to _lexemes.json and _fn.json: entry k of a verse is the MACULA node key of the srcOrd k (resp. fnOrd k) token (12 digits BBCCCVVVWWWM for Hebrew, 11 for Greek; a merged token holding two nodes lists both joined by '+'). Stamped in _index/_source.json as keys_sha256 / fn_keys_sha256."
   ],
   "tokenizer_version": 2
 }

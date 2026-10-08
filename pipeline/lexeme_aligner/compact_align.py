@@ -35,6 +35,7 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner import takedown
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
 from lexeme_aligner.hebrew_source import HebrewSource
@@ -225,7 +226,8 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "target-stopwords list; if every word is a stopword the original rendering is kept), joined by one space. The edition's "
           "manifest entry records `rend_stopwords` = sha256 of the list used (null = none, nothing dropped). Ids are comparable only "
           "within one edition and one lexeme (e.g. to split a lexeme's occurrences by how this translation renders them) and "
-          "carry no text.",
+          "carry no text. An edition under a takedown rule (config/takedown.json) has `rend_scope` in its manifest entry: 'eflomal' = "
+          "entries another stage added carry 0 (withheld, no id taken), 'none' = no rend array; no rend_scope = every entry has an id.",
           "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each "
           "edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), "
           "and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity "
@@ -255,6 +257,18 @@ def load_rend_stopwords(iso: str, root: Path | None = None) -> tuple[frozenset[s
     data = fp.read_bytes()
     words = frozenset(w.strip().casefold() for w in data.decode("utf-8").splitlines() if w.strip())
     return words, hashlib.sha256(data).hexdigest()
+
+
+def rend_entry(scope: str, char: str, rend_ids: dict, lexeme: str, raw_toks: list[str], positions: list[int],
+               stopwords: frozenset[str]) -> str | None:
+    """What one aligned entry contributes to the `rend` array under the edition's takedown scope (takedown.rend_scope): the id,
+    `"0"` for an entry withheld because another stage than eflomal produced it (scope 'eflomal'), or None when the edition
+    carries no rend channel (scope 'none'). A withheld entry does not take an id, so the numbering reveals nothing about it."""
+    if scope == "none":
+        return None
+    if scope == "eflomal" and char not in ("e", "E"):
+        return "0"
+    return str(rend_id(rend_ids, lexeme, raw_toks, positions, stopwords))
 
 
 def rend_id(rend_ids: dict[str, dict[str, int]], lexeme: str, raw_toks: list[str], positions: list[int],
@@ -535,6 +549,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     # Ids are only comparable within one edition and one lexeme; they carry no text.
     rend_ids: dict[str, dict[str, int]] = {}
     rend_stop, _ = load_rend_stopwords(cross_edition_iso or iso)
+    rend_scope = takedown.rend_scope(iso)                  # 'all' unless config/takedown.json says otherwise for this edition
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         strip_rules = _rules_for(usj_path)
@@ -576,7 +591,9 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                         gap_ordinals.append((ordinal, tok))
                         continue
                     parts.append(f"{ordinal}:{_encode_span(mapped)}")
-                    rend.append(str(rend_id(rend_ids, tok.lexeme or tok.strong, raw_toks, mapped, rend_stop)))
+                    r_entry = rend_entry(rend_scope, rec["char"], rend_ids, tok.lexeme or tok.strong, raw_toks, mapped, rend_stop)
+                    if r_entry is not None:
+                        rend.append(r_entry)
                     # The two DENSE channels are one character per aligned token, in the same order as
                     # `parts` — the shape confidence_sidecar() was designed around. Appended in the same
                     # loop as `parts` so they cannot drift out of step with it.
@@ -740,7 +757,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         # so each is still read independently.
         if with_sidecars:
             meta = {name: [side[name].get(ref, "") for ref in book_index]
-                    for name in SIDECAR_CHANNELS}
+                    for name in SIDECAR_CHANNELS
+                    if not (name == "rend" and takedown.rend_scope(tag) == "none")}
             if any(any(a) for a in meta.values()):
                 (out_fp.parent / f"{book}_{digest}.meta.json").write_text(
                     json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -867,6 +885,8 @@ def main() -> int:
         manifest_entry = {"tag": args.iso, "books": sorted(written),
                           "source": sources.get(args.iso, {}), "versification": scheme,
                           "rend_stopwords": load_rend_stopwords(publish_iso)[1]}
+        if takedown.rend_scope(args.iso) != "all":
+            manifest_entry["rend_scope"] = takedown.rend_scope(args.iso)      # absent = every aligned entry carries an id
         if args.not_in_statistics_pool:
             manifest_entry["statistics_pool"] = False         # absent = counted (every edition published before 2026-10-07)
         update_manifest(args.publish / "manifest.json", publish_iso, resolved_edition, manifest_entry)

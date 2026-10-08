@@ -92,6 +92,15 @@ def allowed_testaments(iso: str, path: Path = _EXCLUSIONS) -> set[str]:
 
 
 def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_CONFIG) -> list[dict]:
+    """`_pool_editions` minus every edition `config/takedown.json` withdraws entirely (withdraw = "edition"), so a rebuild cannot
+    bring a taken-down edition back."""
+    from lexeme_aligner import takedown
+    gone = takedown.withdrawn_slugs()
+    eds = _pool_editions(iso, testaments, config_path)
+    return [e for e in eds if takedown.slug(_tag(iso, e["edition_code"], False)) not in gone] if gone else eds
+
+
+def _pool_editions(iso: str, testaments: set[str], config_path: Path = _EDITIONS_CONFIG) -> list[dict]:
     """The list of {source, param, edition_code} to ingest for this language: either the
     data/language_editions.json restriction, or (default) every distinct fetchable edition the
     catalog knows about, pooled. Scoped to `testaments` (post-exclusion)."""

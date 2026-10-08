@@ -468,6 +468,22 @@ separated by spaces, one per `srcOrd:span` entry of verse `i` in the main array,
   are renumbered on every rebuild. They carry no text. Use them to split a lexeme's occurrences by how this translation
   renders them.
 
+### Scope of `rend`, and taking an edition down
+
+- By default every aligned entry of an edition carries an id. The record `config/takedown.json` (in the
+  [lexeme-aligner repository](https://github.com/bcv-commons/lexeme-aligner), so the history is auditable) can narrow that for one
+  edition: `"rend_above_eflomal"` writes an id only for entries the statistical aligner (eflomal) produced and `0` ("withheld") for
+  every entry another stage added (gloss, gap-fill, span extension); `"rend"` omits the channel for that edition. A withheld entry
+  takes no id, so the numbering does not hint at it. An edition under either rule shows `rend_scope` in its manifest entry
+  (`"eflomal"` or `"none"`); no `rend_scope` means every entry carries an id.
+- If alignments much closer to a complete alignment are added on top of these (the full-alignment layers), `rend` is not published
+  for the added entries.
+- **Taking an edition down.** A rights holder or a licence change can withdraw an edition: `"withdraw": "edition"` removes its
+  files from this repo and the `-meta` and `-extra` repos and its manifest entry, and the pool builder no longer offers it, so a
+  rebuild cannot bring it back; rows of the pooled datasets leave by `base_text`. To ask for this, open an issue on the
+  lexeme-aligner repository naming the edition and the grounds; the decision, reason and date are recorded in
+  `config/takedown.json`.
+
 ## Verse numbering — spine verses and the verse map (since 2026-10)
 
 Every array here is keyed by **spine verse**: the verse numbering of the source text (Hebrew/WLC in the Old Testament,

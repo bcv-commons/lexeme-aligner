@@ -227,7 +227,7 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "manifest entry records `rend_stopwords` = sha256 of the list used (null = none, nothing dropped). Ids are comparable only "
           "within one edition and one lexeme (e.g. to split a lexeme's occurrences by how this translation renders them) and "
           "carry no text. An edition under a takedown rule (config/takedown.json) has `rend_scope` in its manifest entry: 'eflomal' = "
-          "entries another stage added carry 0 (withheld, no id taken), 'none' = no rend array; no rend_scope = every entry has an id.",
+          "entries another stage added carry 0 (withheld, no id taken), 'none' = no rend array; no rend_scope = every entry has an id. rend is published for compact alignments only, never for full-alignment layers.",
           "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each "
           "edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), "
           "and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity "

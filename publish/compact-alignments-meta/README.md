@@ -27,7 +27,7 @@ order: the n-th *distinct rendering* of that entry's lexeme in this edition, num
 A rendering is the aligned raw target words, case-folded, minus the language's published target-stopwords, joined by one space
 (if every word is a stopword the original words are kept). The edition's `rend_stopwords` in the main repo's `manifest.json` is
 the sha256 of the list used. Ids are comparable only within one edition and lexeme, are valid only with the main array of the
-same file, are renumbered on every rebuild, and carry no text. An edition under a takedown rule may carry `0` for withheld entries or no `rend` array at all (manifest `rend_scope`). Full definition and the takedown policy: main repo README, "Edition-side channel `rend`".
+same file, are renumbered on every rebuild, and carry no text. An edition under a takedown rule may carry `0` for withheld entries or no `rend` array at all (manifest `rend_scope`). `rend` is published for the compact alignments only, never for full-alignment files. Full definition and the takedown policy: main repo README, "Edition-side channel `rend`".
 
 Spans are keyed by spine verse; read target words from the edition's mapped verse (main README, "Verse numbering").
 

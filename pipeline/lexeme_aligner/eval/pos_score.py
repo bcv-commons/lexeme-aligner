@@ -268,6 +268,8 @@ class Spine:
     key_of: dict[int, dict[int, tuple[str, int]]]           # ref -> h_idx -> (strong, k)
     content: dict[int, set[tuple[str, int]]]                # ref -> {(strong, k) that are content tokens}
     counts: dict[int, collections.Counter]                  # ref -> strong -> occurrences in the verse
+    # ref -> (strong, k) -> source WORD id (MACULA node key without the morpheme digit, see word_bridge); empty = word scoring unavailable
+    word_of: dict[int, dict[tuple[str, int], str]] = field(default_factory=dict)
 
 
 def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
@@ -275,7 +277,9 @@ def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
     from lexeme_aligner.refs import encode
     from lexeme_aligner.run_pilot import build_corpus
     from lexeme_aligner.versification import remapper
+    from lexeme_aligner.eval.word_bridge import words_of
     recs = build_corpus(books, usj_dir, HebrewSource(), remap=remapper(iso, str(usj_dir)))
+    word_of: dict[int, dict[tuple[str, int], str]] = {}
     key_of: dict[int, dict[int, tuple[str, int]]] = {}
     content: dict[int, set[tuple[str, int]]] = {}
     counts: dict[int, collections.Counter] = {}
@@ -283,16 +287,19 @@ def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
         ref = encode(r.book, r.ch, r.v)
         seen: collections.Counter = collections.Counter()
         key_of[ref], content[ref] = {}, set()
+        wid_of_idx = {i: w.wid for w in words_of(r.heb) for i in w.idx}
+        word_of[ref] = {}
         for t in sorted(r.heb, key=lambda t: t.idx):
             if not t.strong:
                 continue
             k = seen[t.strong]
             seen[t.strong] += 1
             key_of[ref][t.idx] = (t.strong, k)
+            word_of[ref][(t.strong, k)] = wid_of_idx.get(t.idx, f"i{t.idx}")
             if t.is_content:
                 content[ref].add((t.strong, k))
         counts[ref] = seen
-    return Spine(key_of, content, counts)
+    return Spine(key_of, content, counts, word_of)
 
 
 @dataclass
@@ -426,6 +433,63 @@ def score(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bo
     return m
 
 
+def score_words(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bool = True,
+                neutral: dict[int, set[int]] | None = None) -> Metrics:
+    """`score`, but at the grain of the source WORD. The spine splits a Hebrew word into morphemes (prefix, stem, suffix) and the
+    sources disagree about which morpheme carries the target ("In the days" on the prefix in Clear, "In" on the prefix and "days"
+    on the stem in our statistical rows). Both sides are projected to words first: a word's span is the union of the spans of its
+    tokens, and a word is judged when it holds at least one gold link on a content token (`content_only`). Ambiguity is decided
+    per gold link, exactly as in `score`. Needs `spine.word_of` (load_spine fills it); verses without it are skipped."""
+    m = Metrics()
+    neutral = neutral or {}
+    for ref, gv in gold.items():
+        wo = spine.word_of.get(ref)
+        if ref not in spine.key_of or not wo:
+            continue
+        ov = ours.spans.get(ref, {})
+        nref = neutral.get(ref)
+        if nref:
+            ov = {key: (pos - nref) for key, pos in ov.items()}
+        m.verses += 1
+        g_count = collections.Counter(s for s, _k in gv.links)
+        gw: dict[str, set[int]] = collections.defaultdict(set)
+        judged_words: set[str] = set()
+        for (strong, k), gpos in gv.links.items():
+            wid = wo.get((strong, k))
+            if wid is None:
+                continue
+            judged = not content_only or (strong, k) in spine.content[ref]
+            if g_count[strong] != spine.counts[ref][strong]:
+                m.ambiguous += judged                      # a function morpheme's ambiguity is not reported, as in `score`
+                continue
+            gw[wid] |= gpos
+            if judged:
+                judged_words.add(wid)
+        ow: dict[str, set[int]] = collections.defaultdict(set)
+        for key, pos in ov.items():
+            wid = wo.get(key)
+            if wid is not None and pos:
+                ow[wid] |= pos
+        for wid in judged_words:
+            gpos, opos = gw[wid], ow.get(wid, set())
+            m.links += 1
+            if not opos:
+                m.fn += len(gpos)
+                continue
+            m.answered += 1
+            m.exact += opos == gpos
+            m.overlap += bool(opos & gpos)
+            m.tp += len(opos & gpos)
+            m.fp += len(opos - gpos)
+            m.fn += len(gpos - opos)
+        gold_claimed = set().union(*(gw[w] for w in judged_words)) if judged_words else set()
+        claimed = set().union(*(ow[w] for w in judged_words if w in ow)) if judged_words else set()
+        m.gold_claimed += len(gold_claimed)
+        m.ours_claimed += len(claimed & gold_claimed)
+        m.over_claimed += len(claimed - gv.claimed)
+    return m
+
+
 def repaired_surfaces(gold: dict[int, GoldVerse]) -> dict[tuple[str, str], set[str]]:
     """{(ref as 8-digit str, strong): {normalized surfaces}} — the dictionary-scorer view of the gold, with
     surfaces taken from OUR text at the gold's positions instead of the parquet's (defective) column."""
@@ -523,6 +587,9 @@ def main(argv=None) -> int:
                          "words the gold leaves unclaimed are NEUTRAL (neither tp nor fp) when the gold's own "
                          "curation convention never credits function words (credit_rate < 0.5 — spa/fra Clear "
                          "gold); a no-op for a gold that does credit them (eng). The strict row is always kept.")
+    ap.add_argument("--grain", choices=["token", "word", "both"], default="token",
+                    help="score per spine token (default), per source word (prefix/suffix morphemes pooled into their word; see "
+                         "word_bridge) or both; word rows are labelled `[word]`")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     a = ap.parse_args(argv)
@@ -565,10 +632,12 @@ def main(argv=None) -> int:
         if not ours.spans:
             print(f"[pos_score] nothing found for {spec} — skipped", file=sys.stderr)
             continue
-        results[spec] = score(gold, ours, spine, content_only=not a.all_tokens).row()
-        if a.convention_aware:
-            results[f"{spec} [conv]"] = score(gold, ours, spine, content_only=not a.all_tokens,
-                                              neutral=neutral).row()
+        for grain, fn, tag in (("token", score, ""), ("word", score_words, " [word]")):
+            if a.grain not in (grain, "both"):
+                continue
+            results[spec + tag] = fn(gold, ours, spine, content_only=not a.all_tokens).row()
+            if a.convention_aware:
+                results[f"{spec}{tag} [conv]"] = fn(gold, ours, spine, content_only=not a.all_tokens, neutral=neutral).row()
     if a.json:
         print(json.dumps({"gold_stats": dict(stats), "convention": profile, "results": results}, indent=1))
         return 0

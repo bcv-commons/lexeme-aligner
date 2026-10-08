@@ -4,7 +4,7 @@ import collections
 import pytest
 
 import lexeme_aligner.eval.pos_score as ps
-from lexeme_aligner.eval.pos_score import GoldVerse, Metrics, Ours, Spine, clear_tokens, map_positions, score, union
+from lexeme_aligner.eval.pos_score import score_words, GoldVerse, Metrics, Ours, Spine, clear_tokens, map_positions, score, union
 from lexeme_aligner.usj_source import tokenize
 
 
@@ -105,3 +105,17 @@ def test_load_gold_keys_by_spine_verse_and_drops_links_from_another_verse(tmp_pa
     assert gold[19003002].links == {("H3068", 0): {1}}         # target word 2 of ENGLISH 3:1
     assert gold[19003003].links == {("H7227", 0): {0}}
     assert st["links_other_verse"] == 1                       # the superscription word lives in another spine verse
+
+
+def test_score_words_pools_the_morphemes_of_a_word():
+    # G1 (prefix, function) and G2 (stem, content) are ONE word; the gold puts the whole phrase on the prefix, we split it
+    sp = Spine(key_of={1: {0: ("G1", 0), 1: ("G2", 0)}}, content={1: {("G2", 0)}},
+               counts={1: collections.Counter({"G1": 1, "G2": 1})}, word_of={1: {("G1", 0): "w1", ("G2", 0): "w1"}})
+    gv = GoldVerse(1, links={("G1", 0): {0, 1, 2}})
+    gv.claimed = {0, 1, 2}
+    ours = Ours(spans={1: {("G1", 0): {0}, ("G2", 0): {1, 2}}})
+    assert score(gold={1: gv}, ours=ours, spine=sp, content_only=False).row()["exact_span"] == 0       # token grain: disagrees
+    r = score_words({1: gv}, ours, sp, content_only=False).row()
+    assert r["gold_links"] == 1 and r["exact_span"] == 1 and r["link_f1"] == pytest.approx(1.0)
+    # content_only: the gold link sits on the function morpheme, so the word is not judged
+    assert score_words({1: gv}, ours, sp, content_only=True).row()["gold_links"] == 0

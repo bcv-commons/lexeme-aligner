@@ -37,8 +37,20 @@ _cfg = {k: v for k, v in (json.loads(_CFG.read_text(encoding="utf-8")) if _CFG.e
 # An entry is either a bare backend string (legacy) or {gold, edition, base_text} — see the config's
 # own _edition_doc. Both shapes stay valid; only the backend is needed for scoring itself.
 _backend = lambda v: v if isinstance(v, str) else v.get("gold")
+def _align_tag(iso: str) -> str:
+    """The tag our alignment files for this gold language carry: `align_tag` when the config names one (the chain's current tag
+    for the same text, e.g. `bsb` for gold edition `engbsb`), else the gold edition's ingest tag, else the bare language code
+    (the pre-2026-07-25 tag scheme). Only a tag with both eflomal and gloss files counts."""
+    entry = _cfg.get(iso) if isinstance(_cfg.get(iso), dict) else {}
+    for tag in (entry.get("align_tag"), entry.get("edition"), iso):
+        if tag and tag_files(OUT, "eflomal", tag) and tag_files(OUT, "gloss", tag):
+            return tag
+    return iso
+
+
+_TAG = {iso: _align_tag(iso) for iso in _cfg}
 GOLD = {iso: _backend(v) for iso, v in _cfg.items()
-        if tag_files(OUT, "eflomal", iso) and tag_files(OUT, "gloss", iso)}
+        if tag_files(OUT, "eflomal", _TAG[iso]) and tag_files(OUT, "gloss", _TAG[iso])}
 LANGS = list(GOLD)
 
 
@@ -126,7 +138,7 @@ def collect(out_dir, res, pos_pack=PRIOR_PACK):
     data = {}
     for iso in LANGS:
         judged, hit = _judge(iso, res)
-        ef, gl = _index(iso, "eflomal", out_dir), _index(iso, "gloss", out_dir)
+        ef, gl = _index(_TAG[iso], "eflomal", out_dir), _index(_TAG[iso], "gloss", out_dir)
         toks = []
         both = agree = ef09 = 0
         for key in set(ef) & set(gl):
@@ -236,7 +248,7 @@ def gold_health_clear(iso, res, out_dir) -> dict | None:
         agg[s] |= surfs
     ours = (
         (f"{ref:08d}", strong, set(words))
-        for (ref, _h), (words, _t, strong, _lex) in _index(iso, "eflomal", out_dir).items()
+        for (ref, _h), (words, _t, strong, _lex) in _index(_TAG[iso], "eflomal", out_dir).items()
     )
     return gold_health(dict(gold), agg, ours)
 
@@ -245,7 +257,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--resources", type=Path, default=RESOURCES)
-    ap.add_argument("--write", type=Path, default=Path("config/contest_rule.json"))
+    ap.add_argument("--write", type=Path, default=None,
+                    help="write the learned rule here (e.g. config/contest_rule.json); without it the rule is only printed")
     ap.add_argument("--oracle-floor", type=float, default=0.5,
                     help="exclude langs whose contested oracle < this (broken gold matching, not alignment)")
     ap.add_argument("--gap-flag", type=float, default=0.2,
@@ -253,6 +266,7 @@ def main() -> int:
     args = ap.parse_args()
 
     data = collect(args.out, args.resources)
+    print("alignment tags used: " + ", ".join(f"{iso}={_TAG[iso]}" for iso in LANGS))
     # SANITY FILTER: a language whose contested ORACLE (best-possible) is implausibly low has BROKEN gold
     # matching (e.g. non-Latin script mangled by norm_surface), not bad alignment — exclude it from the rule
     # rather than pollute it. Empirical guard: don't trust gold we can't even match.
@@ -274,7 +288,8 @@ def main() -> int:
         return "unmatchable / low-quality gold (both positional & lexical low)"
 
     full = rule_from(usable, by="tier")
-    args.write.write_text(json.dumps({f"{k[0]} | {k[1]}": v for k, v in full.items()}, indent=1), encoding="utf-8")
+    if args.write:
+        args.write.write_text(json.dumps({f"{k[0]} | {k[1]}": v for k, v in full.items()}, indent=1), encoding="utf-8")
 
     # gold-health table — first-class every run, so a future defective gold auto-surfaces here.
     clear_h = [(iso, health[iso]) for iso in LANGS if health.get(iso)]

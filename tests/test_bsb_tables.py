@@ -295,3 +295,28 @@ def test_edition_and_lang_constants_are_never_renamed_by_this_fix():
     # name -- only USJ_DIR (where we READ from) may vary, never EDITION (where we PUBLISH to).
     assert bt.EDITION == "engbsb"
     assert bt.LANG == "eng"
+
+
+def test_map_target_skips_leading_title_rows_only_when_asked():
+    rows = [{"bsb_sort": "1", "text": "A Psalm"}, {"bsb_sort": "2", "text": "of David"},
+            {"bsb_sort": "3", "text": "The LORD"}, {"bsb_sort": "4", "text": "is my shepherd"}]
+    toks = ["The", "LORD", "is", "my", "shepherd"]
+    assert bt.map_target(rows, toks) is None                                    # default: the strict tiling
+    assert bt.map_target(rows, toks, max_skip=6) == {"1": [], "2": [], "3": [0, 1], "4": [2, 3, 4]}
+    assert bt.map_target(rows, ["Something", "else"], max_skip=6) is None       # skipping never forces a match
+
+
+def test_map_target_ignores_markup_and_inline_joint_marker_in_cells():
+    rows = [{"bsb_sort": "1", "text": "The sons of Shem"}, {"bsb_sort": "2", "text": "<p class=|list2|>[Elam]"},
+            {"bsb_sort": "3", "text": "and vvv Aram"}]
+    assert bt.map_target(rows, ["The", "sons", "of", "Shem", "Elam", "and", "Aram"]) == {"1": [0, 1, 2, 3], "2": [4], "3": [5, 6]}
+
+
+def test_map_target_tolerant_allows_a_few_unclaimed_words_and_unmatched_rows_but_only_when_asked():
+    rows = [{"bsb_sort": "1", "text": "Make five posts"}, {"bsb_sort": "2", "text": "[use] hooks"}, {"bsb_sort": "3", "text": "of gold"}]
+    toks = ["Make", "five", "posts", "hooks", "of", "gold", "Then", "she", "tightened"]      # row 2's "use" is not in our text; 3 extra words
+    assert bt.map_target(rows, toks) is None
+    got = bt.map_target(rows, toks, tolerant=True)
+    assert got is not None and got["1"] == [0, 1, 2] and got["3"] == [4, 5]
+    far = toks + ["x"] * 20
+    assert bt.map_target(rows, far, tolerant=True) is None                                  # too many unclaimed words: still refused

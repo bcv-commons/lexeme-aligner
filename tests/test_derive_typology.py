@@ -872,3 +872,11 @@ def test_pool_constituent_marks_mixed_vocabularies_instead_of_relabelling():
     b = {"verses_measured": 1, "label_scheme": "bhsa_function", "pair_order_kept": {"Pred>Subj": {"kept": 1, "total": 2}}, "function_drift": {}}
     assert dt.pool_constituent({"a": a, "b": b})["label_scheme"] == "mixed"
     assert dt.pool_constituent({"a": {"verses_measured": 1}})["label_scheme"] is None     # a profile with no scheme (pre-switch) stays visibly unlabelled
+
+
+def test_editions_of_skips_editions_outside_the_statistics_pool():
+    from lexeme_aligner.derive_typology import editions_of
+    manifest = {"xx": {"editions": {"AAA": {"tag": "aaa", "books": ["GEN"]},
+                                    "BBB": {"tag": "bbb", "books": ["GEN"], "statistics_pool": False},
+                                    "CCC": {"tag": "ccc", "books": ["GEN"], "statistics_pool": True}}}}
+    assert [t for t, _, _ in editions_of("xx", manifest)] == ["aaa", "ccc"]      # absent = counted; false = a near copy, not a second witness

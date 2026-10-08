@@ -165,6 +165,20 @@
   }
  },
  "adt": {
+  "case_marking": {
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB070,GB072,GB074,GB075",
+   "value": true
+  },
+  "possession_affix": {
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB431",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=1.37)",
    "value": "stem"
@@ -251,7 +265,7 @@
    "value": true
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=21.78)",
+   "source": "self-derived (target_morph.py tokens/type=21.47)",
    "value": "surface"
   }
  },
@@ -275,8 +289,11 @@
  },
  "ahr": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=16.80)",
-   "value": "surface"
+   "edition_overrides": {
+    "ahrdpi": "surface"
+   },
+   "source": "self-derived (target_morph.py tokens/type=11.59)",
+   "value": "stem"
   }
  },
  "aia": {
@@ -418,7 +435,7 @@
  },
  "ame": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=6.64)",
+   "source": "self-derived (target_morph.py tokens/type=6.66)",
    "value": "stem"
   }
  },
@@ -430,7 +447,7 @@
  },
  "amh": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=4.11)",
+   "source": "self-derived (target_morph.py tokens/type=4.25)",
    "value": "stem"
   }
  },
@@ -535,7 +552,12 @@
  },
  "aoz": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=29.38)",
+   "edition_overrides": {
+    "ao1ubb": "stem",
+    "aozubb": "stem",
+    "aozubv": "stem"
+   },
+   "source": "self-derived (target_morph.py tokens/type=23.04)",
    "value": "surface"
   }
  },
@@ -767,7 +789,7 @@
  },
  "aui": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.60)",
+   "source": "self-derived (target_morph.py tokens/type=8.96)",
    "value": "stem"
   }
  },
@@ -1063,6 +1085,9 @@
  },
  "bdv": {
   "target_normalization": {
+   "edition_overrides": {
+    "bpl": "stem"
+   },
    "source": "self-derived (target_morph.py tokens/type=19.92)",
    "value": "surface"
   }
@@ -1116,7 +1141,7 @@
    "value": true
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=7.69)",
+   "source": "self-derived (target_morph.py tokens/type=8.87)",
    "value": "stem"
   }
  },
@@ -1219,6 +1244,13 @@
   }
  },
  "bgs": {
+  "subject_indexing": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089,GB090",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=25.09)",
    "value": "surface"
@@ -1422,7 +1454,7 @@
  },
  "bkw": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=18.68)",
+   "source": "self-derived (target_morph.py tokens/type=17.78)",
    "value": "surface"
   }
  },
@@ -1584,6 +1616,9 @@
  },
  "bqc": {
   "target_normalization": {
+   "edition_overrides": {
+    "bqcibv": "surface"
+   },
    "source": "self-derived (target_morph.py tokens/type=11.87)",
    "value": "stem"
   }
@@ -1827,7 +1862,7 @@
  },
  "byr": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=5.38)",
+   "source": "self-derived (target_morph.py tokens/type=5.20)",
    "value": "stem"
   }
  },
@@ -1881,7 +1916,7 @@
  },
  "caf": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.57)",
+   "source": "self-derived (target_morph.py tokens/type=12.70)",
    "value": "stem"
   }
  },
@@ -2452,7 +2487,7 @@
    "value": true
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=7.51)",
+   "source": "self-derived (target_morph.py tokens/type=5.39)",
    "value": "stem"
   }
  },
@@ -2527,23 +2562,6 @@
   }
  },
  "crk": {
-  "case_marking": {
-   "direction": "after",
-   "pos": [
-    "name",
-    "noun"
-   ],
-   "source": "grambank:GB072,GB075",
-   "value": true
-  },
-  "possession_affix": {
-   "direction": "before",
-   "pos": [
-    "noun"
-   ],
-   "source": "grambank:GB431,GB433",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=7.61)",
    "value": "stem"
@@ -2569,7 +2587,7 @@
  },
  "crx": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=9.23)",
+   "source": "self-derived (target_morph.py tokens/type=11.86)",
    "value": "stem"
   }
  },
@@ -2807,7 +2825,7 @@
  },
  "dbq": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=44.88)",
+   "source": "self-derived (target_morph.py tokens/type=49.65)",
    "value": "surface"
   }
  },
@@ -2819,7 +2837,7 @@
  },
  "ded": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.82)",
+   "source": "self-derived (target_morph.py tokens/type=9.31)",
    "value": "stem"
   }
  },
@@ -2840,7 +2858,7 @@
    "edition_overrides": {
     "deu_tkw": "stem"
    },
-   "source": "self-derived (target_morph.py tokens/type=15.82)",
+   "source": "self-derived (target_morph.py tokens/type=16.68)",
    "value": "surface"
   }
  },
@@ -2983,6 +3001,20 @@
     "name"
    ],
    "source": "grambank:GB072,GB074,GB075",
+   "value": true
+  },
+  "subject_indexing": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089",
+   "value": true
+  },
+  "tam_auxiliary": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB119,GB120",
    "value": true
   },
   "target_normalization": {
@@ -3238,7 +3270,7 @@
  },
  "eka": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=38.70)",
+   "source": "self-derived (target_morph.py tokens/type=22.87)",
    "value": "surface"
   }
  },
@@ -3263,6 +3295,22 @@
   }
  },
  "eko": {
+  "case_marking": {
+   "direction": "before",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB072,GB074",
+   "value": true
+  },
+  "possession_affix": {
+   "direction": "after",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB430",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=8.60)",
    "value": "stem"
@@ -3328,7 +3376,7 @@
  },
  "ena": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=28.52)",
+   "source": "self-derived (target_morph.py tokens/type=28.60)",
    "value": "surface"
   }
  },
@@ -3455,16 +3503,14 @@
   "articles": {
    "direction": "after",
    "pos": [
-    "name",
-    "noun"
+    "name"
    ],
    "source": "grambank:GB020,GB023",
    "value": true
   },
   "case_marking": {
    "pos": [
-    "name",
-    "noun"
+    "name"
    ],
    "source": "grambank:GB074,GB075",
    "value": true
@@ -3612,7 +3658,6 @@
   "articles": {
    "direction": "before",
    "pos": [
-    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB021,GB022",
@@ -3621,7 +3666,6 @@
   "case_marking": {
    "direction": "before",
    "pos": [
-    "name",
     "noun"
    ],
    "source": "grambank:GB074",
@@ -4161,7 +4205,7 @@
  },
  "gvs": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=12.09)",
+   "source": "self-derived (target_morph.py tokens/type=12.05)",
    "value": "stem"
   }
  },
@@ -4251,7 +4295,7 @@
  },
  "hav": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=5.25)",
+   "source": "self-derived (target_morph.py tokens/type=10.31)",
    "value": "stem"
   }
  },
@@ -4335,7 +4379,6 @@
   "articles": {
    "direction": "before",
    "pos": [
-    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB022",
@@ -4796,8 +4839,7 @@
  "isl": {
   "articles": {
    "pos": [
-    "name",
-    "noun"
+    "name"
    ],
    "source": "grambank:GB020,GB022,GB023",
    "value": true
@@ -4805,18 +4847,9 @@
   "case_marking": {
    "direction": "before",
    "pos": [
-    "name",
-    "noun"
+    "name"
    ],
    "source": "grambank:GB070,GB072,GB074",
-   "value": true
-  },
-  "possession_affix": {
-   "direction": "after",
-   "pos": [
-    "noun"
-   ],
-   "source": "grambank:GB432",
    "value": true
   },
   "subject_indexing": {
@@ -4988,7 +5021,7 @@
  },
  "jac": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=14.38)",
+   "source": "self-derived (target_morph.py tokens/type=14.62)",
    "value": "surface"
   }
  },
@@ -5166,6 +5199,10 @@
  "kan": {
   "articles": {
    "direction": "before",
+   "gated_off_editions": [
+    "kan_irv",
+    "kan_okcv"
+   ],
    "pos": [
     "name"
    ],
@@ -5174,6 +5211,10 @@
   },
   "case_marking": {
    "direction": "after",
+   "gated_off_editions": [
+    "kan_irv",
+    "kan_okcv"
+   ],
    "pos": [
     "name"
    ],
@@ -5473,7 +5514,7 @@
  },
  "kgp": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=73.86)",
+   "source": "self-derived (target_morph.py tokens/type=73.64)",
    "value": "surface"
   }
  },
@@ -5491,8 +5532,12 @@
  },
  "khj": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.20)",
-   "value": "stem"
+   "edition_overrides": {
+    "khj_2": "stem",
+    "khj_lis": "stem"
+   },
+   "source": "self-derived (target_morph.py tokens/type=16.33)",
+   "value": "surface"
   }
  },
  "khk": {
@@ -5665,6 +5710,9 @@
  },
  "kkl": {
   "target_normalization": {
+   "edition_overrides": {
+    "kklypm": "surface"
+   },
    "source": "self-derived (target_morph.py tokens/type=8.86)",
    "value": "stem"
   }
@@ -5974,8 +6022,12 @@
  },
  "kqa": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=7.28)",
-   "value": "stem"
+   "edition_overrides": {
+    "kqa_pbt": "stem",
+    "mumnp": "stem"
+   },
+   "source": "self-derived (target_morph.py tokens/type=14.54)",
+   "value": "surface"
   }
  },
  "kqc": {
@@ -6262,6 +6314,7 @@
   "target_normalization": {
    "edition_overrides": {
     "kxvkbt": "stem",
+    "kxvwfw": "stem",
     "kxvwol": "stem"
    },
    "source": "self-derived (target_morph.py tokens/type=13.57)",
@@ -6650,7 +6703,7 @@
  },
  "liy": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=71.94)",
+   "source": "self-derived (target_morph.py tokens/type=72.20)",
    "value": "surface"
   }
  },
@@ -6884,8 +6937,22 @@
    "source": "grambank:GB432",
    "value": true
   },
+  "subject_indexing": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089,GB090",
+   "value": true
+  },
+  "tam_auxiliary": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB119",
+   "value": true
+  },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=3.64)",
+   "source": "self-derived (target_morph.py tokens/type=3.62)",
    "value": "stem"
   }
  },
@@ -6923,7 +6990,7 @@
  },
  "mav": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=21.55)",
+   "source": "self-derived (target_morph.py tokens/type=34.88)",
    "value": "surface"
   }
  },
@@ -7155,7 +7222,7 @@
  },
  "met": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=19.02)",
+   "source": "self-derived (target_morph.py tokens/type=21.56)",
    "value": "surface"
   }
  },
@@ -7275,7 +7342,7 @@
  },
  "mgw": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.68)",
+   "source": "self-derived (target_morph.py tokens/type=8.79)",
    "value": "stem"
   }
  },
@@ -7536,7 +7603,7 @@
  },
  "mmo": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=41.39)",
+   "source": "self-derived (target_morph.py tokens/type=41.02)",
    "value": "surface"
   }
  },
@@ -7668,6 +7735,9 @@
  },
  "mpp": {
   "target_normalization": {
+   "edition_overrides": {
+    "mpppkf": "surface"
+   },
    "source": "self-derived (target_morph.py tokens/type=12.96)",
    "value": "stem"
   }
@@ -7736,6 +7806,13 @@
     "noun"
    ],
    "source": "grambank:GB074",
+   "value": true
+  },
+  "subject_indexing": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089,GB090",
    "value": true
   },
   "target_normalization": {
@@ -8340,21 +8417,6 @@
   }
  },
  "ngu": {
-  "articles": {
-   "direction": "before",
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB020,GB022",
-   "value": true
-  },
-  "case_marking": {
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB074,GB075",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=10.09)",
    "value": "stem"
@@ -8469,8 +8531,16 @@
   }
  },
  "nit": {
+  "case_marking": {
+   "direction": "after",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB070,GB072,GB075",
+   "value": true
+  },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=5.23)",
+   "source": "self-derived (target_morph.py tokens/type=4.15)",
    "value": "stem"
   }
  },
@@ -8490,7 +8560,7 @@
  },
  "njd": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=4.54)",
+   "source": "self-derived (target_morph.py tokens/type=7.94)",
    "value": "stem"
   }
  },
@@ -8502,7 +8572,7 @@
  },
  "nkn": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.45)",
+   "source": "self-derived (target_morph.py tokens/type=9.20)",
    "value": "stem"
   }
  },
@@ -8840,7 +8910,7 @@
  },
  "nww": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=7.57)",
+   "source": "self-derived (target_morph.py tokens/type=7.60)",
    "value": "stem"
   }
  },
@@ -9334,8 +9404,12 @@
  },
  "pdo": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=7.37)",
-   "value": "stem"
+   "edition_overrides": {
+    "pdo_2": "stem",
+    "pdo_sco": "stem"
+   },
+   "source": "self-derived (target_morph.py tokens/type=14.75)",
+   "value": "surface"
   }
  },
  "pdt": {
@@ -9372,7 +9446,7 @@
    "value": true
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=17.62)",
+   "source": "self-derived (target_morph.py tokens/type=19.94)",
    "value": "surface"
   }
  },
@@ -9398,25 +9472,11 @@
    "source": "grambank:GB070,GB074",
    "value": true
   },
-  "subject_indexing": {
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB090",
-   "value": true
-  },
-  "tam_auxiliary": {
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB119,GB120,GB121",
-   "value": true
-  },
   "target_normalization": {
    "edition_overrides": {
     "pes_pbs": "stem"
    },
-   "source": "self-derived (target_morph.py tokens/type=16.12)",
+   "source": "self-derived (target_morph.py tokens/type=16.19)",
    "value": "surface"
   }
  },
@@ -9607,8 +9667,22 @@
   }
  },
  "pon": {
+  "subject_indexing": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089,GB090",
+   "value": true
+  },
+  "tam_auxiliary": {
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB120",
+   "value": true
+  },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=25.11)",
+   "source": "self-derived (target_morph.py tokens/type=22.95)",
    "value": "surface"
   }
  },
@@ -10192,7 +10266,7 @@
  },
  "run": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=6.09)",
+   "source": "self-derived (target_morph.py tokens/type=7.10)",
    "value": "stem"
   }
  },
@@ -10238,8 +10312,8 @@
    "value": true
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=9.16)",
-   "value": "stem"
+   "source": "self-derived (target_morph.py tokens/type=15.72)",
+   "value": "surface"
   }
  },
  "rus": {
@@ -10317,6 +10391,9 @@
  },
  "san": {
   "target_normalization": {
+   "edition_overrides": {
+    "san_bur": "surface"
+   },
    "source": "self-derived (target_morph.py tokens/type=2.98)",
    "value": "stem"
   }
@@ -10335,7 +10412,7 @@
  },
  "sav": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=13.91)",
+   "source": "self-derived (target_morph.py tokens/type=13.92)",
    "value": "surface"
   }
  },
@@ -10588,7 +10665,7 @@
  },
  "six": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=7.83)",
+   "source": "self-derived (target_morph.py tokens/type=11.72)",
    "value": "stem"
   }
  },
@@ -10674,7 +10751,7 @@
  },
  "sna": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=5.50)",
+   "source": "self-derived (target_morph.py tokens/type=4.39)",
    "value": "stem"
   }
  },
@@ -10996,6 +11073,32 @@
   }
  },
  "swe": {
+  "articles": {
+   "gated_source": "derived (article_bound): the definite article is fused into the noun, so there is no free word to append",
+   "pos": [
+    "name",
+    "noun"
+   ],
+   "source": "grambank:GB020,GB021,GB022,GB023",
+   "value": false
+  },
+  "case_marking": {
+   "direction": "before",
+   "pos": [
+    "name",
+    "noun"
+   ],
+   "source": "grambank:GB074",
+   "value": true
+  },
+  "possession_affix": {
+   "direction": "before",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB432",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=15.64)",
    "value": "surface"
@@ -11003,7 +11106,7 @@
  },
  "swh": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=9.20)",
+   "source": "self-derived (target_morph.py tokens/type=8.99)",
    "value": "stem"
   }
  },
@@ -11149,8 +11252,12 @@
  },
  "tcn": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=8.27)",
-   "value": "stem"
+   "edition_overrides": {
+    "nttl": "stem",
+    "tcn_twf": "stem"
+   },
+   "source": "self-derived (target_morph.py tokens/type=15.14)",
+   "value": "surface"
   }
  },
  "tcs": {
@@ -11230,6 +11337,10 @@
  "tel": {
   "case_marking": {
    "direction": "after",
+   "gated_off_editions": [
+    "tel_irv",
+    "tel_otsa"
+   ],
    "pos": [
     "name"
    ],
@@ -11338,6 +11449,7 @@
   "articles": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB022",
@@ -11346,6 +11458,7 @@
   "case_marking": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB070,GB072,GB074",
@@ -11385,10 +11498,10 @@
  "tha": {
   "target_normalization": {
    "edition_overrides": {
-    "thatsv": "surface"
+    "tha_kjv": "stem"
    },
-   "source": "self-derived (target_morph.py tokens/type=2.25)",
-   "value": "stem"
+   "source": "self-derived (target_morph.py tokens/type=32.54)",
+   "value": "surface"
   }
  },
  "thd": {
@@ -11425,7 +11538,7 @@
  },
  "tif": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=20.54)",
+   "source": "self-derived (target_morph.py tokens/type=20.56)",
    "value": "surface"
   }
  },
@@ -11663,6 +11776,9 @@
  },
  "tpp": {
   "target_normalization": {
+   "edition_overrides": {
+    "tpptbl": "stem"
+   },
    "source": "self-derived (target_morph.py tokens/type=13.36)",
    "value": "surface"
   }
@@ -11693,7 +11809,7 @@
  },
  "trc": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=75.87)",
+   "source": "self-derived (target_morph.py tokens/type=76.51)",
    "value": "surface"
   }
  },
@@ -11793,13 +11909,16 @@
  },
  "tuo": {
   "target_normalization": {
+   "edition_overrides": {
+    "tuotbl": "surface"
+   },
    "source": "self-derived (target_morph.py tokens/type=8.64)",
    "value": "stem"
   }
  },
  "tur": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=6.14)",
+   "source": "self-derived (target_morph.py tokens/type=6.15)",
    "value": "stem"
   }
  },
@@ -11811,7 +11930,7 @@
  },
  "tvk": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=26.08)",
+   "source": "self-derived (target_morph.py tokens/type=26.14)",
    "value": "surface"
   }
  },
@@ -11847,7 +11966,7 @@
  },
  "twi": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=15.36)",
+   "source": "self-derived (target_morph.py tokens/type=15.78)",
    "value": "surface"
   }
  },
@@ -12040,13 +12159,6 @@
    "source": "grambank:GB070,GB075",
    "value": true
   },
-  "subject_indexing": {
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB089",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=15.24)",
    "value": "surface"
@@ -12194,13 +12306,6 @@
   }
  },
  "vep": {
-  "case_marking": {
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB070,GB072,GB074,GB075",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=9.10)",
    "value": "stem"
@@ -12869,7 +12974,7 @@
  },
  "yby": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=9.50)",
+   "source": "self-derived (target_morph.py tokens/type=9.54)",
    "value": "stem"
   }
  },
@@ -12967,7 +13072,7 @@
  },
  "ymp": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=43.04)",
+   "source": "self-derived (target_morph.py tokens/type=54.88)",
    "value": "surface"
   }
  },

@@ -51,12 +51,13 @@ from pathlib import Path
 from lexeme_aligner import dns_cache as _dns_cache  # last-known-good DNS fallback; this machine's DNS goes flaky
 _dns_cache.install()
 
-BASE = "https://cdn.bibel.wiki/dbt/_app"
+BASE = "https://cdn.bibel.wiki/catalog"      # bibles moved the catalog here 2026-10-07 (was /dbt/_app/catalog-*.json)
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 _DIR = Path("config/dbt_catalog")
 _FILES = {"index": "catalog-index.json", "overlap": "catalog-overlap.json"}
-PRIORITY = ("pkf", "helloao", "dbt")
-_SOURCE_LETTER = {"p": "pkf", "h": "helloao", "d": "dbt"}
+_REMOTE = {"catalog-index.json": "index.json", "catalog-overlap.json": "overlap.json"}   # local name -> name on the CDN
+PRIORITY = ("pkf", "helloao", "dbt", "o")      # `o` = bibles' own republished editions: last, so a same-text family prefers a direct source
+_SOURCE_LETTER = {"p": "pkf", "h": "helloao", "d": "dbt", "o": "o"}
 
 # each source's OWN raw catalog, fetched independent of catalog-overlap.json — the fallback path for
 # a single-candidate-anywhere language whose one source is helloAO or DBT (overlap.json excludes these
@@ -81,7 +82,7 @@ def fetch(dir_: Path = _DIR) -> dict:
     dir_.mkdir(parents=True, exist_ok=True)
     pin = {"provider": "cdn.bibel.wiki/dbt", "files": {}}
     for key, fname in _FILES.items():
-        data = _get(f"{BASE}/{fname}")
+        data = _get(f"{BASE}/{_REMOTE.get(fname, fname)}")
         (dir_ / fname).write_bytes(data)
         pin["files"][fname] = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
         print(f"[catalog_source] {fname}: {len(data)} bytes, sha256={pin['files'][fname]['sha256'][:12]}…",
@@ -141,8 +142,8 @@ def _split_id(ref: str) -> tuple[str, str]:
 def _param_for(source: str, iso: str, edition_code: str) -> str | None:
     if source == "pkf":
         return iso
-    if source in ("helloao", "dbt"):
-        return edition_code   # helloao: translation id · dbt: bible_id (dbt_source.py --bible-id)
+    if source in ("helloao", "dbt", "o"):
+        return edition_code   # helloao: translation id · dbt: bible_id (dbt_source.py --bible-id) · o: the <ABBR> in the CDN path
     return None
 
 

@@ -119,7 +119,9 @@ def main() -> int:
     scope_flag = "--all" if testaments == {"nt", "ot"} else f"--{next(iter(testaments))}"
     editions = editions_for(args.iso, testaments, args.editions_config)
     tags = [_tag(args.iso, ed["edition_code"], is_primary=(i == 0)) for i, ed in enumerate(editions)]
+    stat_of = {t: bool(ed.get("statistics", True)) for t, ed in zip(tags, editions)}     # statistics pool membership (onboard.editions_for)
     usj_dirs = {tag: Path(f"pipeline/work/ingest-cache/usj-{tag}") for tag in tags}
+    all_tags = list(tags)
     tags = [t for t in tags if _has_text(usj_dirs[t])]   # a pooled edition onboard.py skipped has no usj dir; an edition whose fetch returned nothing has an EMPTY one
     if not tags:
         raise SystemExit(f"[full_chain] '{args.iso}': no tag survived ingest — see onboard's own output above")
@@ -127,10 +129,16 @@ def main() -> int:
     # needed because export_lex/senses_attested take one `--iso` argument plus a `--pool` list; every step below
     # that produces a per-edition artifact (compact-alignments) runs once per tag, and every pooled dataset
     # (lexeme-alignments, aligned_mwe, senses_attested) folds ALL tags in, tagging rows by base_text.
-    primary, pool = tags[0], tags[1:]
+    # Every edition (`tags`) is aligned and gets compact files. The pooled datasets and the votes use the STATISTICS set only: an edition
+    # that is a spelling variant / near copy of one already in would count as a second independent witness (onboard.editions_for).
+    stat_tags = [t for t in tags if stat_of.get(t, True)] or tags[:1]
+    primary, pool = stat_tags[0], stat_tags[1:]
     only = {t.strip() for t in args.editions.split(",") if t.strip()} if args.editions else None
     run_tags = [t for t in tags if only is None or t in only]      # per-edition steps; pooled steps keep `tags`
     if not run_tags:
+        if only & set(all_tags):    # in the pool but no text came through (audio/video-only fileset): nothing to align
+            print(f"[full_chain] --editions {sorted(only)}: in the pool but ingested no text — nothing to do", file=sys.stderr)
+            return 0
         raise SystemExit(f"[full_chain] --editions {sorted(only)}: none of them is in the pool {tags}")
 
     # the language name onboard.py itself settled on (source-derived, priority pkf>helloao>dbt) — read
@@ -210,7 +218,7 @@ def main() -> int:
     # which is every spanext entry by construction, so it can only ever land in the main array.
     for tag in run_tags:
         _run("compact_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
-             "--methods", _METHODS, env=env, soft=True)
+             "--methods", _METHODS, *(() if tag in stat_tags else ("--not-in-statistics-pool",)), env=env, soft=True)
 
     # step 9b: the language's pipeline_decisions ledger entry (config/pipeline_decisions.json) — always-on mechanisms, opt-in flags and the stemming
     # decision this run actually used. Before 2026-10-04 only the batch runner / ad-hoc scripts wrote it, so a chain run by hand left it stale. Best-effort;

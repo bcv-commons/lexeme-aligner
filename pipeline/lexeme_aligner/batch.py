@@ -129,10 +129,12 @@ def load_env() -> None:
                 os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
 
-def make_runner(skip_ingest: bool, nice: int, ledger: bool) -> Callable[[str], bool]:
+def make_runner(skip_ingest: bool, nice: int, ledger: bool, editions: dict[str, list[str]] | None = None) -> Callable[[str], bool]:
+    """`editions` ({iso: [tag, ...]}): run only those editions' per-edition steps (full_chain --editions); the pooled exports still read all."""
     def run_one(iso: str) -> bool:
         cmd = [sys.executable, "-m", "lexeme_aligner.full_chain", "--iso", iso, "--clean-out",
-               *(["--skip-ingest"] if skip_ingest else []), *([] if ledger else ["--no-ledger"])]     # the chain writes the ledger entry itself
+               *(["--skip-ingest"] if skip_ingest else []), *([] if ledger else ["--no-ledger"]),     # the chain writes the ledger entry itself
+               *(["--editions", ",".join(editions[iso])] if editions and editions.get(iso) else [])]
         rc = subprocess.run(cmd, cwd=str(REPO), preexec_fn=(lambda: os.nice(nice)) if nice else None).returncode
         return rc == 0
     return run_one
@@ -152,6 +154,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--state", type=Path, default=DEFAULT_STATE)
     ap.add_argument("--fresh", action="store_true", help="ignore the state file and start a new sweep")
     ap.add_argument("--retry-failed", action="store_true", help="run the languages the state file lists as failed again")
+    ap.add_argument("--editions-file", type=Path, metavar="FILE",
+                    help="JSON {iso: [edition tag, ...]}: for those languages run only the named editions' per-edition steps (a newly pooled edition)")
     ap.add_argument("--no-ledger", action="store_true", help="do not refresh the pipeline_decisions entry after each language")
     ap.add_argument("--dry-run", action="store_true", help="print the queue and exit")
     a = ap.parse_args(argv)
@@ -181,7 +185,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[batch] dry run: {len(queue)} queued, {len(todo)} to run: {todo[:20]}{' ...' if len(todo) > 20 else ''}", file=sys.stderr)
         return 0
     load_env()
-    return run_batch(queue, make_runner(a.skip_ingest, a.nice, not a.no_ledger), state, workers=a.workers, min_free_gb=a.min_free_gb)
+    ed_map = json.loads(a.editions_file.read_text(encoding="utf-8")) if a.editions_file else None
+    return run_batch(queue, make_runner(a.skip_ingest, a.nice, not a.no_ledger, ed_map), state, workers=a.workers, min_free_gb=a.min_free_gb)
 
 
 if __name__ == "__main__":

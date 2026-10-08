@@ -119,6 +119,9 @@ PARTITION = "BSB-tables"                             # manual/<partition>/ — b
 OWNER = "bsb_tables"                                 # manifest marker gold_to_fullalign.py carries over on rerun
 
 
+_TITLE_SKIP = 24     # leading rows a verse may leave out when they are the psalm title (long titles run to ~20 rows; see map_target)
+
+
 def layer_dir(out_dir: Path = OUT_DIR) -> Path:
     return out_dir / LANG / EDITION / "manual" / PARTITION
 LICENSE_STATEMENT = ("The Berean Bible and Majority Bible texts are officially placed into the public "
@@ -385,14 +388,52 @@ def _letters(s: str) -> str:
     return "".join(c for c in norm_surface(s) if unicodedata.category(c)[0] in ("L", "M"))
 
 
-def map_target(rows: list[dict], toks: list[str]) -> dict[int, list[int]] | None:
-    """{bsb_sort: our positions} for a verse's rows (any order), or None if the spans do not tile our tokens."""
+_TAG_RE = re.compile(r"<[^>]*>")
+_VVV_RE = re.compile(r"\bvvv\b")
+
+
+def _cell_letters(span: str) -> str:
+    """The letters a table cell contributes to the verse: markup (`<p class=|list2|>`) and the joint marker `vvv` inside a cell are
+    not target words."""
+    if span.strip() == "vvv":
+        return ""
+    return _letters(_VVV_RE.sub(" ", _TAG_RE.sub(" ", span)))
+
+
+def map_target(rows: list[dict], toks: list[str], max_skip: int = 0, tolerant: bool = False
+               ) -> dict[int, list[int]] | None:
+    """{bsb_sort: our positions} for a verse's rows (any order), or None if the spans do not tile our tokens.
+
+    `max_skip` (2026-10-07): the table puts a psalm's title into verse 1 ("A Psalm", "of David", ...) while our BSB text prints
+    it as an unnumbered heading, so the verse text starts after those rows. With `max_skip` > 0, up to that many LEADING rows
+    may be left out of the tiling when the rest tile the verse exactly; the skipped rows get no target positions.
+
+    `tolerant` (2026-10-07): a last resort for verses whose table and English text genuinely differ by a few words: our text may
+    hold a few words no row carries (speaker labels in Song of Songs, a sentence the table omits), and a row may hold words our
+    text lacks (a bracketed insertion). Up to `_MAX_EXTRA_TOKENS` of our tokens may be left unclaimed and up to
+    `_MAX_MISSING_ROWS` rows may find no tokens (they get no positions); every other row must still match exactly, in order."""
+    srt = sorted(rows, key=lambda r: sort_key(r["bsb_sort"]))
+    for strict in ((True, False) if tolerant else (True,)):
+        for skip in range(0, max_skip + 1):
+            out = _tile(srt[skip:], toks) if strict else _tile_tolerant(srt[skip:], toks)
+            if out is not None:
+                for r in srt[:skip]:
+                    out[r["bsb_sort"]] = []
+                return out
+    return None
+
+
+_MAX_EXTRA_TOKENS = 6
+_MAX_MISSING_ROWS = 3
+_LOOKAHEAD = 6
+
+
+def _tile(srt: list[dict], toks: list[str]) -> dict[int, list[int]] | None:
     ours = [_letters(w) for w in toks]
     out: dict[int, list[int]] = {}
     j = 0
-    for r in sorted(rows, key=lambda r: sort_key(r["bsb_sort"])):
-        span = r["text"]
-        letters = "" if span.strip() == "vvv" else _letters(span)
+    for r in srt:
+        letters = _cell_letters(r["text"])
         if not letters:
             out[r["bsb_sort"]] = []
             continue
@@ -406,6 +447,40 @@ def map_target(rows: list[dict], toks: list[str]) -> dict[int, list[int]] | None
             return None
         out[r["bsb_sort"]] = taken
     if j != len(ours):
+        return None
+    return out
+
+
+def _match_at(ours: list[str], j: int, letters: str) -> list[int] | None:
+    acc, taken = "", []
+    while j < len(ours) and len(acc) < len(letters):
+        acc += ours[j]
+        taken.append(j)
+        j += 1
+    return taken if acc == letters else None
+
+
+def _tile_tolerant(srt: list[dict], toks: list[str]) -> dict[int, list[int]] | None:
+    ours = [_letters(w) for w in toks]
+    out: dict[int, list[int]] = {}
+    j = extra = missing = 0
+    for r in srt:
+        letters = _cell_letters(r["text"])
+        if not letters:
+            out[r["bsb_sort"]] = []
+            continue
+        for off in range(0, _LOOKAHEAD + 1):
+            taken = _match_at(ours, j + off, letters)
+            if taken is not None:
+                extra += off
+                out[r["bsb_sort"]] = taken
+                j = taken[-1] + 1
+                break
+        else:
+            missing += 1
+            out[r["bsb_sort"]] = []
+    extra += len(ours) - j
+    if extra > _MAX_EXTRA_TOKENS or missing > _MAX_MISSING_ROWS:
         return None
     return out
 
@@ -740,7 +815,7 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
                 sp = sorted(rec.heb, key=lambda t: t.idx)
                 sp_tokens = {t.idx: t for t in sp}
                 smap = map_source(vrows, [(t.idx, t.strong, t.surface) for t in sp])
-                tmap = map_target(vrows, list(rec.toks))
+                tmap = map_target(vrows, list(rec.toks), max_skip=_TITLE_SKIP, tolerant=True)
                 if tmap is None:
                     bt["verses_target_refused"] += 1
                 else:

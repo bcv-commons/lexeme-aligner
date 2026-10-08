@@ -765,6 +765,10 @@ def main() -> int:
     ap.add_argument("--publish-iso", default=None,
                     help="true published language code for --publish's path (default: same as --iso) — "
                          "set when the tag differs from the iso, e.g. --iso arb_vdv --publish-iso arb")
+    ap.add_argument("--not-in-statistics-pool", action="store_true",
+                    help="mark this edition's manifest entry statistics_pool=false: it gets compact files like every edition, but the "
+                         "pooled datasets and the typology / cross-edition votes do not count it (a spelling variant or near copy of "
+                         "an edition already counted)")
     ap.add_argument("--usj-dir", type=Path, default=None)
     ap.add_argument("--index", type=Path, default=Path("config/canonical_index/whole_bible.json"),
                     help="the canonical ordinal index (read to align array positions, or write with --build-index)")
@@ -843,6 +847,8 @@ def main() -> int:
         manifest_entry = {"tag": args.iso, "books": sorted(written),
                           "source": sources.get(args.iso, {}), "versification": scheme,
                           "rend_stopwords": load_rend_stopwords(publish_iso)[1]}
+        if args.not_in_statistics_pool:
+            manifest_entry["statistics_pool"] = False         # absent = counted (every edition published before 2026-10-07)
         update_manifest(args.publish / "manifest.json", publish_iso, resolved_edition, manifest_entry)
         print(f"[compact_align] {publish_iso}/{resolved_edition}: {len(written)} book file(s) written "
               f"under {args.publish}, manifest updated", file=sys.stderr)

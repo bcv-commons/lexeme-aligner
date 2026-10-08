@@ -155,6 +155,14 @@
     "tiw": [
       {"source": "helloao", "param": "tiw_mwb", "edition_code": "tiw_mwb", "note": "anchor — existing published edition"},
       {"source": "helloao", "param": "tiw_wbt", "edition_code": "tiw_wbt"}
+    ],
+    "kpr": [
+      {"source": "helloao", "param": "kpr_tbl", "edition_code": "kpr_tbl", "note": "OT = Psalms only; NT is the same text as KPRPKF"},
+      {"source": "pkf", "param": "kpr", "edition_code": "KPRPKF", "note": "PKF kpr_C01: the only Ruth and Jonah for kpr (no OT book shared with kpr_tbl). bibles confirmed 2026-10-07 'pool them'; the catalog's OT r:false is a probe artifact (no shared chapter to test). Temporary until the catalog flag is fixed."}
+    ],
+    "ztp": [
+      {"source": "helloao", "param": "ztp_wbt", "edition_code": "ztp_wbt", "note": "NT only"},
+      {"source": "pkf", "param": "ztp", "edition_code": "ZTPPKF", "note": "PKF ztp_ztp: the only Ruth and Jonah for ztp. bibles confirmed 2026-10-07 'pool them'; the catalog's OT r:false is a probe artifact. Temporary until the catalog flag is fixed."}
     ]
   },
   "_excluded_tracks": {

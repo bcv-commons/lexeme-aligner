@@ -67,10 +67,25 @@ def is_padding(r: dict) -> bool:
     return not r["h_idx"] and not r["t_idx"] and not (r.get("target") or "").strip()
 
 
+def _hidx(r: dict) -> set:
+    h = r.get("h_idx")
+    return {h} if isinstance(h, int) else set(h or [])
+
+
 def to_crows(kind: str, rows: list[dict], groups: dict, base: dict, has_ids: bool,
-             dropped: collections.Counter | None = None) -> dict[str, list]:
+             dropped: collections.Counter | None = None, title_tokens: dict | None = None) -> dict[str, list]:
+    """`title_tokens` ({"PSA 3:1": {spine idx, ...}}): for an edition that prints psalm titles as headings (psalm_titles mode
+    `heading`) the statistical layer's alignments on those tokens are noise (the English verse has no title words), so rows made
+    only of title tokens are left out of the statistical layer."""
     by_verse: dict[str, list[dict]] = collections.defaultdict(list)
     for r in rows:
+        if kind == "statistical" and title_tokens:
+            tt = title_tokens.get(f"{r['book']} {r['chapter']}:{r['verse']}")
+            hs = _hidx(r)
+            if tt and hs and hs <= tt:
+                if dropped is not None:
+                    dropped["psalm-title token rows dropped (edition prints titles as headings)"] += 1
+                continue
         if kind == "bsb" and is_padding(r):
             if dropped is not None:
                 dropped["padding rows dropped (empty cell, no source)"] += 1
@@ -266,6 +281,16 @@ def main(argv=None) -> int:
         if a.layers and short not in a.layers:
             continue
         enc[lab] = (kind, lid, has_ids, None)
+    from lexeme_aligner.psalm_titles import title_mode
+    tmode = title_mode(USJ_TAG, usj_dir, heb)
+    print(f"[pilot] psalm titles in {USJ_TAG}: {tmode}")
+    title_tokens = {}
+    if tmode["mode"] == "heading":
+        for ch in heb.chapters("PSA"):
+            for v in heb.verses("PSA", ch):
+                tt = {t.idx for t in heb.verse_tokens("PSA", ch, v) if t.is_superscription}
+                if tt:
+                    title_tokens[f"PSA {ch}:{v}"] = tt
     totals: dict[str, collections.Counter] = {lab: collections.Counter() for lab in enc}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
@@ -284,7 +309,7 @@ def main(argv=None) -> int:
             layer_dir = a.out / "e" / ISO / lid
             le = fc.LayerEncoder(lid, "statistical" if kind == "statistical" else "manual", base, has_ids)
             dropped: collections.Counter = collections.Counter()
-            crows = to_crows(kind, rows, groups, base, has_ids, dropped)
+            crows = to_crows(kind, rows, groups, base, has_ids, dropped, title_tokens if book == 'PSA' else None)
             t.update(dropped)
             hints = None
             compact_main = compact_meta = None

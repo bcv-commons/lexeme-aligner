@@ -1,17 +1,7 @@
 """Offline tests for versification.py — synthetic USJ/.vrs data, no real vendored files.
 
-Written for roadmap item E1 (internal-docs/aim1-typology-source-structure-plan.md §4R): the
-declared-vs-detected CDN versification diff. Finding: `scheme_of()` already prefers structure-based
-auto-detection (`detect_scheme`) over the manual `config/versification.json` fallback whenever a
-usj_dir is given — true at every real call site in this codebase (run_pilot, gapfill, span_extension,
-compact_align, derive_typology, pos_score, ...) — so a wrong/missing manual entry is a latent risk
-only for a language with no ingested text to fingerprint. Verified against the 22 editions the CDN
-declares non-eng that we align: 21/22 auto-detect to the exact declared scheme (hun/HUNHUN, the
-flagged critical Psalm-superscription case, at 100% confidence); the 22nd (ind/INDASV) has an empty
-ingest-cache directory (0 files) — an onboarding gap, not a versification bug. No `config/
-versification.json` edit was warranted by this diff: every entry it could add for these 22 would be
-dead code, shadowed by auto-detection.
-"""
+The scheme label comes from fingerprinting the ingested text's verse structure (`detect_scheme`); there is no manual
+per-language override any more (bcv-commons/bibles owns the labels, see internal-docs/repo-responsibilities.md)."""
 import json
 
 import lexeme_aligner.versification as vf
@@ -72,32 +62,19 @@ def test_detect_scheme_empty_usj_returns_none(tmp_path):
     assert vf.detect_scheme(str(tmp_path)) == (None, None, {})
 
 
-def test_scheme_of_prefers_autodetect_over_manual_file(tmp_path, monkeypatch):
-    """The core E1 finding: a usj_dir that auto-detects cleanly wins over config/versification.json,
-    even when the manual file disagrees or has no entry at all."""
+def test_scheme_of_autodetects_from_the_ingested_structure(tmp_path, monkeypatch):
+    """A usj_dir whose verse structure matches a scheme is labelled by that structure."""
     usj_dir = _write_usj(tmp_path, "PSA", {51: 21})
     monkeypatch.setattr(vf, "_load_vrs", lambda name: {
         "eng": {"PSA": {51: 19}}, "org": {"PSA": {51: 21}},
     }.get(name, {}))
     vf._DETECT_CACHE.clear()
-    # manual file says protestant (or is silent) for this iso — auto-detect must still win
-    versif_fp = tmp_path.parent / "versification_manual.json"
-    versif_fp.write_text(json.dumps({"hunhun": "protestant"}), encoding="utf-8")
-    monkeypatch.setattr(vf, "_VERSIF", versif_fp)
     assert vf.scheme_of("hunhun", str(usj_dir)) == "hebrew"
 
 
-def test_scheme_of_falls_back_to_manual_file_when_no_usj(tmp_path, monkeypatch):
-    versif_fp = tmp_path / "versification_manual.json"
-    versif_fp.write_text(json.dumps({"rus": "septuagint"}), encoding="utf-8")
-    monkeypatch.setattr(vf, "_VERSIF", versif_fp)
-    assert vf.scheme_of("rus", None) == "septuagint"
-    assert vf.scheme_of("rus", "/no/such/dir") == "septuagint"
-
-
-def test_scheme_of_defaults_to_protestant_with_no_signal_at_all(tmp_path, monkeypatch):
-    monkeypatch.setattr(vf, "_VERSIF", tmp_path / "nope.json")
+def test_scheme_of_defaults_to_protestant_without_ingested_text():
     assert vf.scheme_of("zzz", None) == "protestant"
+    assert vf.scheme_of("zzz", "/no/such/dir") == "protestant"
 
 
 # --- 2026-10-05: the spine's OT is HEBREW-numbered (MACULA = WLC), not KJV. The remap now goes spine -> KJV

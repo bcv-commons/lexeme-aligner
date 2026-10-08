@@ -168,6 +168,12 @@ def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_C
         # cover the most testaments, our source priority decides as before.
         best = max(len(coverage.get(m, ())) for m in members)
         members = [m for m in members if len(coverage.get(m, ())) == best] or members
+        # Stability (2026-10-07): among members that are the SAME text, keep the edition we already publish, so a catalog reshuffle
+        # (a new same-text id, a higher-priority host) does not swap a published edition for an identical copy. An unfetchable
+        # member is never in `members` (excluded upstream), so a published edition that went away still gets replaced.
+        published = _published_tags(iso)
+        kept_already = [m for m in members if _tag(iso, all_own_keys[m]["edition_code"], False) in published]
+        members = kept_already or members
         for src in PRIORITY:
             for ok in members:
                 if all_own_keys[ok]["source"] == src:
@@ -181,10 +187,18 @@ def editions_for(iso: str, testaments: set[str], config_path: Path = _EDITIONS_C
         rec = all_own_keys[canonical]
         seen[canonical] = {"source": rec["source"], "param": rec["param"], "edition_code": rec["edition_code"]}
         canon_coverage[canonical] = set().union(*(coverage.get(m, set()) for m in members))
-    return _drop_near_duplicates(seen, classification, canon_coverage)
+    # Two sets (2026-10-07). Every fetchable, distinct edition the catalog lists is ALIGNED (per-edition files, compact-alignments).
+    # Only those that survive the near-duplicate rule are in the STATISTICS pool: the pooled exports (lexeme-alignments,
+    # aligned_mwe, senses_attested) and the typology / cross-edition votes, where a close relative of an edition already in would count as a
+    # second independent witness. Each edition carries `statistics: bool`.
+    kept = _drop_near_duplicates(seen, classification, canon_coverage)
+    kept_keys = {(v["source"], v["edition_code"]) for v in kept}
+    return [dict(v, statistics=(v["source"], v["edition_code"]) in kept_keys) for v in seen.values()]
 
 
-_REDUNDANT_LIKELY = {"dialect_variant", "orthography_convention", "near_identical"}
+# Option B (decided 2026-10-07): only a spelling variant or a near-identical copy is "the same witness". A dialect_variant is a different
+# translation and counts on its own (bibles: `likely` is "the most similar thing we found", not "the same edition").
+_REDUNDANT_LIKELY = {"orthography_convention", "near_identical"}
 
 
 def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[tuple[str, str]]],
@@ -240,6 +254,44 @@ def _drop_near_duplicates(seen: dict[str, dict], classification: dict[str, list[
                 loser = winner               # the preferred one adds nothing the other lacks: drop it instead
         dropped.add(loser)
     return [v for k, v in seen.items() if k not in dropped]
+
+
+_COMPACT_MANIFEST = Path("publish/compact-alignments/manifest.json")
+
+
+def _published_tags(iso: str, manifest_path: Path = _COMPACT_MANIFEST) -> set[str]:
+    """Slugged tags of the editions of `iso` we already publish (compact-alignments manifest), lower-case. Empty if unknown."""
+    try:
+        langs = json.loads(Path(manifest_path).read_text(encoding="utf-8")).get("languages", {})
+    except (OSError, ValueError):
+        return set()
+    slug = lambda x: "".join(c if c.isalnum() else "_" for c in x.lower())          # noqa: E731
+    out = set()
+    for key, e in langs.get(iso, {}).get("editions", {}).items():
+        out.add(slug(key))
+        if isinstance(e, dict) and e.get("tag"):          # the entry's own tag: manifest keys are edition ids (PKF `hch_hch`, `bpx_PCFWFW`)
+            out.add(slug(e["tag"]))
+    return out
+
+
+def _known_language_name(iso: str, pins_dir: Path = Path("config/pins"), manifest_path: Path = _COMPACT_MANIFEST) -> str | None:
+    """The language name from an edition we already hold, for a language whose current editions carry none (the catalog's `o` source has
+    no language name in its pin): any pin of one of the language's published editions that has one. None if nothing is known."""
+    try:
+        editions = json.loads(Path(manifest_path).read_text(encoding="utf-8")).get("languages", {}).get(iso, {}).get("editions", {})
+    except (OSError, ValueError):
+        return None
+    for key, e in editions.items():
+        for tag in (e.get("tag"), key):
+            fp = Path(pins_dir) / f"{tag}.json" if tag else None
+            if fp and fp.exists():
+                try:
+                    name = json.loads(fp.read_text(encoding="utf-8")).get("language_name")
+                except ValueError:
+                    continue
+                if name:
+                    return name
+    return None
 
 
 def _tag(iso: str, edition_code: str, is_primary: bool) -> str:
@@ -326,6 +378,7 @@ def main() -> int:
     # multi-edition language purely because of list position, even while a perfectly good already-
     # cached edition sat right there as a "pooled" (non-first) entry.
     tags, pins, sources_by_tag, usj_dirs, skipped = [], {}, {}, {}, []
+    stat_of: dict[str, bool] = {}          # tag -> in the statistics pool (see editions_for)
     for ed in editions:
         tag = _tag(args.iso, ed["edition_code"], is_primary=False)
         usj = Path(f"pipeline/work/ingest-cache/usj-{tag}")
@@ -338,7 +391,9 @@ def main() -> int:
                              "--to-usj", usj, "--pin", pin] if ed["source"] == "helloao" else
                             ["dbt_source", "--bible-id", ed["param"], "--iso", tag,
                              "--bare-iso", args.iso,
-                             "--to-usj", usj, "--pin", pin] if ed["source"] == "dbt" else None)
+                             "--to-usj", usj, "--pin", pin] if ed["source"] == "dbt" else
+                            ["openbible_source", "--iso", args.iso, "--edition", ed["param"], "--tag", tag,
+                             "--to-usj", usj, "--pin", pin] if ed["source"] == "o" else None)
             if ingest_args is None:
                 raise SystemExit(f"[onboard] unknown source '{ed['source']}' for edition {ed}")
             if not _run_soft(*ingest_args, env=env):
@@ -357,6 +412,7 @@ def main() -> int:
             continue
 
         tags.append(tag)
+        stat_of[tag] = bool(ed.get("statistics", True))
         sources_by_tag[tag] = ed["source"]
         pins[tag] = pin
         usj_dirs[tag] = usj
@@ -368,7 +424,7 @@ def main() -> int:
         raise SystemExit(f"[onboard] '{args.iso}': ALL {len(editions)} edition(s) failed to ingest or "
                           f"produced zero usable books — nothing to align (no sensible anchor fallback)")
 
-    lang_name = derive_lang_name(sources_by_tag, pins)
+    lang_name = derive_lang_name(sources_by_tag, pins) or _known_language_name(args.iso)
     if lang_name and args.lang_name and lang_name.strip().lower() != args.lang_name.strip().lower():
         print(f"[onboard] WARNING: --lang-name '{args.lang_name}' doesn't match the source-derived "
               f"name '{lang_name}' — using the source-derived name.", file=sys.stderr)
@@ -387,6 +443,10 @@ def main() -> int:
     # "Step 3 fertility priors" and finding zero lines. full_chain.py already passes --publish-iso to
     # its own gloss/spanext/gapfill/residual steps for the same reason; this was the one call that didn't.
     if only is not None and not only & set(tags):
+        in_pool = {_tag(args.iso, e["edition_code"], is_primary=False) for e in editions}
+        if only & in_pool:          # named editions ARE in the pool but gave no text (e.g. a DBT fileset that is audio/video only): nothing to align, not an error
+            print(f"[onboard] --editions {sorted(only)}: in the pool but ingested no text — nothing to do", file=sys.stderr)
+            return 0
         raise SystemExit(f"[onboard] --editions {sorted(only)}: none of them is in the pool {tags}")
     for tag in tags:
         if only is not None and tag not in only:
@@ -395,7 +455,8 @@ def main() -> int:
              "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env)
 
-    primary, pool = tags[0], tags[1:]
+    stat_tags = [t for t in tags if stat_of.get(t, True)] or tags[:1]    # pooled exports + votes: the statistics set only
+    primary, pool = stat_tags[0], stat_tags[1:]
     # --publish-iso is ALWAYS the true bare iso (args.iso), not the primary edition's tag — without
     # this, a single-edition language (tag != iso, the norm since _tag() stopped grandfathering the
     # primary edition to the bare iso) publishes under iso=<tag>/ instead of iso=<iso>/, which

@@ -452,3 +452,12 @@ pipeline/vendor/versification/{schemes/rso.tsv, schemes/rso.multiverse.json, vrs
   CC BY 4.0, STEPBible.org (TVTMS). Reference text: helloAO rus_syn. Replaces the 2026-09-26 table (and our local Psalm 9 patch). Daniel = canonical 66-book layout (Dan 3/4 Hebrew numbering, 5-6 English);
   Esther, Proverbs 4:28-29, Proverbs 13:14, Joshua 24:34-36, Psalm 151, Joel 3:1-5: no rows. Audit on rus_syn: 0 spine verses without text, 8 unreached (all expected additions / known one-to-two).
   Effect on classification: rus_syn now matches rso.vrs exactly (0.9968 -> 1.0000); ukr_npu moves lxx -> rso (1.0000); no other edition changes. 15 editions are now rso.
+
+config/dbt_catalog/catalog-index.json, catalog-overlap.json — bcv-commons/bibles' catalog (cross-source edition discovery) [catalog_source.fetch]
+  location moved 2026-10-07: https://cdn.bibel.wiki/catalog/index.json and /catalog/overlap.json (was /dbt/_app/catalog-*.json); local names unchanged.
+  pin (config/dbt_catalog/pin.json): index sha256 d4d3d0218c7310025dd00e8640841986079d349f9321656a24c43a815f404c45, 75,457 bytes;
+    overlap sha256 45be2d645f4e2e9395d6b11cb45810ea3070b8f23998eaa9539687ea1602cbf5, 169,848 bytes (the hashes bibles announced 2026-10-07).
+  new: source `o` (editions bibles republishes itself; fetched by openbible_source.py from https://cdn.bibel.wiki/openbible/<iso>/<edition>/<BOOK>/<chapter>.json).
+  dbt-catalog.json and helloao-translations.json are unchanged (bibles: the DBT catalog was already current).
+  Pool policy built on it: onboard.editions_for returns every fetchable, distinct edition (the alignment set); `statistics: false` marks a near
+  copy (labels near_identical / orthography_convention) that is aligned and published but not counted in the pooled datasets or the votes.

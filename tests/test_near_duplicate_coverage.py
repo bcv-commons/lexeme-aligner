@@ -1,5 +1,8 @@
 """onboard._drop_near_duplicates must never drop an edition that covers a testament its partner lacks."""
+import pytest
 from lexeme_aligner import onboard as ob
+
+_REAL_PUBLISHED_TAGS = ob._published_tags      # the autouse fixture below replaces it for every other test
 
 
 def _seen(*keys):
@@ -31,7 +34,7 @@ def test_the_result_does_not_depend_on_which_side_the_catalog_flags():
 
 def test_a_lower_priority_edition_with_more_coverage_beats_a_higher_priority_one():
     seen = _seen("pkf:XXXPKF", "helloao:xxx_new")
-    cls = {"helloao:xxx_new": [("dialect_variant", "pkf:XXXPKF")]}
+    cls = {"helloao:xxx_new": [("near_identical", "pkf:XXXPKF")]}
     cov = {"pkf:XXXPKF": {"nt"}, "helloao:xxx_new": {"nt", "ot"}}
     assert _kept(seen, cls, cov) == ["helloao:xxx_new"]
 
@@ -55,6 +58,11 @@ def test_the_dominated_edition_is_still_dropped_when_it_adds_nothing():
     cls = {"dbt:XXXDBT": [("near_identical", "pkf:XXXPKF")]}
     cov = {"pkf:XXXPKF": {"nt", "ot"}, "dbt:XXXDBT": {"nt"}}
     assert _kept(seen, cls, cov) == ["pkf:XXXPKF"]
+
+
+@pytest.fixture(autouse=True)
+def _no_published(monkeypatch):
+    monkeypatch.setattr(ob, "_published_tags", lambda iso, manifest_path=None: set())
 
 
 def _rec(source, code, same_text_as=None, fetchable=True, likely=None, closest=None):
@@ -85,4 +93,47 @@ def test_editions_for_jav_style_pair_keeps_the_ot_edition(monkeypatch, tmp_path)
                 "ot": [_rec("dbt", "JAVLAI")]}
     monkeypatch.setattr(ob, "all_versions", lambda iso, testament: versions[testament])
     eds = ob.editions_for("jav", {"nt", "ot"}, tmp_path / "none.json")
-    assert [e["edition_code"] for e in eds] == ["JAVLAI"]
+    # both are ALIGNED (every fetchable, distinct edition is); only JAVLAI counts in the statistics pool
+    assert [(e["edition_code"], e["statistics"]) for e in eds] == [("JAVLAI", True), ("JAVNRF", False)]
+
+
+def test_a_dialect_variant_is_aligned_and_counts_in_the_statistics_pool(monkeypatch, tmp_path):
+    versions = {"nt": [_rec("dbt", "HUNA", likely="dialect_variant", closest="dbt:HUNB"), _rec("dbt", "HUNB")], "ot": []}
+    monkeypatch.setattr(ob, "all_versions", lambda iso, testament: versions[testament])
+    eds = ob.editions_for("hun", {"nt"}, tmp_path / "none.json")
+    assert [(e["edition_code"], e["statistics"]) for e in eds] == [("HUNA", True), ("HUNB", True)]       # option B: only a near copy is dropped from the votes
+
+
+def test_a_published_edition_is_kept_over_an_identical_copy(monkeypatch, tmp_path):
+    # aeb: two DBT ids, now declared the same text. The one we already publish stays (no churn); priority and tie-breaks only apply otherwise.
+    versions = {"nt": [_rec("dbt", "AEBWBT"), _rec("dbt", "AEBWYI", same_text_as="dbt:AEBWBT")], "ot": []}
+    monkeypatch.setattr(ob, "all_versions", lambda iso, testament: versions[testament])
+    monkeypatch.setattr(ob, "_published_tags", lambda iso, manifest_path=None: {"aebwyi"})
+    assert [e["edition_code"] for e in ob.editions_for("aeb", {"nt"}, tmp_path / "none.json")] == ["AEBWYI"]
+    monkeypatch.setattr(ob, "_published_tags", lambda iso, manifest_path=None: set())
+    assert [e["edition_code"] for e in ob.editions_for("aeb", {"nt"}, tmp_path / "none.json")] == ["AEBWBT"]
+
+
+def test_an_unfetchable_published_edition_is_replaced(monkeypatch, tmp_path):
+    versions = {"nt": [_rec("helloao", "mgw_pbt", fetchable=False), _rec("o", "MATUMBI")], "ot": []}
+    monkeypatch.setattr(ob, "all_versions", lambda iso, testament: versions[testament])
+    monkeypatch.setattr(ob, "_published_tags", lambda iso, manifest_path=None: {"mgw_pbt"})
+    assert [e["edition_code"] for e in ob.editions_for("mgw", {"nt"}, tmp_path / "none.json")] == ["MATUMBI"]
+
+
+def test_known_language_name_falls_back_to_a_published_editions_pin(tmp_path):
+    import json
+    (tmp_path / "pins").mkdir()
+    (tmp_path / "pins" / "xx_old.json").write_text(json.dumps({"language_name": "Xxish"}))
+    (tmp_path / "pins" / "xx_new.json").write_text(json.dumps({"language_name": None}))
+    man = tmp_path / "m.json"
+    man.write_text(json.dumps({"languages": {"xx": {"editions": {"A": {"tag": "xx_new"}, "B": {"tag": "xx_old"}}}}}))
+    assert ob._known_language_name("xx", tmp_path / "pins", man) == "Xxish"
+    assert ob._known_language_name("zz", tmp_path / "pins", man) is None
+
+
+def test_published_tags_use_the_entrys_tag_not_only_the_manifest_key(tmp_path):
+    import json
+    m = tmp_path / "m.json"
+    m.write_text(json.dumps({"languages": {"bpx": {"editions": {"bpx_PCFWFW": {"tag": "pcfwfw"}}}}}))
+    assert _REAL_PUBLISHED_TAGS("bpx", m) == {"bpx_pcfwfw", "pcfwfw"}

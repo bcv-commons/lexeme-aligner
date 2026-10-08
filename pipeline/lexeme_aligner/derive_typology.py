@@ -123,12 +123,13 @@ def _content_sha256(doc: dict) -> str:
 
 
 def editions_of(iso: str, compact_manifest: dict) -> list[tuple[str, str, list[str]]]:
-    """[(tag, edition_code, books), ...] for EVERY edition of `iso` that has compact-alignments, sorted by tag.
+    """[(tag, edition_code, books), ...] for every edition of `iso` that has compact-alignments AND is in the statistics pool, sorted by tag.
     There is no privileged edition: each one is analysed on its own and `combine_language` folds the verdicts
     together (see `edition_vote`). This replaced `primary_edition()`, which picked one edition by OT-book count
     with ties settled by manifest order — effectively first-come, and blind to the other editions."""
     editions = compact_manifest.get(iso, {}).get("editions", {})
-    return sorted(((e["tag"], ecode, list(e.get("books") or [])) for ecode, e in editions.items()),
+    return sorted(((e["tag"], ecode, list(e.get("books") or [])) for ecode, e in editions.items()
+                   if e.get("statistics_pool", True)),                 # false = a near copy of an edition already counted (onboard.editions_for)
                   key=lambda t: t[0].lower())
 
 

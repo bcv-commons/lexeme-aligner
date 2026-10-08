@@ -92,3 +92,13 @@ def test_runner_leaves_the_ledger_to_the_chain_and_can_switch_it_off(monkeypatch
     assert "--no-ledger" not in seen[0] and "--skip-ingest" not in seen[0]
     assert "--no-ledger" in seen[1] and "--skip-ingest" in seen[1]
     assert not hasattr(batch, "refresh_ledger")                         # one implementation: full_chain step 9b
+
+
+def test_make_runner_passes_only_the_named_editions(monkeypatch):
+    import subprocess
+    seen = []
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: seen.append(cmd) or type("R", (), {"returncode": 0})())
+    run = batch.make_runner(True, 0, True, {"xx": ["xx_new", "xx_two"]})
+    assert run("xx") and run("yy")
+    assert seen[0][seen[0].index("--editions") + 1] == "xx_new,xx_two"
+    assert "--editions" not in seen[1]                      # a language not in the map runs all its editions

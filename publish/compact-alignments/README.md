@@ -438,6 +438,21 @@ as in `_lexemes.json`. Nothing in the alignment arrays refers to `fnOrd`; the in
 align function words (the full-alignment format uses it). It is stamped in `_index/_source.json` (`fn_sha256` per book) and
 checked at publish, like the content index.
 
+## Source token keys — `_index/<BOOK>_keys.json` and `_index/<BOOK>_fn_keys.json` (since 2026-10)
+
+```json
+{"RUT 1:1": ["080010010022", "080010010031", ..., "080010010102+080010010111", ...], ...}
+```
+
+Position-parallel to `_index/<BOOK>_lexemes.json` (`_keys.json`) and `_index/<BOOK>_fn.json` (`_fn_keys.json`): entry `k` of a verse
+is the MACULA node key of the token that `srcOrd` `k` (or `fnOrd` `k`) denotes. A Hebrew key has 12 digits, `BBCCCVVVWWWM` (book,
+chapter, verse, word, morpheme); a Greek key has 11 digits, one per word. A token that holds two source nodes (the Hebrew
+בֵּית לֶחֶם, one lexeme) lists both joined by `+`; a token without a key is `""`. With these files a client joins any per-entry
+channel (the alignment arrays, `conf`, `rend`) to its own MACULA data by key, without re-deriving the index. The keys refer to the
+spine pinned in `_index/_source.json` (`spine_sha256`, built from Clear-Bible/macula-hebrew `WLC` and macula-greek `Nestle1904`,
+branch `main`; MACULA publishes no numbered release). They are stamped there as `keys_sha256` / `fn_keys_sha256` per book and
+checked at publish, like the other index files.
+
 ## Edition-side channel `rend` (meta repo, since 2026-10)
 
 `<BOOK>_<hash>.meta.json` in [`compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta)

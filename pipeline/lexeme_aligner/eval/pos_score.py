@@ -433,6 +433,28 @@ def score(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bo
     return m
 
 
+def gold_by_word(gv: GoldVerse, ref: int, spine: Spine, content_only: bool = True
+                 ) -> tuple[dict[str, set[int]], set[str], int]:
+    """(gold span per source word, the words to judge, ambiguous judged links) for one verse — the gold side of `score_words`."""
+    wo = spine.word_of[ref]
+    g_count = collections.Counter(s for s, _k in gv.links)
+    gw: dict[str, set[int]] = collections.defaultdict(set)
+    judged_words: set[str] = set()
+    ambiguous = 0
+    for (strong, k), gpos in gv.links.items():
+        wid = wo.get((strong, k))
+        if wid is None:
+            continue
+        judged = not content_only or (strong, k) in spine.content[ref]
+        if g_count[strong] != spine.counts[ref][strong]:
+            ambiguous += judged                              # a function morpheme's ambiguity is not reported, as in `score`
+            continue
+        gw[wid] |= gpos
+        if judged:
+            judged_words.add(wid)
+    return gw, judged_words, ambiguous
+
+
 def score_words(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bool = True,
                 neutral: dict[int, set[int]] | None = None) -> Metrics:
     """`score`, but at the grain of the source WORD. The spine splits a Hebrew word into morphemes (prefix, stem, suffix) and the
@@ -451,20 +473,8 @@ def score_words(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_on
         if nref:
             ov = {key: (pos - nref) for key, pos in ov.items()}
         m.verses += 1
-        g_count = collections.Counter(s for s, _k in gv.links)
-        gw: dict[str, set[int]] = collections.defaultdict(set)
-        judged_words: set[str] = set()
-        for (strong, k), gpos in gv.links.items():
-            wid = wo.get((strong, k))
-            if wid is None:
-                continue
-            judged = not content_only or (strong, k) in spine.content[ref]
-            if g_count[strong] != spine.counts[ref][strong]:
-                m.ambiguous += judged                      # a function morpheme's ambiguity is not reported, as in `score`
-                continue
-            gw[wid] |= gpos
-            if judged:
-                judged_words.add(wid)
+        gw, judged_words, amb = gold_by_word(gv, ref, spine, content_only)
+        m.ambiguous += amb
         ow: dict[str, set[int]] = collections.defaultdict(set)
         for key, pos in ov.items():
             wid = wo.get(key)

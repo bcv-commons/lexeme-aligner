@@ -63,6 +63,8 @@ def world(tmp_path, monkeypatch):
     books = {"AAA": {"AAA 1:1": ["l1", "l2"], "AAA 1:2": ["l3"]}}
     monkeypatch.setattr(si, "_lexemes", lambda heb, book: books[book])
     monkeypatch.setattr(si, "_function_words", lambda heb, book: {"AAA 1:1": ["f1", "f2", "f3"], "AAA 1:2": []})
+    monkeypatch.setattr(si, "_keys", lambda heb, book, fn=False: (
+        {"AAA 1:1": [], "AAA 1:2": []} if fn else {"AAA 1:1": ["k1", "k2+k3"], "AAA 1:2": ["k4"]}))
     monkeypatch.setattr(si, "spine_sha", lambda *a, **k: "spine-v1")
     monkeypatch.setattr("lexeme_aligner.compact_align.ALL_BOOKS", ["AAA"])
     return books, tmp_path
@@ -141,6 +143,7 @@ def _publish(tmp_path, monkeypatch, lexemes, spine="spine-v1"):
     monkeypatch.setattr(ca, "build_layer", lambda *a, **k: {})
     monkeypatch.setattr(ca, "build_source_lexemes", lambda heb, book: lexemes)
     monkeypatch.setattr(ca, "build_source_function_words", lambda heb, book: {})
+    monkeypatch.setattr(ca, "build_source_keys", lambda heb, book, fn=False: {})
     monkeypatch.setattr(ca, "book_content_hash", lambda p: "0" * 10 + "abcde")
     monkeypatch.setattr(si, "spine_sha", lambda *a, **k: spine)
     usj = tmp_path / "usj"
@@ -190,3 +193,36 @@ def test_a_missing_function_word_index_is_a_warning_unless_strict(world):
     assert si.check_index(_Heb(), root, ["AAA"])["ok"]
     res = si.check_index(_Heb(), root, ["AAA"], strict=True)
     assert not res["ok"] and any("AAA_fn.json" in e for e in res["errors"])
+
+
+# --- the MACULA node keys (since 2026-10-08) ------------------------------------------------------------------
+def test_refresh_writes_the_node_key_files_and_stamps_them(world):
+    books, root = world
+    res = si.refresh(_Heb(), root, ["AAA"])
+    assert sorted(res["rewritten_keys"]) == ["AAA:fn_keys", "AAA:keys"]
+    assert json.loads((root / "AAA_keys.json").read_text(encoding="utf-8")) == {"AAA 1:1": ["k1", "k2+k3"], "AAA 1:2": ["k4"]}
+    st = json.loads((root / "_source.json").read_text(encoding="utf-8"))["books"]["AAA"]
+    assert st["keys_tokens"] == 3 and len(st["keys_sha256"]) == 64 and len(st["fn_keys_sha256"]) == 64
+    assert si.refresh(_Heb(), root, ["AAA"])["rewritten_keys"] == []                # idempotent
+    assert si.check_index(_Heb(), root, ["AAA"], strict=True)["ok"]
+
+
+def test_check_flags_node_keys_that_differ_from_the_spine_and_a_missing_file_only_warns(world):
+    books, root = world
+    si.refresh(_Heb(), root, ["AAA"])
+    (root / "AAA_keys.json").write_text(json.dumps({"AAA 1:1": ["k1", "kX"], "AAA 1:2": ["k4"]}) + "\n", encoding="utf-8")
+    res = si.check_index(_Heb(), root, ["AAA"])
+    assert not res["ok"] and any("AAA_keys.json" in e for e in res["errors"])
+    (root / "AAA_keys.json").unlink()
+    assert si.check_index(_Heb(), root, ["AAA"])["ok"]                              # older index without keys: a warning
+    assert not si.check_index(_Heb(), root, ["AAA"], strict=True)["ok"]
+
+
+def test_build_source_keys_follows_the_lexeme_and_function_word_filters():
+    from types import SimpleNamespace as T
+    import lexeme_aligner.compact_align as ca
+    toks = [T(strong=1, is_content=True, keys=["a1"]), T(strong=2, is_content=False, keys=["a2"]),
+            T(strong=3, is_content=True, keys=["a3", "a4"]), T(strong=None, is_content=True, keys=[])]
+    heb = T(chapters=lambda b: [1], verses=lambda b, c: [1], verse_tokens=lambda b, c, v: toks)
+    assert ca.build_source_keys(heb, "X") == {"X 1:1": ["a1", "a3+a4"]}
+    assert ca.build_source_keys(heb, "X", function_words=True) == {"X 1:1": ["a2", ""]}

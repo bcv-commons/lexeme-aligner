@@ -20,6 +20,8 @@ WHAT THIS ADDS
     hash equals the spine's (one small query), a full content comparison otherwise; raises `IndexMismatch`
     with the exact refresh command instead of silently producing files whose ordinals disagree with the
     published index.
+  * `<BOOK>_keys.json` / `<BOOK>_fn_keys.json` (since 2026-10-08) — the MACULA node key of every srcOrd / fnOrd token, position-parallel
+    to `_lexemes.json` / `_fn.json`; checked, refreshed and stamped (`keys_sha256`, `fn_keys_sha256`) like the others.
   * `refresh()` — regenerates only the books that differ (atomic write, deterministic bytes), then re-stamps.
 
     python3 -m lexeme_aligner.source_index --check [--strict]
@@ -87,6 +89,14 @@ def _lexemes(heb, book: str) -> dict[str, list[str]]:
 def _function_words(heb, book: str) -> dict[str, list[str]]:
     from lexeme_aligner.compact_align import build_source_function_words
     return build_source_function_words(heb, book)
+
+
+def _keys(heb, book: str, function_words: bool = False) -> dict[str, list[str]]:
+    from lexeme_aligner.compact_align import build_source_keys
+    return build_source_keys(heb, book, function_words)
+
+
+KEY_FILES = (("keys", "keys_sha256", "keys_tokens", False), ("fn_keys", "fn_keys_sha256", "fn_keys_tokens", True))
 
 
 def shift_entry(entry: str, insert_pos: int) -> str:
@@ -161,6 +171,18 @@ def check_index(heb, index_root: Path = INDEX_ROOT, books: list[str] | None = No
                 errors.append(f"{book}: {fnp.name} no longer matches its stamped sha256 (edited after stamping)")
         else:
             (errors if strict else warnings).append(f"{book}: {fnp.name} is missing (needed for full-align)")
+        for stem, sha_field, _n, is_fn in KEY_FILES:                 # the MACULA node keys, parallel to the two lists
+            kp = index_root / f"{book}_{stem}.json"
+            if not kp.exists():
+                (errors if strict else warnings).append(f"{book}: {kp.name} is missing (the source token keys)")
+                continue
+            k_raw = kp.read_bytes()
+            k_cmp = compare_book(_keys(heb, book, is_fn), json.loads(k_raw.decode("utf-8")))
+            if not k_cmp["keys_equal"] or k_cmp["differing"]:
+                errors.append(f"{book}: {kp.name} differs from the spine's node keys")
+            want_k = ((stamp or {}).get("books") or {}).get(book, {}).get(sha_field)
+            if want_k is not None and want_k != _digest(k_raw):
+                errors.append(f"{book}: {kp.name} no longer matches its stamped sha256 (edited after stamping)")
         fp = index_root / f"{book}_lexemes.json"
         if not fp.exists():
             errors.append(f"{book}: {fp.name} is missing")
@@ -200,6 +222,12 @@ def write_stamp(index_root: Path, spine_db: Path = SPINE_DB, books: list[str] | 
             fn_raw = fnp.read_bytes()
             fn_doc = json.loads(fn_raw.decode("utf-8"))
             per_book[book].update(fn_tokens=sum(len(v) for v in fn_doc.values()), fn_sha256=_digest(fn_raw))
+        for stem, sha_field, n_field, _fn in KEY_FILES:
+            kp = index_root / f"{book}_{stem}.json"
+            if kp.exists():
+                k_raw = kp.read_bytes()
+                per_book[book].update({n_field: sum(len(v) for v in json.loads(k_raw.decode("utf-8")).values()),
+                                       sha_field: _digest(k_raw)})
     stamp = {"stamp_version": STAMP_VERSION, "spine_sha256": spine_sha(spine_db),
              "note": "srcOrd in every compact-alignments file indexes these per-verse lexeme lists; "
                      "`python3 -m lexeme_aligner.source_index --check` verifies them against the spine.",
@@ -214,7 +242,7 @@ def refresh(heb, index_root: Path = INDEX_ROOT, books: list[str] | None = None,
     """Rewrite the `_lexemes.json` of every requested (default: every) book whose content differs from the
     spine's or that is missing, then re-stamp. Returns {'rewritten': [books], 'stamp': stamp}."""
     from lexeme_aligner.compact_align import ALL_BOOKS
-    rewritten, rewritten_fn = [], []
+    rewritten, rewritten_fn, rewritten_keys = [], [], []
     for book in books or list(ALL_BOOKS):
         fp = index_root / f"{book}_lexemes.json"
         cur = _lexemes(heb, book)
@@ -227,7 +255,14 @@ def refresh(heb, index_root: Path = INDEX_ROOT, books: list[str] | None = None,
         if not fnp.exists() or fnp.read_bytes() != fn_data:
             _atomic_write(fnp, fn_data)
             rewritten_fn.append(book)
-    return {"rewritten": rewritten, "rewritten_fn": rewritten_fn, "stamp": write_stamp(index_root, spine_db)}
+        for stem, _sha, _n, is_fn in KEY_FILES:
+            kp = index_root / f"{book}_{stem}.json"
+            k_data = file_bytes(_keys(heb, book, is_fn))
+            if not kp.exists() or kp.read_bytes() != k_data:
+                _atomic_write(kp, k_data)
+                rewritten_keys.append(f"{book}:{stem}")
+    return {"rewritten": rewritten, "rewritten_fn": rewritten_fn, "rewritten_keys": rewritten_keys,
+            "stamp": write_stamp(index_root, spine_db)}
 
 
 def ensure_current(heb, book: str, index_root: Path, spine_db: Path = SPINE_DB) -> None:

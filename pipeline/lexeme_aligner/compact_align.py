@@ -236,7 +236,11 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "_index/<BOOK>_lexemes.json and lists each verse's source tokens that have NO srcOrd slot (articles, prepositions, "
           "conjunctions, suffix pronouns, particles) in source order; the list position is the token's fnOrd. A token without a "
           "lexeme is ''. Nothing in the alignment arrays uses fnOrd; it is the source side for layers that align function words. "
-          "Stamped in _index/_source.json as fn_sha256 per book."]
+          "Stamped in _index/_source.json as fn_sha256 per book.",
+          "SOURCE TOKEN KEYS (since 2026-10): _index/<BOOK>_keys.json and _index/<BOOK>_fn_keys.json = {\"BOOK C:V\": [key, ...]} are "
+          "position-parallel to _lexemes.json and _fn.json: entry k of a verse is the MACULA node key of the srcOrd k (resp. fnOrd k) "
+          "token (12 digits BBCCCVVVWWWM for Hebrew, 11 for Greek; a merged token holding two nodes lists both joined by '+'). "
+          "Stamped in _index/_source.json as keys_sha256 / fn_keys_sha256."]
 
 
 _STOPWORD_DIR = Path("publish/target-stopwords")
@@ -356,6 +360,22 @@ def build_source_function_words(heb: HebrewSource, book: str) -> dict[str, list[
             toks = heb.verse_tokens(book, ch, v)
             out[f"{book} {ch}:{v}"] = [(t.lexeme or "").split(":", 1)[-1] for t in toks
                                        if not (t.strong and t.is_content)]
+    return out
+
+
+def build_source_keys(heb: HebrewSource, book: str, function_words: bool = False) -> dict[str, list[str]]:
+    """{"BOOK C:V": [key, ...]} — the MACULA node keys of the SAME tokens, in the SAME order, as `build_source_lexemes`
+    (`function_words=False`: the srcOrd tokens) or `build_source_function_words` (`True`: the fnOrd tokens). A key is the
+    spine's per-occurrence id, 12 digits for Hebrew (`BBCCCVVVWWWM`: book, chapter, verse, word, morpheme) and 11 for Greek (one per
+    word). A merged token that holds two nodes (the Hebrew בֵּית לֶחֶם) lists both, joined by `+`; a token without a key is ''.
+    Published as `_index/<BOOK>_keys.json` and `_index/<BOOK>_fn_keys.json` so a client can join a `srcOrd` or `fnOrd` to its
+    own MACULA data without re-deriving the index."""
+    out: dict[str, list[str]] = {}
+    for ch in heb.chapters(book):
+        for v in heb.verses(book, ch):
+            toks = heb.verse_tokens(book, ch, v)
+            out[f"{book} {ch}:{v}"] = ["+".join(t.keys or []) for t in toks
+                                       if (not (t.strong and t.is_content)) == function_words]
     return out
 
 

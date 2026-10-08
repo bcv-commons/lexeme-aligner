@@ -94,6 +94,14 @@ def test_preflight_catches_each_unsafe_condition(tmp_path, monkeypatch):
     assert any("no compact-alignments for edition" in w for w in ps.preflight("xx", {"xx": {}}, set(), lex, comp, allow_stale=True))
 
 
+def test_preflight_matches_a_hyphenated_edition_code_to_its_slugged_tag(tmp_path, monkeypatch):
+    lex, comp = _world(tmp_path, monkeypatch)
+    lex["languages"]["xx"]["base_texts"] = ["OGCB-GUJ"]                       # the edition code, as the pooled export names it
+    comp["languages"]["xx"]["editions"] = {"xx_OGCB-GUJ": {"tag": "ogcb_guj", "books": ["GEN"]}}
+    (tmp_path / "publish/compact-alignments/x/xx/xx_OGCB-GUJ").mkdir(parents=True)
+    assert not any("no compact-alignments" in w for w in ps.preflight("xx", {"xx": {}}, set(), lex, comp, allow_stale=True))
+
+
 def test_preflight_leaves_out_a_language_unchanged_since_the_last_publish(tmp_path, monkeypatch):
     import os
     lex, comp = _world(tmp_path, monkeypatch)

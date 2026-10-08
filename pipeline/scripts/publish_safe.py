@@ -141,8 +141,9 @@ def preflight(iso: str, ledger: dict, busy: set[str], lex: dict, comp: dict, all
     if iso not in ledger:
         why.append("no pipeline_decisions ledger entry")
     eds = comp.get("languages", {}).get(iso, {}).get("editions", {})
-    have = {x.get("tag", "").lower() for x in eds.values()} | {k.lower() for k in eds}
-    miss = [t for t in e.get("base_texts", []) if t.lower() not in have]
+    norm = lambda t: "".join(c if c.isalnum() else "_" for c in t.lower())      # noqa: E731  'OGCB-GUJ' (edition code) == 'ogcb_guj' (tag)
+    have = {norm(x.get("tag", "")) for x in eds.values()} | {norm(k) for k in eds}
+    miss = [t for t in e.get("base_texts", []) if norm(t) not in have]
     if miss:
         why.append(f"no compact-alignments for edition(s) {miss}")
     for ed, info in eds.items():

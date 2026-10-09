@@ -178,7 +178,7 @@ def test_default_datasets_use_the_ubs_senses_not_the_legacy_ones():
     assert ps.DEFAULT == ["lexeme-alignments", "senses_attested", "compact-alignments"]
     assert ps.DATASETS["senses_attested"] == ("bcv-commons/senses-attested", "partition")
     assert ps.DATASETS["senses_attested_bhsa"][0] == "bcv-commons/senses-attested-bhsa" and "senses_attested_bhsa" not in ps.DEFAULT          # legacy still reachable, only explicitly
-    assert ps.NO_LEDGER == {"senses_attested"}
+    assert ps.NO_LEDGER == {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa"}
 
 
 def test_ubs_partition_selection_has_no_ledger_when_the_root_has_none(tmp_path):
@@ -197,3 +197,18 @@ def test_schema_change_needs_every_language():
     assert schema_change_scope(hf, local, ["a", "b", "c"]) is None
     assert "1 language" in schema_change_scope(hf, local, ["a", "b"])
     assert "1 language" in schema_change_scope(hf, local, ["a", "c"])
+
+
+def test_full_alignment_manual_datasets_are_explicit_only_and_carry_every_layer_file(tmp_path):
+    assert ps.DATASETS["full-alignments-manual"] == ("bcv-commons/full-alignments-manual", "fullalign")
+    assert ps.DATASETS["full-alignments-manual-sa"] == ("bcv-commons/full-alignments-manual-sa", "fullalign")
+    assert not {"full-alignments-manual", "full-alignments-manual-sa"} & set(ps.DEFAULT)
+    root = tmp_path / "full-alignments-manual"
+    d = root / "e/eng/eng_BSB+manual+clear"
+    d.mkdir(parents=True)
+    for f in ("GEN_1a2b3.json", "GEN_1a2b3.meta.json", "_layer.json"):
+        (d / f).write_text("{}")
+    (root / "README.md").write_text("card")
+    got = ps.selected_files("full-alignments-manual", "fullalign", ["eng"], root)
+    assert got == ["e/eng/eng_BSB+manual+clear/GEN_1a2b3.json", "e/eng/eng_BSB+manual+clear/GEN_1a2b3.meta.json",
+                   "e/eng/eng_BSB+manual+clear/_layer.json", "README.md"]           # main + meta + profile table in ONE repo

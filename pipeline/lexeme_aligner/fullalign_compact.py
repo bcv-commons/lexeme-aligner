@@ -1,4 +1,4 @@
-"""Full-align in the compact-alignments container format (pilot: engbsb).
+"""Full-align in the compact-alignments container format (built per edition by fullalign_build.py, chain step 9a).
 
 One alignment LAYER (statistical / a manual source such as Clear or the BSB tables) is written as per-book files that look
 exactly like compact-alignments files and add channels for what compact does not carry. Nothing here stores a word of any
@@ -11,8 +11,9 @@ text: every target reference is a token position, every source reference an ordi
                                `_index/<BOOK>_fn.json` lists them in order)
       wp    one profile char per main entry   `.` = a VIEW of a multi-source row (the row itself is in `rows`)
       fp    the same per fn entry
-      wx    per entry, space separated: `_` or `t<int,int>` (the gold's target-token numbers) `;S<id>` (a source id that is
-            not 'o'/'n' + the token's spine key); main entries first, then fn entries
+      wx    per entry, space separated: `_` or `;`-joined parts `t<int,int>` (the gold's target-token numbers), `S<id>` (a
+            source id that is not 'o'/'n' + the token's spine key), `P<int,int>` (the profile's arguments, see below); main
+            entries first, then fn entries
       rows  "srcs:span:prof[:ext]..." every row that is not a claimed winner: losing duplicates, multi-token source
             attachments, unplaced rows, markers, joint (vvv) rows
       off   {ref: [row entries]}  rows with NO spine source token (a table row whose source word is not in the spine)
@@ -26,7 +27,12 @@ Spans:   "5" "5-7" "5,9" contiguous / scattered, "L3,1,2" out-of-order list, "~"
 Row ext: k<i> index (into the srcs) of the keyed token · v joint with the following phrase (BSB `vvv`; the span is that phrase) ·
          s<pos,..> target words the editor SUPPLIED (BSB `[x]`; not in the span) · i<pos,..> inflection words made explicit
          (BSB `{x}`; stay in the span, flagged) · t<ints> target-token numbers · S<id> source id · T<strong> the row's own
-         Strong's when it differs from the token's.
+         Strong's when it differs from the token's · P<ints> the profile's arguments.
+Profile arguments: a number inside a row's `prior` is per-row data (span extension's `spanext_name_before:12` = the target
+         position the rule appended), so the profile table stores the prior with `#` in its place (`spanext_name_before:#`) and the
+         numbers travel with the row (`P12`), in order. Decoding puts them back: the prior is exactly the original.
+Vetoed rows: a row whose profile `extra` carries `"veto": "<check>"` (a word-level check judged the link wrong, eval/word_checks.py)
+         is never claimed into main/fn and never shown as a view there; it stays whole in `rows`.
 
 Derived on decode, never stored: lexeme/strong/lemma/stem/surface/gloss_en/content (from the spine) and `target` (from the
 positions and the edition text).  The BHSA-derived `sense` is NOT carried (licence).
@@ -43,7 +49,7 @@ PROFILE_CHARS = string.ascii_letters + string.digits
 PRIORITY = ["spanext", "eflomal", "exact", "stem", "prefix", "head", "multi", "fuzzy", "gapfill", "residual", "llm", "manual"]
 MARK_ROWS = {"-": "u", ". . .": "e"}               # BSB-tables placeholder cells -> marker kind
 JOINT_CELL = "vvv"
-LAYER_VERSION = 1
+LAYER_VERSION = 2                                  # 2: profile arguments (P) — a prior's numbers are per-row data
 
 
 # --- span codec ------------------------------------------------------------------------------------------
@@ -123,6 +129,24 @@ def parse_slot(s: str) -> tuple[str, int]:
     return s[0], int(s[1:])
 
 
+_NUM = __import__("re").compile(r":(-?\d+)")
+
+
+def split_prior(prior):
+    """'spanext_name_before:12+spanext_noun_before:3' -> ('spanext_name_before:#+spanext_noun_before:#', [12, 3])."""
+    if not isinstance(prior, str):
+        return prior, []
+    args = [int(x) for x in _NUM.findall(prior)]
+    return (_NUM.sub(":#", prior), args) if args else (prior, [])
+
+
+def join_prior(template, args):
+    if not args:
+        return template
+    it = iter(args)
+    return __import__("re").sub(r":#", lambda _m: f":{next(it)}", template)
+
+
 # --- canonical row -----------------------------------------------------------------------------------------
 @dataclass
 class CRow:
@@ -139,10 +163,15 @@ class CRow:
     tids: list | None = None
     sid: str | None = None
     tstrong: str | None = None
+    pargs: list = field(default_factory=list)  # profile arguments (the numbers taken out of the prior)
 
     def canon(self) -> str:
         return json.dumps([self.ref, self.src, self.key, self.span, self.mark, self.joint, self.sup, self.inf,
-                           self.prof, self.tids, self.sid, self.tstrong], ensure_ascii=False, default=list)
+                           self.prof, self.tids, self.sid, self.tstrong, self.pargs], ensure_ascii=False, default=list)
+
+    def prior(self):
+        """The row's original prior (template + arguments)."""
+        return join_prior(self.prof[2] if self.prof else None, self.pargs)
 
 
 class Profiles:
@@ -250,10 +279,22 @@ def default_sid(group: Group, slot: tuple[str, int]) -> str | None:
 
 # --- parquet row -> canonical row ----------------------------------------------------------------------------
 def simple_crow(row: dict, group: Group, base: dict, has_ids: bool) -> CRow:
-    """Statistical / Clear row: one source token (an int h_idx), the span is the row's t_idx."""
+    """Statistical / Clear row: one source token (an int h_idx), the span is the row's t_idx. A WORD-LEVEL gold link (extra
+    `word_h_idx`, see gold_to_fullalign.rows_from_gold) is one row from every morpheme of the word: src = all of them, `key` = the
+    row's own (content) token; `word_h_idx` itself is not kept in the profile — the srcs carry it."""
     h = row["h_idx"]
-    c = CRow(ref=group.ref, src=[group.slot_of[h]], span=None if row["t_idx"] is None else list(row["t_idx"]))
-    c.prof = (row["method"], row["score"], row.get("prior"), row.get("extra"), attr_diff(row["attribution"], base))
+    extra = row.get("extra")
+    src = [group.slot_of[h]]
+    key = None
+    if extra and "word_h_idx" in extra:
+        d = json.loads(extra)
+        word = d.pop("word_h_idx")
+        extra = json.dumps(d, ensure_ascii=False, sort_keys=True) if d else None
+        src = [group.slot_of[i] for i in word]
+        key = word.index(h)
+    c = CRow(ref=group.ref, src=src, key=key, span=None if row["t_idx"] is None else list(row["t_idx"]))
+    tmpl, c.pargs = split_prior(row.get("prior"))
+    c.prof = (row["method"], row["score"], tmpl, extra, attr_diff(row["attribution"], base))
     if has_ids:
         a = row["attribution"]
         sids = a.get("source_ids") or []
@@ -341,6 +382,8 @@ def fmt_row(c: CRow, profiles: Profiles, has_ids: bool, group: Group | None) -> 
         parts.append("S" + c.sid)
     if c.tstrong is not None:
         parts.append("T" + c.tstrong)
+    if c.pargs:
+        parts.append("P" + ",".join(map(str, c.pargs)))
     return ":".join(parts)
 
 
@@ -372,6 +415,8 @@ def parse_row(entry: str, ref: str, profiles: Profiles, has_ids: bool, group: Gr
             sid_override = rest
         elif t == "T":
             c.tstrong = rest
+        elif t == "P":
+            c.pargs = [int(p) for p in rest.split(",")]
     if has_ids and c.src:
         c.sid = sid_override if sid_override is not None else (default_sid(group, c.src[0]) if group else None)
     return c
@@ -383,10 +428,22 @@ def _prio(c: CRow) -> int:
     return PRIORITY.index(m) if m in PRIORITY else len(PRIORITY)
 
 
+def is_vetoed(c: CRow) -> bool:
+    e = c.prof[3] if len(c.prof) > 3 else None
+    return isinstance(e, str) and '"veto"' in e
+
+
+def with_veto(extra: str | None, check: str) -> str:
+    """The row's `extra` JSON with `veto` added (an existing extra is kept)."""
+    d = json.loads(extra) if extra else {}
+    d["veto"] = check
+    return json.dumps(d, ensure_ascii=False, sort_keys=True)
+
+
 def plain_single(c: CRow) -> bool:
-    """A row that can be a claimed winner: one c/f source token, no keyed/marker/joint/role data, a real span."""
+    """A row that can be a claimed winner: one c/f source token, no keyed/marker/joint/role data, a real span, not vetoed."""
     return (len(c.src) == 1 and c.src[0][0] in "cf" and c.key is None and c.mark is None and not c.joint
-            and not c.sup and not c.inf and c.tstrong is None and bool(c.span))
+            and not c.sup and not c.inf and c.tstrong is None and bool(c.span) and not is_vetoed(c))
 
 
 @dataclass
@@ -412,13 +469,13 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
         return min(idxs, key=lambda i: (_prio(crows[i]), i)) if idxs else None
 
     def ext_of(c: CRow) -> str:
-        if not has_ids:
-            return "_"
         bits = []
-        if c.tids:
+        if has_ids and c.tids:
             bits.append("t" + ",".join(map(str, c.tids)))
-        if c.sid is not None and c.sid != default_sid(group, c.src[0]):
+        if has_ids and c.sid is not None and c.sid != default_sid(group, c.src[0]):
             bits.append("S" + c.sid)
+        if c.pargs:
+            bits.append("P" + ",".join(map(str, c.pargs)))
         return ";".join(bits) or "_"
 
     if hint is not None:
@@ -447,7 +504,7 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
         if i in claimed:
             continue
         out.rows.append(fmt_row(c, profiles, has_ids, group))
-        if c.span and c.mark is None and not c.joint:               # a joint (BSB `vvv`) span lives in the sidecar ONLY
+        if c.span and c.mark is None and not c.joint and not is_vetoed(c):   # joint (BSB `vvv`) / vetoed rows: sidecar ONLY
             for kind, n in c.src:
                 if kind == "c" and hint is None and n not in have_main:
                     out.main.append((n, enc_span(c.span), ".", "_"))
@@ -506,8 +563,8 @@ class LayerEncoder:
                     main[i], ch["wp"][i], wx = pack_entries(vo.main)
                     ch["wx"][i] = wx
         meta: dict = {k: (v if any(v) else None) for k, v in ch.items()}
-        if not self.has_ids:
-            meta["wx"] = None
+        if meta["wx"] is not None and all(x == "_" for e in meta["wx"] for x in e.split()):
+            meta["wx"] = None                                  # nothing but "_": the channel says nothing
         meta["off"] = off or None
         return main, meta
 
@@ -533,12 +590,14 @@ class LayerDecoder:
             c = CRow(ref=ref, src=[(slot_kind, int(o))], span=dec_span(sp), prof=self.profiles.of_char[profs[k]])
             if self.has_ids:
                 c.sid = default_sid(group, c.src[0]) if group else None
-                if exts[k] != "_":
-                    for part in exts[k].split(";"):
-                        if part[0] == "t":
-                            c.tids = [int(x) for x in part[1:].split(",")]
-                        elif part[0] == "S":
-                            c.sid = part[1:]
+            if exts[k] != "_":
+                for part in exts[k].split(";"):
+                    if part[0] == "t" and self.has_ids:
+                        c.tids = [int(x) for x in part[1:].split(",")]
+                    elif part[0] == "S" and self.has_ids:
+                        c.sid = part[1:]
+                    elif part[0] == "P":
+                        c.pargs = [int(x) for x in part[1:].split(",")]
             out.append(c)
         return out
 

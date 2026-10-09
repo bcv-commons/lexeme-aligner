@@ -453,6 +453,22 @@ spine pinned in `_index/_source.json` (`spine_sha256`, built from Clear-Bible/ma
 branch `main`; MACULA publishes no numbered release). They are stamped there as `keys_sha256` / `fn_keys_sha256` per book and
 checked at publish, like the other index files.
 
+## Full alignments (since 2026-10)
+
+The compact array keeps one winning link per CONTENT source token. A **full alignment** accounts for every word: function
+words, losing alternatives, words the translator supplied, source words with no target word of their own. It is published in the
+same container format, in three places:
+
+- the **statistical** full alignment of an edition: extra keys (`fn`, `wp`, `fp`, `wx`, `rows`, `off`) in that edition's
+  `.meta.json` files in [compact-alignments-meta](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta), with the
+  profile table in `<edition>/_layer.json` there. The main array here is not changed by it.
+- **hand-made (gold)** layers in [full-alignments-manual](https://huggingface.co/datasets/bcv-commons/full-alignments-manual)
+  (Clear, HELFI, ChiUns, BSB tables) and [full-alignments-manual-sa](https://huggingface.co/datasets/bcv-commons/full-alignments-manual-sa)
+  (Door43, CC BY-SA), layer id `<edition>+manual+<source>`, same relative paths and `_index/` as here.
+
+For now only editions with a hand-made layer carry the statistical full alignment. The file format is described in the
+full-alignments-manual card. Function-word sources are listed in `_index/<BOOK>_fn.json` (below).
+
 ## Edition-side channel `rend` (meta repo, since 2026-10)
 
 `<BOOK>_<hash>.meta.json` in [`compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta)

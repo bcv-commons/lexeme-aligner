@@ -62,7 +62,7 @@ poetry, arbitrary nesting — not just the specific patterns two sample books ha
 SCOPE NOTE, still honest about what this pass delivers: a real, tested core parser
 (`usj_spans_for_book`) verified against live data end-to-end for all 9 confirmed-aligned languages,
 plus `fetch_book()`/`build_book()`/`build_language()` that write one JSON file per book under
-`publish/full-align/<iso>/<tag>/manual/door43-<name>/<BOOK>.json` (one row per (verse_ref, strong,
+`pipeline/work/door43_dumps/<iso>/<tag>/manual/door43-<name>/<BOOK>.json` (one row per (verse_ref, strong,
 lemma, morph, occurrence, target_words)), for whichever books a language's own repo actually has
 (discovered via `list_available_books()`, never assumed). Does NOT yet replicate BSB-tables' full
 sophistication (bsb_tables.py, ~900 lines: a Parquet struct schema, spine-side occurrence-
@@ -83,14 +83,14 @@ import usfmtc
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 _API_BASE = "https://git.door43.org/api/v1/repos"
 _CACHE_ROOT = Path("pipeline/work/door43_cache")
-_PUBLISH_ROOT = Path("publish/full-align")
+_PUBLISH_ROOT = Path("pipeline/work/door43_dumps")     # raw per-book dumps (inputs, not a layer); moved out of publish/ 2026-10-09
 
 # {iso: {"org", "repo", "tag"}} — iso verified against publish/lexeme-alignments/manifest.json (see
 # module docstring for the two real npi/ory corrections). `tag` follows this repo's own convention for
 # a non-onboarded third-party manual-layer source (invented, not from config/pins/ — same pattern as
 # `ararst` below), and doubles as the `door43-<tag>` output directory name.
 LANGUAGES = {
-    "arb": {"org": "BSOJ", "repo": "ar_arst", "tag": "ararst"},
+    "arb": {"org": "BSOJ", "repo": "ar_arst", "tag": "ararst"},      # NOT ARABIC: the repo is the English UST (USFM `\\id ... EN_UST en_English`; found 2026-10-09) — quarantined in gold_to_fullalign
     "hin": {"org": "Door43-Catalog", "repo": "hi_glt", "tag": "higlt"},
     "mar": {"org": "Door43-Catalog", "repo": "mr_glt", "tag": "marglt"},
     "ben": {"org": "Door43-Catalog", "repo": "bn_gst", "tag": "bengst"},

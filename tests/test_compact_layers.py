@@ -7,6 +7,7 @@ def test_layer_of_and_split():
     files = ["a/aaz/aaz_C01/GEN_1a2b3.json", "a/aaz/aaz_C01/GEN_1a2b3.meta.json", "a/aaz/aaz_C01/GEN_1a2b3.extra.json",
              "_index/GEN_lexemes.json", "manifest.json", "README.md"]
     assert [cl.layer_of(f) for f in files] == ["main", "meta", "extra", "main", "main", "main"]
+    assert cl.layer_of("e/eng/eng_BSB/_layer.json") == "meta" and cl.layer_of("e/eng/eng_BSB/GEN_1a2b3.json") == "main"
     s = cl.split_layers(files)
     assert s["meta"] == ["a/aaz/aaz_C01/GEN_1a2b3.meta.json"] and s["extra"] == ["a/aaz/aaz_C01/GEN_1a2b3.extra.json"]
     assert len(s["main"]) == 4                       # alignments + the shared files keep their path in the main repo

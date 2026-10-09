@@ -237,3 +237,20 @@ def test_a_verse_folded_into_another_verses_group_is_rehomed_to_the_anchor():
     st = collections.Counter()
     rows = gf.rows_from_gold(_gold_ids(11022044, {("H0002", 0): ([1], "o110220440011")}), corpus, "manual", {}, st)
     assert len(rows) == 1 and rows[0]["ref"] == 11022043 and rows[0]["h_idx"] == 1
+
+
+def test_a_link_on_a_prefix_that_leaves_its_word_unlinked_becomes_a_whole_word_link_labelled_by_the_stem():
+    # וְ (H2050, prefix) + רָחַצְתְּ (H7364, stem) = one word; the gold puts "you bathe" on the prefix only (Clear BSB / IRVHin habit)
+    pre, stem, nxt = tok(0, "H2050", content=False), tok(1, "H7364"), tok(2, "H5480")
+    pre.keys, stem.keys, nxt.keys = ["080030030011"], ["080030030012"], ["080030030021"]
+    corpus = _Corpus({8003003: (["you", "bathe", "anoint"], [pre, stem, nxt])})
+    corpus.word_of = {8003003: {0: [pre, stem], 1: [pre, stem], 2: [nxt]}}
+    st = collections.Counter()
+    rows = gf.rows_from_gold(_gold(8003003, {("H2050", 0): [0, 1], ("H5480", 0): [2]}), corpus, "manual", {}, st)
+    word = next(r for r in rows if r["t_idx"] == [0, 1])
+    assert word["h_idx"] == 1 and word["strong"] == "H7364" and json.loads(word["extra"]) == {"word_h_idx": [0, 1]}
+    assert st["links_word_level"] == 1
+    # the same prefix link is NOT word-level when the stem has its own link
+    st2 = collections.Counter()
+    rows2 = gf.rows_from_gold(_gold(8003003, {("H2050", 0): [0], ("H7364", 0): [1]}), corpus, "manual", {}, st2)
+    assert sorted(r["h_idx"] for r in rows2) == [0, 1] and st2["links_word_level"] == 0

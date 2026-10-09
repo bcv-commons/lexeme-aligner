@@ -1,0 +1,15 @@
+{
+ "_doc": "Word-check vetoes on the full-align statistical layer's fn channel (fullalign_build.py; eval/word_checks.py veto_checks_for). For each language, the checks whose flagged FUNCTION-word links are kept out of the fn channel (the row stays in `rows`, its profile extra carries `veto`). Decided by `word_checks --veto-ab --ot` against the language's gold: statistical union spanext+eflomal+gloss+gapfill (first wins), with vs without the flagged links, word grain decides (F1 up AND exact spans up). Deterministic (same alignment files), no replicates needed. A language without an entry gets no veto. Measured 2026-10-09, whole OT; numbers = word-grain delta F1 / delta exact spans.",
+ "eng": {"checks": ["suffix_pronoun", "prefix_prep"], "measured_on": "2026-10-09", "gold": "Clear BSB",
+         "suffix_pronoun": "+0.0007 / +834", "prefix_prep": "+0.0007 / +585", "both": "+0.0014 / +1446"},
+ "arb": {"checks": ["suffix_pronoun", "prefix_prep"], "measured_on": "2026-10-09", "gold": "Clear AVD",
+         "suffix_pronoun": "+0.0012 / +655", "prefix_prep": "+0.0006 / +368", "both": "+0.0018 / +1025"},
+ "hin": {"checks": ["suffix_pronoun", "prefix_prep"], "measured_on": "2026-10-09", "gold": "Clear IRVHin",
+         "suffix_pronoun": "+0.0008 / +655", "prefix_prep": "+0.0002 / +355 (token grain -0.0003 / -36)", "both": "+0.0010 / +1030"},
+ "spa": {"checks": ["suffix_pronoun", "prefix_prep"], "measured_on": "2026-10-09", "gold": "Clear RV09",
+         "suffix_pronoun": "+0.0028 / +1203", "prefix_prep": "+0.0013 / +833", "both": "+0.0041 / +2196"},
+ "fin": {"checks": ["suffix_pronoun"], "measured_on": "2026-10-09", "gold": "HELFI",
+         "suffix_pronoun": "+0.0040 / +1481", "prefix_prep": "nothing flagged (no adposition direction)"},
+ "cmn": {"checks": ["prefix_prep"], "measured_on": "2026-10-09", "gold": "SWORD ChiUns",
+         "suffix_pronoun": "-0.0013 / +2208 (F1 down: unspaced script, one word = one character) -> off", "prefix_prep": "+0.0012 / +924"}
+}

@@ -31,6 +31,15 @@ same file, are renumbered on every rebuild, and carry no text. An edition under 
 
 Spans are keyed by spine verse; read target words from the edition's mapped verse (main README, "Verse numbering").
 
+## Full-alignment channels (since 2026-10)
+
+For the editions that also have a hand-made (gold) alignment, the `.meta.json` additionally carries the **statistical full
+alignment**: every row of every method (losing alternatives included), and function words. New keys `fn`, `wp`, `fp`, `wx`, `rows`,
+`off`, decoded with the edition's `<iso[0]>/<iso>/<edition>/_layer.json` (in this repo). Every existing key keeps its meaning and
+the main array is unchanged, so a reader that ignores the new keys sees exactly what it saw before. The format is described in
+[full-alignments-manual](https://huggingface.co/datasets/bcv-commons/full-alignments-manual), "File format"; the hand-made layers of
+the same editions are in that repo (and Door43's in full-alignments-manual-sa).
+
 Everything else — the README that defines the formats, `manifest.json`, `_index/`, `tokenize.js`, the decisions ledger — stays in the main repo. The
 authoritative list of editions and books is its `manifest.json`. The layer was split out because the single repo had passed Hugging Face's
 recommended 100,000 files.

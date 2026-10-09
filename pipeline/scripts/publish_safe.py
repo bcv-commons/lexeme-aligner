@@ -42,9 +42,13 @@ DATASETS = {                                   # local dir name -> (HF repo, kin
     "senses_attested_bhsa": ("bcv-commons/senses-attested-bhsa", "partition"), # LEGACY, frozen (BHSA-derived sense numbers, retired 2026-10-03): explicit --datasets only
     "compact-alignments": ("bcv-commons/compact-alignments", "compact"),
     "aligned_mwe": ("bcv-commons/aligned-mwe", "partition"),
+    # manual (gold) full alignments in the compact container format, one layer dir per gold source (fullalign_build.py; 2026-10-09).
+    # Explicit --datasets only. The statistical full-align channels are NOT here: they live in compact's meta files (compact-alignments-meta).
+    "full-alignments-manual": ("bcv-commons/full-alignments-manual", "fullalign"),         # Clear / HELFI (CC BY 4.0), ChiUns (PD), BSB tables (CC0)
+    "full-alignments-manual-sa": ("bcv-commons/full-alignments-manual-sa", "fullalign"),   # Door43 (CC BY-SA 4.0)
 }
 DEFAULT = ["lexeme-alignments", "senses_attested", "compact-alignments"]
-NO_LEDGER = {"senses_attested"}             # the published UBS repo carries no pipeline_decisions.json; do not add one
+NO_LEDGER = {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa"}   # repos that carry no pipeline_decisions.json; do not add one
 STAGING = REPO / "pipeline/work/publish-staging"
 STALE_BEFORE = time.mktime(time.strptime("2026-09-28", "%Y-%m-%d"))
 
@@ -183,6 +187,8 @@ def selected_files(name: str, kind: str, isos: list[str], local_root: Path) -> l
         return [f"iso={i}/data.parquet" for i in isos if (local_root / f"iso={i}/data.parquet").exists()] + \
                [f for f in ["README.md", *_COMPANION_RESOURCES] if (local_root / f).exists()]
     files = [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("*.json")]
+    if kind == "fullalign":                                                 # one repo holds a layer's main + meta + _layer.json
+        return sorted(files) + [f for f in ("README.md",) if (local_root / f).exists()]
     files = [f for f in files if compact_layers.layer_of(f) == "main"]      # sidecars go to their own repos (publish_layer)
     files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
     files += [f for f in ("README.md", "tokenize.js", "tokenizer_sensitive_languages.json", "pipeline_decisions.json")
@@ -255,8 +261,16 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
     if not isos:
         print(f"[publish_safe] {name}: none of the selected languages has a local entry — nothing to do", file=sys.stderr)
         return {"dataset": name, "pushed": []}
-    hf = hf_manifest(repo, scratch / name)
-    conflict = schema_conflict(hf, local, kind)
+    create = False
+    if kind == "fullalign":
+        from huggingface_hub import HfApi
+        create = not HfApi().repo_exists(repo, repo_type="dataset")
+    if create:                                                 # a dataset that does not exist yet: the first publish
+        hf = {"languages": {}}
+        print(f"[publish_safe] {name}: {repo} does not exist yet — first publish{' (the repo is created)' if push else ''}", file=sys.stderr)
+    else:
+        hf = hf_manifest(repo, scratch / name)
+    conflict = schema_conflict(hf, local, kind) if hf.get("languages") else None
     scope = schema_change_scope(hf, local, isos) if conflict and schema_change else None
     if conflict and (not schema_change or scope):
         raise SystemExit(f"[publish_safe] {name}: REFUSING a partial publish — {conflict}. A schema change must go out for ALL languages "
@@ -274,7 +288,7 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
     new = [i for i in isos if i not in hf.get("languages", {})]
     print(f"[publish_safe] {name} -> {repo}: {len(isos)} language(s) ({len(new)} new to HF), {len(files)} file(s); the HF manifest keeps "
           f"{len(hf['languages']) - len(isos) + len(new)} other entries untouched", file=sys.stderr)
-    publish_chunked(stage, repo, files, create=False, dry_run=not push, chunk_size=chunk, label=name, detect_deletions=False)
+    publish_chunked(stage, repo, files, create=create, dry_run=not push, chunk_size=chunk, label=name, detect_deletions=False)
     result = {"dataset": name, "pushed": isos if push else [], "files": len(files)}
     if push:
         after = hf_manifest(repo, scratch / f"{name}-after")
@@ -291,6 +305,10 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
                 sha = getattr(getattr(info, "lfs", None), "sha256", None)
                 if sha and sha != sha256_file(local_root / f"iso={i}/data.parquet"):
                     bad.append(f"{i} (partition sha differs on HF)")
+        if kind == "fullalign":                                # every pushed file present with the local byte size
+            from huggingface_hub import HfApi
+            infos = paths_info_batched(HfApi(), repo, [f for f in files if f != "manifest.json"], batch=200)
+            bad += [f for f in files if f != "manifest.json" and (f not in infos or getattr(infos[f], "size", None) != (stage / f).stat().st_size)]
         result.update(verified=not bad and not moved, entry_mismatch=bad, other_entries_changed=moved)
         print(f"[publish_safe] {name}: VERIFY {'OK' if not bad and not moved else 'FAILED'} — mismatching {bad[:5]}, other entries changed {moved[:5]}",
               file=sys.stderr)

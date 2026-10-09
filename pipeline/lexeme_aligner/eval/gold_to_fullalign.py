@@ -68,11 +68,19 @@ STAT_METHODS = ("eflomal", "gloss", "spanext", "gapfill", "residual")
 VENDOR_ONLY = {("spa", "RV1909"), ("fra", "Segond1910"), ("rus", "RusVZh")}   # CrossWire-restricted
 QUARANTINED = {("rus", "RUSSYN"): "Clear's RUSSYN gold is itself positionally mis-aligned (~57% of its "
                                   "per-verse strong->word pairings wrong; config/gold_langs.json "
-                                  "_quarantine) — published as data, never counted as gold here."}
-LICENSE_BY_SOURCE = {"clear": "CC-BY-4.0", "helfi": "CC-BY-4.0", "gbt": "CC0-1.0"}
+                                  "_quarantine) — published as data, never counted as gold here.",
+               ("arb", "ar_arst"): "Door43 BSOJ/ar_arst is the ENGLISH unfoldingWord Simplified Text (USFM `\\id ... EN_UST "
+                                   "en_English`), not Arabic — found 2026-10-09; never a layer of an Arabic edition."}
+LICENSE_BY_SOURCE = {"clear": "CC-BY-4.0", "helfi": "CC-BY-4.0", "gbt": "CC0-1.0", "door43": "CC-BY-SA-4.0"}
 LICENSE_BY_SWORD_MODULE = {"ChiUns": "Public Domain"}                       # everything else: vendor-only
-SOURCE_OF_GOLD_METHOD = {"manual": "clear", "transfer": "clear", "sword": "sword", "helfi": "helfi"}
-KIND_OF_GOLD_METHOD = {"manual": "manual", "transfer": "transfer", "sword": "manual", "helfi": "manual"}
+SOURCE_OF_GOLD_METHOD = {"manual": "clear", "transfer": "clear", "sword": "sword", "helfi": "helfi", "door43": "door43"}
+KIND_OF_GOLD_METHOD = {"manual": "manual", "transfer": "transfer", "sword": "manual", "helfi": "manual", "door43": "manual"}
+
+
+def door43_edition(base_text: str) -> str | None:
+    """The ingest tag of a Door43 aligned edition (eval/door43_align.LANGUAGES: repo -> tag), e.g. hi_glt -> higlt."""
+    from lexeme_aligner.eval.door43_align import LANGUAGES
+    return next((v["tag"] for v in LANGUAGES.values() if v["repo"] == base_text), None)
 # a second Clear base_text is a DIFFERENT text than the language's primary edition — the ingest tag
 # whose text matches is picked by probing (lowest refused-verse rate), never assumed
 SECOND_EDITION_CANDIDATES = {("arb", "ONAV"): ["arbnav", "arbn"], ("eng", "YLT"): ["eng_ylt", "engy"]}
@@ -165,6 +173,7 @@ class Corpus:
         self.counts: dict[int, collections.Counter] = {}
         self.by_id: dict[int, dict[str, object]] = {}       # ref -> spine row key -> token (OT; Clear's ids are 'o' + key)
         self.anchor_of: dict[int, int] = {}                 # spine verse folded into another verse's pooled group -> that group's ref
+        self.word_of: dict[int, dict[int, list]] = {}       # ref -> token idx -> every token of the same source WORD (OT: key[:11]), in order
         recs = build_corpus(books, usj_dir, HebrewSource(), remap=remapper(iso, str(usj_dir)))
         for r in recs:
             ref = encode(r.book, r.ch, r.v)
@@ -178,6 +187,12 @@ class Corpus:
                     kref = encode(r.book, int(key[2:5]), int(key[5:8])) if len(key) == 12 and key.isdigit() else ref
                     if kref != ref:
                         self.anchor_of[kref] = ref
+            words: dict[str, list] = collections.defaultdict(list)
+            for t in sorted(r.heb, key=lambda t: t.idx):
+                k0 = t.keys[0] if t.keys else ""
+                if len(k0) == 12 and k0.isdigit():
+                    words[k0[:11]].append(t)
+            self.word_of[ref] = {t.idx: ws for ws in words.values() for t in ws}
             for t in sorted(r.heb, key=lambda t: t.idx):
                 if not t.strong:
                     continue
@@ -208,6 +223,7 @@ def rows_from_gold(gold: dict, corpus: Corpus, method: str, attribution: dict, s
             continue
         stats["verses_converted"] += 1
         g_count = collections.Counter(s for s, _k in gv.links)
+        linked = []                                               # (tok, positions, sid, tids, how)
         for (strong, k), pos in gv.links.items():
             sid, tids = gv.raw.get((strong, k), (None, []))
             tok = None
@@ -226,11 +242,27 @@ def rows_from_gold(gold: dict, corpus: Corpus, method: str, attribution: dict, s
                 if tok is None:
                     stats["links_no_spine_token"] += 1
                     continue
+            linked.append((tok, pos, sid, tids, how))
+        linked_idx = {tok.idx for tok, *_ in linked}
+        toks = corpus.toks[ref]
+        for tok, pos, sid, tids, how in linked:
             t_idx = sorted(pos)
-            toks = corpus.toks[ref]
             target = " ".join(toks[p] for p in t_idx if p < len(toks))
             attr = dict(attribution, source_ids=[sid] if sid else [], target_ids=list(tids))
-            rows.append(make_row(ref, _book_of(ref), _tok_pair(tok, target, t_idx, method), attr))
+            pair = None
+            # WORD-LEVEL link (2026-10-09): some gold sets (Clear BSB + IRVHin OT, Door43 OT) record a link for a WHOLE Hebrew word
+            # under its FIRST morpheme, usually a prefix (ו ה ב ל מ ...), and nothing on the rest of the word: "you bathe" on וְ
+            # (H2050) of וְרָחַצְתְּ. Such a link is kept as one link from the whole word: the row's own token is the word's content
+            # morpheme (so lexeme / Strong's are the stem's) and `word_h_idx` lists every morpheme of the word.
+            members = getattr(corpus, "word_of", {}).get(ref, {}).get(tok.idx, [tok])
+            if (len(members) > 1 and members[0].idx == tok.idx and not tok.is_content
+                    and not any(m.idx in linked_idx for m in members[1:])):
+                stem = next((m for m in members if m.is_content and m.strong), None)
+                if stem is not None:
+                    pair = _tok_pair(stem, target, t_idx, method)
+                    pair["word_h_idx"] = [m.idx for m in members]
+                    stats["links_word_level"] += 1
+            rows.append(make_row(ref, _book_of(ref), pair or _tok_pair(tok, target, t_idx, method), attr))
             stats["links_converted"] += 1
             stats[f"links_by_{how}"] += 1
     return rows
@@ -285,8 +317,9 @@ def gold_editions(iso: str, res_dir: Path = RESOURCES, gold_langs: Path = GOLD_L
         if source is None:
             continue
         cands = SECOND_EDITION_CANDIDATES.get((iso, bt))
+        edition = door43_edition(bt) if gm == "door43" else (None if cands else primary)   # Door43: its own edition, never the language's primary
         out.append({"iso": iso, "gold_method": gm, "source": source, "kind": KIND_OF_GOLD_METHOD[gm],
-                    "base_text": bt, "rows": n, "edition": None if cands else primary,
+                    "base_text": bt, "rows": n, "edition": edition,
                     "candidates": cands, **route(iso, bt, source)})
     return out
 
@@ -334,7 +367,7 @@ def coverage(st: collections.Counter, rows: list[dict]) -> dict:
             "verses_no_text": st["verses_no_text"], "verses_outside_corpus": st["verses_outside_corpus"],
             "links": st["links"], "links_ambiguous": st["links_ambiguous"],
             "links_beyond_text": st["links_beyond_text"], "links_punct_only": st["links_punct_only"],
-            "links_no_spine_token": st["links_no_spine_token"], "rows": len(rows),
+            "links_no_spine_token": st["links_no_spine_token"], "links_word_level": st["links_word_level"], "rows": len(rows),
             "content_rows": sum(1 for r in rows if r["content"]),
             "function_word_rows": sum(1 for r in rows if not r["content"])}
 

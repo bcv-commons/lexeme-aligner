@@ -145,6 +145,12 @@ prior-pack/ — LANGUAGE-INDEPENDENT prior pack, PULLED from bcv-commons/prior-p
     NO licence change on our side; our published outputs keep their own licences. Rationale: only a 1-bit null/not-null signal is used, no keyness value is carried into
     any published file. (Alternatives considered and not taken: drop keyness from the gates in favour of word_class/pos; compute an own frequency signal from an open source.) The pack's own manifest still names
     spine_sha256 4bfd0cdd... (the old spine file it was built against; lineage only).
+    LXX COLUMNS (lxx_greek / lxx_hebrew), source per bcv-query 2026-10-09: built by bcv-RAG/scripts/build_lxx_bridge.py from the per-occurrence `greekstrong`
+    column of MACULA Hebrew (Clear-Bible/macula-hebrew, WLC TSV) -> resources/lxx_bridge.tsv -> prior-pack + shoresh /bridge. MACULA's licence file calls it "Greek
+    equivalents drawn from the Septuagint", CC BY 4.0 (Biblica); their script also notes UBS MARBLE attribution. The alignment UPSTREAM of that column is not stated
+    (CATSS possible; open question macula-hebrew issue #145), so its licence cannot be confirmed. Nothing in bcv-query's own code is CATSS-derived; bcv-query adds a
+    line to the prior-pack card. Our use (unchanged): bootstrap_priors (NT gloss candidates) and target_stopwords; no LXX value or column in any published file.
+    Revisit if #145 is answered with a restricted source (then A/B both uses without the bridge).
   PREVIOUS pull (2026-07-10, sha 3282b31f3c45b439..., contained the BHSA-derived `senses` column) is archived OUTSIDE the repo at ~/archive/prior-pack-2026-07-10/.
   pull: huggingface_hub.snapshot_download(repo_id='bcv-commons/prior-pack', repo_type='dataset', local_dir=<tmp>) then copy prior_pack.parquet + manifest.json + README.md
         into pipeline/vendor/prior-pack/. Bulk parquet gitignored; manifest.json + README committed as the pin. Rebuilt/re-pulled only on a bcv-query republish.

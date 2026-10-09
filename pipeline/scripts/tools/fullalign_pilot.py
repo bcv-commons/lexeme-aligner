@@ -42,164 +42,10 @@ LAYERS = [("statistical", "statistical", COMPACT_ED, False),
           ("manual/BSB-tables", "bsb", f"{COMPACT_ED}+manual+bsb-tables", False)]
 
 
-def _letters():
-    from lexeme_aligner.eval.bsb_tables import _letters
-    return _letters
-
-
-def read_rows(path: Path, kind: str) -> list[dict]:
-    cols = None
-    if kind == "bsb":
-        cols = ["ref", "book", "chapter", "verse", "h_idx", "h_idx_key", "lexeme", "strong", "t_idx", "target", "content",
-                "method", "score", "attribution"]
-    return pq.read_table(path, columns=cols).to_pylist() if path.exists() else []
-
-
-def base_attribution(rows: list[dict]) -> dict:
-    cnt = collections.Counter(json.dumps({k: v for k, v in r["attribution"].items() if k not in ("source_ids", "target_ids")},
-                                         sort_keys=True) for r in rows)
-    return json.loads(cnt.most_common(1)[0][0]) if cnt else {}
-
-
-def is_padding(r: dict) -> bool:
-    """A BSB-tables row that says nothing about alignment: no source token, no target words, no marker (an empty cell). The table
-    uses such rows only to carry headings / footnotes / cross-references in its own text columns, which this format does not carry."""
-    return not r["h_idx"] and not r["t_idx"] and not (r.get("target") or "").strip()
-
-
-def _hidx(r: dict) -> set:
-    h = r.get("h_idx")
-    return {h} if isinstance(h, int) else set(h or [])
-
-
-def to_crows(kind: str, rows: list[dict], groups: dict, base: dict, has_ids: bool,
-             dropped: collections.Counter | None = None, title_tokens: dict | None = None) -> dict[str, list]:
-    """`title_tokens` ({"PSA 3:1": {spine idx, ...}}): for an edition that prints psalm titles as headings (psalm_titles mode
-    `heading`) the statistical layer's alignments on those tokens are noise (the English verse has no title words), so rows made
-    only of title tokens are left out of the statistical layer."""
-    by_verse: dict[str, list[dict]] = collections.defaultdict(list)
-    for r in rows:
-        if kind == "statistical" and title_tokens:
-            tt = title_tokens.get(f"{r['book']} {r['chapter']}:{r['verse']}")
-            hs = _hidx(r)
-            if tt and hs and hs <= tt:
-                if dropped is not None:
-                    dropped["psalm-title token rows dropped (edition prints titles as headings)"] += 1
-                continue
-        if kind == "bsb" and is_padding(r):
-            if dropped is not None:
-                dropped["padding rows dropped (empty cell, no source)"] += 1
-            continue
-        by_verse[f"{r['book']} {r['chapter']}:{r['verse']}"].append(r)
-    out: dict[str, list] = {}
-    letters = _letters() if kind == "bsb" else None
-    for ref, vrows in by_verse.items():
-        if kind == "bsb":
-            if ref in groups:                                         # ALL rows of the verse, in table order (see bsb_crows)
-                crows = fc.bsb_crows(vrows, groups[ref], base, letters)
-            else:                                                     # an English verse with no spine verse: nothing is placed
-                crows = []
-                for r in vrows:
-                    if r["h_idx"]:
-                        raise KeyError(f"{ref}: BSB-table rows with source tokens but no spine group")
-                    c = fc.CRow(ref=ref, span=None if r["t_idx"] is None else list(r["t_idx"]))
-                    c.prof = (r["method"], r["score"], None, None, fc.attr_diff(r["attribution"], base))
-                    if r.get("strong") is not None:
-                        c.tstrong = r["strong"]
-                    crows.append(c)
-        else:
-            crows = [fc.simple_crow(r, groups[ref], base, has_ids) for r in vrows]
-        out[ref] = crows
-    return out
-
-
-def verify_derived(kind: str, rows: list[dict], groups: dict) -> collections.Counter:
-    """Check 2: fields the encoding does not store must be derivable."""
-    bad: collections.Counter = collections.Counter()
-    for r in rows:
-        ref = f"{r['book']} {r['chapter']}:{r['verse']}"
-        g = groups.get(ref)
-        h = r["h_idx"]
-        if not h:
-            continue
-        key = h if isinstance(h, int) else r.get("h_idx_key")
-        tok = g.tok_of.get(key) if g and key is not None else None
-        if tok is None:
-            if kind == "bsb" and r.get("h_idx_key") is None:          # attached by adjacency: no keyed token, so none derived
-                if r["lexeme"] is not None or r["content"] is not None:
-                    bad["lexeme/content set without a key token"] += 1
-            else:
-                bad["no key token"] += 1
-            continue
-        for k, v in (("lexeme", tok.lexeme), ("content", bool(tok.is_content))):
-            if r[k] != v:
-                bad[k] += 1
-        if kind != "bsb":
-            for k, v in (("strong", tok.strong), ("lemma", tok.lemma), ("stem", tok.stem), ("surface", tok.surface),
-                         ("gloss_en", tok.gloss_en)):
-                if r[k] != v:
-                    bad[k] += 1
-            t = r["t_idx"]
-            if t is not None and r["target"] != " ".join(g.toks[i] for i in t if i < len(g.toks)):
-                bad["target"] += 1
-    return bad
-
-
-def verify_bsb_semantics(rows: list[dict], decoded: list, groups: dict) -> collections.Counter:
-    """Check 3: rebuild the table's own fields from the decoded canonical rows and compare with the parquet rows; recompute
-    marker anchors and joint spans from the table order independently."""
-    res: collections.Counter = collections.Counter()
-    by_verse_rows: dict[str, list[dict]] = collections.defaultdict(list)
-    for r in rows:
-        if not is_padding(r):                                         # dropped on purpose and counted separately
-            by_verse_rows[f"{r['book']} {r['chapter']}:{r['verse']}"].append(r)
-    dec_by_ref: dict[str, list] = collections.defaultdict(list)
-    for c in decoded:
-        dec_by_ref[c.ref].append(c)
-    for ref, vrows in by_verse_rows.items():
-        g = groups.get(ref)
-
-        def row_fields(c):
-            hs = [g.h_of[s] for s in c.src] if c.src else None
-            if c.mark:
-                cell, t = {"u": "-", "e": ". . ."}[c.mark[1]], []
-            elif c.joint:
-                cell, t = "vvv", []
-            else:
-                cell, t = None, (None if c.span is None else sorted(set(c.span) | set(c.sup) | set(c.inf)))
-            return (json.dumps(hs), json.dumps(hs[c.key] if hs and c.key is not None else None), json.dumps(t), cell)
-
-        want = collections.Counter()
-        for r in vrows:
-            cell = (r.get("target") or "").strip()
-            t = r["t_idx"]
-            marker = cell if t is not None and not t and (cell in fc.MARK_ROWS or cell == fc.JOINT_CELL) else None
-            h = r["h_idx"] or None
-            want[(json.dumps(h), json.dumps(r.get("h_idx_key") if h else None), json.dumps(t), marker)] += 1
-        got = collections.Counter(row_fields(c) for c in dec_by_ref.get(ref, []))
-        res["rows"] += sum(want.values())
-        res["rows lost"] += sum((want - got).values())
-        res["rows invented"] += sum((got - want).values())
-        # independent recomputation of marker anchors / joint spans from the table order
-        last_end = -1
-        placed_final = []
-        for r in vrows:
-            t = r["t_idx"]
-            placed_final.append(t if t else None)
-        mine = [c for c in dec_by_ref.get(ref, []) if c.mark or c.joint]
-        for r in vrows:
-            t = r["t_idx"]
-            if t:
-                last_end = max(t)
-            elif t is not None and (r.get("target") or "").strip() in fc.MARK_ROWS and r["h_idx"]:
-                res["markers"] += 1
-                kind = fc.MARK_ROWS[(r["target"] or "").strip()]
-                if not any(c.mark == (last_end, kind) and [g.h_of[s] for s in c.src] == r["h_idx"] for c in mine):
-                    res["marker anchor mismatches"] += 1
-                    if res["marker anchor mismatches"] <= 3:
-                        print(f"   [diag] marker {ref} h_idx {r['h_idx']} {r['target'].strip()!r}: expected anchor {last_end}, "
-                              f"decoded marks {[c.mark for c in mine if [g.h_of[s] for s in c.src] == r['h_idx']]}")
-    return res
+# Row -> canonical-row helpers and the checks live in lexeme_aligner.fullalign_build (the chain's builder, step 9a); this
+# tool keeps only the engbsb pilot driver over a parquet tree and `--show`.
+from lexeme_aligner.fullalign_build import (base_attribution, is_padding, read_rows, to_crows,  # noqa: E402,F401
+                                            verify_bsb_semantics, verify_derived)
 
 
 def show_verse(out: Path, ref: str) -> None:
@@ -292,6 +138,7 @@ def main(argv=None) -> int:
                 if tt:
                     title_tokens[f"PSA {ch}:{v}"] = tt
     totals: dict[str, collections.Counter] = {lab: collections.Counter() for lab in enc}
+    encoders: dict[str, fc.LayerEncoder] = {}          # ONE profile table per layer (a fresh one per book left books undecodable)
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         if not usj_path.exists():
@@ -307,9 +154,9 @@ def main(argv=None) -> int:
             base = base_attribution(rows)
             layer_dir = a.out / ISO[0] / ISO / lid
             layer_dir = a.out / "e" / ISO / lid
-            le = fc.LayerEncoder(lid, "statistical" if kind == "statistical" else "manual", base, has_ids)
+            le = encoders.setdefault(lab, fc.LayerEncoder(lid, "statistical" if kind == "statistical" else "manual", base, has_ids))
             dropped: collections.Counter = collections.Counter()
-            crows = to_crows(kind, rows, groups, base, has_ids, dropped, title_tokens if book == 'PSA' else None)
+            crows = to_crows(kind, rows, groups, le.base, has_ids, dropped, title_tokens if book == 'PSA' else None)
             t.update(dropped)
             hints = None
             compact_main = compact_meta = None

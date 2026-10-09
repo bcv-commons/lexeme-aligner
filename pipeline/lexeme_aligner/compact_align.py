@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -209,6 +210,11 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "in pipeline_decisions.json) is a per-LANGUAGE eflomal-training setting, constant across every "
           "position in an edition's alignment, so it is never represented as a per-token `method`/`rule` "
           "entry — look it up in pipeline_decisions.json[iso], not here.",
+          "FULL ALIGNMENTS (since 2026-10): for editions that also have a hand-made layer, the .meta.json carries the statistical "
+          "full alignment in extra keys fn / wp / fp / wx / rows / off (every row of every method, function words included), "
+          "decoded with <edition>/_layer.json in the meta repo; every existing key and the main array keep their meaning. "
+          "Hand-made layers are in bcv-commons/full-alignments-manual and -manual-sa (layer id <edition>+manual+<source>, same "
+          "paths and _index/). Format: the full-alignments-manual card, 'File format'.",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
           "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
@@ -664,6 +670,9 @@ def book_content_hash(usj_path: Path) -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
+SAFE_EDITION = re.compile(r"[A-Za-z0-9_.\-]+")    # 2026-10-09: "HAUBIB (Hausa Contemporary Bible / OHCB)" split a compact folder in two
+
+
 def edition_id(iso: str, tag: str, sources: dict) -> str:
     """The path's `<edition>` segment: iso-prefixed so it's self-describing even out of context, but
     without DOUBLE-prefixing an edition string that already carries the iso (helloAO-sourced tags like
@@ -673,6 +682,9 @@ def edition_id(iso: str, tag: str, sources: dict) -> str:
     isn't in `sources` at all. e.g. iso=eng tag=bsb source.edition='BSB' -> 'eng_BSB';
     iso=arb tag=arb_vdv source.edition='arb_vdv' -> 'arb_vdv' (no double prefix)."""
     ed = (sources.get(tag) or {}).get("edition") or tag
+    if not SAFE_EDITION.fullmatch(ed):
+        raise ValueError(f"edition name {ed!r} (config/sources.json, tag {tag!r}) is not path-safe: use letters, digits, '_', '.', '-' only "
+                         "(it becomes a folder name in every compact repo and a base_text value)")
     return ed if ed.lower().startswith(iso.lower()) else f"{iso}_{ed}"
 
 

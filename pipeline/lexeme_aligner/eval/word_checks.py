@@ -126,6 +126,76 @@ def verse_checks(heb: list, aligned: dict[int, list[int]], facts: dict, is_funct
     return items
 
 
+VETO_CHECKS = ("suffix_pronoun", "prefix_prep")       # the two checks whose dropped links measured positive (plan 2026-10-08, Phase B)
+VETO_CONFIG = Path("config/fn_veto.json")
+
+
+def flagged_idx(heb: list, aligned: dict[int, list[int]], facts: dict, is_function, checks=VETO_CHECKS) -> dict[int, str]:
+    """{h_idx: check} of the tokens one of `checks` flags in this verse (the full set, not examples)."""
+    return {it["idx"]: it["check"] for it in verse_checks(heb, aligned, facts, is_function) if it["flagged"] and it["check"] in checks}
+
+
+def veto_checks_for(iso: str, config: Path = VETO_CONFIG) -> tuple[str, ...]:
+    """The checks whose flagged function-word links the full-align statistical layer keeps OUT of its fn channel for `iso`
+    (config/fn_veto.json, written from --veto-ab measurements; a language without an entry gets none)."""
+    if not config.exists():
+        return ()
+    e = json.loads(config.read_text(encoding="utf-8")).get(iso)
+    return tuple(e.get("checks", ())) if isinstance(e, dict) else ()
+
+
+def veto_ab(iso: str, tag: str, usj_dir: Path, books: list[str], methods: tuple[str, ...] = ("spanext", "eflomal", "gloss", "gapfill"),
+            out_dir: Path = OUT, gold_method: str = "manual") -> dict:
+    """A/B of the veto against the language's gold: the statistical union (first method wins a token, as the fn channel's winners)
+    with vs without the links each check flags, scored over ALL gold links (function words included) at token and word grain.
+    Returns {check | "both": {grain: {base, veto, delta_f1, delta_exact}}, "flagged": {check: n}}."""
+    from lexeme_aligner.eval.contest_rule import gold_base_text
+    from lexeme_aligner.eval.pos_score import Ours, load_gold, load_spec, load_spine, score, score_words
+    from lexeme_aligner.hebrew_source import HebrewSource
+    from lexeme_aligner.refs import encode
+    from lexeme_aligner.run_pilot import build_corpus
+    from lexeme_aligner.target_stopwords import StopwordFilter
+    from lexeme_aligner.versification import remapper
+    remap = remapper(tag, str(usj_dir))
+    recs = build_corpus(books, usj_dir, HebrewSource(), remap=remap)
+    spine = load_spine(books, usj_dir, tag)
+    ours = load_spec("+".join(methods), tag, out_dir, books, spine)
+    ali = load_alignment(tag, methods, out_dir)
+    stop = StopwordFilter(iso, str(usj_dir))
+    facts = language_facts(iso)
+    gold, _ = load_gold(iso, usj_dir, books, gold_base_text(iso, gold_method=None if gold_method == "manual" else gold_method),
+                        gold_methods=(gold_method,), remap=remap)
+    flagged: dict[int, dict[int, str]] = {}
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        if ali.get(ref):
+            fn = (lambda p, toks=r.toks: p < len(toks) and stop.is_function(toks[p]))
+            content = {t.idx for t in r.heb if t.is_content}
+            flagged[ref] = {h: c for h, c in flagged_idx(r.heb, ali[ref], facts, fn).items() if h not in content}
+
+    def without(checks) -> Ours:
+        o = Ours(spans={ref: dict(v) for ref, v in ours.spans.items()})
+        for ref, fl in flagged.items():
+            for h, c in fl.items():
+                key = spine.key_of.get(ref, {}).get(h)
+                if c in checks and key:
+                    o.spans.get(ref, {}).pop(key, None)
+        return o
+
+    def grade(o):
+        return {"token": score(gold, o, spine, content_only=False).row(), "word": score_words(gold, o, spine, content_only=False).row()}
+
+    base = grade(ours)
+    out: dict = {"iso": iso, "tag": tag, "books": len(books), "methods": list(methods), "facts": facts,
+                 "flagged": dict(collections.Counter(c for fl in flagged.values() for c in fl.values()))}
+    for name, checks in [(c, (c,)) for c in VETO_CHECKS] + [("both", VETO_CHECKS)]:
+        v = grade(without(checks))
+        out[name] = {g: {"base_f1": round(base[g]["link_f1"], 4), "veto_f1": round(v[g]["link_f1"], 4),
+                         "delta_f1": round(v[g]["link_f1"] - base[g]["link_f1"], 4),
+                         "delta_exact": v[g]["exact_span"] - base[g]["exact_span"]} for g in ("token", "word")}
+    return out
+
+
 def language_facts(iso: str) -> dict:
     from lexeme_aligner import gram_struct
     from lexeme_aligner.article_bound import is_bound
@@ -240,6 +310,7 @@ def main(argv=None) -> int:
     ap.add_argument("--calibrate", action="store_true", help="also report P(word wrong | flagged) vs unflagged against the language's gold")
     ap.add_argument("--gold-method", default="manual")
     ap.add_argument("--write", action="store_true", help=f"write the result to {QA_DIR}/<tag>.json")
+    ap.add_argument("--veto-ab", action="store_true", help="A/B the fn-channel veto (suffix_pronoun, prefix_prep) against the gold")
     a = ap.parse_args(argv)
     if a.table:
         rows = table()
@@ -252,6 +323,10 @@ def main(argv=None) -> int:
         ap.error("--iso, --tag and --usj-dir are required (or --table)")
     from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS
     books = a.book or ((OT_BOOKS if a.ot or not a.nt else []) + (NT_BOOKS if a.nt or not a.ot else []))
+    if a.veto_ab:
+        res = veto_ab(a.iso, a.tag, a.usj_dir, books, gold_method=a.gold_method)
+        print(json.dumps(res, indent=1, ensure_ascii=False))
+        return 0
     res = run(a.iso, a.tag, a.usj_dir, books, tuple(m for m in a.methods.split(",") if m), a.out, a.calibrate, a.gold_method)
     text = json.dumps(res, indent=1, ensure_ascii=False)
     if a.write:

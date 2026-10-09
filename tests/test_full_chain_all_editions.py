@@ -55,7 +55,7 @@ def test_single_edition_language_has_no_pool_flag(monkeypatch, tmp_path):
 
 def test_ledger_entry_is_the_last_chain_step_with_every_edition(monkeypatch, tmp_path):
     calls, tags = _run_chain(monkeypatch, tmp_path, ["AAA", "BBB", "CCC"])
-    assert calls[-1][0] == "pipeline_decisions"                    # after compact_align, nothing runs behind it
+    assert calls[-1][0] == "pipeline_decisions"                    # after compact_align + fullalign_build, nothing runs behind it
     args = calls[-1][1]
     assert [args[i + 1] for i, a in enumerate(args) if a == "--tag"] == tags
     assert [Path(args[i + 1]).name for i, a in enumerate(args) if a == "--usj-dir"] == [f"usj-{t}" for t in tags]
@@ -103,3 +103,14 @@ def test_editions_option_limits_per_edition_steps_but_pooled_steps_keep_every_ed
     assert [_arg(mwe, "--iso"), *_arg(mwe, "--pool").split(",")] == tags                  # pooled: all three
     (lex,) = [a for m, a in calls if m == "export_lex"]
     assert [_arg(lex, "--iso"), *_arg(lex, "--pool").split(",")] == tags
+
+
+def test_full_align_build_runs_once_per_edition_right_after_compact(monkeypatch, tmp_path):
+    calls, tags = _run_chain(monkeypatch, tmp_path, ["AAA", "BBB", "CCC"])
+    mods = [m for m, _ in calls]
+    fa = [a for m, a in calls if m == "fullalign_build"]
+    assert [_arg(a, "--iso") for a in fa] == tags and all(_arg(a, "--publish-iso") == "xyz" for a in fa)
+    assert [Path(_arg(a, "--usj-dir")).name for a in fa] == [f"usj-{t}" for t in tags]
+    last_compact = max(i for i, m in enumerate(mods) if m == "compact_align")
+    first_fa = mods.index("fullalign_build")
+    assert last_compact < first_fa < mods.index("pipeline_decisions")

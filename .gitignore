@@ -63,6 +63,9 @@ config/*.lock
 # compact-alignments: the `[a-z]` bucket dirs are the per-edition data (<iso[0]>/<iso>/<edition>/);
 # `_index/` (shared verse-ref indices, small, worth committing) starts with `_` so it's unaffected.
 publish/compact-alignments/[a-z]/
+# full-alignments-manual[-sa] (2026-10-09): same layout as compact — the bucket dirs are data, README + manifest are tracked
+publish/full-alignments-manual/[a-z]/
+publish/full-alignments-manual-sa/[a-z]/
 # The SHARED per-book lexeme indices live (and are tracked) at publish/compact-alignments/_index/ —
 # that is compact_align's --index-root CLI default. `config/canonical_index/` is only the library-level
 # fallback in publish_compact()'s signature, so a direct in-process call that doesn't pass index_root

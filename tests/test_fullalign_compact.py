@@ -144,3 +144,47 @@ def test_meta_merge_adds_channels_and_refuses_to_change_an_existing_one():
     assert fc.merge_meta({"method": ["e"]}, {"fn": ["0:1"], "wp": None}) == {"method": ["e"], "fn": ["0:1"]}
     with pytest.raises(ValueError):
         fc.merge_meta({"fn": ["0:1"]}, {"fn": ["0:2"]})
+
+
+def test_numbers_in_a_prior_are_row_arguments_so_the_profile_table_stays_small():
+    assert fc.split_prior("spanext_name_before:12+spanext_noun_before:3") == ("spanext_name_before:#+spanext_noun_before:#", [12, 3])
+    assert fc.split_prior("cross_edition") == ("cross_edition", []) and fc.split_prior(None) == (None, [])
+    assert fc.join_prior("spanext_name_before:#+spanext_noun_before:#", [12, 3]) == "spanext_name_before:12+spanext_noun_before:3"
+    g = group()
+    attr = {"source": "lexeme-aligner", "kind": "statistical", "license": "CC0-1.0"}
+    row = lambda h, t, prior: {"h_idx": h, "t_idx": t, "method": "spanext", "score": 0.9, "prior": prior,      # noqa: E731
+                               "extra": None, "attribution": attr}
+    rows = [fc.simple_crow(row(1, [0, 1], f"spanext_name_before:{n}"), g, attr, False) for n in (1, 7)]
+    rows.append(fc.simple_crow(row(2, [2, 3], "spanext_noun_before:3"), g, attr, False))
+    rows.append(fc.simple_crow(row(3, [4], "spanext_noun_before:4"), g, attr, False))      # a function word: the fn channel
+    enc, main, meta, dec = _roundtrip({"RUT 1:1": rows}, ["RUT 1:1"], {"RUT 1:1": g})
+    assert len(enc.profiles.of_char) == 2                                                 # two templates, not four profiles
+    assert _canon(dec) == _canon(rows)
+    assert sorted(c.prior() for c in dec) == ["spanext_name_before:1", "spanext_name_before:7", "spanext_noun_before:3",
+                                              "spanext_noun_before:4"]
+    assert meta["wx"] is not None and "P" in meta["wx"][0]                                # no gold ids, but arguments to carry
+
+
+def test_a_vetoed_function_word_row_is_neither_claimed_nor_a_view_and_survives_in_rows():
+    g = group()
+    P = lambda m, e=None: (m, 0.9, None, e, "{}")                                      # noqa: E731
+    vetoed = fc.CRow("RUT 1:1", [("f", 0)], span=[4], prof=P("eflomal", fc.with_veto(None, "suffix_pronoun")))
+    rows = [fc.CRow("RUT 1:1", [("c", 0)], span=[0], prof=P("eflomal")), vetoed,
+            fc.CRow("RUT 1:1", [("f", 1)], span=[5], prof=P("eflomal"))]
+    enc, main, meta, dec = _roundtrip({"RUT 1:1": rows}, ["RUT 1:1"], {"RUT 1:1": g})
+    assert meta["fn"][0] == "1:5"                                   # f0 has no entry at all (no winner, no view)
+    assert len(meta["rows"][0].split()) == 1 and meta["rows"][0].startswith("f0:4:")
+    assert _canon(dec) == _canon(rows)
+    assert fc.is_vetoed(vetoed) and fc.with_veto('{"light": true}', "prefix_prep") == '{"light": true, "veto": "prefix_prep"}'
+
+
+def test_a_whole_word_gold_row_is_one_row_from_every_morpheme_keyed_by_the_stem():
+    g = group()
+    attr = {"source": "clear", "kind": "manual", "license": "CC-BY-4.0"}
+    row = {"h_idx": 1, "t_idx": [0, 1], "method": "manual", "score": None, "prior": None,
+           "extra": '{"word_h_idx": [0, 1]}', "attribution": attr}
+    c = fc.simple_crow(row, g, attr, False)
+    assert c.src == [("f", 0), ("c", 0)] and c.key == 1 and c.prof[3] is None      # word_h_idx lives in the srcs, not the profile
+    enc, main, meta, dec = _roundtrip({"RUT 1:1": [c]}, ["RUT 1:1"], {"RUT 1:1": g})
+    assert main[0] == "0:0-1" and meta["wp"][0] == "." and meta["fn"][0] == "0:0-1"   # views on both slots; the row is in `rows`
+    assert _canon(dec) == _canon([c])

@@ -306,6 +306,48 @@ from lexeme_aligner.function_classes import TRIGGER_CLASSES as _TRIGGER_CLASSES 
 _SPANEXT_FLAGS_FILE = Path("config/spanext_flags.json")
 
 
+def load_disabled_risks(publish_iso: str, path: Path | None = None, tag: str | None = None) -> frozenset[str]:
+    """RISK_RULES risks a measured verdict switched off for this language or edition (`disabled_risks: [...]` in
+    config/spanext_flags.json; 2026-10-09). A per-mechanism switch: `base_mechanisms: false` turns off all of them."""
+    path = path or _SPANEXT_FLAGS_FILE
+    if not Path(path).exists():
+        return frozenset()
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    entry = dict(doc.get(publish_iso, {}))
+    if tag and tag != publish_iso:
+        entry.update(doc.get(tag, {}))
+    v = entry.get("disabled_risks") or []
+    return frozenset(x for x in v if isinstance(x, str))
+
+
+GREEK_PERSONAL_PRONOUNS = {"grc:0846", "grc:1473", "grc:4771"}
+
+
+def nominal_possessor_idx(heb: list) -> set[int]:
+    """Source occurrences (token idx) that carry a NOMINAL possessor in the source itself: a Hebrew construct-chain member followed
+    by a CONTENT member of the same chain (בְנֵי יִשְׂרָאֵל "sons OF Israel"; a noun whose chain holds only a pronominal suffix,
+    אִשְׁתּוֹ "his wife", does not count), or a Greek noun followed within three tokens by a genitive content word that is not a
+    personal pronoun (ὁ οἶκος τοῦ πατρός). The occurrence gate for `possession_affix` (2026-10-09): the mechanism adds a word on
+    the language's possessor side, which is only a possessive construction where the source has one."""
+    toks = sorted(heb, key=lambda t: t.idx)
+    out: set[int] = set()
+    groups: dict[str, list] = collections.defaultdict(list)
+    for t in toks:
+        if getattr(t, "construct_group", None):
+            groups[t.construct_group].append(t)
+    for members in groups.values():
+        content = [t for t in members if t.is_content and t.strong]
+        for a, b in zip(content, content[1:]):
+            out.add(a.idx)
+    for k, t in enumerate(toks):
+        if t.is_content and t.strong and getattr(t, "case_", None) and t.idx not in out:
+            for u in toks[k + 1:k + 4]:
+                if u.is_content and u.strong and getattr(u, "case_", None) == "genitive" and u.lexeme not in GREEK_PERSONAL_PRONOUNS:
+                    out.add(t.idx)
+                    break
+    return out
+
+
 def load_audit_rate_max(publish_iso: str, path: Path | None = None, tag: str | None = None) -> float | None:
     """A measured per-language (or per-edition) replacement for the audit's multiword-rate ceiling (`audit_rate_max` in
     config/spanext_flags.json), or None. Added 2026-10-08: fertility priors make eflomal emit multi-word spans by themselves, which lifted
@@ -618,7 +660,9 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                  name_guard: bool | None = None,
                  base_mechanisms: bool | None = None,
                  article_bound: bool | None = None,
-                 audit_rate_max: float | None = None) -> tuple[dict[str, list[dict]], dict]:
+                 audit_rate_max: float | None = None,
+                 possession_affix: bool | None = None,
+                 occurrence_gate: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
     """{BOOK: [verse record, ...]} of ONLY the pairs that got widened, plus stats. Never mutates the base
     chain's own jsonl — this is a separate, additive layer (see module docstring). `definite_trigger`:
     Step 1's derived-definiteness additive trigger (`compute_definite`). `relation_trigger`: Step 1's
@@ -690,6 +734,12 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         # P2 (2026-09-27): a candidate may not lie inside ANOTHER BHSA phrase's aligned target window
         # (59.8% of spa's owned steals were cross-phrase — plan §8.H5). OT-only signal; opt-in.
         phrase_window_gate = flags.get("phrase_window_gate", False)
+    disabled_risks = set(load_disabled_risks(publish_iso, tag=iso))
+    if possession_affix is not None:                      # explicit override (measurement): True enables, False disables
+        (disabled_risks.discard if possession_affix else disabled_risks.add)("possession_affix")
+    if occurrence_gate is None:
+        # 2026-10-09: `possession_affix` only where the source occurrence has a nominal possessor (nominal_possessor_idx)
+        occurrence_gate = flags.get("occurrence_gate", False)
     if name_guard is None:
         # P4 (2026-09-27): a candidate whose romanized form name-matches the transliteration of a
         # DIFFERENT name token in the verse is that name's own rendering, not a free particle — the
@@ -799,6 +849,7 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # to, in the order its own members actually appear — the fix for the multi-member chain-order bug
     # (see `_chain_neighbor_boundary`'s own docstring below).
     groups_of: dict[int, dict[str, list]] = {}
+    nominal_poss_of: dict[int, set[int]] = {}
     verse_toks: dict[int, list[str]] = {}
     _macula = getattr(heb, "syntax_source", None) == "macula"
     for r in recs:
@@ -823,6 +874,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
             if t.construct_group:
                 groups[t.construct_group].append(t)
         groups_of[ref] = {g: sorted(members, key=lambda t: t.idx) for g, members in groups.items()}
+        if occurrence_gate:
+            nominal_poss_of[ref] = nominal_possessor_idx(r.heb)
     has_struct = heb.has_state or heb.has_case
     has_definite_signal = heb.has_state or heb.has_assimilated_articles
     has_relation_signal = heb.has_phrase or (_macula and (getattr(heb, "has_construct_role", False)
@@ -954,6 +1007,12 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
             # "noun" carrying both `articles` and `possession_affix`) are genuinely different needs for
             # different occurrences, not competing guesses about the same one; see `active`'s own comment.
             for d, _risk in active.get(pos, []):
+                if _risk in disabled_risks:
+                    stats[f"risk_disabled_{_risk}"] += 1
+                    continue
+                if occurrence_gate and _risk == "possession_affix" and p["h_idx"] not in nominal_poss_of.get(ref, ()):
+                    stats["occurrence_gated_possession_affix"] += 1
+                    continue
                 if _try_extend(d, pos, allowed=_TRIGGER_CLASSES.get(_risk)):
                     break
             if case_marking_direction and has_struct:
@@ -1177,6 +1236,10 @@ def main(argv=None) -> int:
                     help="E6 flip (2026-09-29): run the always-on RISK_RULES mechanisms at all. Default: "
                          "consult config/spanext_flags.json (on unless the edition/language records "
                          "base_mechanisms=false after cross-edition verification).")
+    ap.add_argument("--possession-affix", action=argparse.BooleanOptionalAction, default=None,
+                    help="force the possession_affix mechanism on/off (default: config/spanext_flags.json `disabled_risks`)")
+    ap.add_argument("--occurrence-gate", action=argparse.BooleanOptionalAction, default=None,
+                    help="possession_affix only on occurrences with a nominal possessor in the source (default: flags file)")
     ap.add_argument("--audit-rate-max", type=float, default=None,
                     help="measurement only (2026-10-08): replace the audit's multiword-rate ceiling (0.05) so the mechanisms "
                          "can be compared on top of fertility priors, which lift the rate past the ceiling")
@@ -1202,7 +1265,9 @@ def main(argv=None) -> int:
                                   phrase_window_gate=a.phrase_window_gate,
                                   name_guard=a.name_guard,
                                   base_mechanisms=a.base_mechanisms,
-                                  audit_rate_max=a.audit_rate_max)
+                                  audit_rate_max=a.audit_rate_max,
+                                  possession_affix=a.possession_affix,
+                                  occurrence_gate=a.occurrence_gate)
     # The layer is rebuilt as a whole: remove every existing spanext file of this edition first. Until 2026-10-05
     # this happened only when the edition was gated off, so a re-run that SKIPPED for any other reason ("no flagged
     # (pos, direction) combination") or no longer covered a book left the old files in place — and compact_align

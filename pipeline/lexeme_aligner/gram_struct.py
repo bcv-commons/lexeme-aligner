@@ -435,10 +435,16 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
         else:
             parts["kin"] = {}
         for name in PARTITIONS:
+            fp = out_dir / name / f"{iso}.json"
             if parts[name]:                                   # never write an empty per-language file
-                _write_atomic(out_dir / name / f"{iso}.json",
-                              json.dumps(parts[name], indent=1, ensure_ascii=False, sort_keys=True) + "\n")
+                _write_atomic(fp, json.dumps(parts[name], indent=1, ensure_ascii=False, sort_keys=True) + "\n")
                 written[name] += 1
+            elif fp.exists():
+                # 2026-10-09: a partition that is empty THIS build must not keep an old file — merged_direction reads the
+                # partition files directly, so a stale kin/ file (182 of them after the derived adposition merge) went on
+                # supplying a direction the build no longer derives.
+                fp.unlink()
+                stats[f"removed_stale:{name}"] += 1
         merged = merge_partitions(iso, parts, stats)
         for slot in typology.SLOTS:                          # which partition/source the MERGED view took, per slot
             if slot in merged:
@@ -466,6 +472,7 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
             slot: stats.get(f"derived_shadowed:{slot}", 0) for slot in typology.SLOTS
             if stats.get(f"derived_shadowed:{slot}", 0)},
         "measured_date_default": _MEASURED_DATE,
+        "stale_partition_files_removed": {k.split(":", 1)[1]: v for k, v in stats.items() if k.startswith("removed_stale:")},
         "kin_leave_one_out": kin_confidence,
     }
     _write_atomic(out_dir / "_coverage.json", json.dumps(coverage, indent=1) + "\n")

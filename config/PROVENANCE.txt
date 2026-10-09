@@ -461,3 +461,10 @@ config/dbt_catalog/catalog-index.json, catalog-overlap.json — bcv-commons/bibl
   dbt-catalog.json and helloao-translations.json are unchanged (bibles: the DBT catalog was already current).
   Pool policy built on it: onboard.editions_for returns every fetchable, distinct edition (the alignment set); `statistics: false` marks a near
   copy (labels near_identical / orthography_convention) that is aligned and published but not counted in the pooled datasets or the votes.
+
+pipeline/work/ubs-dictionary/UBSGreekNTDic-v1.1-en.JSON — UBS Dictionary of New Testament Greek (SDGNT extract, Louw-Nida based),
+  github.com/ubsicap/ubs-open-license/dictionaries/greek/JSON, fetched 2026-10-09, sha256 d84bb9077a43fa4a4f7e571fe2ffa460fa655d7b78439b366281ce527fd56893.
+  Licence CC BY-SA 4.0 ("UBS Dictionary of New Testament Greek © United Bible Societies 2023; adapted from SDBG © UBS 2018-2023, Louw & Nida
+  © UBS 1988, 1989"). Gitignored. Bound to the NT spine by `python -m lexeme_aligner.ubs_greek_senses --build` into the grc_* tables of
+  pipeline/ubs-senses.db (same share-alike file as the Hebrew layer): 125,543 of 137,779 NT tokens bound (unique 85,244, anchored 39,976,
+  nearest 326; 2.0% of references unbound vs 6.6% for Hebrew). Nothing published from it yet.

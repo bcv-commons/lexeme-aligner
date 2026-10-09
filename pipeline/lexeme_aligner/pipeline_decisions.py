@@ -52,7 +52,7 @@ from pathlib import Path
 from lexeme_aligner.analyze_language import RISK_RULES, analyze, load_grambank
 from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.fertility_priors import load_fertility_flags
-from lexeme_aligner.span_extension import (DIRECTION_FEATURES, base_mechanisms_enabled, direction_for, load_audit_rate_max,
+from lexeme_aligner.span_extension import (DIRECTION_FEATURES, base_mechanisms_enabled, direction_for, load_audit_rate_max, load_disabled_risks,
                                             load_spanext_flags,
                                            possession_direction_for)
 from lexeme_aligner.target_morph import should_stem
@@ -78,7 +78,7 @@ _DOC = ("Per-language pipeline configuration decisions, with provenance. Per-tok
        "the ONLY place it is ever visible.")
 
 _OPT_IN_SPANEXT_KEYS = ("relation_trigger", "definite_trigger", "typology_fallback",
-                        "typology_fallback_articles", "typed_gate", "phrase_window_gate", "name_guard")
+                        "typology_fallback_articles", "typed_gate", "phrase_window_gate", "name_guard", "occurrence_gate")
 
 
 # The RISK_RULES risks span_extension.extend_spans actually acts on (its `active` loop); every other finding is an audit
@@ -104,12 +104,15 @@ def _direction(risk: str, grambank: dict, publish_iso: str, typology_fallback: b
     return None
 
 
-def _gate_entry(risk: str, entry: dict, direction: str | None, no_coverage: bool) -> dict:
+def _gate_entry(risk: str, entry: dict, direction: str | None, no_coverage: bool, disabled: frozenset = frozenset()) -> dict:
     """Mirror span_extension.extend_spans exactly: a finding it cannot act on is recorded, but as value false with the reason."""
     entry.pop("direction", None)
     if direction:
         entry["direction"] = direction
-    if entry.get("value") is True and risk not in ACTING_RISKS:
+    if entry.get("value") is True and risk in disabled:
+        entry["value"] = False
+        entry["gated_source"] = "measured vs gold: disabled for this language (config/spanext_flags.json disabled_risks)"
+    elif entry.get("value") is True and risk not in ACTING_RISKS:
         entry["value"] = False
         entry["gated_source"] = "audit finding only: no alignment mechanism implements this risk"
     elif entry.get("value") is True and no_coverage:
@@ -131,11 +134,11 @@ def reconcile_entry(publish_iso: str, entry: dict) -> dict:
         e = entry.get(risk)
         if not isinstance(e, dict) or "value" not in e:
             continue
-        if e.get("gated_source") and e["value"] is False and not str(e["gated_source"]).startswith(("audit finding", "no Grambank", "no direction")):
+        if e.get("gated_source") and e["value"] is False and not str(e["gated_source"]).startswith(("audit finding", "no Grambank", "no direction", "measured vs gold: disabled")):
             continue                              # gated for another recorded reason (article_bound, E6): keep as written
         e["value"] = True
         e.pop("gated_source", None)
-        _gate_entry(risk, e, _direction(risk, raw or {}, publish_iso, tf, tfa), raw is None and not tf)
+        _gate_entry(risk, e, _direction(risk, raw or {}, publish_iso, tf, tfa), raw is None and not tf, load_disabled_risks(publish_iso))
     return entry
 
 
@@ -182,7 +185,7 @@ def always_on_mechanisms(tags: str | list[str], publish_iso: str, out_dir: Path 
     for risk, entry in by_risk.items():
         entry["pos"] = sorted(set(entry["pos"]))
         d = _direction(risk, grambank, publish_iso, typology_fallback, typology_fallback_articles)
-        _gate_entry(risk, entry, d, no_coverage)
+        _gate_entry(risk, entry, d, no_coverage, load_disabled_risks(publish_iso))
         if gated:
             entry["gated_off_editions"] = gated
             if len(gated) == len(tag_list):

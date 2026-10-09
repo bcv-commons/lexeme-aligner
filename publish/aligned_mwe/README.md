@@ -44,7 +44,7 @@ A phrase found in several editions appears once per edition, so a (lexeme, phras
 rows: group by `(lexeme, phrase)` and sum `count` for a language-level frequency, or filter on `base_text` for one
 edition. `share` is a per-edition probability, so it does not sum to 1 across editions. The manifest lists each
 language's `base_texts`, rows per edition (`by_base_text`) and a per-edition `sources` licence pointer.
-Partitions written before 2026-09-30 have no `base_text` column and cover only the first edition of the language.
+Every partition now has `base_text` and covers every edition of its language; copies downloaded before October 2026 had no `base_text` column and covered only the first edition.
 
 ## Licensing — CC0-1.0
 Phrases + counts + public identifiers (Strong's / MACULA lexeme), no MACULA analytical columns — same

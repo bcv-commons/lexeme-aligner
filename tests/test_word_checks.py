@@ -48,3 +48,14 @@ def test_gold_wrong_words_compares_whole_word_spans():
     gv = T(links={("H0871", 0): {0, 1, 2}})
     wrong = _gold_wrong_words(HEB, {0: [0], 1: [1, 2]}, gv)
     assert wrong == {"08001001002": False}
+
+
+def test_table_summarises_written_files(tmp_path):
+    import json as _j
+    from lexeme_aligner.eval.word_checks import table
+    (tmp_path / "x.json").write_text(_j.dumps({"iso": "x", "tag": "xt", "checks": {"prefix_prep": {
+        "n": 10, "rate": 0.1, "calibration": {"p_wrong_flagged": 0.6, "p_wrong_unflagged": 0.2, "judged_flagged": 5}}}}))
+    (tmp_path / "_table.tsv").write_text("ignored")
+    rows = table(tmp_path)
+    assert rows == [{"iso": "x", "tag": "xt", "check": "prefix_prep", "n": 10, "flag_rate": 0.1, "p_wrong_flagged": 0.6,
+                     "p_wrong_unflagged": 0.2, "judged_flagged": 5, "lift": 3.0}]

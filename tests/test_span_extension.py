@@ -1108,3 +1108,27 @@ def test_a_skipped_rerun_removes_the_stale_layer_of_the_books_it_covers(tmp_path
                     "--book", "GEN"]) == 0
     assert not (tmp_path / "align_spanext_zz_GEN.jsonl").exists()
     assert (tmp_path / "align_spanext_zz_EXO.jsonl").exists()          # a book outside this run is left alone
+
+
+# --- 2026-10-09: per-mechanism switch and the possession occurrence gate --------------------------------------
+def test_nominal_possessor_idx_needs_a_content_rectum_or_greek_genitive():
+    from types import SimpleNamespace as T
+    from lexeme_aligner.span_extension import nominal_possessor_idx
+    tok = lambda idx, content, group=None, case_=None, lexeme="x": T(idx=idx, is_content=content, strong="H1" if content else None,  # noqa: E731
+                                                                     construct_group=group, case_=case_, lexeme=lexeme)
+    # בְנֵי יִשְׂרָאֵל: regens + content rectum -> the regens counts; אִשְׁתּ + וֹ: suffix only -> does not
+    heb = [tok(0, True, "g1"), tok(1, True, "g1"), tok(2, True, "g2"), tok(3, False, "g2")]
+    assert nominal_possessor_idx(heb) == {0}
+    grc = [tok(0, True, case_="nominative"), tok(1, False, case_="genitive"), tok(2, True, case_="genitive"),
+           tok(3, True, case_="nominative"), tok(4, True, case_="genitive", lexeme="grc:0846")]
+    assert nominal_possessor_idx(grc) == {0}
+
+
+def test_load_disabled_risks_merges_language_and_edition(tmp_path):
+    import json
+    from lexeme_aligner.span_extension import load_disabled_risks
+    p = tmp_path / "f.json"
+    p.write_text(json.dumps({"spa": {"disabled_risks": ["possession_affix"]}, "spa_x": {"disabled_risks": []}}), encoding="utf-8")
+    assert load_disabled_risks("spa", p) == {"possession_affix"}
+    assert load_disabled_risks("spa", p, tag="spa_x") == frozenset()
+    assert load_disabled_risks("eng", p) == frozenset()

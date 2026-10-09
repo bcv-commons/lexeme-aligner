@@ -212,11 +212,27 @@ def _gold_wrong_words(heb: list, aligned: dict[int, list[int]], gv) -> dict[str,
     return {w: ow.get(w, set()) != g for w, g in gw.items()}
 
 
+def table(qa_dir: Path = QA_DIR) -> list[dict]:
+    """One row per (edition, check) from the written per-edition files: flag rate, and, where gold was available, P(word wrong | flagged)
+    vs P(word wrong | not flagged) and their ratio (the 'lift' a consumer would need, >= 2 on several languages)."""
+    rows = []
+    for fp in sorted(Path(qa_dir).glob("*.json")):
+        if fp.name.startswith("_"):
+            continue
+        d = json.loads(fp.read_text(encoding="utf-8"))
+        for name, c in d.get("checks", {}).items():
+            cal = c.get("calibration") or {}
+            pf, pu = cal.get("p_wrong_flagged"), cal.get("p_wrong_unflagged")
+            rows.append({"iso": d["iso"], "tag": d["tag"], "check": name, "n": c["n"], "flag_rate": c["rate"],
+                         "p_wrong_flagged": pf, "p_wrong_unflagged": pu, "judged_flagged": cal.get("judged_flagged"),
+                         "lift": round(pf / pu, 2) if pf is not None and pu else None})
+    return rows
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--iso", required=True)
-    ap.add_argument("--tag", required=True)
-    ap.add_argument("--usj-dir", type=Path, required=True)
+    ap.add_argument("--iso"); ap.add_argument("--tag"); ap.add_argument("--usj-dir", type=Path)
+    ap.add_argument("--table", action="store_true", help=f"summarise every {QA_DIR}/<tag>.json into {QA_DIR}/_table.tsv and print it")
     ap.add_argument("--ot", action="store_true"); ap.add_argument("--nt", action="store_true")
     ap.add_argument("--book", action="append")
     ap.add_argument("--methods", default="spanext,gapfill,eflomal,gloss")
@@ -225,6 +241,15 @@ def main(argv=None) -> int:
     ap.add_argument("--gold-method", default="manual")
     ap.add_argument("--write", action="store_true", help=f"write the result to {QA_DIR}/<tag>.json")
     a = ap.parse_args(argv)
+    if a.table:
+        rows = table()
+        cols = list(rows[0]) if rows else []
+        text = "\t".join(cols) + "\n" + "".join("\t".join("" if r[c] is None else str(r[c]) for c in cols) + "\n" for r in rows)
+        (QA_DIR / "_table.tsv").write_text(text, encoding="utf-8")
+        print(text, end="")
+        return 0
+    if not (a.iso and a.tag and a.usj_dir):
+        ap.error("--iso, --tag and --usj-dir are required (or --table)")
     from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS
     books = a.book or ((OT_BOOKS if a.ot or not a.nt else []) + (NT_BOOKS if a.nt or not a.ot else []))
     res = run(a.iso, a.tag, a.usj_dir, books, tuple(m for m in a.methods.split(",") if m), a.out, a.calibrate, a.gold_method)

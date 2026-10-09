@@ -217,6 +217,14 @@ def build_fertility_priors(recs, publish_iso: str, lex_pos: dict[str, str], heb,
             if t.gloss_en and t.gloss_en.count(".") >= 1:
                 k[a]["gloss_multiword"] += 1
 
+    # Measurement only (2026-10-09, plan D-P8): ALIGNER_FERTILITY_SKIP_RELATIONS=plural,gloss_multiword drops those relations, so one
+    # relation's contribution can be isolated with eflomal replicates. Unset = every relation counts (production behaviour).
+    import os
+    skip = {x for x in os.environ.get("ALIGNER_FERTILITY_SKIP_RELATIONS", "").split(",") if x}
+    if skip:
+        for c in k.values():
+            for rel in skip:
+                c.pop(rel, None)
     flagged = {a for a, c in k.items() if any(v > 0 for v in c.values())}
     if invert:
         # Placebo: apply the SAME weight distribution to anchors the real signals never flagged,

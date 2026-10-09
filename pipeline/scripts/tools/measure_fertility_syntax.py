@@ -33,7 +33,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import measure_flag as mf                                          # noqa: E402
 
 REPO = mf.REPO
-ARMS = {"bhsa": ("bhsa", []), "macula": ("macula", []), "off": ("bhsa", ["--no-fertility-priors"])}
+ARMS = {"bhsa": ("bhsa", []), "macula": ("macula", []), "off": ("bhsa", ["--no-fertility-priors"]),
+        "macula-off": ("macula", ["--no-fertility-priors"]),     # 2026-10-09: fertility value on today's spine
+        "macula-noplural": ("macula", []), "macula-nogloss": ("macula", [])}   # D-P8 ablations (see arm_env)
+_ARM_SKIP = {"macula-noplural": "plural", "macula-nogloss": "gloss_multiword"}
 MIN_TOL = 0.0005
 Runner = Callable[[list[str], dict], tuple[str, str]]
 
@@ -44,7 +47,10 @@ def arm_env(arm: str, base: dict | None = None) -> dict:
         raise ValueError(f"unknown arm {arm!r}; one of {tuple(ARMS)}")
     env = dict(os.environ if base is None else base)
     env["ALIGNER_SYNTAX_SOURCE"] = ARMS[arm][0]
-    env["ALIGNER_SPINE_DB"] = mf.spine_for(ARMS[arm][0])         # bhsa arms need the private baseline spine (the default spine has no BHSA columns)
+    env["ALIGNER_SPINE_DB"] = mf.spine_for(ARMS[arm][0])
+    env.pop("ALIGNER_FERTILITY_SKIP_RELATIONS", None)
+    if arm in _ARM_SKIP:
+        env["ALIGNER_FERTILITY_SKIP_RELATIONS"] = _ARM_SKIP[arm]         # bhsa arms need the private baseline spine (the default spine has no BHSA columns)
     return env
 
 
@@ -103,9 +109,11 @@ def render_table(results: dict[str, dict], reps: int) -> str:
 
 # ---- orchestration (runner injected, so tests need no eflomal) ------------------------------------------------------------------
 def measure_language(lang: str, tag: str, usj: Path, work: Path, reps: int, conv: bool, run: Runner, py: str,
-                     arms: tuple[str, ...] = tuple(ARMS)) -> dict:
+                     arms: tuple[str, ...] = ("bhsa", "macula", "off")) -> dict:
     f1: dict[str, list[float]] = {a: [] for a in arms}
     f1c: dict[str, list[float]] = {a: [] for a in arms}
+    f1w: dict[str, list[float]] = {a: [] for a in arms}
+    exw: dict[str, list[float]] = {a: [] for a in arms}
     anchors: dict[str, int | None] = {}
     gold_links = None
     for rep in range(reps):
@@ -122,6 +130,9 @@ def measure_language(lang: str, tag: str, usj: Path, work: Path, reps: int, conv
             row = scored.get("eflomal", {})
             gold_links = row.get("gold_links", gold_links)
             f1[arm].append(row.get("link_f1"))
+            wrow = scored.get("eflomal [word]", {})
+            f1w[arm].append(wrow.get("link_f1"))
+            exw[arm].append(wrow.get("exact_span"))
             if conv:
                 f1c[arm].append(scored.get("eflomal [conv]", {}).get("link_f1"))
     if not gold_links:
@@ -134,8 +145,14 @@ def measure_language(lang: str, tag: str, usj: Path, work: Path, reps: int, conv
             out["macula_vs_bhsa"] = compare(s["bhsa"], s["macula"], "BETTER", "WORSE", "NEUTRAL")
         if "bhsa" in s and "off" in s:
             out["bhsa_vs_off"] = compare(s["off"], s["bhsa"], "HELPS", "HURTS", "no effect")
+        if "macula" in s and "macula-off" in s:
+            out["macula_vs_off"] = compare(s["macula-off"], s["macula"], "HELPS", "HURTS", "no effect")
+        for abl in ("macula-noplural", "macula-nogloss"):
+            if "macula" in s and abl in s:                          # does the dropped relation help? (macula relative to the ablation)
+                out[f"relation_value_{abl.split('-')[1]}"] = compare(s[abl], s["macula"], "HELPS", "HURTS", "no effect")
         return out
-    res = {"tag": tag, "gold_links": gold_links, "anchors": anchors, "strict": block(f1)}
+    res = {"tag": tag, "gold_links": gold_links, "anchors": anchors, "strict": block(f1), "word": block(f1w),
+           "word_exact": {a: summarize([v for v in exw[a] if v is not None]) for a in arms}}
     if conv:
         res["conv"] = block(f1c)
     return res
@@ -157,7 +174,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--work", type=Path, default=None)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--arms", default=",".join(k for k in ARMS if k != "macula-off"),
+                    help="comma-separated arms; e.g. macula,macula-off = the fertility mechanism's value on today's spine")
     a = ap.parse_args(argv)
+    arms = tuple(x for x in a.arms.split(",") if x)
 
     sys.path.insert(0, str(REPO / "pipeline"))
     from lexeme_aligner.eval.contest_rule import gold_edition
@@ -183,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         t0 = time.time()
         try:
-            results[lang] = measure_language(lang, tag, usj, work / lang, a.reps, a.convention_aware, default_runner, sys.executable)
+            results[lang] = measure_language(lang, tag, usj, work / lang, a.reps, a.convention_aware, default_runner, sys.executable, arms)
             print(f"[measure-fert] {lang}: done in {time.time() - t0:.0f}s", file=sys.stderr)
         except Exception as e:                                       # noqa: BLE001
             results[lang] = {"skipped": f"failed: {e}"}
@@ -194,7 +214,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     work.mkdir(parents=True, exist_ok=True)
     (work / "results.json").write_text(json.dumps(results, indent=1), encoding="utf-8")
-    table = render_table(results, a.reps)
+    if set(arms) >= {"bhsa", "macula", "off"}:
+        table = render_table(results, a.reps)
+    else:
+        lines = [f"### fertility arms {arms}, {a.reps} replicates, OT eflomal vs gold"]
+        for lang, r in sorted(results.items()):
+            if r.get("skipped"):
+                lines.append(f"- {lang}: skipped — {r['skipped']}")
+                continue
+            for g in ("strict", "word"):
+                cmp = {k: v for k, v in r[g].items() if k.startswith(("macula_vs", "relation_value"))}
+                means = {k: (round(v["mean"], 4) if v.get("mean") is not None else None, round(v["spread"] or 0, 4)) for k, v in r[g].items() if k in arms}
+                lines.append(f"- {lang} {g}: {means} -> {cmp}")
+            lines.append(f"- {lang} word exact_span: { {k: v['mean'] for k, v in r['word_exact'].items()} }")
+        table = "\n".join(lines) + "\n"
     (work / "table.md").write_text(table, encoding="utf-8")
     print(table)
     print(f"[measure-fert] results: {work}", file=sys.stderr)

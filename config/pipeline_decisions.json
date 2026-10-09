@@ -3732,26 +3732,46 @@
  "fra": {
   "articles": {
    "direction": "before",
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
     "noun"
    ],
    "source": "grambank:GB020,GB021,GB022",
-   "value": true
+   "value": false
   },
   "case_marking": {
    "direction": "before",
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
     "noun"
    ],
    "source": "grambank:GB074",
-   "value": true
+   "value": false
   },
   "fertility_priors": {
    "source": "measured vs gold — see config/fertility_flags.json",
    "value": false
   },
   "subject_indexing": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
     "verb"
    ],
@@ -3759,7 +3779,13 @@
    "value": false
   },
   "tam_auxiliary": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
     "verb"
    ],
@@ -10959,7 +10985,8 @@
   "articles": {
    "gated_source": "no direction known for this language, so nothing is extended",
    "pos": [
-    "name"
+    "name",
+    "noun"
    ],
    "source": "gram_struct:article",
    "value": false
@@ -10967,17 +10994,27 @@
   "case_marking": {
    "direction": "before",
    "pos": [
-    "name"
+    "name",
+    "noun"
    ],
    "source": "gram_struct:adposition",
    "value": true
   },
   "fertility_priors": {
    "source": "measured vs gold — see config/fertility_flags.json",
-   "value": true
+   "value": false
   },
   "lexeme_targets_fertility": {
    "source": "measured vs gold — see config/fertility_flags.json",
+   "value": false
+  },
+  "possession_affix": {
+   "direction": "after",
+   "gated_source": "measured vs gold: disabled for this language (config/spanext_flags.json disabled_risks)",
+   "pos": [
+    "noun"
+   ],
+   "source": "gram_struct:possessor",
    "value": false
   },
   "target_normalization": {

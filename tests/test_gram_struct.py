@@ -392,3 +392,12 @@ def test_verdict_date_prefers_explicit_then_latest_in_note():
     assert gs._verdict_date({"measured_on": "2026-10-01"}, "measured 2026-09-24") == "2026-10-01"
     assert gs._verdict_date({}, "measured 2026-09-24 ... RE-MEASURED 2026-09-27") == "2026-09-27"
     assert gs._verdict_date({}, None) == gs._MEASURED_DATE
+
+
+def test_a_partition_that_became_empty_loses_its_old_file(tmp_path):
+    kin_dir = tmp_path / "out" / "kin"
+    kin_dir.mkdir(parents=True)
+    (kin_dir / "xx.json").write_text('{"adposition": {"direction": "before", "source": "kin"}}', encoding="utf-8")
+    out, cov = _build(tmp_path, isos=["xx"], derived_input={"xx": {"possessor": {"direction": "after", "n": 200, "rate": 0.8}}})
+    assert not (kin_dir / "xx.json").exists()
+    assert cov["stale_partition_files_removed"] == {"kin": 1}

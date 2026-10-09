@@ -78,6 +78,16 @@ def schema_conflict(hf: dict, local: dict, kind: str = "partition") -> str | Non
     return "schema differs between Hugging Face and local"
 
 
+def schema_change_scope(hf: dict, local: dict, isos: list[str]) -> str | None:
+    """None when `isos` covers EVERY language of both the HF and the local manifest (the only scope in which a schema change may go out:
+    afterwards no partition on HF has the old column list); else what is missing."""
+    want = set(hf.get("languages", {})) | set(local.get("languages", {}))
+    missing = sorted(want - set(isos))
+    if missing:
+        return f"{len(missing)} language(s) on HF or local are not in this publish (e.g. {missing[:8]})"
+    return None
+
+
 def merged_top_level(hf: dict, local: dict, kind: str) -> dict:
     """Top-level (non-language) keys for the merged manifest: HF's, except a purely additive compact documentation change, which is local's."""
     top = {k: v for k, v in hf.items() if k != "languages"}
@@ -236,7 +246,7 @@ def ready_report(isos: list[str], ledger: dict, busy: set[str], lex: dict, comp:
     return ready, blocked
 
 
-def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch: Path) -> dict:
+def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch: Path, schema_change: bool = False) -> dict:
     from lexeme_aligner.hf_bulk_publish import publish_chunked
     repo, kind = DATASETS[name]
     local_root = REPO / "publish" / name
@@ -247,11 +257,15 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
         return {"dataset": name, "pushed": []}
     hf = hf_manifest(repo, scratch / name)
     conflict = schema_conflict(hf, local, kind)
-    if conflict:
+    scope = schema_change_scope(hf, local, isos) if conflict and schema_change else None
+    if conflict and (not schema_change or scope):
         raise SystemExit(f"[publish_safe] {name}: REFUSING a partial publish — {conflict}. A schema change must go out for ALL languages "
-                         f"at once (see the aligned_mwe note).")
+                         f"at once (--schema-change {name}, every language ready){': ' + scope if scope else ''}.")
     merged = merge_manifest(hf, local, isos)
     merged.update(merged_top_level(hf, local, kind))
+    if conflict:                                               # whole-dataset schema change: the top level is local's
+        merged.update({k: v for k, v in local.items() if k != "languages"})
+        print(f"[publish_safe] {name}: SCHEMA CHANGE — {conflict}; all {len(isos)} languages go out together", file=sys.stderr)
     stage = STAGING / name
     rel = selected_files(name, kind, isos, local_root)
     stage_links(local_root, stage, rel)
@@ -341,6 +355,8 @@ def main() -> int:
     ap.add_argument("--ready-file", type=Path, help="JSON list of languages (e.g. pipeline/work/logs/publish_ready_latest.json)")
     ap.add_argument("--datasets", default=",".join(DEFAULT))
     ap.add_argument("--include-mwe", action="store_true", help="also publish aligned_mwe (schema guard still applies)")
+    ap.add_argument("--schema-change", default="", metavar="DATASET",
+                    help="allow a schema change for this one dataset; refused unless every language on HF and local is in the publish")
     ap.add_argument("--allow-stale", action="store_true", help="also publish languages unchanged since 14 Sept")
     ap.add_argument("--push", action="store_true", help="actually publish (default is a dry run)")
     ap.add_argument("--list-ready", action="store_true",
@@ -394,7 +410,7 @@ def main() -> int:
     synced = sync_ledger([REPO / "publish" / n for n in names if n not in NO_LEDGER])
     if synced:
         print(f"[publish_safe] refreshed the shipped ledger copy from config/pipeline_decisions.json in: {[p.name for p in synced]}", file=sys.stderr)
-    results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch) for n in names]
+    results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch, schema_change=(n == args.schema_change)) for n in names]
     if "compact-alignments" in names:                          # the two optional sidecar layers live in their own repos
         results += [publish_layer(layer, ok, args.push, args.chunk_size) for layer in compact_layers.LAYERS]
     log = REPO / f"pipeline/work/logs/publish_safe_{time.strftime('%Y%m%d_%H%M%S')}.json"

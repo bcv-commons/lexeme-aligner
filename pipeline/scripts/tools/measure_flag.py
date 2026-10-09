@@ -31,7 +31,7 @@ from typing import Callable
 
 REPO = Path(__file__).resolve().parents[3]
 FLAGS = ("typology_fallback", "typology_fallback_articles", "definite_trigger", "relation_trigger",
-         "typed_gate", "phrase_window_gate", "name_guard", "base_mechanisms")
+         "typed_gate", "phrase_window_gate", "name_guard", "base_mechanisms", "possession_affix", "occurrence_gate")
 LIVE_OUT = REPO / "pipeline/work/out"
 INGEST = REPO / "pipeline/work/ingest-cache"
 BASE_METHODS = ("eflomal", "gloss")
@@ -64,6 +64,16 @@ def span_extension_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, f
             "--methods", ",".join(BASE_METHODS), "--out", str(scratch), flag_arg(flag, on), *(extra or [])]
 
 
+def gold_method_of(lang: str) -> str | None:
+    """The `pos_score --gold-method` for a gold language whose primary gold is not Clear's manual rows (door43, helfi, sword)."""
+    try:
+        cfg = json.loads((REPO / "config/gold_langs.json").read_text(encoding="utf-8")).get(lang)
+    except (OSError, ValueError):
+        return None
+    g = cfg.get("gold") if isinstance(cfg, dict) else cfg
+    return g if g in ("door43", "helfi", "sword") else None
+
+
 def pos_score_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, specs: list[str], scope: str, conv: bool,
                   grain: str = "both") -> list[str]:
     """`grain` both (default since 2026-10-08): token rows AND `[word]` rows (prefix/suffix morphemes pooled into their source word,
@@ -72,6 +82,9 @@ def pos_score_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, specs:
            "--out", str(scratch), "--json", "--grain", grain]
     for s in specs:
         cmd += ["--method", s]
+    gm = gold_method_of(lang)
+    if gm:
+        cmd += ["--gold-method", gm]
     return cmd + (["--convention-aware"] if conv else [])
 
 

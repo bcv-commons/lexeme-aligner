@@ -188,3 +188,12 @@ def test_ubs_partition_selection_has_no_ledger_when_the_root_has_none(tmp_path):
     (root / "README.md").write_text("card")
     got = ps.selected_files("senses_attested", "partition", ["tgl", "zzz"], root)
     assert got == ["iso=tgl/data.parquet", "README.md"]          # no pipeline_decisions.json, languages without a partition skipped
+
+
+def test_schema_change_needs_every_language():
+    schema_change_scope = ps.schema_change_scope
+    hf = {"languages": {"a": {}, "b": {}}}
+    local = {"languages": {"a": {}, "b": {}, "c": {}}}
+    assert schema_change_scope(hf, local, ["a", "b", "c"]) is None
+    assert "1 language" in schema_change_scope(hf, local, ["a", "b"])
+    assert "1 language" in schema_change_scope(hf, local, ["a", "c"])

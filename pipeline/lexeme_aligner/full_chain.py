@@ -220,9 +220,9 @@ def main() -> int:
         _run("compact_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              "--methods", _METHODS, *(() if tag in stat_tags else ("--not-in-statistics-pool",)), env=env, soft=True)
 
-    # step 9a: full alignments (fullalign_build.py) — reads the SAME align_*.jsonl compact_align just read and adds the full-align
-    # channels (every row of every method, function words included) to compact's meta files, plus one layer per published gold source
-    # (publish/full-alignments-manual[-sa]). A no-op with a message for an edition without a published gold layer, which is nearly all
+    # step 9a: full alignments (fullalign_build.py) — one layer per published gold source (publish/full-alignments-manual[-sa]). The
+    # statistical full-align channels (every row of every method, read from the SAME align_*.jsonl compact_align just read) are merged
+    # into compact's meta files only with --stat-in-place (owner decision 2026-10-09: no merge yet), so the chain builds manual layers only. A no-op with a message for an edition without a published gold layer, which is nearly all
     # of them for now (plan internal-docs/full-alignments-two-paths-plan-2026-10-09.md A1). Soft: a problem never stops the chain.
     for tag in run_tags:
         _run("fullalign_build", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], env=env, soft=True)

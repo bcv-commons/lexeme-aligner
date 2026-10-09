@@ -254,3 +254,20 @@ def test_a_link_on_a_prefix_that_leaves_its_word_unlinked_becomes_a_whole_word_l
     st2 = collections.Counter()
     rows2 = gf.rows_from_gold(_gold(8003003, {("H2050", 0): [0], ("H7364", 0): [1]}), corpus, "manual", {}, st2)
     assert sorted(r["h_idx"] for r in rows2) == [0, 1] and st2["links_word_level"] == 0
+
+
+def test_source_unit_word_makes_a_whole_word_row_even_when_the_gold_links_the_stem():
+    # bcv-commons/strongs >= 22549b1: the BSB / IRVHin record names the stem (H7364) and says source_unit = "word"
+    pre, stem = tok(0, "H2050", content=False), tok(1, "H7364")
+    pre.keys, stem.keys = ["080030030011"], ["080030030012"]
+    corpus = _Corpus({8003003: (["you", "bathe"], [pre, stem])})
+    corpus.word_of = {8003003: {0: [pre, stem], 1: [pre, stem]}}
+    gold = _gold(8003003, {("H7364", 0): [0, 1]})
+    gold[8003003].unit[("H7364", 0)] = "word"
+    st = collections.Counter()
+    rows = gf.rows_from_gold(gold, corpus, "manual", {}, st)
+    assert len(rows) == 1 and rows[0]["h_idx"] == 1 and json.loads(rows[0]["extra"]) == {"word_h_idx": [0, 1]}
+    assert st["links_word_level_by_source_unit"] == 1
+    gold[8003003].unit[("H7364", 0)] = "morpheme"                                   # stated as part of a word: kept as it is
+    rows = gf.rows_from_gold(gold, corpus, "manual", {}, collections.Counter())
+    assert rows[0]["extra"] is None

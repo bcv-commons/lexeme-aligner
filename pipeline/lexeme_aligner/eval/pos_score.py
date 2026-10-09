@@ -137,6 +137,9 @@ class GoldVerse:
     # (strong, k) -> (the gold's own source_id, its raw target_ids) — kept verbatim so a converter
     # (gold_to_fullalign.py) can carry the source's ids through; scoring never reads these.
     raw: dict[tuple[str, int], tuple[str, list[str]]] = field(default_factory=dict)
+    # (strong, k) -> the gold's `source_unit` (bcv-commons/strongs >= 22549b1): "word" = the link covers every morpheme of one source
+    # word, "morpheme" = part of a multi-morpheme word, "span" = several words; absent in older files and in our own Door43 rows
+    unit: dict[tuple[str, int], str] = field(default_factory=dict)
 
 
 def _book_file(usj_dir: Path, book: str) -> Path:
@@ -181,6 +184,8 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
     if not fp.exists():
         raise SystemExit(f"[pos_score] no Clear gold for {iso} at {fp}")
     cols = ["ref", "strong", "target_id", "source_id", "method", "base_text"]
+    if "source_unit" in pq.read_schema(fp).names:
+        cols.append("source_unit")
     rows = pq.read_table(fp, columns=cols).to_pylist()
     wanted = {BOOK_NUMBERS[b] for b in books}
     code_of = {n: b for b, n in BOOK_NUMBERS.items()}
@@ -233,7 +238,10 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
         # several target ids (several rows with the same source_id)
         per_source: dict[str, tuple[str, set[int]]] = {}
         raw_tids: dict[str, list[str]] = collections.defaultdict(list)
+        unit_of: dict[str, str] = {}
         for r in links:
+            if r.get("source_unit"):
+                unit_of[r["source_id"]] = r["source_unit"]
             idx = int(r["target_id"][-3:]) - 1
             if idx >= len(mapping):
                 stats["links_beyond_text"] += 1
@@ -253,6 +261,8 @@ def load_gold(iso: str, usj_dir: Path, books: list[str], base_text: str | None, 
             gv.links[(strong, k)] = pos
             gv.surfaces[(strong, k)] = " ".join(toks[p] for p in sorted(pos))
             gv.raw[(strong, k)] = (sid, sorted(raw_tids[sid]))
+            if sid in unit_of:
+                gv.unit[(strong, k)] = unit_of[sid]
             gv.claimed |= pos
             stats["links"] += 1
         gold[ref] = gv

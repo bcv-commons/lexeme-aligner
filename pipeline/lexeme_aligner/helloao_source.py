@@ -12,8 +12,11 @@ helloAO carries ~1,256 translations, including many absent from cdn.bibel.wiki's
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
+import zipfile
 import tempfile
 import time
 import urllib.error
@@ -62,20 +65,92 @@ def _verse_text(content: list) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
-def _book_usfm(book: dict) -> str:
+INLINE_NOTES = Path("config/inline_notes.json")
+_NOTE = re.compile(r"\\f\s+.*?\\f\*", re.S)
+_MARKER = re.compile(r"\\\+?[a-z]+\d*\*?")
+
+
+def ebible_notes(usfm_zip: Path) -> dict[tuple[str, int, int], list[str]]:
+    """{(BOOK, chapter, verse): [note text, ...]} from an eBible USFM zip: every `\\f … \\f*` with its caller and markers
+    removed and whitespace collapsed — the text helloAO glues into the verse (`\\fr 2:9 \\fq … \\ft …` -> "2:9 … …")."""
+    out: dict[tuple[str, int, int], list[str]] = {}
+    with zipfile.ZipFile(usfm_zip) as z:
+        for name in z.namelist():
+            if not name.endswith(".usfm"):
+                continue
+            text = z.read(name).decode("utf-8")
+            m = re.search(r"^\\id (\w{3})", text, re.M)
+            if not m:
+                continue
+            book, ch, v = m.group(1), 0, 0
+            for part in re.split(r"(\\[cv] \d+)", text):           # whole verses: a note may run over several lines (\\fp)
+                mc = re.fullmatch(r"\\([cv]) (\d+)", part)
+                if mc:
+                    if mc.group(1) == "c":
+                        ch, v = int(mc.group(2)), 0
+                    else:
+                        v = int(mc.group(2))
+                    continue
+                if True:
+                    for fn in _NOTE.findall(part):
+                        body = re.sub(r"^\\f\s+\S\s*", "", fn[:-3])           # drop "\\f + " and the closing "\\f*"
+                        body = " ".join(_MARKER.sub(" ", body).split())
+                        if body:
+                            out.setdefault((book, ch, v), []).append(body)
+    return out
+
+
+def strip_notes(text: str, notes: list[str]) -> tuple[str, int]:
+    """Remove each note text (whitespace-insensitive) from a helloAO verse string; returns (text, notes removed)."""
+    n = 0
+    for note in notes:
+        pat = r"\s*".join(re.escape(w) for w in note.split())
+        m = re.search(pat, text)
+        if m:
+            text = text[:m.start()] + " " + text[m.end():]
+            n += 1
+    return " ".join(text.split()), n
+
+
+def load_inline_notes(translation: str, config: Path = INLINE_NOTES) -> dict | None:
+    """The edition's eBible footnotes, when config/inline_notes.json lists it (downloaded once, sha256-checked), else None."""
+    if not config.exists():
+        return None
+    e = json.loads(config.read_text(encoding="utf-8")).get(translation)
+    if not isinstance(e, dict):
+        return None
+    zp = Path(e["usfm_zip"])
+    if not zp.exists():
+        zp.parent.mkdir(parents=True, exist_ok=True)
+        zp.write_bytes(_get(e["url"]))
+    sha = hashlib.sha256(zp.read_bytes()).hexdigest()
+    if sha != e["zip_sha256"]:
+        raise SystemExit(f"[helloao] {zp}: sha256 {sha[:12]}… is not the pinned {e['zip_sha256'][:12]}… (eBible changed the file; re-check)")
+    return ebible_notes(zp)
+
+
+def _book_usfm(book: dict, notes: dict | None = None, stats: dict | None = None) -> str:
     """One complete.json book → minimal USFM. Verses go under \\p — not the \\s heading, or usfmtc
-    nests them inside it and read_verses skips the whole heading paragraph. Headings are dropped."""
+    nests them inside it and read_verses skips the whole heading paragraph. Headings are dropped.
+    `notes` (load_inline_notes): footnote texts helloAO glued into the verse are removed."""
     out = [f"\\id {book['id']}"]
     for chwrap in book["chapters"]:
         ch = chwrap.get("chapter", chwrap)                        # complete.json wraps: {chapter:{…}}
         out += [f"\\c {ch.get('number')}", "\\p"]
         for item in ch.get("content", []):
             if isinstance(item, dict) and item.get("type") == "verse":
-                out.append(f"\\v {item['number']} {_verse_text(item.get('content', []))}")
+                text = _verse_text(item.get("content", []))
+                want = (notes or {}).get((book["id"], int(ch.get("number")), int(item["number"])))
+                if want:
+                    text, n = strip_notes(text, want)
+                    if stats is not None:
+                        stats["notes"] = stats.get("notes", 0) + len(want)
+                        stats["removed"] = stats.get("removed", 0) + n
+                out.append(f"\\v {item['number']} {text}")
     return "\n".join(out) + "\n"
 
 
-def to_usj(comp: dict, usj_dir: Path, only: list[str] | None) -> int:
+def to_usj(comp: dict, usj_dir: Path, only: list[str] | None, notes: dict | None = None) -> int:
     """complete.json books → USJ <NN>-<BOOK>.json (aligner numbering). Returns book count."""
     try:
         import usfmtc
@@ -87,6 +162,7 @@ def to_usj(comp: dict, usj_dir: Path, only: list[str] | None) -> int:
     by_id = {b["id"]: b for b in comp["books"]}
     wanted = [b for b in by_id if not only or b in only]
     n = 0
+    stats: dict = {}
     with tempfile.TemporaryDirectory() as td:
         for book in wanted:
             nn = _BOOK_FILE_NUM.get(book)
@@ -94,9 +170,12 @@ def to_usj(comp: dict, usj_dir: Path, only: list[str] | None) -> int:
                 print(f"[helloao] skip {book}: not in NN map", file=sys.stderr)
                 continue
             uf = Path(td) / f"{book}.usfm"
-            uf.write_text(_book_usfm(by_id[book]), encoding="utf-8")
+            uf.write_text(_book_usfm(by_id[book], notes, stats), encoding="utf-8")
             usfmtc.readFile(str(uf)).outUsj(str(usj_dir / f"{nn}-{book}.json"))
             n += 1
+    if notes is not None:
+        print(f"[helloao] inline footnotes (config/inline_notes.json): {stats.get('removed', 0)} of {stats.get('notes', 0)} "
+              f"eBible notes found in the verse text and removed", file=sys.stderr)
     print(f"[helloao] {n} book(s) → {usj_dir}", file=sys.stderr)
     return n
 
@@ -142,7 +221,7 @@ def main() -> int:
     print(f"[helloao] {args.iso}: {pin['version_id']} ({pin['name']}, {pin['books']} books) · "
           f"license→{pin['license_url']} · sha256={(pin['sha256'] or '')[:12]}…", file=sys.stderr)
 
-    to_usj(comp, args.to_usj, args.book)
+    to_usj(comp, args.to_usj, args.book, load_inline_notes(args.translation))
     return 0
 
 

@@ -9,7 +9,8 @@ Two kinds of layer (plan internal-docs/full-alignments-two-paths-plan-2026-10-09
   statistical   every row of the base chain (eflomal, gloss, spanext, gapfill, residual; losing rows kept), read from the SAME
                 align_*.jsonl compact_align read a moment earlier. The main array IS compact's (byte-identical; checked); the new
                 channels fn / wp / fp / wx / rows / off are merged INTO compact's own `<BOOK>_<hash>.meta.json`, and `_layer.json`
-                (the profile table) sits next to them. A compact reader keeps working unchanged.
+                (the profile table) sits next to them. A compact reader keeps working unchanged. OPT-IN: `--stat-in-place` (or
+                `--stat-out` for a scratch tree); without either only the manual layers are built (owner decision 2026-10-09).
   manual        one layer per published gold source of this edition (Clear, HELFI, SWORD/ChiUns, BSB tables; Door43 once registered),
                 id `<compact edition>+manual+<source>`, own main + meta, written to `publish/full-alignments-manual/` (CC BY / PD / CC0)
                 or `publish/full-alignments-manual-sa/` (Door43, CC BY-SA 4.0), same relative paths as compact. Source rows come from the
@@ -557,14 +558,22 @@ def main(argv=None) -> int:
     ap.add_argument("--layers", default="statistical,manual")
     ap.add_argument("--src-root", type=Path, default=SRC_ROOT, help="full-align parquet the converters wrote (manual source rows)")
     ap.add_argument("--compact-root", type=Path, default=COMPACT_ROOT)
-    ap.add_argument("--stat-out", type=Path, default=None, help="scratch tree for the statistical layer (default: in place in compact)")
+    ap.add_argument("--stat-out", type=Path, default=None, help="scratch tree for the statistical layer")
+    ap.add_argument("--stat-in-place", action="store_true",
+                    help="merge the statistical channels INTO publish/compact-alignments' meta files. Off by default: owner decision "
+                         "2026-10-09, no merge yet — without this (and without --stat-out) only the manual layers are built")
     ap.add_argument("--manual-out", type=Path, default=None, help="scratch tree for the manual layers (default: publish/full-alignments-manual[-sa])")
     ap.add_argument("--force", action="store_true", help="build the statistical channels even without a manual layer")
     ap.add_argument("--report", type=Path, default=None, help="write the JSON report here")
     a = ap.parse_args(argv)
+    layers = tuple(a.layers.split(","))
+    if "statistical" in layers and a.stat_out is None and not a.stat_in_place:
+        layers = tuple(x for x in layers if x != "statistical")
+        print(f"[fullalign_build] {a.iso}: statistical channels not merged into compact meta (pass --stat-in-place or --stat-out)",
+              file=sys.stderr)
     rep = build_edition(a.iso, a.publish_iso, a.usj_dir, books=a.book, methods=tuple(a.methods.split(",")),
                         compact_root=a.compact_root, src_root=a.src_root, stat_out=a.stat_out, manual_out=a.manual_out,
-                        layers=tuple(a.layers.split(",")), force=a.force)
+                        layers=layers, force=a.force)
     if a.report:
         a.report.parent.mkdir(parents=True, exist_ok=True)
         a.report.write_text(json.dumps(rep, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")

@@ -223,7 +223,7 @@ def rows_from_gold(gold: dict, corpus: Corpus, method: str, attribution: dict, s
             continue
         stats["verses_converted"] += 1
         g_count = collections.Counter(s for s, _k in gv.links)
-        linked = []                                               # (tok, positions, sid, tids, how)
+        linked = []                                               # (tok, positions, sid, tids, how, source_unit)
         for (strong, k), pos in gv.links.items():
             sid, tids = gv.raw.get((strong, k), (None, []))
             tok = None
@@ -242,26 +242,34 @@ def rows_from_gold(gold: dict, corpus: Corpus, method: str, attribution: dict, s
                 if tok is None:
                     stats["links_no_spine_token"] += 1
                     continue
-            linked.append((tok, pos, sid, tids, how))
+            linked.append((tok, pos, sid, tids, how, getattr(gv, "unit", {}).get((strong, k))))
         linked_idx = {tok.idx for tok, *_ in linked}
         toks = corpus.toks[ref]
-        for tok, pos, sid, tids, how in linked:
+        for tok, pos, sid, tids, how, unit in linked:
             t_idx = sorted(pos)
             target = " ".join(toks[p] for p in t_idx if p < len(toks))
             attr = dict(attribution, source_ids=[sid] if sid else [], target_ids=list(tids))
             pair = None
-            # WORD-LEVEL link (2026-10-09): some gold sets (Clear BSB + IRVHin OT, Door43 OT) record a link for a WHOLE Hebrew word
-            # under its FIRST morpheme, usually a prefix (ו ה ב ל מ ...), and nothing on the rest of the word: "you bathe" on וְ
-            # (H2050) of וְרָחַצְתְּ. Such a link is kept as one link from the whole word: the row's own token is the word's content
-            # morpheme (so lexeme / Strong's are the stem's) and `word_h_idx` lists every morpheme of the word.
+            # WORD-LEVEL link (2026-10-09). Since bcv-commons/strongs 22549b1 the gold says so itself: `source_unit == "word"` = the link
+            # covers every morpheme of the source word (Clear BSB / IRVHin), and `strong`/`source_id` are the content morpheme's. Rows
+            # without the column (our own Door43 OT crosswalk, older files) fall back to the shape test: a link on a word's FIRST,
+            # non-content morpheme while the rest of the word has none. Either way the row's token is the word's content morpheme
+            # (lexeme / Strong's from the stem) and `word_h_idx` lists every morpheme of the word.
             members = getattr(corpus, "word_of", {}).get(ref, {}).get(tok.idx, [tok])
-            if (len(members) > 1 and members[0].idx == tok.idx and not tok.is_content
-                    and not any(m.idx in linked_idx for m in members[1:])):
-                stem = next((m for m in members if m.is_content and m.strong), None)
+            if unit == "word":
+                word_level = len(members) > 1
+            elif unit is None:
+                word_level = (len(members) > 1 and members[0].idx == tok.idx and not tok.is_content
+                              and not any(m.idx in linked_idx for m in members[1:]))
+            else:
+                word_level = False                                # "morpheme" / "span": as stated
+            if word_level:
+                stem = (tok if tok.is_content and tok.strong else next((m for m in members if m.is_content and m.strong), None))
                 if stem is not None:
                     pair = _tok_pair(stem, target, t_idx, method)
                     pair["word_h_idx"] = [m.idx for m in members]
                     stats["links_word_level"] += 1
+                    stats["links_word_level_by_" + ("source_unit" if unit else "shape")] += 1
             rows.append(make_row(ref, _book_of(ref), pair or _tok_pair(tok, target, t_idx, method), attr))
             stats["links_converted"] += 1
             stats[f"links_by_{how}"] += 1

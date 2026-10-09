@@ -48,6 +48,8 @@ EDIT_VERSION = "llm-edit-v1"          # iteration 1: changes only (kept for repr
 CHECK_VERSION = "llm-edit-v2"         # iteration 2 (2026-10-09): a CHECK line per verse, every flagged id answered; this dataset's
                                       # convention written into the rules (function words attach to the source word whose function
                                       # they carry, owner's choice); no "mostly right" framing
+CHECK3_VERSION = "llm-edit-v3"        # iteration 3: `t+` only with a reason letter (s = supplied for style/grammar, x = explanation);
+                                      # a function word belongs to a source word unless one of those applies
 SIGNALS = ("uncovered", "low", "spanext", "gapfill", "contested", "checks", "overlap", "unowned", "unowned-fn")
 METHODS = ("spanext", "eflomal", "gloss", "gapfill", "residual")
 PRIORITY = ["spanext", "eflomal", "gloss", "gapfill", "residual"]
@@ -265,6 +267,19 @@ This dataset's convention — EVERY target word is accounted for:
 5. Grammar tags (the source's own morphology) and glosses are evidence; the proposal is evidence, not authority.
 """
 
+_CONTRACT_V3 = (_CONTRACT_V2
+    .replace("""  t12.         t12 is right as added (it renders no source word)\n""",
+             """  t12.         t12 is right as added (only if it really renders no source word, see below)\n""")
+    .replace("""  t12+         t12 renders no source word\n""",
+             """  t12+s        t12 renders no source word: a word the translator SUPPLIED for style or grammar that no source word licenses
+  t12+x        t12 renders no source word: part of an EXPLANATION added to the text (a note, a gloss in brackets)
+  (`t12+` without a letter is not accepted.)\n""")
+    .replace("""1. A target word belongs to the source word whose meaning OR grammatical function it renders. `+` is only for words that render
+   nothing in the source (a translator's explanation, a word supplied for style).""",
+             """1. A target word belongs to the source word whose meaning OR grammatical function it renders. Before you answer `t.` or `t+`,
+   find the source word it could belong to: a case ending, a prefix, a suffix, an article, a verb's person or tense often explains a
+   target function word. Only when no source word licenses it is it `+s` (supplied) or `+x` (explanation)."""))
+
 _EXAMPLE_V2 = """Input (English target, format only; the proposal below contains mistakes on purpose):
 REF 8001016  RUT 1:16
 SOURCE:
@@ -299,7 +314,9 @@ Answer: {"edits": [{"ref": 8001016, "e": "h1>t2 h2>t1 h3>t4 h4>t5 h5>t6 t3+"}]}
 
 def render_prefix(publish_iso: str, lang_name: str, conventions_md: str | None = None, mode: str = "check") -> str:
     from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS
-    contract, version, example = ((_CONTRACT_V2, CHECK_VERSION, _EXAMPLE_V2) if mode == "check" else (_CONTRACT_V1, EDIT_VERSION, _EXAMPLE))
+    contract, version, example = {"check": (_CONTRACT_V2, CHECK_VERSION, _EXAMPLE_V2),
+                                  "check3": (_CONTRACT_V3, CHECK3_VERSION, _EXAMPLE_V2.replace("t6+?", "t6+?").replace("h5>t6\"", "h5>t6\"")),
+                                  "edits": (_CONTRACT_V1, EDIT_VERSION, _EXAMPLE)}[mode]
     return "\n".join([contract.format(version=version, lang_name=lang_name, publish_iso=publish_iso),
                       f"## Language conventions ({lang_name})", (conventions_md or _GENERIC_CONVENTIONS).strip() + "\n",
                       "## Worked example", example])
@@ -337,7 +354,7 @@ def render_verse(p: Proposal, lex_pos: dict, mode: str = "check") -> str:
         mark = ("+?" if j in p.doubt_t else "+") if j in added else ""
         tw.append(f"t{j}:{w}{mark}")
     lines += ["TARGET:", "  " + " ".join(tw)]
-    if mode == "check" and check_ids(p):
+    if mode in ("check", "check3") and check_ids(p):
         lines.append("CHECK: " + " ".join(check_ids(p)))
     return "\n".join(lines)
 
@@ -348,7 +365,7 @@ def render_chunk(chunk: list[Proposal], label: str, lex_pos: dict, mode: str = "
 
 
 # --- edits ----------------------------------------------------------------------------------------------------------------
-_CODE = re.compile(r"^(?:h(\d+)(?:>t?([\d,\-t]+)|\+t?([\d,\-t]+)|(=)|(\.))|t(\d+)([+.]))$")
+_CODE = re.compile(r"^(?:h(\d+)(?:>t?([\d,\-t]+)|\+t?([\d,\-t]+)|(=)|(\.))|t(\d+)([+.])([sx]?))$")
 
 
 @dataclass
@@ -356,6 +373,7 @@ class Edit:
     kind: str                 # "assign" | "add" | "none" | "added" | "keep" (h. / t.)
     h: int | None = None
     t: list[int] = field(default_factory=list)
+    reason: str | None = None  # t+s / t+x (iteration 3)
 
 
 def _positions(spec: str) -> list[int] | None:
@@ -378,7 +396,7 @@ def parse_edits(e: str) -> tuple[list[Edit], list[str]]:
             continue
         h = int(m.group(1)) if m.group(1) is not None else None
         if m.group(6) is not None:
-            edits.append(Edit("added" if m.group(7) == "+" else "keep", t=[int(m.group(6))]))
+            edits.append(Edit("added" if m.group(7) == "+" else "keep", t=[int(m.group(6))], reason=m.group(8) or None))
         elif m.group(5):
             edits.append(Edit("keep", h=h))
         elif m.group(4):
@@ -425,6 +443,8 @@ def apply_edits(p: Proposal, edits: list[Edit]) -> tuple[dict[int, list[int]], s
                     owner[h] = [x for x in s if x != j]
                     changed.add(h)
             c["t+"] += 1
+            if e.reason:
+                c[f"t+{e.reason}"] += 1
         else:
             for h, s in owner.items():                          # take the positions from their old owners
                 if h != e.h and set(s) & set(e.t):
@@ -527,7 +547,7 @@ def main(argv=None) -> int:
     ap.add_argument("--chapter", type=int, action="append", help="only these chapters (a pilot slice)")
     ap.add_argument("--cap", type=int, default=40, help="max verses per call; a longer chapter is split evenly")
     ap.add_argument("--doubt", default=",".join(SIGNALS), help=f"doubt signals (any of {','.join(SIGNALS)})")
-    ap.add_argument("--mode", default="check", choices=["check", "edits"],
+    ap.add_argument("--mode", default="check", choices=["check", "check3", "edits"],
                     help="check (iteration 2, default): every flagged id answered; edits (iteration 1): changes only")
     ap.add_argument("--lang-name", default=None)
     ap.add_argument("--provider", default="mock", choices=["mock", "cli", "anthropic"])
@@ -608,7 +628,7 @@ def main(argv=None) -> int:
         if ans is None:
             tally["chunks without an answer (proposal kept)"] += 1
             continue
-        if a.mode == "check":                                  # did the model answer every flagged id?
+        if a.mode in ("check", "check3"):                      # did the model answer every flagged id?
             said: dict[int, set] = collections.defaultdict(set)
             for item in ans.get("edits", []):
                 for e in parse_edits(item.get("e", ""))[0]:
@@ -633,7 +653,7 @@ def main(argv=None) -> int:
             tally["verses edited"] += 1
             tally["source tokens changed"] += len(changed)
             tally["changed tokens that were doubtful"] += len(changed & set(p.doubt_h))
-    meta = {"edit_version": CHECK_VERSION if a.mode == "check" else EDIT_VERSION, "mode": a.mode, "provider": a.provider, "model": a.model if a.provider != "mock" else f"mock-{a.mock}",
+    meta = {"edit_version": {"check": CHECK_VERSION, "check3": CHECK3_VERSION}.get(a.mode, EDIT_VERSION), "mode": a.mode, "provider": a.provider, "model": a.model if a.provider != "mock" else f"mock-{a.mock}",
             "effort": a.effort, "doubt": a.doubt, "cap": a.cap}
     paths = write_records(to_records(props, finals, meta), out_tag, Path(OUT))
     ledger = {"out_tag": out_tag, **meta, "chunks": len(cs), "verses": len(props), "proposal": dict(st), "edits": dict(tally),

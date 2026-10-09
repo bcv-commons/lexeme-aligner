@@ -120,6 +120,20 @@ resources/strongs/attestations/*.parquet — GOLD word-alignments (10 languages)
   langs: arb asm ben eng fra hau hin por rus spa  (NO Indonesian — Clear has no ind gold)
   schema: strong, lemma, surface, ref, target_id, source_id, method, source_corpus, base_text
   use: benchmark a produced lexeme-alignments/<lang>.tsv against attestations/<lang> (gold). ALIGNER_RESOURCES=data/resources.
+  UPDATE 2026-10-09: the Clear rows (methods manual / transfer) of all 10 files replaced by bcv-commons/strongs commit 22549b1
+    (HF, 2026-10-09 14:12 UTC), which fixes our report that BSB and IRVHin whole-word links carried the PREFIX's Strong's (their
+    conversion took the first morpheme with a Strong's). New last column `source_unit` = word | morpheme | span; strong/source_id now
+    the content morpheme's. Row counts per (method, base_text) unchanged. OUR OWN rows in the same files are kept as they were
+    (method door43: arb ben hin spa + the Door43-only languages; method sword: fra rus spa) — they have no source_unit.
+    Backup of the previous files: pipeline/work/strongs-22549b1/old/. Converter (gold_to_fullalign.rows_from_gold) reads source_unit;
+    the prefix-shape heuristic stays only for rows without it (our Door43 OT crosswalk).
+
+eBible hin2017 USFM — footnote source for Hindi IRV (HINIRV via helloAO)
+  pipeline/work/ebible-notes/hin2017_usfm.zip (gitignored), https://ebible.org/Scriptures/hin2017_usfm.zip, fetched 2026-10-09,
+  sha256 4b1e51af157c9b577abf9ea69e7aa9d8724a3f19a63a3be65b1a7350f904fb0b (pinned in config/inline_notes.json).
+  WHY: helloAO's HINIRV verse strings carry 2,298 of the edition's footnotes inline (the \fr \fq \ft parts glued into the verse,
+  2,288 verses, 7.3%); helloao_source removes exactly eBible's \f … \f* note texts (the other 658 notes helloAO keeps as noteId
+  objects, never in the text). Same text otherwise (helloAO sha 81164e00… unchanged). Licence: the edition's own (IRV, CC BY-SA 4.0).
 
 usj-fra-lsg/ — French target text (66 USJ books, WHOLE BIBLE) — GOLD BENCHMARK + full alignment
   source: eBible.org fraLSG — Louis Segond 1910, PUBLIC DOMAIN (ebible.org/fraLSG)

@@ -1,167 +1,182 @@
 {
  "function_drift": {
   "adv": {
-   "mean_drift": 0.0473,
-   "n": 235
+   "mean_drift": 0.069,
+   "n": 253
   },
   "o": {
-   "mean_drift": 0.0345,
-   "n": 1673
+   "mean_drift": 0.061,
+   "n": 1774
   },
   "o2": {
-   "mean_drift": 0.039,
-   "n": 89
+   "mean_drift": 0.1081,
+   "n": 93
   },
   "p": {
-   "mean_drift": 0.0457,
-   "n": 543
+   "mean_drift": 0.0752,
+   "n": 589
   },
   "pp": {
-   "mean_drift": 0.0226,
-   "n": 2200
+   "mean_drift": 0.0648,
+   "n": 2347
   },
   "s": {
-   "mean_drift": -0.0011,
-   "n": 1666
+   "mean_drift": -0.0049,
+   "n": 1790
   },
   "v": {
-   "mean_drift": 0.0141,
-   "n": 4402
+   "mean_drift": 0.0252,
+   "n": 4948
   }
  },
  "label_scheme": "macula_phrase_role",
  "pair_order_kept": {
+  "adv>s": {
+   "kept": 24,
+   "rate": 0.8,
+   "total": 30
+  },
   "adv>v": {
-   "kept": 77,
-   "rate": 0.688,
-   "total": 112
+   "kept": 98,
+   "rate": 0.754,
+   "total": 130
   },
   "o2>v": {
-   "kept": 26,
-   "rate": 0.605,
-   "total": 43
-  },
-  "o>o": {
-   "kept": 79,
-   "rate": 0.868,
-   "total": 91
-  },
-  "o>pp": {
-   "kept": 316,
-   "rate": 0.825,
-   "total": 383
-  },
-  "o>s": {
-   "kept": 61,
-   "rate": 0.718,
-   "total": 85
-  },
-  "o>v": {
-   "kept": 458,
-   "rate": 0.738,
-   "total": 621
-  },
-  "p>pp": {
-   "kept": 54,
-   "rate": 0.871,
-   "total": 62
-  },
-  "p>s": {
-   "kept": 109,
-   "rate": 0.559,
-   "total": 195
-  },
-  "p>v": {
-   "kept": 94,
-   "rate": 0.904,
-   "total": 104
-  },
-  "pp>o": {
-   "kept": 159,
-   "rate": 0.71,
-   "total": 224
-  },
-  "pp>p": {
-   "kept": 70,
-   "rate": 0.909,
-   "total": 77
-  },
-  "pp>pp": {
-   "kept": 123,
-   "rate": 0.872,
-   "total": 141
-  },
-  "pp>s": {
-   "kept": 145,
-   "rate": 0.755,
-   "total": 192
-  },
-  "pp>v": {
-   "kept": 598,
-   "rate": 0.739,
-   "total": 809
-  },
-  "s>o": {
-   "kept": 106,
-   "rate": 0.898,
-   "total": 118
-  },
-  "s>p": {
-   "kept": 193,
-   "rate": 0.839,
-   "total": 230
-  },
-  "s>pp": {
-   "kept": 221,
-   "rate": 0.85,
-   "total": 260
-  },
-  "s>s": {
-   "kept": 84,
-   "rate": 0.832,
-   "total": 101
-  },
-  "s>v": {
-   "kept": 515,
-   "rate": 0.85,
-   "total": 606
-  },
-  "v>adv": {
-   "kept": 75,
-   "rate": 0.758,
-   "total": 99
-  },
-  "v>o": {
-   "kept": 924,
-   "rate": 0.876,
-   "total": 1055
-  },
-  "v>o2": {
-   "kept": 32,
-   "rate": 0.865,
-   "total": 37
-  },
-  "v>p": {
-   "kept": 40,
-   "rate": 0.909,
+   "kept": 29,
+   "rate": 0.659,
    "total": 44
   },
+  "o>o": {
+   "kept": 84,
+   "rate": 0.933,
+   "total": 90
+  },
+  "o>p": {
+   "kept": 28,
+   "rate": 0.875,
+   "total": 32
+  },
+  "o>pp": {
+   "kept": 343,
+   "rate": 0.877,
+   "total": 391
+  },
+  "o>s": {
+   "kept": 69,
+   "rate": 0.793,
+   "total": 87
+  },
+  "o>v": {
+   "kept": 523,
+   "rate": 0.754,
+   "total": 694
+  },
+  "p>pp": {
+   "kept": 61,
+   "rate": 0.91,
+   "total": 67
+  },
+  "p>s": {
+   "kept": 105,
+   "rate": 0.477,
+   "total": 220
+  },
+  "p>v": {
+   "kept": 113,
+   "rate": 0.926,
+   "total": 122
+  },
+  "pp>o": {
+   "kept": 167,
+   "rate": 0.687,
+   "total": 243
+  },
+  "pp>p": {
+   "kept": 68,
+   "rate": 0.907,
+   "total": 75
+  },
+  "pp>pp": {
+   "kept": 128,
+   "rate": 0.914,
+   "total": 140
+  },
+  "pp>s": {
+   "kept": 137,
+   "rate": 0.688,
+   "total": 199
+  },
+  "pp>v": {
+   "kept": 643,
+   "rate": 0.685,
+   "total": 939
+  },
+  "s>adv": {
+   "kept": 28,
+   "rate": 0.824,
+   "total": 34
+  },
+  "s>o": {
+   "kept": 105,
+   "rate": 0.929,
+   "total": 113
+  },
+  "s>p": {
+   "kept": 218,
+   "rate": 0.862,
+   "total": 253
+  },
+  "s>pp": {
+   "kept": 250,
+   "rate": 0.926,
+   "total": 270
+  },
+  "s>s": {
+   "kept": 102,
+   "rate": 0.936,
+   "total": 109
+  },
+  "s>v": {
+   "kept": 629,
+   "rate": 0.925,
+   "total": 680
+  },
+  "v>adv": {
+   "kept": 104,
+   "rate": 0.889,
+   "total": 117
+  },
+  "v>o": {
+   "kept": 1064,
+   "rate": 0.91,
+   "total": 1169
+  },
+  "v>o2": {
+   "kept": 40,
+   "rate": 1.0,
+   "total": 40
+  },
+  "v>p": {
+   "kept": 49,
+   "rate": 0.925,
+   "total": 53
+  },
   "v>pp": {
-   "kept": 959,
-   "rate": 0.893,
-   "total": 1074
+   "kept": 1143,
+   "rate": 0.934,
+   "total": 1224
   },
   "v>s": {
-   "kept": 439,
-   "rate": 0.66,
-   "total": 665
+   "kept": 410,
+   "rate": 0.549,
+   "total": 747
   },
   "v>v": {
-   "kept": 607,
-   "rate": 0.855,
-   "total": 710
+   "kept": 756,
+   "rate": 0.905,
+   "total": 835
   }
  },
  "tag": "gfk_tbl",
- "verses_measured": 2379
+ "verses_measured": 2436
 }

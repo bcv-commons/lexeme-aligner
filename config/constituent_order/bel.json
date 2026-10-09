@@ -1,215 +1,261 @@
 {
  "function_drift": {
   "adv": {
-   "mean_drift": 0.0245,
-   "n": 615
+   "mean_drift": 0.017,
+   "n": 4762
   },
   "o": {
-   "mean_drift": 0.0209,
-   "n": 3951
+   "mean_drift": 0.0217,
+   "n": 23894
   },
   "o2": {
-   "mean_drift": 0.0293,
-   "n": 194
+   "mean_drift": 0.0247,
+   "n": 1044
   },
   "p": {
-   "mean_drift": 0.0349,
-   "n": 1686
+   "mean_drift": 0.0334,
+   "n": 9829
   },
   "pp": {
-   "mean_drift": 0.0182,
-   "n": 5140
+   "mean_drift": 0.0208,
+   "n": 36402
   },
   "s": {
-   "mean_drift": 0.0078,
-   "n": 4981
+   "mean_drift": 0.0084,
+   "n": 32017
   },
   "v": {
-   "mean_drift": 0.0077,
-   "n": 11731
+   "mean_drift": 0.0062,
+   "n": 77071
   }
  },
  "label_scheme": "macula_phrase_role",
  "pair_order_kept": {
+  "adv>adv": {
+   "kept": 57,
+   "rate": 0.966,
+   "total": 59
+  },
   "adv>o": {
-   "kept": 33,
-   "rate": 0.805,
-   "total": 41
+   "kept": 321,
+   "rate": 0.944,
+   "total": 340
+  },
+  "adv>p": {
+   "kept": 118,
+   "rate": 0.937,
+   "total": 126
   },
   "adv>pp": {
-   "kept": 63,
-   "rate": 0.969,
-   "total": 65
+   "kept": 710,
+   "rate": 0.957,
+   "total": 742
   },
   "adv>s": {
-   "kept": 52,
-   "rate": 0.852,
-   "total": 61
-  },
-  "adv>v": {
-   "kept": 280,
-   "rate": 0.956,
-   "total": 293
-  },
-  "o2>v": {
-   "kept": 66,
-   "rate": 0.892,
-   "total": 74
-  },
-  "o>adv": {
-   "kept": 69,
-   "rate": 0.92,
-   "total": 75
-  },
-  "o>o": {
-   "kept": 142,
-   "rate": 0.953,
-   "total": 149
-  },
-  "o>o2": {
-   "kept": 80,
-   "rate": 0.976,
-   "total": 82
-  },
-  "o>p": {
-   "kept": 102,
-   "rate": 0.944,
-   "total": 108
-  },
-  "o>pp": {
-   "kept": 789,
-   "rate": 0.963,
-   "total": 819
-  },
-  "o>s": {
-   "kept": 234,
-   "rate": 0.897,
-   "total": 261
-  },
-  "o>v": {
-   "kept": 1438,
-   "rate": 0.906,
-   "total": 1587
-  },
-  "p>p": {
-   "kept": 68,
-   "rate": 0.986,
-   "total": 69
-  },
-  "p>pp": {
-   "kept": 181,
-   "rate": 0.953,
-   "total": 190
-  },
-  "p>s": {
-   "kept": 490,
-   "rate": 0.86,
-   "total": 570
-  },
-  "p>v": {
-   "kept": 360,
-   "rate": 0.976,
-   "total": 369
-  },
-  "pp>adv": {
-   "kept": 76,
-   "rate": 0.95,
-   "total": 80
-  },
-  "pp>o": {
-   "kept": 336,
-   "rate": 0.855,
-   "total": 393
-  },
-  "pp>p": {
-   "kept": 207,
-   "rate": 0.958,
-   "total": 216
-  },
-  "pp>pp": {
-   "kept": 228,
-   "rate": 0.97,
-   "total": 235
-  },
-  "pp>s": {
-   "kept": 411,
-   "rate": 0.888,
+   "kept": 406,
+   "rate": 0.877,
    "total": 463
   },
-  "pp>v": {
-   "kept": 2100,
-   "rate": 0.921,
-   "total": 2281
+  "adv>v": {
+   "kept": 1838,
+   "rate": 0.933,
+   "total": 1971
   },
-  "s>adv": {
-   "kept": 87,
-   "rate": 0.989,
+  "o2>o": {
+   "kept": 78,
+   "rate": 0.886,
    "total": 88
   },
-  "s>o": {
-   "kept": 409,
-   "rate": 0.974,
-   "total": 420
+  "o2>pp": {
+   "kept": 164,
+   "rate": 0.953,
+   "total": 172
   },
-  "s>p": {
-   "kept": 731,
-   "rate": 0.968,
-   "total": 755
+  "o2>s": {
+   "kept": 31,
+   "rate": 0.939,
+   "total": 33
   },
-  "s>pp": {
-   "kept": 855,
+  "o2>v": {
+   "kept": 338,
+   "rate": 0.871,
+   "total": 388
+  },
+  "o>adv": {
+   "kept": 511,
+   "rate": 0.914,
+   "total": 559
+  },
+  "o>o": {
+   "kept": 739,
+   "rate": 0.984,
+   "total": 751
+  },
+  "o>o2": {
+   "kept": 367,
    "rate": 0.966,
-   "total": 885
+   "total": 380
   },
-  "s>s": {
-   "kept": 240,
-   "rate": 0.949,
-   "total": 253
+  "o>p": {
+   "kept": 617,
+   "rate": 0.966,
+   "total": 639
   },
-  "s>v": {
-   "kept": 1840,
-   "rate": 0.959,
-   "total": 1919
+  "o>pp": {
+   "kept": 5314,
+   "rate": 0.935,
+   "total": 5683
   },
-  "v>adv": {
-   "kept": 252,
-   "rate": 0.926,
-   "total": 272
+  "o>s": {
+   "kept": 1204,
+   "rate": 0.928,
+   "total": 1298
   },
-  "v>o": {
+  "o>v": {
+   "kept": 9455,
+   "rate": 0.904,
+   "total": 10464
+  },
+  "p>adv": {
+   "kept": 79,
+   "rate": 0.84,
+   "total": 94
+  },
+  "p>o": {
+   "kept": 214,
+   "rate": 0.995,
+   "total": 215
+  },
+  "p>p": {
+   "kept": 472,
+   "rate": 0.99,
+   "total": 477
+  },
+  "p>pp": {
+   "kept": 1088,
+   "rate": 0.941,
+   "total": 1156
+  },
+  "p>s": {
    "kept": 2587,
-   "rate": 0.962,
-   "total": 2690
+   "rate": 0.859,
+   "total": 3012
   },
-  "v>o2": {
-   "kept": 67,
-   "rate": 0.985,
+  "p>v": {
+   "kept": 2229,
+   "rate": 0.973,
+   "total": 2291
+  },
+  "pp>adv": {
+   "kept": 706,
+   "rate": 0.922,
+   "total": 766
+  },
+  "pp>o": {
+   "kept": 2173,
+   "rate": 0.883,
+   "total": 2462
+  },
+  "pp>o2": {
+   "kept": 61,
+   "rate": 0.897,
    "total": 68
   },
+  "pp>p": {
+   "kept": 1481,
+   "rate": 0.977,
+   "total": 1516
+  },
+  "pp>pp": {
+   "kept": 1408,
+   "rate": 0.975,
+   "total": 1444
+  },
+  "pp>s": {
+   "kept": 3054,
+   "rate": 0.92,
+   "total": 3319
+  },
+  "pp>v": {
+   "kept": 16424,
+   "rate": 0.931,
+   "total": 17648
+  },
+  "s>adv": {
+   "kept": 592,
+   "rate": 0.959,
+   "total": 617
+  },
+  "s>o": {
+   "kept": 2712,
+   "rate": 0.974,
+   "total": 2783
+  },
+  "s>o2": {
+   "kept": 41,
+   "rate": 1.0,
+   "total": 41
+  },
+  "s>p": {
+   "kept": 4014,
+   "rate": 0.955,
+   "total": 4203
+  },
+  "s>pp": {
+   "kept": 6555,
+   "rate": 0.96,
+   "total": 6831
+  },
+  "s>s": {
+   "kept": 1578,
+   "rate": 0.987,
+   "total": 1599
+  },
+  "s>v": {
+   "kept": 11723,
+   "rate": 0.946,
+   "total": 12395
+  },
+  "v>adv": {
+   "kept": 2096,
+   "rate": 0.934,
+   "total": 2243
+  },
+  "v>o": {
+   "kept": 15516,
+   "rate": 0.966,
+   "total": 16058
+  },
+  "v>o2": {
+   "kept": 428,
+   "rate": 0.964,
+   "total": 444
+  },
   "v>p": {
-   "kept": 162,
-   "rate": 0.982,
-   "total": 165
+   "kept": 1196,
+   "rate": 0.988,
+   "total": 1211
   },
   "v>pp": {
-   "kept": 2482,
-   "rate": 0.97,
-   "total": 2560
+   "kept": 17549,
+   "rate": 0.969,
+   "total": 18106
   },
   "v>s": {
-   "kept": 2236,
-   "rate": 0.901,
-   "total": 2481
+   "kept": 14641,
+   "rate": 0.822,
+   "total": 17820
   },
   "v>v": {
-   "kept": 2004,
-   "rate": 0.965,
-   "total": 2077
+   "kept": 13863,
+   "rate": 0.977,
+   "total": 14194
   }
  },
- "tag": "bel_njo",
+ "tag": "bbl+bel_njo",
  "tags": [
+  "bbl",
   "bel_njo"
  ],
- "verses_measured": 5029
+ "verses_measured": 27661
 }

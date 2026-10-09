@@ -27,6 +27,28 @@ DEFAULT_OUT = REPO / "pipeline/work/logs/regate_list.json"
 CONSUMED = ("adposition", "possessor", "article", "article_bound", "subject_verb", "object_verb")
 
 
+# Slots every language's chain reads (article_bound: span_extension's articles veto; possessor: gap-fill's M3 fallback). The others reach an
+# alignment only through the gram-struct fallback, i.e. for a language whose recorded flags turn that fallback on (2026-10-08: regate used to
+# list 185 languages after the derived adposition merge although none of them reads the merged adposition).
+ALWAYS_READ = ("article_bound", "possessor")
+
+
+def reads_fallback(iso: str, spanext_flags: dict, fertility_flags: dict) -> bool:
+    sx, fe = spanext_flags.get(iso) or {}, fertility_flags.get(iso) or {}
+    return bool(sx.get("typology_fallback") or sx.get("typology_fallback_articles")
+                or (fe.get("enabled") and fe.get("typology_fallback")))
+
+
+def consumed_diff(diff: dict[str, dict[str, list]], spanext_flags: dict, fertility_flags: dict) -> dict[str, dict[str, list]]:
+    """Keep only the slot changes a language's chain actually reads (ALWAYS_READ, or any slot when it reads the fallback)."""
+    out = {}
+    for iso, d in diff.items():
+        keep = {k: v for k, v in d.items() if k in ALWAYS_READ or reads_fallback(iso, spanext_flags, fertility_flags)}
+        if keep:
+            out[iso] = keep
+    return out
+
+
 def directions(gs_dir: Path, slots: tuple[str, ...] = CONSUMED) -> dict[str, dict[str, object]]:
     """{iso: {slot: direction-or-bound}} from the merged per-language files (partition sub-folders and `_*`/article_bound files are not languages)."""
     out: dict[str, dict[str, object]] = {}
@@ -64,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--before", type=Path, help="a snapshot folder: diff it against the current config/gram_struct")
     ap.add_argument("--after", type=Path, default=GRAM_STRUCT)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--all-slots", action="store_true",
+                    help="list every language whose consumed slot changed, even where its chain does not read that slot (the pre-2026-10-08 behaviour)")
     a = ap.parse_args(argv)
     if a.snapshot:
         print(snapshot(a.after))
@@ -71,6 +95,12 @@ def main(argv: list[str] | None = None) -> int:
     if not a.before:
         ap.error("pass --snapshot (before a rebuild) or --before <snapshot dir> (after it)")
     diff = changed(directions(a.before), directions(a.after))
+    if not a.all_slots:
+        cfg = REPO / "config"
+        load = lambda f: json.loads((cfg / f).read_text(encoding="utf-8")) if (cfg / f).exists() else {}     # noqa: E731
+        n_all = len(diff)
+        diff = consumed_diff(diff, load("spanext_flags.json"), load("fertility_flags.json"))
+        print(f"[regate] {n_all} language(s) changed a slot; {len(diff)} of them read it (use --all-slots for all)", file=sys.stderr)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(sorted(diff)), encoding="utf-8")
     a.out.with_suffix(".detail.json").write_text(json.dumps(diff, indent=1, sort_keys=True), encoding="utf-8")

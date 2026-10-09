@@ -172,3 +172,19 @@ def test_verdict_bands_and_gold_calibration_points():
     assert xv.verdict(.36, 5000) == "uncertain"
     assert xv.verdict(.05, 100) == "insufficient"
     assert xv.verdict(float("nan"), 0) == "insufficient"
+
+
+def test_record_and_apply_flag_round_trip(tmp_path):
+    import json
+    from lexeme_aligner.eval import xedition_verify as xv
+    e6, flags = tmp_path / "e6.json", tmp_path / "flags.json"
+    flags.write_text(json.dumps({"_doc": "x"}), encoding="utf-8")
+    bad = xv.record("zz", "zz_a", ["zz_b", "zz_c"], {"pairs": 500, "support": 0.2, "null": 0.03, "lift": 6.7},
+                    {"zz_c": "near-duplicate"}, "2026-10-08", e6)
+    assert bad["verdict"] == "flip" and bad["refs"] == ["zz_b"]
+    assert xv.apply_flag("zz_a", bad, flags) == "flipped"
+    assert json.loads(flags.read_text())["zz_a"]["base_mechanisms"] is False
+    good = xv.record("zz", "zz_a", ["zz_b"], {"pairs": 500, "support": 0.5, "null": 0.03, "lift": 16.0}, {}, "2026-10-09", e6)
+    assert xv.apply_flag("zz_a", good, flags) == "reverted an earlier E6 flip"
+    assert "zz_a" not in json.loads(flags.read_text())
+    assert json.loads(e6.read_text())["editions"]["zz_a"]["date"] == "2026-10-09"

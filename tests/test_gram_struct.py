@@ -250,6 +250,15 @@ def test_derived_input_slot_reaches_the_derived_partition_and_the_merge_when_no_
     assert merged["possessor"] == di["possessor"]
 
 
+def test_derived_adposition_and_adposition_word_reach_the_merge(tmp_path):
+    di = {"adposition": {"direction": "after", "n": 900, "rate_after": 0.91},
+          "adposition_word": {"present": True, "rate": 0.8, "n": 900}}
+    out, cov = _build(tmp_path, isos=["xx"], derived_input={"xx": di})
+    merged = _read(out, "xx.json")
+    assert merged["adposition"]["direction"] == "after" and merged["adposition_word"]["present"] is True
+    assert cov["merged_slot_sources"]["adposition"] == {"derived": 1}
+
+
 def test_external_slot_shadows_the_same_derived_slot_without_raising(tmp_path):
     di = {"possessor": {"direction": "after", "source": "derived", "n": 200, "rate": 0.8}}
     out, cov = _build(tmp_path, isos=["xx"],
@@ -377,3 +386,9 @@ def test_write_atomic_replaces_whole_file_and_leaves_no_temp(tmp_path):
     _write_atomic(target, '{"a": 2}\n')
     assert target.read_text() == '{"a": 2}\n'
     assert [p.name for p in target.parent.iterdir()] == ["xx.json"]
+
+
+def test_verdict_date_prefers_explicit_then_latest_in_note():
+    assert gs._verdict_date({"measured_on": "2026-10-01"}, "measured 2026-09-24") == "2026-10-01"
+    assert gs._verdict_date({}, "measured 2026-09-24 ... RE-MEASURED 2026-09-27") == "2026-09-27"
+    assert gs._verdict_date({}, None) == gs._MEASURED_DATE

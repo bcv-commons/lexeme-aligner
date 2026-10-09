@@ -33,7 +33,7 @@ def test_cli_writes_the_list_and_the_detail(tmp_path):
     _write(before, "yy", {"adposition": {"direction": "before"}})
     _write(after, "yy", {"adposition": {"direction": "before"}})
     out = tmp_path / "list.json"
-    assert regate.main(["--before", str(before), "--after", str(after), "--out", str(out)]) == 0
+    assert regate.main(["--before", str(before), "--after", str(after), "--out", str(out), "--all-slots"]) == 0
     assert json.loads(out.read_text()) == ["xx"]
     assert json.loads(out.with_suffix(".detail.json").read_text())["xx"]["adposition"] == ["before", "after"]
 
@@ -45,3 +45,12 @@ def test_snapshot_skips_derived_input(tmp_path):
     (gs / "derived_input" / "big.json").write_text("{}", encoding="utf-8")
     dest = regate.snapshot(gs, tmp_path / "work")
     assert (dest / "aaa.json").exists() and not (dest / "derived_input").exists()
+
+
+def test_consumed_diff_keeps_only_slots_the_chain_reads():
+    from lexeme_aligner.regate import consumed_diff
+    diff = {"aaa": {"adposition": ["before", "after"]}, "bbb": {"possessor": [None, "after"]},
+            "spa": {"adposition": ["before", None]}, "ccc": {"article_bound": [False, True], "object_verb": [None, "after"]}}
+    out = consumed_diff(diff, {"spa": {"typology_fallback": True}}, {})
+    assert out == {"bbb": {"possessor": [None, "after"]}, "spa": {"adposition": ["before", None]},
+                   "ccc": {"article_bound": [False, True]}}

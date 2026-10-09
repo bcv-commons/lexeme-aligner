@@ -258,6 +258,13 @@ behavior. Wire it in explicitly (e.g. `merge_align --methods eflomal,gloss,spane
 
     python3 -m lexeme_aligner.span_extension --iso hinirv --publish-iso hin --usj-dir <dir> --nt \\
         --methods eflomal,gloss
+
+MEASURED 2026-10-08 (word grain, `measure_flag --flag base_mechanisms`): fertility priors (on for hin/eng/spa) make eflomal emit multi-word
+spans on their own, which pushed hin/eng noun/name rates (.08-.16) above the audit's 0.05 ceiling, so this layer had silently stopped
+running for both. With the ceiling lifted (`audit_rate_max` in config/spanext_flags.json, read by `load_audit_rate_max`): eng bsb F1
+.6549 -> .7054, exact +13,454, precision +0.002 (WIN, enabled); hin F1 +0.015, exact +411, precision -0.042 (wash, not enabled). spa
+(fires without the lift): strict LOSS -0.032 (the Clear spa article convention), convention-aware +0.0063 F1 with exact -758 (wash).
+relation_trigger now reads the MACULA rectum (`macula_syntax.is_rectum`) when the spine has no BHSA `rela`.
 """
 from __future__ import annotations
 
@@ -267,6 +274,7 @@ import json
 import sys
 from pathlib import Path
 
+from lexeme_aligner import macula_syntax
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.analyze_language import analyze
 from lexeme_aligner.config import OUT, PRIOR_PACK
@@ -296,6 +304,21 @@ def load_grambank_raw(publish_iso: str, path=None) -> dict[str, str] | None:
 from lexeme_aligner.function_classes import TRIGGER_CLASSES as _TRIGGER_CLASSES   # P1/R6 typed gate
 
 _SPANEXT_FLAGS_FILE = Path("config/spanext_flags.json")
+
+
+def load_audit_rate_max(publish_iso: str, path: Path | None = None, tag: str | None = None) -> float | None:
+    """A measured per-language (or per-edition) replacement for the audit's multiword-rate ceiling (`audit_rate_max` in
+    config/spanext_flags.json), or None. Added 2026-10-08: fertility priors make eflomal emit multi-word spans by themselves, which lifted
+    eng/hin above the 0.05 ceiling, so span extension had silently stopped running for them; an entry records the measured verdict."""
+    path = path or _SPANEXT_FLAGS_FILE
+    if not Path(path).exists():
+        return None
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    entry = dict(doc.get(publish_iso, {}))
+    if tag and tag != publish_iso:
+        entry.update(doc.get(tag, {}))
+    v = entry.get("audit_rate_max")
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def load_spanext_flags(publish_iso: str, path: Path | None = None, tag: str | None = None) -> dict[str, bool]:
@@ -594,7 +617,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                  phrase_window_gate: bool | None = None,
                  name_guard: bool | None = None,
                  base_mechanisms: bool | None = None,
-                 article_bound: bool | None = None) -> tuple[dict[str, list[dict]], dict]:
+                 article_bound: bool | None = None,
+                 audit_rate_max: float | None = None) -> tuple[dict[str, list[dict]], dict]:
     """{BOOK: [verse record, ...]} of ONLY the pairs that got widened, plus stats. Never mutates the base
     chain's own jsonl — this is a separate, additive layer (see module docstring). `definite_trigger`:
     Step 1's derived-definiteness additive trigger (`compute_definite`). `relation_trigger`: Step 1's
@@ -693,7 +717,10 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # Which (risk, pos) combinations are ACTUALLY flagged for this base-chain run, and in which direction —
     # reuses analyze_language's own anomaly detection so this mechanism never fires on a category the
     # phase-1 audit itself wouldn't flag as worth checking.
-    report = analyze(iso, publish_iso, out_dir, prior_pack, method=methods[0], use_typology=typology_fallback)
+    if audit_rate_max is None:
+        audit_rate_max = load_audit_rate_max(publish_iso, tag=iso)
+    report = analyze(iso, publish_iso, out_dir, prior_pack, method=methods[0], use_typology=typology_fallback,
+                     rate_max=audit_rate_max)
     _typology_iso = publish_iso if typology_fallback else None
     # D4a follow-up: the "articles" risk gets its OWN, separately-gated iso -- see
     # `typology_fallback_articles`'s own docstring for why this is split from `_typology_iso` above.
@@ -773,12 +800,16 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
     # (see `_chain_neighbor_boundary`'s own docstring below).
     groups_of: dict[int, dict[str, list]] = {}
     verse_toks: dict[int, list[str]] = {}
+    _macula = getattr(heb, "syntax_source", None) == "macula"
     for r in recs:
         ref = encode(r.book, r.ch, r.v)
         verse_toks[ref] = list(r.toks)
         lexeme_of[ref] = {t.idx: t.lexeme for t in r.heb}
         struct_of[ref] = {t.idx: (t.state, t.case_) for t in r.heb}
-        rela_of[ref] = {t.idx: t.rela for t in r.heb}
+        # 2026-10-08: under the MACULA-only spine (default since 2026-10-04) `rela` is never filled, so relation_trigger silently
+        # stopped firing for hin. The MACULA rectum (construct_role, content tokens only: macula_syntax.is_rectum) is the
+        # measured replacement for BHSA `rela == "rec"` (recall .84 / precision .72 against it on all tokens; content-only here).
+        rela_of[ref] = {t.idx: ("rec" if _macula and macula_syntax.is_rectum(t) else t.rela) for t in r.heb}
         real_phrase = {t.idx: getattr(t, "phrase_id", None) for t in r.heb}
         if phrase_window_gate and not any(real_phrase.values()):
             # P6: BHSA phrase_id is Hebrew/OT-only -- on an NT verse (or an OT one the spine build
@@ -794,7 +825,8 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
         groups_of[ref] = {g: sorted(members, key=lambda t: t.idx) for g, members in groups.items()}
     has_struct = heb.has_state or heb.has_case
     has_definite_signal = heb.has_state or heb.has_assimilated_articles
-    has_relation_signal = heb.has_phrase                    # rela lands with phrase_id (OT-only)
+    has_relation_signal = heb.has_phrase or (_macula and (getattr(heb, "has_construct_role", False)
+                                                          or getattr(heb, "has_construct_group", False)))
 
     stop = StopwordFilter(publish_iso, str(usj_dir))
     fc = None
@@ -1145,6 +1177,9 @@ def main(argv=None) -> int:
                     help="E6 flip (2026-09-29): run the always-on RISK_RULES mechanisms at all. Default: "
                          "consult config/spanext_flags.json (on unless the edition/language records "
                          "base_mechanisms=false after cross-edition verification).")
+    ap.add_argument("--audit-rate-max", type=float, default=None,
+                    help="measurement only (2026-10-08): replace the audit's multiword-rate ceiling (0.05) so the mechanisms "
+                         "can be compared on top of fertility priors, which lift the rate past the ceiling")
     ap.add_argument("--diagnose", action="store_true",
                     help="pre-flight TRIAGE report only (block rates + top high-volume stopwords) — "
                          "writes nothing, does not consult or update config/spanext_flags.json; see "
@@ -1166,7 +1201,8 @@ def main(argv=None) -> int:
                                   typed_gate=a.typed_gate,
                                   phrase_window_gate=a.phrase_window_gate,
                                   name_guard=a.name_guard,
-                                  base_mechanisms=a.base_mechanisms)
+                                  base_mechanisms=a.base_mechanisms,
+                                  audit_rate_max=a.audit_rate_max)
     # The layer is rebuilt as a whole: remove every existing spanext file of this edition first. Until 2026-10-05
     # this happened only when the edition was gated off, so a re-run that SKIPPED for any other reason ("no flagged
     # (pos, direction) combination") or no longer covered a book left the old files in place — and compact_align

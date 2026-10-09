@@ -212,12 +212,15 @@ def _write_atomic(path: Path, text: str) -> None:
         raise
 
 
+_DERIVED_SLOTS = ("possessor", "subject_verb", "object_verb", "adposition", "adposition_word")
+
+
 def build_derived(iso: str, constituent_dir: Path = _CONSTITUENT_DIR,
                   derived_input_dir: Path = _DERIVED_INPUT_DIR,
                   article_bound_file: Path | None = None) -> dict:
     """`config/constituent_order/<iso>.json` (the canonical, standalone-published artifact) PLUS,
-    since roadmap item D0 (2026-09-25, `derive_typology.py`), the possessor/subject_verb/object_verb
-    slots and `audit.*` facts derive_typology.py computed from the SAME eflomal(+gloss) alignments.
+    since roadmap item D0 (2026-09-25, `derive_typology.py`), the `_DERIVED_SLOTS` (possessor/subject_verb/object_verb,
+    and since 2026-10-08 adposition/adposition_word) and `audit.*` facts derive_typology.py computed from the SAME eflomal(+gloss) alignments.
     `derive_typology.py` also refreshes `config/constituent_order/<iso>.json` itself (so this
     function's first half only grows in coverage, never regresses) and writes its OWN copy of that
     same profile under `derived_input/<iso>.json`'s `audit.constituent_order` — popped here to avoid
@@ -240,7 +243,9 @@ def build_derived(iso: str, constituent_dir: Path = _CONSTITUENT_DIR,
     di_fp = Path(derived_input_dir) / f"{iso}.json"
     if di_fp.exists():
         di = _load_json(di_fp)
-        for slot in ("possessor", "subject_verb", "object_verb"):
+        # adposition/adposition_word (D1, 2026-09-25) were computed for every passing language but left out here until
+        # 2026-10-08, so the merged view took kin/lang2vec values over our own (derived vs Grambank 92.6%, n=390).
+        for slot in _DERIVED_SLOTS:
             if slot in di:
                 rec_out[slot] = di[slot]
         if "audit" in di:
@@ -262,6 +267,19 @@ def _gold_name(iso: str, gold_langs: dict) -> str | None:
     return f"{g['gold']}/{g['base_text']}" if g.get("base_text") else g["gold"]
 
 
+_DATE_RE = __import__("re").compile(r"\b(20\d\d-[01]\d-[0-3]\d)\b")
+
+
+def _verdict_date(entry: dict, note: str | None) -> str:
+    """The date of a recorded verdict: an explicit `measured_on`, else the LATEST date the verdict's own note mentions (a note
+    says 'RE-MEASURED 2026-09-27 ...' when a verdict was revisited), else the date the measured/ partition was first built.
+    Until 2026-10-08 every verdict carried the constant, even ones re-measured later."""
+    if entry.get("measured_on"):
+        return str(entry["measured_on"])
+    found = _DATE_RE.findall(note or "")
+    return max(found) if found else _MEASURED_DATE
+
+
 def build_measured(iso: str, spanext: dict, fertility: dict, gold_langs: dict,
                    conventions_dir: Path = _CONVENTIONS_DIR) -> dict:
     mechanisms: dict = {}
@@ -277,7 +295,7 @@ def build_measured(iso: str, spanext: dict, fertility: dict, gold_langs: dict,
         note = sx.get(f"_{flag.split('_')[0]}_note")
         if note is None and flag == bool_flags[0]:
             note = sx.get("_note")
-        rec = {"enabled": value, "source": "measured", "date": _MEASURED_DATE}
+        rec = {"enabled": value, "source": "measured", "date": _verdict_date(sx, note)}
         if gold:
             rec["gold"] = gold
         if note:
@@ -285,7 +303,7 @@ def build_measured(iso: str, spanext: dict, fertility: dict, gold_langs: dict,
         mechanisms[f"spanext.{flag}"] = rec
     fe = fertility.get(iso, {})
     if isinstance(fe.get("enabled"), bool):
-        rec = {"enabled": fe["enabled"], "source": "measured", "date": _MEASURED_DATE}
+        rec = {"enabled": fe["enabled"], "source": "measured", "date": _verdict_date(fe, fe.get("_note"))}
         if isinstance(fe.get("lambda"), (int, float)):
             rec["lambda"] = float(fe["lambda"])
         if gold:
@@ -422,6 +440,11 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
                               json.dumps(parts[name], indent=1, ensure_ascii=False, sort_keys=True) + "\n")
                 written[name] += 1
         merged = merge_partitions(iso, parts, stats)
+        for slot in typology.SLOTS:                          # which partition/source the MERGED view took, per slot
+            if slot in merged:
+                part = next(n for n in PARTITIONS if slot in parts.get(n, {}))
+                src = part if part in ("derived", "kin") else (merged[slot].get("source") or part)
+                stats[f"merged:{slot}:{src if merged[slot].get('direction') else src + '/null'}"] += 1
         if len(merged) > 1:
             _write_atomic(out_dir / f"{iso}.json",
                           json.dumps(merged, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
@@ -432,6 +455,9 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
         "languages_written": dict(written),
         "slots": {slot: {src: stats.get(f"slot:{slot}:{src}", 0) for src in ("grambank", "wals", "lang2vec", "null")}
                   for slot in typology.SLOTS},
+        "merged_slot_sources": {slot: dict(sorted((k.split(":", 2)[2], v) for k, v in stats.items()
+                                                  if k.startswith(f"merged:{slot}:")))
+                                for slot in typology.SLOTS},
         "existence": {g: {"present": stats.get(f"existence:{g}:present", 0),
                           "absent": stats.get(f"existence:{g}:absent", 0)} for g in _EXISTENCE_GROUPS},
         "grambank_direction_mismatch": stats.get("grambank_direction_mismatch", 0),
@@ -439,7 +465,7 @@ def build(out_dir: Path = OUT_DIR, all_isos: bool = False, *, features_file: Pat
         "derived_shadowed_by_external_or_imputed": {
             slot: stats.get(f"derived_shadowed:{slot}", 0) for slot in typology.SLOTS
             if stats.get(f"derived_shadowed:{slot}", 0)},
-        "measured_date": _MEASURED_DATE,
+        "measured_date_default": _MEASURED_DATE,
         "kin_leave_one_out": kin_confidence,
     }
     _write_atomic(out_dir / "_coverage.json", json.dumps(coverage, indent=1) + "\n")
@@ -458,15 +484,15 @@ tags:
 
 # gram-struct — per-language grammatical fact sheets
 
-**Draft dataset card.** One JSON per language, fused from every source the lexeme-aligner already has,
+One JSON per language, fused from every source the lexeme-aligner already has,
 split into four provenance partitions so that licensing is a directory boundary. Design and contract:
 `docs/architecture.md` §2. Built by `python3 -m lexeme_aligner.gram_struct --build`; never hand-edited.
 
 | partition | license | contents | provenance |
 |---|---|---|---|
 | `external/` | **CC-BY-4.0** | direction slots + existence facts | Grambank v1.0 (Skirgård et al. 2023, CC-BY-4.0; Glottolog for the Glottocode→ISO mapping, CC-BY-4.0) and WALS (Dryer & Haspelmath 2013, CLDF v2020.5, CC-BY-4.0). Every fact cites its source codes (`GB074`, `WALS:85A`). |
-| `imputed/` | **CC-BY-SA-4.0** | direction slots only | lang2vec / URIEL `syntax_knn` (Littell et al. 2017, CC-BY-SA-4.0) — kept physically apart because share-alike applies to derivatives of these values. |
-| `derived/` | **CC0-1.0** | our own alignment statistics (constituent-order profile; `article_bound`: is the definite article fused into the noun, see `article_bound.py`) | computed from this project's alignments; no source text redistributed. |
+| `imputed/` | **CC-BY-SA-4.0** | direction slots only | lang2vec / URIEL `syntax_knn` (Littell et al. 2017, CC-BY-SA-4.0) and URIEL+ (Khan et al. 2025, CC-BY-SA-4.0; `adposition`/`object_verb` only, the slots that cleared 90% agreement with Grambank) — kept physically apart because share-alike applies to derivatives of these values. |
+| `derived/` | **CC0-1.0** | our own alignment statistics: direction slots `adposition` (+ `adposition_word`: is the adposition a separate word), `possessor`, `subject_verb`, `object_verb`, each with per-edition votes (`editions`, `agreement`); `article_bound` (is the definite article fused into the noun, see `article_bound.py`); the constituent-order profile; `audit.multiword_rates` | computed from this project's eflomal(+gloss) alignments of every edition of the language, MACULA syntax only (no BHSA-derived field); no source text redistributed. Agreement with Grambank where both exist (2026-10-08): adposition 92.6% (n=390), possessor 91.7% (n=192), subject_verb 88.6% (n=332 — inside the 85-90% `experimental` band of the project's admission rule; no alignment mechanism reads it), object_verb 93.5% (n=92); with Östling & Kurfalı's projected word order (2023): adposition 93.9% (n=212), subject_verb 100% (n=711), object_verb 99.5% (n=202) — a correlated method (both project from Bible alignments), reported as a consistency check, not independent proof. |
 | `measured/` | **CC0-1.0** | mechanism verdicts, dated, gold named | human-recorded after scoring against gold; never inferred. |
 | `kin/` | **CC-BY-4.0** | direction slots only, gap-filling | Glottolog genetic relatedness (bcv-query's `languages.db`) — the nearest external/imputed-resolved relative's value, lowest priority, structurally unable to override anything else; confidence is a leave-one-out band rate, not the individual fact. |
 | `<iso>.json` | mixed (see above) | the merge of the five | convenience view; identical content, one file. |
@@ -481,6 +507,10 @@ split into four provenance partitions so that licensing is a directory boundary.
 - `derived/` changes whenever the alignments are regenerated and carries `content_sha256`;
   `measured/` changes only when a human re-measures and re-dates an entry.
 - No field in any file is computed from another field in the same file.
+- Merge priority per slot: external > imputed > derived > measured > kin. `_coverage.json` → `merged_slot_sources` says, per slot,
+  which partition (or which external source) the merged view took, and how many of those values are a null-with-source.
+- Not derivable from alignments, so not here: numeral classifiers, evidentials, tone/phonology, whether a bound form is an affix
+  or a clitic written together (an alignment sees tokens; "fused" is the most it can say), reduplication.
 """
 
 

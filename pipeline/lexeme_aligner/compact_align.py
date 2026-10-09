@@ -226,8 +226,7 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "target-stopwords list; if every word is a stopword the original rendering is kept), joined by one space. The edition's "
           "manifest entry records `rend_stopwords` = sha256 of the list used (null = none, nothing dropped). Ids are comparable only "
           "within one edition and one lexeme (e.g. to split a lexeme's occurrences by how this translation renders them) and "
-          "carry no text. An edition under a takedown rule (config/takedown.json) has `rend_scope` in its manifest entry: 'eflomal' = "
-          "entries another stage added carry 0 (withheld, no id taken), 'none' = no rend array; no rend_scope = every entry has an id. rend is published for compact alignments only, never for full-alignment layers.",
+          "carry no text.",
           "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each "
           "edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), "
           "and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity "
@@ -242,7 +241,10 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "SOURCE TOKEN KEYS (since 2026-10): _index/<BOOK>_keys.json and _index/<BOOK>_fn_keys.json = {\"BOOK C:V\": [key, ...]} are "
           "position-parallel to _lexemes.json and _fn.json: entry k of a verse is the MACULA node key of the srcOrd k (resp. fnOrd k) "
           "token (12 digits BBCCCVVVWWWM for Hebrew, 11 for Greek; a merged token holding two nodes lists both joined by '+'). "
-          "Stamped in _index/_source.json as keys_sha256 / fn_keys_sha256."]
+          "Stamped in _index/_source.json as keys_sha256 / fn_keys_sha256.",
+          "REND SCOPE (since 2026-10): an edition under a takedown rule (config/takedown.json) has `rend_scope` in its manifest entry: "
+          "'eflomal' = entries another stage added carry 0 (withheld, no id taken), 'none' = no rend array; no rend_scope = every entry has "
+          "an id. rend is published for compact alignments only, never for full-alignment layers."]
 
 
 _STOPWORD_DIR = Path("publish/target-stopwords")

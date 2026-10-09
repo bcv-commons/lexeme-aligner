@@ -152,7 +152,7 @@ _TYPOLOGY_EXISTENCE_SLOT = {"case_marking": "adposition", "articles": "article",
 
 
 def analyze(iso: str | list[str], publish_iso: str, out_dir: Path = OUT, prior_pack: Path = PRIOR_PACK,
-           method: str = "eflomal", use_typology: bool = False) -> dict:
+           method: str = "eflomal", use_typology: bool = False, rate_max: float | None = None) -> dict:
     """The phase-1 report: Grambank coverage, per-POS multi-word rates, and any risk/anomaly matches.
     `iso`: one tag, or (2026-09-28) a LIST of tags to pool a language's every pooled edition into one
     aggregate audit — see `multiword_rates`'s own docstring for why this replaced picking one edition.
@@ -171,6 +171,10 @@ def analyze(iso: str | list[str], publish_iso: str, out_dir: Path = OUT, prior_p
 
     findings = []
     for risk_key, pos_tags, threshold, description, polarity, prompt_hint in RISK_RULES:
+        # `rate_max` (2026-10-08, measurement only): replaces every rule's multiword-rate ceiling. Fertility priors make eflomal
+        # emit multi-word spans by themselves, which pushed hin/eng past the 0.05 ceiling so span extension silently stopped
+        # firing there; a measurement can lift the ceiling to compare the mechanisms on top of fertility.
+        threshold = rate_max if rate_max is not None else threshold
         feature_ids = GRAMBANK_FEATURES.get(risk_key, [])
         flagged, matched_ids = False, []
         if grambank is not None:

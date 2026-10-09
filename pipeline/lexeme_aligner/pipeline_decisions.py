@@ -49,10 +49,10 @@ import os
 import sys
 from pathlib import Path
 
-from lexeme_aligner.analyze_language import analyze, load_grambank
+from lexeme_aligner.analyze_language import RISK_RULES, analyze, load_grambank
 from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.fertility_priors import load_fertility_flags
-from lexeme_aligner.span_extension import (DIRECTION_FEATURES, base_mechanisms_enabled, direction_for,
+from lexeme_aligner.span_extension import (DIRECTION_FEATURES, base_mechanisms_enabled, direction_for, load_audit_rate_max,
                                             load_spanext_flags,
                                            possession_direction_for)
 from lexeme_aligner.target_morph import should_stem
@@ -81,16 +81,62 @@ _OPT_IN_SPANEXT_KEYS = ("relation_trigger", "definite_trigger", "typology_fallba
                         "typology_fallback_articles", "typed_gate", "phrase_window_gate", "name_guard")
 
 
-def _direction(risk: str, grambank: dict, publish_iso: str, typology_fallback: bool) -> str | None:
+# The RISK_RULES risks span_extension.extend_spans actually acts on (its `active` loop); every other finding is an audit
+# observation only and must not be recorded as a running mechanism (2026-10-08: the ledger carried tam_auxiliary/
+# subject_indexing as value:true for 38/52 languages although nothing reads them).
+ACTING_RISKS = ("case_marking", "articles", "possession_affix")
+
+
+def _direction(risk: str, grambank: dict, publish_iso: str, typology_fallback: bool,
+               typology_fallback_articles: bool = False) -> str | None:
     """Direction lookup for the always-on RISK_RULES mechanisms that have a before/after placement
     concept at all — case_marking/articles (a before_id/after_id Grambank pair) and possession_affix
-    (GB065's own ternary). tam_auxiliary/subject_indexing are pure existence checks with no direction."""
+    (GB065's own ternary). tam_auxiliary/subject_indexing are pure existence checks with no direction.
+    Same fallback gates as span_extension.extend_spans: `articles` uses `typology_fallback_articles`, the rest
+    `typology_fallback` (they were conflated until 2026-10-08, so spa's ledger showed a direction the mechanism never used)."""
+    if risk == "articles":
+        return direction_for(grambank, DIRECTION_FEATURES[risk], iso=publish_iso if typology_fallback_articles else None)
     iso_for_fallback = publish_iso if typology_fallback else None
     if risk in DIRECTION_FEATURES:
         return direction_for(grambank, DIRECTION_FEATURES[risk], iso=iso_for_fallback)
     if risk == "possession_affix":
         return possession_direction_for(grambank, iso=iso_for_fallback)
     return None
+
+
+def _gate_entry(risk: str, entry: dict, direction: str | None, no_coverage: bool) -> dict:
+    """Mirror span_extension.extend_spans exactly: a finding it cannot act on is recorded, but as value false with the reason."""
+    entry.pop("direction", None)
+    if direction:
+        entry["direction"] = direction
+    if entry.get("value") is True and risk not in ACTING_RISKS:
+        entry["value"] = False
+        entry["gated_source"] = "audit finding only: no alignment mechanism implements this risk"
+    elif entry.get("value") is True and no_coverage:
+        entry["value"] = False
+        entry["gated_source"] = "no Grambank coverage and typology_fallback off (span_extension skips the language)"
+    elif entry.get("value") is True and not direction:
+        entry["value"] = False
+        entry["gated_source"] = "no direction known for this language, so nothing is extended"
+    return entry
+
+
+def reconcile_entry(publish_iso: str, entry: dict) -> dict:
+    """Re-apply `_gate_entry` to an already-written ledger entry (no audit re-run): the always-on risks' values and directions follow the
+    current flag files and gram-struct facts. Used by `--reconcile` after a rule change, so the whole ledger need not be rebuilt."""
+    flags = load_spanext_flags(publish_iso)
+    tf, tfa = bool(flags.get("typology_fallback")), bool(flags.get("typology_fallback_articles"))
+    raw = load_grambank(publish_iso)
+    for risk in dict.fromkeys(r[0] for r in RISK_RULES):
+        e = entry.get(risk)
+        if not isinstance(e, dict) or "value" not in e:
+            continue
+        if e.get("gated_source") and e["value"] is False and not str(e["gated_source"]).startswith(("audit finding", "no Grambank", "no direction")):
+            continue                              # gated for another recorded reason (article_bound, E6): keep as written
+        e["value"] = True
+        e.pop("gated_source", None)
+        _gate_entry(risk, e, _direction(risk, raw or {}, publish_iso, tf, tfa), raw is None and not tf)
+    return entry
 
 
 def always_on_mechanisms(tags: str | list[str], publish_iso: str, out_dir: Path = OUT,
@@ -106,8 +152,10 @@ def always_on_mechanisms(tags: str | list[str], publish_iso: str, out_dir: Path 
     language in config/spanext_flags.json — the SAME setting `span_extension.extend_spans` consults)."""
     flags = load_spanext_flags(publish_iso)
     typology_fallback = bool(flags.get("typology_fallback"))
-    report = analyze(tags, publish_iso, out_dir, prior_pack, method=method, use_typology=typology_fallback)
-    grambank = load_grambank(publish_iso) or {}
+    report = analyze(tags, publish_iso, out_dir, prior_pack, method=method, use_typology=typology_fallback,
+                     rate_max=load_audit_rate_max(publish_iso))
+    grambank_raw = load_grambank(publish_iso)
+    grambank = grambank_raw or {}
     by_risk: dict[str, dict] = {}
     for f in report.get("findings", []):
         entry = by_risk.setdefault(f["risk"], {"value": True, "pos": []})
@@ -129,11 +177,12 @@ def always_on_mechanisms(tags: str | list[str], publish_iso: str, out_dir: Path 
     tag_list = [tags] if isinstance(tags, str) else list(tags)
     gated = sorted(t for t in tag_list
                    if not base_mechanisms_enabled(load_spanext_flags(publish_iso, tag=t)))
+    typology_fallback_articles = bool(flags.get("typology_fallback_articles"))
+    no_coverage = grambank_raw is None and not typology_fallback
     for risk, entry in by_risk.items():
         entry["pos"] = sorted(set(entry["pos"]))
-        d = _direction(risk, grambank, publish_iso, typology_fallback)
-        if d:
-            entry["direction"] = d
+        d = _direction(risk, grambank, publish_iso, typology_fallback, typology_fallback_articles)
+        _gate_entry(risk, entry, d, no_coverage)
         if gated:
             entry["gated_off_editions"] = gated
             if len(gated) == len(tag_list):
@@ -154,6 +203,9 @@ def opt_in_mechanisms(publish_iso: str) -> dict:
     for key in _OPT_IN_SPANEXT_KEYS:
         if key in sx:
             out[key] = {"value": sx[key], "source": "measured vs gold — see config/spanext_flags.json"}
+    arm = load_audit_rate_max(publish_iso)
+    if arm is not None:
+        out["audit_rate_max"] = {"value": arm, "source": "measured vs gold — see config/spanext_flags.json"}
     fert = load_fertility_flags(publish_iso)
     if "enabled" in fert:
         out["fertility_priors"] = {"value": fert["enabled"],
@@ -243,11 +295,13 @@ def write_decisions(iso_entries: dict[str, dict], config_path: Path = _DECISIONS
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tag", dest="tags", action="append", required=True,
+    ap.add_argument("--reconcile", action="store_true",
+                    help="re-apply the always-on gating rules to every existing ledger entry (no audit re-run)")
+    ap.add_argument("--tag", dest="tags", action="append",
                     help="internal alignment TAG (align_<method>_<tag>_*.jsonl) the always-on RISK_RULES "
                          "audit reads — repeatable, pass one --tag per pooled edition of this language "
                          "so the audit is a real pooled aggregate, not one arbitrarily-chosen edition")
-    ap.add_argument("--publish-iso", required=True, help="bare published iso — the ledger's own key")
+    ap.add_argument("--publish-iso", help="bare published iso — the ledger's own key")
     ap.add_argument("--usj-dir", dest="usj_dirs", type=Path, action="append", default=None,
                     help="repeatable, one per pooled edition — only needed if target_morph has no "
                          "cache yet for this language (an existing cache is read as-is)")
@@ -260,6 +314,21 @@ def main(argv=None) -> int:
                          "— use for a one-off look/test so a single-language run doesn't touch the real "
                          "publish tree by accident")
     a = ap.parse_args(argv)
+    if a.reconcile:
+        doc = json.loads(a.config_path.read_text(encoding="utf-8"))
+        changed = 0
+        for iso, entry in doc.items():
+            if iso.startswith("_") or not isinstance(entry, dict):
+                continue
+            before = json.dumps(entry, sort_keys=True)
+            reconcile_entry(iso, entry)
+            changed += before != json.dumps(entry, sort_keys=True)
+        write_decisions({k: v for k, v in doc.items() if not k.startswith("_")}, config_path=a.config_path,
+                        publish_roots=[] if a.no_publish else _PUBLISH_ROOTS)
+        print(f"[pipeline_decisions] reconciled {changed} entr(y/ies) -> {a.config_path}", file=sys.stderr)
+        return 0
+    if not a.tags or not a.publish_iso:
+        ap.error("--tag and --publish-iso are required (or --reconcile)")
     entry = build_decisions(a.tags, a.publish_iso, usj_dirs=a.usj_dirs, out_dir=a.out,
                             prior_pack=a.prior_pack, method=a.method)
     write_decisions({a.publish_iso: entry}, config_path=a.config_path,

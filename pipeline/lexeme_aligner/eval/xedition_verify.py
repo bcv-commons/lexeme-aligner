@@ -271,6 +271,46 @@ def verdict(support: float, pairs: int) -> str:
     return "keep" if support >= KEEP_AT_LEAST else "uncertain"
 
 
+E6_FILE = Path("config/carryover/e6_spanext.json")
+FLAGS_FILE = Path("config/spanext_flags.json")
+
+
+def record(iso: str, tag: str, refs: list[str], row: dict, excluded: dict, date: str, path: Path = E6_FILE) -> dict:
+    """Merge one edition's E6 result into the evidence file (the one writer of config/carryover/e6_spanext.json)."""
+    doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"_doc": "E6 cross-edition verification "
+                                                                          "(xedition_verify.py --record)", "editions": {}}
+    doc["thresholds"] = {"flip_below": FLIP_BELOW, "keep_at_least": KEEP_AT_LEAST, "min_pairs": MIN_PAIRS}
+    entry = {"iso": iso, "refs": [r for r in refs if r not in excluded], "excluded": excluded, "date": date,
+             **{k: row[k] for k in ("pairs", "support", "null", "lift")}, "verdict": verdict(row["support"], row["pairs"])}
+    doc.setdefault("editions", {})[tag] = entry
+    doc["editions"] = dict(sorted(doc["editions"].items()))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    return entry
+
+
+def apply_flag(tag: str, entry: dict, path: Path = FLAGS_FILE) -> str:
+    """Mirror a verdict into config/spanext_flags.json: 'flip' -> per-edition base_mechanisms=false (with the evidence in
+    `_note`); 'keep' -> remove a previous E6 flip for this edition; anything else leaves the file alone. Returns what it did."""
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    cur = doc.get(tag)
+    if entry["verdict"] == "flip":
+        doc[tag] = {"base_mechanisms": False,
+                    "_note": (f"E6 {entry['date']}: only {100 * entry['support']:.1f}% of spanext-added words corroborated by "
+                              f"{len(entry['refs'])} sibling edition(s) ({entry['pairs']} comparisons, null {100 * entry['null']:.1f}%); "
+                              f"below the gold-calibrated flip cut-off {FLIP_BELOW}. Always-on mechanisms skipped for this edition. "
+                              "Evidence: config/carryover/e6_spanext.json. Revert by deleting this entry.")}
+        did = "flipped"
+    elif entry["verdict"] == "keep" and isinstance(cur, dict) and cur.get("base_mechanisms") is False \
+            and str(cur.get("_note", "")).startswith("E6 "):
+        del doc[tag]
+        did = "reverted an earlier E6 flip"
+    else:
+        return "unchanged"
+    path.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    return did
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True)
@@ -278,9 +318,20 @@ def main(argv=None) -> int:
     ap.add_argument("--ref", action="append", required=True, help="reference edition tag (repeatable)")
     ap.add_argument("--ingest-root", type=Path, default=Path("pipeline/work/ingest-cache"))
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--record", action="store_true", help=f"merge the result into {E6_FILE}")
+    ap.add_argument("--apply-flags", action="store_true", help=f"with --record: mirror the verdict into {FLAGS_FILE}")
     a = ap.parse_args(argv)
-    st = verify_edition(a.tag, a.ref, a.ingest_root, a.out)
-    print(json.dumps({"iso": a.iso, "test": a.tag, "refs": a.ref, **st.row()}, indent=1), file=sys.stdout)
+    excluded: dict = {}
+    st = verify_edition(a.tag, a.ref, a.ingest_root, a.out, excluded=excluded)
+    row = st.row()
+    print(json.dumps({"iso": a.iso, "test": a.tag, "refs": a.ref, "excluded": excluded, **row,
+                      "verdict": verdict(st.support, st.pairs)}, indent=1), file=sys.stdout)
+    if a.record:
+        import datetime
+        entry = record(a.iso, a.tag, a.ref, row, excluded, datetime.date.today().isoformat())
+        print(f"[xedition_verify] recorded {a.tag}: {entry['verdict']}", file=sys.stderr)
+        if a.apply_flags:
+            print(f"[xedition_verify] spanext_flags: {apply_flag(a.tag, entry)}", file=sys.stderr)
     return 0
 
 

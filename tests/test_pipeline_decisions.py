@@ -10,6 +10,7 @@ import lexeme_aligner.pipeline_decisions as pd
 def _patch_flags(monkeypatch, spanext=None, fertility=None):
     monkeypatch.setattr(pd, "load_spanext_flags", lambda iso, path=None, tag=None: spanext or {})
     monkeypatch.setattr(pd, "load_fertility_flags", lambda iso: fertility or {})
+    monkeypatch.setattr(pd, "load_audit_rate_max", lambda iso, path=None, tag=None: None)
 
 
 # --- always_on_mechanisms -------------------------------------------------------------------------------
@@ -77,7 +78,7 @@ def test_always_on_mechanisms_passes_the_full_tag_list_to_analyze_not_one(monkey
     _patch_flags(monkeypatch)
     seen = {}
 
-    def fake_analyze(tags, publish_iso, out_dir, prior_pack, method, use_typology):
+    def fake_analyze(tags, publish_iso, out_dir, prior_pack, method, use_typology, rate_max=None):
         seen["tags"] = tags
         return {"findings": []}
     monkeypatch.setattr(pd, "analyze", fake_analyze)
@@ -229,3 +230,48 @@ def test_write_decisions_loses_no_entry_when_many_processes_write_at_once(tmp_pa
     doc = json.loads(cfg.read_text(encoding="utf-8"))
     assert sorted(k for k in doc if k != "_doc") == isos
     assert not list(tmp_path.glob(".*.tmp"))                      # no temp file left behind
+
+
+# --- 2026-10-08: the ledger says only what span_extension actually does ------------------------------------
+def test_a_risk_no_mechanism_implements_is_recorded_false(monkeypatch):
+    _patch_flags(monkeypatch)
+    monkeypatch.setattr(pd, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "tam_auxiliary", "pos": "verb", "grambank_ids": ["GB119"]},
+        {"risk": "subject_indexing", "pos": "verb", "grambank_ids": ["GB089"]}]})
+    monkeypatch.setattr(pd, "load_grambank", lambda iso: {"GB119": "1"})
+    out = pd.always_on_mechanisms("zztag", "zz")
+    assert out["tam_auxiliary"]["value"] is False and out["subject_indexing"]["value"] is False
+    assert "no alignment mechanism" in out["tam_auxiliary"]["gated_source"]
+
+
+def test_a_finding_without_a_direction_is_recorded_false(monkeypatch):
+    _patch_flags(monkeypatch)
+    monkeypatch.setattr(pd, "analyze", lambda *a, **k: {"findings": [
+        {"risk": "case_marking", "pos": "noun", "grambank_ids": ["GB072"]}]})
+    monkeypatch.setattr(pd, "load_grambank", lambda iso: {"GB072": "1"})
+    monkeypatch.setattr(pd, "direction_for", lambda grambank, feat, iso=None: None)
+    out = pd.always_on_mechanisms("zztag", "zz")
+    assert out["case_marking"]["value"] is False and "no direction" in out["case_marking"]["gated_source"]
+
+
+def test_articles_direction_uses_the_articles_fallback_flag(monkeypatch):
+    seen = []
+    monkeypatch.setattr(pd, "direction_for", lambda grambank, feat, iso=None: seen.append((feat, iso)) or None)
+    pd._direction("articles", {}, "spa", typology_fallback=True, typology_fallback_articles=False)
+    pd._direction("case_marking", {}, "spa", typology_fallback=True, typology_fallback_articles=False)
+    assert seen == [("article_order", None), ("adposition_order", "spa")]
+
+
+def test_reconcile_regates_written_entries_and_keeps_other_gates(monkeypatch):
+    _patch_flags(monkeypatch)
+    monkeypatch.setattr(pd, "load_grambank", lambda iso: {"GB074": "1"})
+    monkeypatch.setattr(pd, "direction_for", lambda grambank, feat, iso=None: "before" if feat == "adposition_order" else None)
+    entry = {"tam_auxiliary": {"value": True, "pos": ["verb"]},
+             "case_marking": {"value": True, "pos": ["noun"]},
+             "articles": {"value": True, "pos": ["noun"], "direction": "before"},
+             "possession_affix": {"value": False, "gated_source": "cross-edition verification (E6) — see config"}}
+    out = pd.reconcile_entry("zz", entry)
+    assert out["tam_auxiliary"]["value"] is False
+    assert out["case_marking"]["value"] is True and out["case_marking"]["direction"] == "before"
+    assert out["articles"]["value"] is False and "direction" not in out["articles"]
+    assert out["possession_affix"]["gated_source"].startswith("cross-edition")       # another recorded gate is kept

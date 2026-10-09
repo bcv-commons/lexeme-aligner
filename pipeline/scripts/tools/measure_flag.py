@@ -30,7 +30,8 @@ from pathlib import Path
 from typing import Callable
 
 REPO = Path(__file__).resolve().parents[3]
-FLAGS = ("typology_fallback", "typology_fallback_articles", "definite_trigger", "relation_trigger")
+FLAGS = ("typology_fallback", "typology_fallback_articles", "definite_trigger", "relation_trigger",
+         "typed_gate", "phrase_window_gate", "name_guard", "base_mechanisms")
 LIVE_OUT = REPO / "pipeline/work/out"
 INGEST = REPO / "pipeline/work/ingest-cache"
 BASE_METHODS = ("eflomal", "gloss")
@@ -57,14 +58,18 @@ def scope_arg(scope: str) -> str:
     return f"--{scope}"
 
 
-def span_extension_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, flag: str, on: bool, scope: str) -> list[str]:
+def span_extension_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, flag: str, on: bool, scope: str,
+                       extra: list[str] | None = None) -> list[str]:
     return [py, "-m", "lexeme_aligner.span_extension", "--iso", tag, "--publish-iso", lang, "--usj-dir", str(usj), scope_arg(scope),
-            "--methods", ",".join(BASE_METHODS), "--out", str(scratch), flag_arg(flag, on)]
+            "--methods", ",".join(BASE_METHODS), "--out", str(scratch), flag_arg(flag, on), *(extra or [])]
 
 
-def pos_score_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, specs: list[str], scope: str, conv: bool) -> list[str]:
+def pos_score_cmd(py: str, tag: str, lang: str, usj: Path, scratch: Path, specs: list[str], scope: str, conv: bool,
+                  grain: str = "both") -> list[str]:
+    """`grain` both (default since 2026-10-08): token rows AND `[word]` rows (prefix/suffix morphemes pooled into their source word,
+    eval/word_bridge); the verdict is read from the word rows when present."""
     cmd = [py, "-m", "lexeme_aligner.eval.pos_score", "--iso", tag, "--publish-iso", lang, "--usj-dir", str(usj), scope_arg(scope),
-           "--out", str(scratch), "--json"]
+           "--out", str(scratch), "--json", "--grain", grain]
     for s in specs:
         cmd += ["--method", s]
     return cmd + (["--convention-aware"] if conv else [])
@@ -97,20 +102,21 @@ def verdict(dl: dict, min_gain: float = 0.002, max_precision_drop: float = 0.01)
 def render_table(results: dict[str, dict], flag: str, scope: str, min_gain: float) -> str:
     """Markdown: one row per language, strict rows and (when present) [conv] rows."""
     hdr = (f"### `{flag}` — off vs on, {scope}, vs gold (span_extension is deterministic: one run per variant)\n\n"
-           f"| language | tag | baseline F1 | off F1 | on F1 | ΔF1 | Δexact_span | Δprecision | verdict | Δ[conv] F1 | [conv] verdict |\n"
-           f"|---|---|---|---|---|---|---|---|---|---|---|\n")
+           f"| language | tag | grain | baseline F1 | off F1 | on F1 | ΔF1 | Δexact_span | Δprecision | verdict | Δ[conv] F1 | [conv] verdict | token ΔF1 |\n"
+           f"|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
     rows = []
     for lang, r in sorted(results.items()):
         if r.get("skipped"):
-            rows.append(f"| {lang} | — | — | — | — | — | — | — | skipped: {r['skipped']} | — | — |")
+            rows.append(f"| {lang} | — | — | — | — | — | — | — | — | skipped: {r['skipped']} | — | — | — |")
             continue
         s, c = r["strict"], r.get("conv")
         f = lambda v: "—" if v is None else f"{v:.4f}"          # noqa: E731
         sg = lambda v: "—" if v is None else f"{v:+.4f}"        # noqa: E731
         cdl = c["delta"] if c else None
-        rows.append(f"| {lang} | {r['tag']} | {f(s['baseline'].get('link_f1'))} | {f(s['off'].get('link_f1'))} | {f(s['on'].get('link_f1'))} | "
+        tok = (r.get("token") or s)["delta"]["link_f1"]
+        rows.append(f"| {lang} | {r['tag']} | {r.get('grain', 'token')} | {f(s['baseline'].get('link_f1'))} | {f(s['off'].get('link_f1'))} | {f(s['on'].get('link_f1'))} | "
                     f"{sg(s['delta']['link_f1'])} | {s['delta']['exact_span'] if s['delta']['exact_span'] is not None else '—'} | "
-                    f"{sg(s['delta']['link_precision'])} | **{s['verdict']}** | {sg(cdl['link_f1']) if cdl else '—'} | {c['verdict'] if c else '—'} |")
+                    f"{sg(s['delta']['link_precision'])} | **{s['verdict']}** | {sg(cdl['link_f1']) if cdl else '—'} | {c['verdict'] if c else '—'} | {sg(tok)} |")
     wins = sum(1 for r in results.values() if not r.get("skipped") and r["strict"]["verdict"] == "WIN")
     loss = sum(1 for r in results.values() if not r.get("skipped") and r["strict"]["verdict"] == "LOSS")
     n = sum(1 for r in results.values() if not r.get("skipped"))
@@ -124,24 +130,34 @@ def _json_from(stdout: str) -> dict:
 
 
 def measure_language(lang: str, tag: str, usj: Path, scratch: Path, flag: str, scope: str, conv: bool,
-                     run: Callable[[list[str]], str], py: str, min_gain: float, max_drop: float) -> dict:
+                     run: Callable[[list[str]], str], py: str, min_gain: float, max_drop: float,
+                     extra: list[str] | None = None) -> dict:
     spec_base, spec_ext = "eflomal+gloss", "spanext+eflomal+gloss"
     # variant OFF (+ the no-spanext baseline in the same scoring call)
-    run(span_extension_cmd(py, tag, lang, usj, scratch, flag, False, scope))
+    run(span_extension_cmd(py, tag, lang, usj, scratch, flag, False, scope, extra))
     off = _json_from(run(pos_score_cmd(py, tag, lang, usj, scratch, [spec_base, spec_ext], scope, conv)))["results"]
     for fp in scratch.glob(f"align_spanext_{tag}_*"):
         fp.unlink()                                                      # the next run must not read the previous variant
     # variant ON
-    run(span_extension_cmd(py, tag, lang, usj, scratch, flag, True, scope))
+    run(span_extension_cmd(py, tag, lang, usj, scratch, flag, True, scope, extra))
     on = _json_from(run(pos_score_cmd(py, tag, lang, usj, scratch, [spec_ext], scope, conv)))["results"]
 
     def block(suffix: str) -> dict:
         b, o, n = off.get(spec_base + suffix, {}), off.get(spec_ext + suffix, {}), on.get(spec_ext + suffix, {})
         dl = delta(o, n)
         return {"baseline": b, "off": o, "on": n, "delta": dl, "verdict": verdict(dl, min_gain, max_drop)}
-    out = {"tag": tag, "strict": block("")}
+    out = {"tag": tag, "token": block("")}
     if conv:
-        out["conv"] = block(" [conv]")
+        out["token_conv"] = block(" [conv]")
+    if (spec_ext + " [word]") in on:
+        out["word"] = block(" [word]")
+        if conv:
+            out["word_conv"] = block(" [word] [conv]")
+    # the decisive rows: word grain when scored (owner rule 2026-10-08), token grain otherwise
+    out["strict"] = out.get("word") or out["token"]
+    if conv:
+        out["conv"] = out.get("word_conv") or out["token_conv"]
+    out["grain"] = "word" if "word" in out else "token"
     return out
 
 
@@ -184,17 +200,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--work", type=Path, default=None, help="scratch/results folder (default pipeline/work/measure/<flag>-<timestamp>)")
     ap.add_argument("--force", action="store_true", help="measure a language even if a chain for it is running right now")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and exit")
+    ap.add_argument("--span-arg", action="append", default=[],
+                    help="extra span_extension argument for BOTH arms, e.g. --span-arg=--audit-rate-max=1.01 (repeatable)")
     a = ap.parse_args(argv)
 
     sys.path.insert(0, str(REPO / "pipeline"))
-    from lexeme_aligner.eval.contest_rule import gold_edition
+    from lexeme_aligner.eval.contest_rule import _TAG, gold_edition, gold_usj_dir
     langs = gold_languages() if a.all_gold else [x.strip() for x in a.langs.split(",") if x.strip()]
     work = a.work or REPO / "pipeline/work/measure" / f"{a.flag}-{time.strftime('%Y%m%d-%H%M%S')}"
     busy = running_names(subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True).stdout)
     results: dict[str, dict] = {}
     for lang in langs:
-        tag = gold_edition(lang)
-        usj = INGEST / f"usj-{tag}" if tag else None
+        edition = gold_edition(lang)
+        tag = _TAG.get(lang) or edition                      # the alignment files' tag (e.g. `bsb` for gold edition `engbsb`)
+        usj = Path(gold_usj_dir(lang)) if edition and gold_usj_dir(lang) else (INGEST / f"usj-{edition}" if edition else None)
         why = None
         if not tag:
             why = "no gold edition recorded"
@@ -218,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[measure] {lang} ({tag}): {n} input files copied; running both variants", file=sys.stderr)
         try:
             results[lang] = measure_language(lang, tag, usj, scratch, a.flag, a.scope, a.convention_aware, default_runner, sys.executable,
-                                             a.min_gain, a.max_precision_drop)
+                                             a.min_gain, a.max_precision_drop, a.span_arg)
         except Exception as e:                                          # noqa: BLE001 — one language must not stop the table
             results[lang] = {"skipped": f"failed: {e}"}
             print(f"[measure] {lang}: {e}", file=sys.stderr)

@@ -151,6 +151,38 @@
    "support": NaN,
    "verdict": "insufficient"
   },
+  "en1esv": {
+   "iso": "eng",
+   "refs": [
+    "bsb",
+    "eng_asv",
+    "engnas",
+    "eng_ylt"
+   ],
+   "excluded": {},
+   "date": "2026-10-08",
+   "pairs": 160483,
+   "support": 0.7655,
+   "null": 0.15,
+   "lift": 5.103,
+   "verdict": "keep"
+  },
+  "eng_asv": {
+   "iso": "eng",
+   "refs": [
+    "bsb",
+    "en1esv",
+    "engnas",
+    "eng_ylt"
+   ],
+   "excluded": {},
+   "date": "2026-10-08",
+   "pairs": 174909,
+   "support": 0.7481,
+   "null": 0.1548,
+   "lift": 4.833,
+   "verdict": "keep"
+  },
   "eng_f35": {
    "excluded": {},
    "iso": "eng",
@@ -181,6 +213,22 @@
     "eng_cpb"
    ],
    "support": 0.6336,
+   "verdict": "keep"
+  },
+  "eng_ylt": {
+   "iso": "eng",
+   "refs": [
+    "bsb",
+    "en1esv",
+    "eng_asv",
+    "engnas"
+   ],
+   "excluded": {},
+   "date": "2026-10-08",
+   "pairs": 89283,
+   "support": 0.6226,
+   "null": 0.0691,
+   "lift": 9.01,
    "verdict": "keep"
   },
   "engbsb": {
@@ -214,6 +262,23 @@
    ],
    "support": 0.3721,
    "verdict": "uncertain"
+  },
+  "engwmv": {
+   "iso": "eng",
+   "refs": [
+    "bsb",
+    "en1esv",
+    "eng_asv",
+    "engnas",
+    "eng_ylt"
+   ],
+   "excluded": {},
+   "date": "2026-10-08",
+   "pairs": 217555,
+   "support": 0.5594,
+   "null": 0.1424,
+   "lift": 3.928,
+   "verdict": "keep"
   },
   "fin_helfi": {
    "excluded": {},

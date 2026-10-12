@@ -523,3 +523,16 @@ pipeline/vendor/versification/{schemes/vul.tsv, schemes/vul.multiverse.json, nt-
   dbt/_vrs/index.json            sha256 a376c7021db486fe1fc8e10bf22ee589075d33790795e9a1022960070d02758d -> config/bibles_vrs/dbt_vrs_index.json (replaces the 2026-09-26 copy;
                                              used only to choose between REV12-17 and REV12-17esv, which share one detect rule). Noted: helloao:fra_lsg has no `nt` entry there,
                                              but its text numbers 2CO 13 with 13 verses and ACT 19 with 40 (greek profile).
+
+pipeline/vendor/versification/schemes/{orgw,catm}.tsv + {orgw,catm}.multiverse.json; config/bibles_vrs/{orgw,catm}-to-eng.json — bcv-commons/bibles, fetched 2026-10-12
+  (maps changed that day; TVTMS 902681f77a, CC BY 4.0, STEPBible.org). OT rows/relations only (NT numbering comes from nt-variants.json).
+  map/orgw-to-eng.json            1,395 rows (1,394 OT) sha256 1f20cd5fb0a5f79ea953db28a49c46d9086b129582ca5be5f5cd155ded4620b0 (bibles removed 70 rows in EXO 22, 1SA 21,
+                                  2CH 2, HOS 14; checked against fra_lsg, swe_fol, nld_nbg)
+  map/orgw-to-eng.multiverse.json 6 relations (4 OT kept) sha256 f05f1012050e47cfb4ac11746de5b8e425d52f192031291687fb808a58852679
+  map/catm-to-eng.json            1,992 rows (1,991 OT) sha256 ebefc0af68d678ab1f60836671f96be3cd23a84fd86d125d1f293032c7d8a724 (removed 41 rows in 1CH 12, NEH 7; checked against fra_ncl)
+  map/catm-to-eng.multiverse.json 7 relations (5 OT kept) sha256 693634e6475faaac0107343448b72013bd8aca079a7e2619401eae972d9de2e0
+  CHANGE IN versification.py: orgw and catm were mapped to hebrew.tsv = IDENTITY (assumed to number like the Hebrew spine). orgw is Hebrew only in the Psalm
+  titles and English in ~600 other OT verses (1CH 5/6, MAL 3/4, JOL 2/3, EXO 21/22, DAN 3/4 ...), so 35 orgw editions were paired wrongly there. Pairing audit
+  (verses with no text / edition verses never paired, OT, full-OT editions): fra_lsg 110/108 -> 7/11, swe_fol 130/130 -> 35/41, typical ~100-130 -> ~30-40.
+  The residual sits in chapters where single editions depart from the orgw map (JOB 41 19 editions, HOS 2 18, EXO 7 18, EZK 21 18, 2CH 13 18, SNG 7 17, JOB 38 16,
+  HOS 14 16, NAM 2 15, LEV 5 15, ...) — reported to bibles. org-to-eng.json (sha256 efed1a4e...) re-checked: = hebrew.tsv except the 2CO 13 row (NT, handled by nt-variants).

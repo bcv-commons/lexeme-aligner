@@ -10,7 +10,9 @@ LXX, bcv-query's), vendored and sha-pinned in config/PROVENANCE.txt; TVTMS (STEP
 SCHEME DETECTION is an AUDIT of the label bibles owns (internal-docs/repo-responsibilities.md): the scheme is found by
 fingerprinting the ingested target's verse-count-per-chapter structure against the pinned CDN `/_vrs/` schemes
 (`pipeline/vendor/versification/vrs/`) and mapping the best match to a diff table:
-  org, orgw, catm → hebrew   (Hebrew superscription; catm == org exactly)
+  org             → hebrew   (Hebrew numbering = the spine: identity)
+  orgw, catm      → orgw, catm (bibles' own tables since 2026-10-12: orgw numbers EXO 22, 1SA 21, 2CH 2, HOS 14 and
+                    ~600 other OT verses as English while keeping Hebrew Psalm titles; catm differs from org in 1CH 12, NEH 7)
   lxx             → lxx      (bcv-query's table)
   vul             → vul      (bibles)
   rso             → rso      (bibles; Russian Synodal and kin)
@@ -42,7 +44,7 @@ _REG_DIR = Path("pipeline/vendor/versification/schemes")   # our exact diff tabl
 _VRS_DIR = Path("pipeline/vendor/versification/vrs")        # pinned CDN structure schemes (*.vrs)
 
 _SCHEME_FILE = {"septuagint": "lxx", "lxx": "lxx", "hebrew": "hebrew",
-               "vul": "vul", "rso": "rso"}  # aligner label → tsv basename
+               "vul": "vul", "rso": "rso", "orgw": "orgw", "catm": "catm"}  # aligner label → tsv basename
 _IDENTITY = {"protestant", "kjv", ""}
 
 # CDN scheme (from a .vrs fingerprint) → the aligner label / diff table to use. `org`/`orgw`/`catm` share
@@ -51,7 +53,7 @@ _IDENTITY = {"protestant", "kjv", ""}
 # our `lxx.tsv` or of each other). `lxx` keeps its own existing table.
 _CDN_TABLE = {
     "eng": "protestant",
-    "org": "hebrew", "orgw": "hebrew", "catm": "hebrew",
+    "org": "hebrew", "orgw": "orgw", "catm": "catm",
     "lxx": "lxx", "vul": "vul", "rso": "rso",
 }
 # Protestant-canon OT books — the only place schemes diverge (NT is identical across all schemes).
@@ -506,7 +508,7 @@ def remapper_for_scheme(scheme: str, nt_variants: tuple[str, ...] | None = None)
 
 # aligner label -> bcv-commons/bibles scheme code (the vocabulary clients can look up there)
 _LABEL_TO_CDN = {"protestant": "eng", "kjv": "eng", "": "eng", "hebrew": "org", "lxx": "lxx", "septuagint": "lxx",
-                 "vul": "vul", "rso": "rso"}
+                 "vul": "vul", "rso": "rso", "orgw": "orgw", "catm": "catm"}
 
 
 def edition_scheme(iso: str, usj_dir: str | None = None) -> str:

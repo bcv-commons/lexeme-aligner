@@ -112,15 +112,10 @@ def test_parse_reads_title_as_verse_zero():
 # data (config/bibles_vrs/) — see versification.py's own module docstring for the full comparison this
 # was based on (catm==org exactly, org/orgw are subsets of our own hebrew.tsv, vul/rso are genuinely
 # distinct from each other and from our own lxx.tsv).
-def test_cdn_table_catm_maps_to_hebrew_not_septuagint():
+def test_cdn_table_catm_is_not_septuagint():
     # regression test for a real bug found and fixed 2026-09-26: catm was wrongly bucketed with the
-    # lxx/septuagint family, but catm's real data is byte-identical to org's, which is hebrew-family.
-    assert vf._CDN_TABLE["catm"] == "hebrew"
-
-
-def test_cdn_table_org_and_orgw_still_map_to_hebrew():
-    assert vf._CDN_TABLE["org"] == "hebrew"
-    assert vf._CDN_TABLE["orgw"] == "hebrew"
+    # lxx/septuagint family. Since 2026-10-12 it has its own table (bibles: differs from org in 1CH 12, NEH 7).
+    assert vf._CDN_TABLE["catm"] not in ("lxx", "septuagint")
 
 
 def test_cdn_table_vul_and_rso_have_their_own_distinct_tables():
@@ -338,3 +333,18 @@ def test_detect_nt_variants_and_the_rev_pair():
 def test_verse_map_name():
     assert vf.verse_map_name("eng") == "_versification_eng.json"
     assert vf.verse_map_name("eng", ("REV12-17", "3JN1-14")) == "_versification_eng+3JN1-14+REV12-17.json"
+
+
+# --- 2026-10-12: orgw and catm have their own tables (bibles): orgw keeps Hebrew Psalm titles but numbers ~600 other OT
+# verses as English (fra_lsg, swe_fol, nld_nbg); catm differs from org in 1CH 12 and NEH 7.
+def test_orgw_target_keeps_hebrew_psalms_and_english_elsewhere():
+    f = vf.remapper_for_scheme("orgw", ())
+    assert f("PSA", 51, 3) == ("PSA", 51, 3) and f("PSA", 51, 1) == ("PSA", 51, 1)
+    assert f("1CH", 5, 27) == ("1CH", 6, 1)
+    assert f("MAL", 3, 19) == ("MAL", 4, 1)
+    assert f("EXO", 21, 37) == ("EXO", 22, 1)
+
+
+def test_cdn_orgw_and_catm_are_no_longer_identity():
+    assert vf._CDN_TABLE["orgw"] == "orgw" and vf._CDN_TABLE["catm"] == "catm"
+    assert vf._CDN_TABLE["org"] == "hebrew"

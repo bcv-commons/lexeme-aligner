@@ -55,12 +55,18 @@ class IndexMismatch(RuntimeError):
     """The published source index disagrees with the current spine."""
 
 
-def spine_sha(spine_db: Path = SPINE_DB) -> str:
+def spine_content_sha(spine_db: Path = SPINE_DB) -> str:
+    """bcv-query's hash over ALL spine rows and columns (`spine_meta.spine_content_sha256`, announced 2026-10-12: it changes
+    with any derived column, unlike `macula_spine_sha256`); '' until the spine carries it."""
+    return spine_sha(spine_db, key="spine_content_sha256")
+
+
+def spine_sha(spine_db: Path = SPINE_DB, key: str = "macula_spine_sha256") -> str:
     """The spine's own recorded content pin (`spine_meta.macula_spine_sha256`); '' when the spine has none."""
     try:
         con = sqlite3.connect(f"file:{spine_db}?mode=ro", uri=True)
         try:
-            row = con.execute("SELECT value FROM spine_meta WHERE key='macula_spine_sha256'").fetchone()
+            row = con.execute("SELECT value FROM spine_meta WHERE key=?", (key,)).fetchone()
         finally:
             con.close()
     except sqlite3.Error:
@@ -263,6 +269,7 @@ def write_stamp(index_root: Path, spine_db: Path = SPINE_DB, books: list[str] | 
                                        sha_field: _digest(k_raw)})
     stamp = {"stamp_version": STAMP_VERSION, "spine_sha256": spine_sha(spine_db),
              "spine_index_sha256": spine_index_sha(spine_db),
+             **({"spine_content_sha256": c} if (c := spine_content_sha(spine_db)) else {}),
              "note": "srcOrd in every compact-alignments file indexes these per-verse lexeme lists; "
                      "`python3 -m lexeme_aligner.source_index --check` verifies them against the spine.",
              "books": dict(sorted(per_book.items()))}

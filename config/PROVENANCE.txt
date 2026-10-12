@@ -1,6 +1,13 @@
 lexeme-spine-macula.db — THE ACTIVE SPINE since 2026-10-04 (config.SPINE_DB default; ALIGNER_SYNTAX_SOURCE default = macula)  [pipeline/lexeme-spine-macula.db, git-ignored]
   MACULA-ONLY variant of the spine (delivered 2026-10-03).
   from bcv-query (shoresh/macula/lexeme-spine-macula.db), CC BY 4.0 (spine_meta: variant, license). sha256
+    f1003a2b19036788bfc063427cb5da1e883181d39c5c87e7ccb79eb5f7bf956d since 2026-10-12 evening (https://files.qombi.com/files/lexeme-spine-macula.db, 110,432,256
+    bytes; listed in https://files.qombi.com/files with the same sha). PIN = spine_meta.spine_content_sha256
+    471a3ac7fb152fac5f31e28a383451a0ff35b8d4f2fb5f9a73ff2fe108d742a8 (new key: sha256 over the spine_words column names and every row in key order; changes with
+    any row or column, unlike macula_spine_sha256, which still pins only the MACULA input). Recorded in _index/_source.json. Differs from 111cadc9 in exactly
+    two rows: LUK 3:33 Ἀρνί and REV 18:13 ἄμωμον (MACULA Strong's 0) now carry STEPBible's extended numbers (TBESG, CC BY 4.0) grc:6095 / grc:6007, so they
+    are content tokens; LUK/REV index refreshed, LUK/REV compact files regenerated for every NT edition built before the swap
+    (pipeline/work/logs/regen_luk_rev.py). 111cadc9 kept at ~/archive/lexeme-spine-macula-111cadc9-2026-10-12.db. Before that:
     111cadc961d3e23e55607cd56beab3ebed0b77184f5632e750a2437ec0e1db67 since 2026-10-12 (fetched from https://files.qombi.com/files/lexeme-spine-macula.db,
     110,415,872 bytes). It differs from the 2026-10-05 file ONLY in `is_superscription` (532 -> 741 tokens; +209, of which 114 are
     content tokens with a Strong's number, in 35 Psalm verses, e.g. PSA 3:1 "when he fled from Absalom his son") and a new spine_meta
@@ -536,3 +543,9 @@ pipeline/vendor/versification/schemes/{orgw,catm}.tsv + {orgw,catm}.multiverse.j
   (verses with no text / edition verses never paired, OT, full-OT editions): fra_lsg 110/108 -> 7/11, swe_fol 130/130 -> 35/41, typical ~100-130 -> ~30-40.
   The residual sits in chapters where single editions depart from the orgw map (JOB 41 19 editions, HOS 2 18, EXO 7 18, EZK 21 18, 2CH 13 18, SNG 7 17, JOB 38 16,
   HOS 14 16, NAM 2 15, LEV 5 15, ...) — reported to bibles. org-to-eng.json (sha256 efed1a4e...) re-checked: = hebrew.tsv except the 2CO 13 row (NT, handled by nt-variants).
+  2026-10-12 (later): vul re-fetched — map/vul-to-eng.json sha256 938063ad61bdb5023077078cee7abf16769bfbd004e5b0639298e64fe7c225e7 (4,101 rows: PSA 42:5, 125:6,
+  135:26 added, text-checked by bibles), multiverse sha256 80846a13fdbc3208e21d2ddcb6c8475a589844ea015b2f21367fb6daa2fab7fa -> schemes/vul.tsv, vul.multiverse.json.
+  bibles' direct <scheme>-to-org maps (live 2026-10-12) were compared with our composed route (spine -> eng -> scheme) and NOT adopted: identical for eng
+  (apart from titles, which we map to "no verse") and catm; pairing audit equal or better for ours on rus_syn, ukr_npu, bulbob (rso PSA 116:9), lat_clv,
+  eng_dra, dji_wbt (vul), fra_lsg, swe_fol (orgw JOB 40/41); lxx differs in 1,081 verses (our lxx.tsv is bcv-query's; no lxx edition in the dataset).
+

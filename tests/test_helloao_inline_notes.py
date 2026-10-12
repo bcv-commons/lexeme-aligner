@@ -29,5 +29,17 @@ def test_the_book_writer_applies_the_notes_and_counts_them():
     book = {"id": "RUT", "chapters": [{"chapter": {"number": 2, "content": [
         {"type": "verse", "number": 9, "content": ["चला करना2:9 चला करना: नोट।। क्या"]}]}}]}
     stats: dict = {}
-    usfm = h._book_usfm(book, {("RUT", 2, 9): ["2:9 चला करना: नोट।"]}, stats)
-    assert "\\v 9 चला करना । क्या" in usfm and stats == {"notes": 1, "removed": 1}
+    doc = h.book_to_usj(book, {("RUT", 2, 9): ["2:9 चला करना: नोट।"]}, stats)
+    paras = [x for x in doc["content"] if x.get("type") == "para"]
+    assert paras[0]["content"][0]["number"] == "9" and paras[0]["content"][1] == "चला करना । क्या"
+    assert stats == {"notes": 1, "removed": 1}
+
+
+def test_bibles_converter_keeps_text_after_a_pipe(tmp_path):
+    """The old USFM route lost everything after a literal "|" (USFM attribute separator); Sanskrit uses it as a danda."""
+    from lexeme_aligner import usj_source
+    book = {"id": "3JN", "chapters": [{"chapter": {"number": 1, "content": [
+        {"type": "verse", "number": 11, "content": ["हे प्रिय, सत्कर्म्मैव| यः सत्कर्म्माचारी स ईश्वरात् जातः|"]}]}}]}
+    (tmp_path / "64-3JN.json").write_text(__import__("json").dumps(h.book_to_usj(book)), encoding="utf-8")
+    text = usj_source.read_verses(tmp_path / "64-3JN.json", rules={})[(1, 11)]
+    assert "ईश्वरात्" in text and "जातः" in text

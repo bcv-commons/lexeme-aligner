@@ -269,7 +269,8 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
     """Fetch every book/chapter for a bible and convert to USJ <NN>-<BOOK>.json. Each book is routed
     to its OWN testament's fileset (falling back to 'ALL') — see text_filesets()."""
     try:
-        import usfmtc
+        import usfmtc  # noqa: F401  (feature check)
+        from lexeme_aligner import usfm_to_usj
     except ImportError:
         raise SystemExit("[dbt_source] USFM→USJ needs usfmtc — pip install -e '.[ingest]'")
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
@@ -354,7 +355,7 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
             consecutive_empty[fileset_id] = 0
             uf = Path(td) / f"{book}.usfm"
             uf.write_text(_book_usfm(book, chapters), encoding="utf-8")
-            usfmtc.readFile(str(uf)).outUsj(str(usj_dir / f"{nn}-{book}.json"))
+            usfm_to_usj.write(uf, usj_dir / f"{nn}-{book}.json")   # keeps whitespace between elements (usfm_to_usj docstring)
             n += 1
     cache_note = f", {cache_hits} chapter(s) from audio-sync cache" if cache_hits else ""
     print(f"[dbt_source] {n} book(s) → {usj_dir}{cache_note}", file=sys.stderr)

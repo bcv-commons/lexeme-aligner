@@ -17,6 +17,15 @@ fingerprinting the ingested target's verse-count-per-chapter structure against t
   eng             → protestant (identity)
 Without an ingested text there is nothing to detect, so the scheme is `protestant` (identity); every caller in the chain
 passes the ingested USJ directory.
+
+NEW TESTAMENT (2026-10-12). The schemes above differ only in the OT; NT numbering differs per EDITION, in a handful of
+chapters. bcv-commons/bibles' `nt-variants.json` lists each variant (e.g. `2CO13-13`: 2 Corinthians 13 has 13 verses, 13:12
+holds English 13:12-13) with its map to eng.vrs and a detect rule ("2CO 13 has 13 verses"). The spine (Nestle 1904) follows
+their `greek` profile (2CO13-13, ACT19-40), found by applying the same detect rules to the spine. An NT spine verse goes
+spine -> eng (the spine's variants) -> the edition (the edition's variants, inverted; identity where none applies; the
+scheme's own NT rows only when the edition has no variant). An edition's variants are detected from its ingested text;
+REV12-17 and REV12-17esv share one detect rule, and bibles' index (`nt` entry) decides between them, else REV12-17. Where one
+source verse covers two target verses (spine 2CO 13:12 = English 13:12-13) the source verse is paired with the FIRST.
 """
 from __future__ import annotations
 
@@ -24,6 +33,9 @@ import collections
 import glob
 import json
 import os
+import re
+import sqlite3
+from functools import lru_cache
 from pathlib import Path
 
 _REG_DIR = Path("pipeline/vendor/versification/schemes")   # our exact diff tables (hebrew.tsv, lxx.tsv)
@@ -150,6 +162,150 @@ def detect_scheme(usj_dir: str):
     _DETECT_CACHE[usj_dir] = result
     return result
 
+
+
+# ── New Testament variants (bcv-commons/bibles nt-variants.json) ────────────────────────────────
+
+_NT_VARIANTS_FILE = Path("pipeline/vendor/versification/nt-variants.json")
+_BIBLES_INDEX = Path("config/bibles_vrs/dbt_vrs_index.json")
+_PINS_DIR = Path("config/pins")
+_NT_BOOKS = frozenset(
+    "MAT MRK LUK JHN ACT ROM 1CO 2CO GAL EPH PHP COL 1TH 2TH 1TI 2TI TIT PHM HEB JAS 1PE 2PE 1JN 2JN 3JN JUD REV".split())
+_DETECT_RE = re.compile(r"^(\w{3}) (\d+) has (\d+) verses$")
+_REV_PAIR = ("REV12-17", "REV12-17esv")          # same detect rule; bibles' index decides, else the first
+_NT_CACHE: dict[str, tuple] = {}
+
+
+@lru_cache(maxsize=None)
+def nt_variant_table() -> dict:
+    """{variant name: {"chapter", "detect", "kind", "map": [{"s": ref, "t": [ref, ...]}]}} — edition verse s -> eng.vrs verses t."""
+    if not _NT_VARIANTS_FILE.exists():
+        return {}
+    return json.loads(_NT_VARIANTS_FILE.read_text(encoding="utf-8")).get("variants", {})
+
+
+def detect_nt_variants(last_verses: dict) -> tuple[str, ...]:
+    """The variants whose detect rule ("<BOOK> <C> has <N> verses") matches a {book: {chapter: last verse}} structure, sorted.
+    Both REV12-17 forms can match; the caller resolves that pair."""
+    found = []
+    for name, var in sorted(nt_variant_table().items()):
+        m = _DETECT_RE.match(var.get("detect", ""))
+        if m and last_verses.get(m.group(1), {}).get(int(m.group(2))) == int(m.group(3)):
+            found.append(name)
+    return tuple(found)
+
+
+def _usj_last_verses(usj_dir: str) -> dict:
+    """{book: {chapter: last verse}} of an ingested USJ dir, NT books only, a bridge counting by its END ("12-13" -> 13)."""
+    out: dict[str, dict] = collections.defaultdict(dict)
+    for fp in glob.glob(os.path.join(usj_dir, "*.json")):
+        try:
+            doc = json.load(open(fp, encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        cur = [None, 0]
+
+        def walk(node):
+            for it in (node if isinstance(node, list) else node.get("content", [])):
+                if not isinstance(it, dict):
+                    continue
+                if it.get("type") == "book":
+                    cur[0] = it.get("code")
+                if it.get("marker") == "c":
+                    try:
+                        cur[1] = int(it.get("number"))
+                    except (TypeError, ValueError):
+                        pass
+                if it.get("marker") == "v" and cur[0] in _NT_BOOKS:
+                    m = re.match(r"^(\d+)(?:\D+(\d+))?", str(it.get("number") or ""))
+                    if m:
+                        vn = int(m.group(2) or m.group(1))
+                        out[cur[0]][cur[1]] = max(out[cur[0]].get(cur[1], 0), vn)
+                if "content" in it:
+                    walk(it["content"])
+        walk(doc.get("content", doc))
+    return out
+
+
+def _bibles_nt_entry(tag: str) -> dict | None:
+    """bibles' dbt/_vrs/index.json `nt` entry for an edition (keyed helloao:<id>, pkf:<id>, <iso>/<bible_id>), via its pin."""
+    pin_fp = _PINS_DIR / f"{tag}.json"
+    if not (pin_fp.exists() and _BIBLES_INDEX.exists()):
+        return None
+    pin = json.loads(pin_fp.read_text(encoding="utf-8"))
+    nt = _bibles_index().get("nt", {})
+    prov = pin.get("provider", "")
+    if "helloao" in prov:
+        return nt.get(f"helloao:{pin.get('version_id')}")
+    if prov == "cdn.bibel.wiki":
+        return nt.get(f"pkf:{pin.get('version_id')}")
+    if pin.get("bible_id"):
+        suffix = "/" + pin["bible_id"]
+        return next((v for k, v in nt.items() if k.endswith(suffix)), None)
+    return None
+
+
+@lru_cache(maxsize=None)
+def _bibles_index() -> dict:
+    return json.loads(_BIBLES_INDEX.read_text(encoding="utf-8")) if _BIBLES_INDEX.exists() else {}
+
+
+def _resolve_rev(found: tuple, hint: dict | None) -> tuple[str, ...]:
+    if all(n in found for n in _REV_PAIR):
+        hinted = [n for n in _REV_PAIR if n in ((hint or {}).get("variants") or [])]
+        drop = _REV_PAIR[1] if not hinted or hinted[0] == _REV_PAIR[0] else _REV_PAIR[0]
+        found = tuple(n for n in found if n != drop)
+    return found
+
+
+def edition_nt_variants(tag: str, usj_dir: str | None) -> tuple[str, ...] | None:
+    """The edition's NT numbering variants detected from its ingested text; None when it has no NT text (nothing to map)."""
+    if not usj_dir or not os.path.isdir(usj_dir):
+        return None
+    if usj_dir not in _NT_CACHE:
+        last = _usj_last_verses(usj_dir)
+        _NT_CACHE[usj_dir] = (_resolve_rev(detect_nt_variants(last), _bibles_nt_entry(tag)) if last else None,)
+    return _NT_CACHE[usj_dir][0]
+
+
+@lru_cache(maxsize=None)
+def spine_nt_variants(spine_db: str | None = None) -> tuple[str, ...]:
+    """The spine's own NT variants (the same detect rules on its verse structure). Nestle 1904 = bibles' `greek` profile."""
+    from lexeme_aligner import config
+    con = sqlite3.connect(f"file:{spine_db or config.SPINE_DB}?mode=ro", uri=True)
+    try:
+        rows = con.execute("SELECT book, chapter, MAX(verse) FROM spine_words GROUP BY book, chapter").fetchall()
+    finally:
+        con.close()
+    last: dict[str, dict] = collections.defaultdict(dict)
+    for b, c, v in rows:
+        if b in _NT_BOOKS:
+            last[b][int(c)] = int(v)
+    return _resolve_rev(detect_nt_variants(last), None)
+
+
+def _nt_to_eng(variants) -> dict:
+    """{edition verse: first eng verse} over the variants' rows."""
+    out = {}
+    for name in variants:
+        for row in nt_variant_table().get(name, {}).get("map", []):
+            s, ts = _parse(row["s"]), [_parse(t) for t in row["t"]]
+            if s and ts and ts[0]:
+                out[s] = ts[0]
+    return out
+
+
+def _eng_to_nt(variants) -> dict:
+    """{eng verse: edition verse} — the variants' rows inverted (an eng verse claimed twice keeps the first claim)."""
+    out = {}
+    for name in variants:
+        for row in nt_variant_table().get(name, {}).get("map", []):
+            s = _parse(row["s"])
+            for t in row["t"]:
+                t = _parse(t)
+                if s and t and t not in out:
+                    out[t] = s
+    return out
 
 # ── reverse-map loading + remapper ──────────────────────────────────────────────────────
 
@@ -289,17 +445,35 @@ def load_forward(table: str) -> dict:
     return fwd
 
 
-def remapper_for_scheme(scheme: str):
+def remapper_for_scheme(scheme: str, nt_variants: tuple[str, ...] | None = None):
     """→ f(book, ch, v): SPINE ref → the given scheme's ref; None if identity (the target is numbered like the
     spine). Spine (Hebrew numbering) → KJV standard via `hebrew.tsv`, then KJV → the target scheme via that
     scheme's own table (identity for protestant). A spine verse the standard leaves unnumbered (a Psalm
     superscription → 'title') maps to verse 0, which an English-numbered text does not have, so it gets no
-    target text instead of the wrong one. Also used by the eflomal validator to force a candidate scheme."""
+    target text instead of the wrong one. Also used by the eflomal validator to force a candidate scheme.
+    NT: spine → eng via the spine's variants, then eng → the edition via `nt_variants` (the edition's own, see
+    `edition_nt_variants`; () = eng.vrs numbering, None = unknown, the NT is left as the spine numbers it); with no edition
+    variants the scheme's own NT rows apply (rso has a few)."""
     check_spine_numbering()
-    if _SCHEME_FILE.get(scheme) == _SPINE_OT_TABLE:
-        return None
-    to_std = load_forward(_SPINE_OT_TABLE)
+    hebrew_ot = _SCHEME_FILE.get(scheme) == _SPINE_OT_TABLE
+    spine_nt = spine_nt_variants()
+    ed_nt = spine_nt if nt_variants is None else tuple(nt_variants)   # None = unknown (no NT text): keep spine numbering
+    nt_s2e, nt_e2ed = _nt_to_eng(spine_nt), _eng_to_nt(ed_nt)
     rev_all = load_reverse_all(scheme)
+    rev_nt = {k: v for k, v in rev_all.items() if k[0] in _NT_BOOKS}
+    if hebrew_ot and set(spine_nt) == set(ed_nt) and not rev_nt:
+        return None
+
+    def nt(key):
+        std = nt_s2e.get(key, key)
+        if ed_nt:
+            return nt_e2ed.get(std, std)
+        srcs = rev_all.get(std)
+        return srcs[-1] if srcs else std
+
+    if hebrew_ot:
+        return lambda book, ch, v: nt((book, ch, v)) if book in _NT_BOOKS else (book, ch, v)
+    to_std = load_forward(_SPINE_OT_TABLE)
     # A standard verse that the scheme splits over SEVERAL verses (Synodal 50:1-2 for the English 51 'title'; Synodal 1SA 20:42-43
     # for English 20:42) while the same number of spine verses fold into it: pair them IN ORDER instead of letting the last
     # source win (spine PSA 51:1 AND 51:2 both used to land on Synodal 50:2, leaving 50:1 unpaired).
@@ -320,6 +494,8 @@ def remapper_for_scheme(scheme: str):
 
     def f(book: str, ch: int, v: int):
         key = (book, ch, v)
+        if book in _NT_BOOKS:
+            return nt(key)
         if key in rank:
             return rank[key]
         std = to_std.get(key, key)
@@ -342,12 +518,18 @@ def edition_scheme(iso: str, usj_dir: str | None = None) -> str:
     return _LABEL_TO_CDN.get(scheme_of(iso, usj_dir), "eng")
 
 
-def verse_map(cdn: str, spine_verses) -> dict[str, str]:
+def verse_map_name(cdn: str, nt_variants=()) -> str:
+    """File name of the published spine -> edition verse map: `_versification_<scheme>.json`, plus `+<variant>` per NT
+    variant the edition has (`_versification_eng+REV12-17.json`)."""
+    return f"_versification_{cdn}" + "".join(f"+{v}" for v in sorted(nt_variants or ())) + ".json"
+
+
+def verse_map(cdn: str, spine_verses, nt_variants=()) -> dict[str, str]:
     """{"BOOK C:V" spine ref: "BOOK C:V" target ref} for every spine verse whose target verse DIFFERS, exactly as the
     aligner pairs them (`remapper_for_scheme`); a verse the target leaves unnumbered (a Psalm superscription) maps to
     "BOOK C:title". Published as compact-alignments/_index/_versification_<scheme>.json so a client knows which
-    target verse a spine-keyed span indexes. `spine_verses`: iterable of (book, ch, v). Empty for Hebrew numbering."""
-    f = remapper_for_scheme(_CDN_TABLE.get(cdn, "protestant"))
+    target verse a spine-keyed span indexes. `spine_verses`: iterable of (book, ch, v). For Hebrew numbering only NT rows (if any)."""
+    f = remapper_for_scheme(_CDN_TABLE.get(cdn, "protestant"), tuple(nt_variants or ()))
     out: dict[str, str] = {}
     if f is None:
         return out
@@ -359,6 +541,6 @@ def verse_map(cdn: str, spine_verses) -> dict[str, str]:
 
 
 def remapper(iso: str, usj_dir: str | None = None):
-    """→ f(book, ch, v) mapping a SPINE ref to the target's scheme ref; None if identity (Hebrew-numbered target).
+    """→ f(book, ch, v) mapping a SPINE ref to the target's scheme ref; None if identity (Hebrew-numbered target whose NT numbering is the spine's).
     Auto-detects the scheme from the ingested USJ when usj_dir is given."""
-    return remapper_for_scheme(scheme_of(iso, usj_dir))
+    return remapper_for_scheme(scheme_of(iso, usj_dir), edition_nt_variants(iso, usj_dir))

@@ -22,6 +22,9 @@ WHAT THIS ADDS
     published index.
   * `<BOOK>_keys.json` / `<BOOK>_fn_keys.json` (since 2026-10-08) — the MACULA node key of every srcOrd / fnOrd token, position-parallel
     to `_lexemes.json` / `_fn.json`; checked, refreshed and stamped (`keys_sha256`, `fn_keys_sha256`) like the others.
+  * `spine_index_sha256` in the stamp (since 2026-10-12) — a hash of exactly the spine columns the index is built from; the
+    fast path in `ensure_current()` needs it to match too, because a column such as `is_superscription` can change while
+    `macula_spine_sha256` stays the same.
   * `refresh()` — regenerates only the books that differ (atomic write, deterministic bytes), then re-stamps.
 
     python3 -m lexeme_aligner.source_index --check [--strict]
@@ -63,6 +66,36 @@ def spine_sha(spine_db: Path = SPINE_DB) -> str:
     except sqlite3.Error:
         return ""                     # no spine on this machine (tests, CI): the stamp then compares "" == ""
     return row[0] if row else ""
+
+
+_INDEX_COLUMNS = ("key", "lexeme", "strong", "is_content", "is_superscription")
+_INDEX_SHA_CACHE: dict[tuple, str] = {}
+
+
+def spine_index_sha(spine_db: Path = SPINE_DB) -> str:
+    """sha256 over the spine columns that decide the index (node key, lexeme, Strong's, content flag, Psalm-title flag), in
+    spine order. `macula_spine_sha256` pins the MACULA source only: bcv-query widened `is_superscription` on 2026-10-1x
+    (209 tokens, 114 of them content) without changing it, so the stamp's spine hash alone cannot prove the index is
+    current. '' when the spine is missing (tests, CI)."""
+    try:
+        st = os.stat(spine_db)
+    except OSError:
+        return ""
+    ck = (str(spine_db), st.st_size, st.st_mtime_ns)
+    if ck not in _INDEX_SHA_CACHE:
+        con = sqlite3.connect(f"file:{spine_db}?mode=ro", uri=True)
+        try:
+            have = {r[1] for r in con.execute("PRAGMA table_info(spine_words)")}
+            cols = ", ".join(c if c in have else "NULL" for c in _INDEX_COLUMNS)
+            h = hashlib.sha256()
+            for row in con.execute(f"SELECT {cols} FROM spine_words ORDER BY book, chapter, verse, idx"):
+                h.update(("\t".join("" if x is None else str(x) for x in row) + "\n").encode("utf-8"))
+        except sqlite3.Error:
+            return ""
+        finally:
+            con.close()
+        _INDEX_SHA_CACHE[ck] = h.hexdigest()
+    return _INDEX_SHA_CACHE[ck]
 
 
 def file_bytes(lexemes: dict[str, list[str]]) -> bytes:
@@ -229,6 +262,7 @@ def write_stamp(index_root: Path, spine_db: Path = SPINE_DB, books: list[str] | 
                 per_book[book].update({n_field: sum(len(v) for v in json.loads(k_raw.decode("utf-8")).values()),
                                        sha_field: _digest(k_raw)})
     stamp = {"stamp_version": STAMP_VERSION, "spine_sha256": spine_sha(spine_db),
+             "spine_index_sha256": spine_index_sha(spine_db),
              "note": "srcOrd in every compact-alignments file indexes these per-verse lexeme lists; "
                      "`python3 -m lexeme_aligner.source_index --check` verifies them against the spine.",
              "books": dict(sorted(per_book.items()))}
@@ -271,7 +305,8 @@ def ensure_current(heb, book: str, index_root: Path, spine_db: Path = SPINE_DB) 
     with the spine's and raise `IndexMismatch` if they differ. A missing book file is NOT an error here
     (compact_align creates it and this function is not reached for it)."""
     stamp = read_stamp(index_root)
-    if stamp and stamp.get("spine_sha256") == spine_sha(spine_db) and book in (stamp.get("books") or {}):
+    if (stamp and stamp.get("spine_sha256") == spine_sha(spine_db) and book in (stamp.get("books") or {})
+            and stamp.get("spine_index_sha256") == spine_index_sha(spine_db)):
         return
     fp = index_root / f"{book}_lexemes.json"
     if not fp.exists():

@@ -144,7 +144,8 @@ def decode_to_usj(iso: str, converter: Path, usfm_tmp: Path, usj_dir: Path) -> i
               file=sys.stderr)
         return 0
     try:
-        import usfmtc
+        import usfmtc  # noqa: F401  (feature check)
+        from lexeme_aligner import usfm_to_usj
     except ImportError:
         raise SystemExit("[cdn] USFM→USJ needs usfmtc — pip install -e '.[ingest]'")
 
@@ -161,7 +162,7 @@ def decode_to_usj(iso: str, converter: Path, usfm_tmp: Path, usj_dir: Path) -> i
         if not nn:
             print(f"[cdn] skip {uf.name}: book '{book}' not in NN map", file=sys.stderr)
             continue
-        usfmtc.readFile(str(uf)).outUsj(str(usj_dir / f"{nn}-{book}.json"))
+        usfm_to_usj.write(uf, usj_dir / f"{nn}-{book}.json")   # keeps whitespace between elements (usfm_to_usj docstring)
         n += 1
     print(f"[cdn] decoded {n} book(s) → {usj_dir}", file=sys.stderr)
     return n

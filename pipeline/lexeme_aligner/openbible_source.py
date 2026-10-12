@@ -91,7 +91,8 @@ def build_pin(iso: str, edition: str, tag: str, m: dict, n_books: int) -> dict:
 
 def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None) -> int:
     try:
-        import usfmtc
+        import usfmtc  # noqa: F401  (feature check)
+        from lexeme_aligner import usfm_to_usj
     except ImportError:
         raise SystemExit("[openbible] USFM→USJ needs usfmtc — pip install -e '.[ingest]'")
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
@@ -112,7 +113,7 @@ def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None)
                 continue
             uf = Path(td) / f"{book}.usfm"
             uf.write_text(book_usfm(book, chapters), encoding="utf-8")
-            usfmtc.readFile(str(uf)).outUsj(str(usj_dir / f"{nn}-{book}.json"))
+            usfm_to_usj.write(uf, usj_dir / f"{nn}-{book}.json")   # keeps whitespace between elements (usfm_to_usj docstring)
             n += 1
     print(f"[openbible] {iso}/{edition}: {n} book(s) → {usj_dir}", file=sys.stderr)
     return n

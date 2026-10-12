@@ -20,15 +20,19 @@ from pathlib import Path
 from lexeme_aligner import config as _config
 from lexeme_aligner import span_roles as _span_roles
 
-# Non-scripture paragraph markers (digits stripped before lookup): headers, titles,
-# section headings, psalm titles (d), speaker lines, intro material. `b` is a blank line.
-_SKIP_PARA = {
-    "h", "toc", "mt", "imt", "ms", "mr", "s", "sr", "r", "d", "sp", "sd",
-    "cl", "cp", "ca", "ide", "rem", "b", "ib", "ip", "is", "io", "iot",
-    "ili", "im", "imi", "ipi", "iq", "ie", "periph", "restore", "lit",
-}
-# Character markers whose text is NOT translation text (alternate chapter/verse numbers).
-_SKIP_CHAR = {"va", "vp", "ca", "cp", "fv", "fm"}
+# The verse-text rule is owned by bcv-commons/bibles (tools/verse-text/js/rule.js, pinned in config/PROVENANCE.txt); these sets
+# mirror it exactly so a client's fingerprint of the same USJ equals ours. Markers are compared without trailing digits.
+# Headings: their text is not verse text, up to a verse number inside the heading paragraph — text after that number is the
+# verse's (a numbered \d psalm title; a source that left out the paragraph marker after a heading).
+_HEADING_PARA = {"s", "ms", "mr", "r", "sr", "sp", "cl", "qa", "mt", "mte", "cd", "d"}
+# Never verse text, verse numbers inside included: remarks (\rem, Paratext \restore), \cp, \ide, running headers, TOC, introductions.
+_SKIP_PARA = {"rem", "restore", "cp", "ide", "h", "toc", "toca"}
+_SKIP_PARA_RE = re.compile(r"^i\w+$")          # every introduction marker (\ip \is \imt \ie ...)
+# Character markers whose text is not verse text: \rq quotation source, \qac acrostic letter, \fm footnote mark, published /
+# alternate numbers (\vp \va \ca), \fig.
+_SKIP_CHAR = {"rq", "qac", "fm", "vp", "va", "ca", "fig"}
+# Inline element types that never carry verse text.
+_SKIP_TYPE = {"note", "figure", "ms", "optbreak"}
 
 _WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 
@@ -271,6 +275,10 @@ def _base_marker(marker: str) -> str:
     return (marker or "").rstrip("0123456789")
 
 
+_KNOWN_PARA = {"p", "m", "po", "pr", "cls", "pmo", "pm", "pmc", "pmr", "pi", "mi", "nb", "pc", "ph", "q", "qr", "qc", "qac", "qm", "qd",
+               "lh", "li", "lf", "lim", "tr", "tc", "tcr", "th", "thr", "b", "sd", "lit", "periph"}
+
+
 def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
     """Shared walker for read_verses/read_verse_ranges — yields (chapter, verse_start, verse_end,
     text_piece) per text-bearing item, verse_end == verse_start for a bare (non-range) marker.
@@ -297,7 +305,7 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
 
     def flush():
         """Alternate detection needs the whole verse, so its pieces are held back until the verse ends."""
-        spans = alternate_spans(" ".join(b[3] for b in buffered), rules)
+        spans = alternate_spans("".join(b[3] for b in buffered), rules)
         pos = 0
         for ch, vs, ve, piece in buffered:
             end = pos + len(piece)
@@ -305,7 +313,7 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
             text = clean(_blank(piece, local) if local else piece)
             if text:
                 yield (ch, vs, ve, text)
-            pos = end + 1
+            pos = end
         buffered.clear()
 
     def emit(text: str):
@@ -319,50 +327,92 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
         if state["ch"] and state["vs"] and text:
             yield (state["ch"], state["vs"], state["ve"], text)
 
-    def walk(items):
+    seen: set[int] = set()                                  # verse numbers already opened in this chapter
+
+    def inline(items, ctx):
+        """Text inside a paragraph / table cell. Pieces are joined with NO separator (the rule: markup inside a word does not
+        split it); a heading paragraph's text counts only after a verse number inside it (ctx["verse_here"])."""
         for it in items:
             if isinstance(it, str):
-                yield from emit(it)
+                if not ctx["heading"] or ctx["verse_here"]:
+                    yield from emit(it)
                 continue
             t = it.get("type")
-            if t == "chapter":
-                state["ch"] = int(re.match(r"\d+", str(it.get("number", "0"))).group())
-                state["vs"] = state["ve"] = 0
+            if t == "chapter":                              # not expected inside a paragraph; handled the same way
+                yield from block(it)
             elif t == "verse":
-                # a range marker ("3-4") keeps BOTH ends — read_verses() historically only kept the
-                # first number, silently discarding which OTHER source verses share this target text.
+                if not state["ch"]:
+                    continue
+                # a range marker ("3-4") keeps BOTH ends — read_verses() keys it by the first number.
                 m = re.match(r"(\d+)(?:-(\d+))?", str(it.get("number", "0")))
+                prev = state["vs"]
                 if m:
                     state["vs"] = int(m.group(1))
                     state["ve"] = int(m.group(2)) if m.group(2) else state["vs"]
                 else:
                     state["vs"] = state["ve"] = 0
-            elif t == "note":
-                continue                                    # footnotes / cross-refs: never text
-            elif t == "para":
-                base = _base_marker(it.get("marker", ""))
-                if base in _SKIP_PARA:
-                    continue
-                if base not in {"p", "m", "po", "pr", "cls", "pmo", "pm", "pmc", "pmr",
-                                "pi", "mi", "nb", "pc", "ph", "q", "qr", "qc", "qa",
-                                "qac", "qm", "qd", "lh", "li", "lf", "lim", "tr", "tc",
-                                "tcr", "th", "thr"} and base not in seen_unknown:
-                    seen_unknown.add(base)
-                    print(f"[usj] note: unknown para marker '{it.get('marker')}' — included",
-                          file=warn)
-                if it.get("content"):
-                    yield from walk(it["content"])
+                if state["vs"] and state["vs"] != prev and state["vs"] in seen:
+                    yield from emit(" ")                    # a verse number given again: its texts joined by one space
+                seen.add(state["vs"])
+                ctx["verse_here"] = True
+            elif t in _SKIP_TYPE:
+                continue                                    # footnotes / cross-refs / figures: never text
             elif t == "char":
                 if _base_marker(it.get("marker", "")) in _SKIP_CHAR:
                     continue
-                if it.get("content"):
-                    yield from walk(it["content"])
-            elif it.get("content"):
-                yield from walk(it["content"])
+                yield from inline(it.get("content") or [], ctx)
+            else:
+                yield from inline(it.get("content") or [], ctx)
 
-    yield from walk(usj.get("content", []))
+    def block(it):
+        """One top-level element (paragraph, table, chapter ...). A paragraph or a table cell ends a line: one space."""
+        if isinstance(it, str):
+            return                                          # text outside any paragraph is not verse text
+        t = it.get("type")
+        if t == "chapter":
+            state["ch"] = int(re.match(r"\d+", str(it.get("number", "0"))).group())
+            state["vs"] = state["ve"] = 0
+            seen.clear()
+            return
+        if t == "para":
+            marker = it.get("marker", "")
+            base = _base_marker(marker)
+            if base in _SKIP_PARA or _SKIP_PARA_RE.match(marker or ""):
+                return
+            heading = base in _HEADING_PARA
+            if not heading and base not in _KNOWN_PARA and base not in seen_unknown:
+                seen_unknown.add(base)
+                print(f"[usj] note: unknown para marker '{marker}' — included", file=warn)
+            yield from inline(it.get("content") or [], {"heading": heading, "verse_here": False})
+            yield from emit(" ")
+            return
+        if t in ("table", "table:row", "row"):
+            for c in it.get("content") or []:
+                yield from block(c)
+            return
+        if t in ("table:cell", "cell"):
+            yield from inline(it.get("content") or [], {"heading": False, "verse_here": False})
+            yield from emit(" ")
+            return
+        if t in ("note", "figure"):
+            return
+        # anything else at this level (a table row's stray char / milestone from a broken table conversion, a sidebar ...): its text,
+        # with no marker checks — as bibles' extractUsj does
+        yield from inline(it.get("content") or [], {"heading": False, "verse_here": False})
+
+    for it in usj.get("content", []):
+        yield from block(it)
     if buffered:
         yield from flush()
+
+
+_WS_RUN = re.compile(r"\s+")
+
+
+def _collapse(text: str) -> str:
+    """Whitespace runs -> one space, trimmed (the rule's last line). Pieces are joined with no separator, so a paragraph's closing space
+    and the text's own spaces meet here."""
+    return _WS_RUN.sub(" ", text).strip()
 
 
 def read_verses(usj_path: Path, warn=sys.stderr, *, rules: dict | None = None) -> dict[tuple[int, int], str]:
@@ -371,7 +421,7 @@ def read_verses(usj_path: Path, warn=sys.stderr, *, rules: dict | None = None) -
     verses: dict[tuple[int, int], list[str]] = {}
     for ch, vs, _ve, text in _walk_verses(usj_path, warn, rules=rules):
         verses.setdefault((ch, vs), []).append(text)
-    return {k: " ".join(parts) for k, parts in verses.items()}
+    return {k: _collapse("".join(parts)) for k, parts in verses.items()}
 
 
 def read_verse_ranges(usj_path: Path, warn=sys.stderr, *, rules: dict | None = None) -> dict[tuple[int, int], dict]:
@@ -387,7 +437,7 @@ def read_verse_ranges(usj_path: Path, warn=sys.stderr, *, rules: dict | None = N
             verses[key] = {"text": [], "verse_end": ve}
         verses[key]["text"].append(text)
         verses[key]["verse_end"] = max(verses[key]["verse_end"], ve)
-    return {k: {"text": " ".join(v["text"]), "verse_end": v["verse_end"]} for k, v in verses.items()}
+    return {k: {"text": _collapse("".join(v["text"])), "verse_end": v["verse_end"]} for k, v in verses.items()}
 
 
 def read_raw_verses(usj_path: Path, warn=sys.stderr) -> dict[tuple[int, int], str]:

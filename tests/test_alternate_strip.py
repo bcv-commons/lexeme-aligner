@@ -11,8 +11,9 @@ RULES = {"strip_alternate_parens": True}
 def _usj(tmp_path, pieces, tag="xxalt"):
     d = tmp_path / f"usj-{tag}"
     d.mkdir()
-    content = [{"type": "chapter", "number": "1"}, {"type": "verse", "number": "1"}]
+    content = [{"type": "chapter", "number": "1"}]
     content += [{"type": "para", "marker": "p", "content": [p]} for p in pieces]
+    content[1]["content"].insert(0, {"type": "verse", "number": "1"})     # a verse number sits inside a paragraph (the verse-text rule)
     fp = d / "01-GEN.json"
     fp.write_text(json.dumps({"type": "USJ", "content": content}), encoding="utf-8")
     return fp

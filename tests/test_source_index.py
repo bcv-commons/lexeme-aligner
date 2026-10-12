@@ -66,6 +66,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(si, "_keys", lambda heb, book, fn=False: (
         {"AAA 1:1": [], "AAA 1:2": []} if fn else {"AAA 1:1": ["k1", "k2+k3"], "AAA 1:2": ["k4"]}))
     monkeypatch.setattr(si, "spine_sha", lambda *a, **k: "spine-v1")
+    monkeypatch.setattr(si, "spine_index_sha", lambda *a, **k: "index-cols-v1")
     monkeypatch.setattr("lexeme_aligner.compact_align.ALL_BOOKS", ["AAA"])
     return books, tmp_path
 
@@ -115,6 +116,16 @@ def test_ensure_current_fast_path_and_failure(world, monkeypatch):
     si.ensure_current(_Heb(), "AAA", root)                                          # still the fast path (same spine hash)
     monkeypatch.setattr(si, "spine_sha", lambda *a, **k: "spine-v2")                # spine changed -> full comparison
     with pytest.raises(si.IndexMismatch, match="--refresh --books AAA"):
+        si.ensure_current(_Heb(), "AAA", root)
+
+
+def test_ensure_current_compares_when_only_the_index_columns_changed(world, monkeypatch):
+    """2026-10-12: bcv-query widened is_superscription without changing macula_spine_sha256."""
+    books, root = world
+    si.refresh(_Heb(), root, ["AAA"])
+    books["AAA"]["AAA 1:2"] = []
+    monkeypatch.setattr(si, "spine_index_sha", lambda *a, **k: "index-cols-v2")     # same spine pin, other flags
+    with pytest.raises(si.IndexMismatch):
         si.ensure_current(_Heb(), "AAA", root)
 
 

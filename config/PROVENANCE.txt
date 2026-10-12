@@ -1,6 +1,14 @@
 lexeme-spine-macula.db — THE ACTIVE SPINE since 2026-10-04 (config.SPINE_DB default; ALIGNER_SYNTAX_SOURCE default = macula)  [pipeline/lexeme-spine-macula.db, git-ignored]
   MACULA-ONLY variant of the spine (delivered 2026-10-03).
   from bcv-query (shoresh/macula/lexeme-spine-macula.db), CC BY 4.0 (spine_meta: variant, license). sha256
+    111cadc961d3e23e55607cd56beab3ebed0b77184f5632e750a2437ec0e1db67 since 2026-10-12 (fetched from https://files.qombi.com/files/lexeme-spine-macula.db,
+    110,415,872 bytes). It differs from the 2026-10-05 file ONLY in `is_superscription` (532 -> 741 tokens; +209, of which 114 are
+    content tokens with a Strong's number, in 35 Psalm verses, e.g. PSA 3:1 "when he fled from Absalom his son") and a new spine_meta
+    key superscription_source (Psalm titles from TVTMS + MACULA clause structure, reviewed table macula/psalm_title_spans.tsv; no BHSA).
+    macula_spine_sha256 is UNCHANGED (9a1f8bd5...), so the source-index stamp now also records spine_index_sha256 (hash of key, lexeme,
+    strong, is_content, is_superscription). Found by a compact-alignments client (124 differing tokens). PSA index refreshed; every OT
+    edition's PSA compact file must be regenerated (srcOrd shifts in those 35 verses). Previous file kept at
+    ~/archive/lexeme-spine-macula-c29f901f-2026-10-05.db. Before that: sha256
     c29f901f24550b5ac04ad7a95bf0e7fcd2325d6a84267e38a9b296463c65a69c since 2026-10-05 (fetched from https://shoresh.up.qombi.com/files/lexeme-spine-macula.db,
     110,415,872 bytes, sha verified). It differs from the previous file ONLY in spine_meta: new keys versification_ot (org), versification_nt
     (nestle1904), versification_nt_vs_eng (NT chapters differing from eng.vrs) and versification_note; spine_words checked identical here
@@ -488,3 +496,30 @@ pipeline/work/ubs-dictionary/UBSGreekNTDic-v1.1-en.JSON — UBS Dictionary of Ne
   © UBS 1988, 1989"). Gitignored. Bound to the NT spine by `python -m lexeme_aligner.ubs_greek_senses --build` into the grc_* tables of
   pipeline/ubs-senses.db (same share-alike file as the Hebrew layer): 125,543 of 137,779 NT tokens bound (unique 85,244, anchored 39,976,
   nearest 326; 2.0% of references unbound vs 6.6% for Hebrew). Nothing published from it yet.
+
+## bcv-commons/bibles verse-text package (pipeline/vendor/bibles/{helloao_to_usj.py, verse_text.py, LICENSE}) — added 2026-10-12
+- What: bibles' converter from helloAO per-chapter JSON to USJ (tools/verse-text/python/helloao_to_usj.py in github.com/bcv-commons/bibles,
+  part of their verse-text package), copied unchanged; helloao_source.book_to_usj calls its merge_book_usj (chapter_to_usj per chapter). Replaces our old
+  helloAO -> minimal USFM -> usfmtc route, which dropped everything after a literal "|" in a verse (Sanskrit editions use "|").
+- Pin: commit 34cb423a461cdc8cbe68fb08772fcb55d382c27b (main, 2026-10-12, "Add Python verse-text extractors; mark helloAO acrostics as \qac"):
+  helloao_to_usj.py sha256 93736957ebfc4e4944078690f048562adecd566b8061cd0034b77f9903feb28e (vs the 2971ebe4 pin: only the |<Hebrew letter>| -> qac char
+  change, which affects uig_ara/cyr/lat/pin), verse_text.py sha256 7d5b724100dd8329f0ce350e25e5f9d6ac879143acfba15fe203fa314e179e59 (extract_usj /
+  extract_sofria, the Python twin of tools/verse-text/js/rule.js + extract_usj.js; the verse-text rule our usj_source walker mirrors and is tested
+  against). Earlier pins: 2971ebe4 / a1c78f42… (converter only), c6f38318 / 6421430f… (pipeline/core/, no merge_book_usj).
+- Why: bibles owns helloAO conversion, verse extraction, tokenizer and text fingerprint for all clients (internal-docs/
+  compact-text-fingerprint-plan-2026-10-12.md section 11); using their converter keeps our verse texts equal to theirs.
+- Never edit the copy; fixes go to bibles, then re-vendor and update this pin.
+- LICENCE: CC0 1.0 (bibles' LICENSE, added 2026-10-12, copied as pipeline/vendor/bibles/LICENSE). Committed.
+- Local addition outside the copy: HINIRV's eBible footnote texts (config/inline_notes.json) are removed from helloAO's verse
+  strings BEFORE conversion (helloao_source._strip_chapter_notes); asked bibles to fold this into their release.
+
+pipeline/vendor/versification/{schemes/vul.tsv, schemes/vul.multiverse.json, nt-variants.json} + config/bibles_vrs/{dbt_vrs_index.json, vul-to-eng.json}
+  — bcv-commons/bibles, fetched 2026-10-12 from https://cdn.bibel.wiki/_vrs/ (TVTMS 902681f77a, CC BY 4.0, STEPBible.org).
+  map/vul-to-eng.json            4,098 rows  sha256 44025661ff5a6afbddac8559bc46ece29ddc661691a05f14ce0b94baa2e46dd7 -> schemes/vul.tsv (sha256 1059c798..., rebuilt by bibles
+                                             2026-10-09, OT only; replaces the 2026-09-26 table of 2,845 rows). vul.vrs unchanged (sha256 0b8f8ea8...).
+  map/vul-to-eng.multiverse.json 355 relations sha256 dfa3c60a54fea2faf882e74df26f9fcdd8baf763a2d0600af91e8b0d540af451 -> schemes/vul.multiverse.json
+  map/nt-variants.json           17 variants, 5 profiles  sha256 c071c01995ac8c98bd933ab7a0247de1794be4bd04bbd6adc24635f2f74cdf33 -> nt-variants.json (NEW: per-edition
+                                             NT numbering; versification.py detects an edition's variants from its text with the same detect rules; the spine = `greek`)
+  dbt/_vrs/index.json            sha256 a376c7021db486fe1fc8e10bf22ee589075d33790795e9a1022960070d02758d -> config/bibles_vrs/dbt_vrs_index.json (replaces the 2026-09-26 copy;
+                                             used only to choose between REV12-17 and REV12-17esv, which share one detect rule). Noted: helloao:fra_lsg has no `nt` entry there,
+                                             but its text numbers 2CO 13 with 13 verses and ACT 19 with 40 (greek profile).

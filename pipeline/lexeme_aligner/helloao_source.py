@@ -1,7 +1,11 @@
 """helloAO ingest adapter — fetch target text from bible.helloao.org → USJ.
 
 Pure Python, **no Node edge**. One robust fetch of the translation's `complete.json` (the whole
-translation — metadata + all books in a single request) → minimal USFM per book → `usfmtc` → USJ.
+translation — metadata + all books in a single request) → USJ per chapter with bcv-commons/bibles' converter
+(`pipeline/vendor/bibles/helloao_to_usj.py`, a pinned copy; see config/PROVENANCE.txt) → one USJ per book.
+bibles converts helloAO the same way, so our verse texts (and text fingerprints) match what their clients get.
+Until 2026-10-12 we built minimal USFM and parsed it with `usfmtc`, which silently dropped everything after a
+literal "|" in a verse (USFM's attribute separator; the Sanskrit editions use "|" as a danda).
 helloAO carries ~1,256 translations, including many absent from cdn.bibel.wiki's PKF set (e.g. Swedish
 `swe_fol`), so this reaches text beyond the 589 PKF languages. Same recipe-layer contract as
 `cdn_source`: the text stays at origin, we pin the translation's own `sha256` and link its `licenseUrl`.
@@ -13,11 +17,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import sys
 import zipfile
-import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -56,13 +60,6 @@ def complete(translation: str) -> dict:
     if "books" not in d:
         raise SystemExit(f"[helloao] '{translation}' has no complete.json books (id typo?)")
     return d
-
-
-def _verse_text(content: list) -> str:
-    """Join a verse's text spans, dropping inline objects ({noteId}, formatting markers)."""
-    parts = [x if isinstance(x, str) else (x.get("text") if isinstance(x, dict) else None)
-             for x in content]
-    return " ".join(p for p in parts if p).strip()
 
 
 INLINE_NOTES = Path("config/inline_notes.json")
@@ -129,33 +126,58 @@ def load_inline_notes(translation: str, config: Path = INLINE_NOTES) -> dict | N
     return ebible_notes(zp)
 
 
-def _book_usfm(book: dict, notes: dict | None = None, stats: dict | None = None) -> str:
-    """One complete.json book → minimal USFM. Verses go under \\p — not the \\s heading, or usfmtc
-    nests them inside it and read_verses skips the whole heading paragraph. Headings are dropped.
-    `notes` (load_inline_notes): footnote texts helloAO glued into the verse are removed."""
-    out = [f"\\id {book['id']}"]
+_VENDORED = Path(__file__).resolve().parents[1] / "vendor" / "bibles" / "helloao_to_usj.py"
+_conv = None
+
+
+def _converter():
+    """bcv-commons/bibles' helloAO JSON -> USJ converter (pinned copy, never edited; standard library only)."""
+    global _conv
+    if _conv is None:
+        spec = importlib.util.spec_from_file_location("bibles_helloao_to_usj", _VENDORED)
+        _conv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_conv)
+    return _conv
+
+
+def _strip_chapter_notes(book_id: str, chapter: dict, notes: dict, stats: dict | None) -> dict:
+    """A copy of one helloAO chapter with the eBible footnote texts helloAO glued into its verse strings removed
+    (config/inline_notes.json; HINIRV). A pre-step before bibles' converter, which keeps them."""
+    ch_no = int(chapter.get("number"))
+    content = []
+    for item in chapter.get("content", []):
+        want = notes.get((book_id, ch_no, int(item["number"]))) if isinstance(item, dict) and item.get("type") == "verse" else None
+        if want:
+            pieces, removed = [], 0
+            for piece in item.get("content", []):
+                if isinstance(piece, str):
+                    piece, n = strip_notes(piece, want)
+                    removed += n
+                elif isinstance(piece, dict) and isinstance(piece.get("text"), str):
+                    t, n = strip_notes(piece["text"], want)
+                    piece, removed = {**piece, "text": t}, removed + n
+                pieces.append(piece)
+            item = {**item, "content": pieces}
+            if stats is not None:
+                stats["notes"] = stats.get("notes", 0) + len(want)
+                stats["removed"] = stats.get("removed", 0) + removed
+        content.append(item)
+    return {**chapter, "content": content}
+
+
+def book_to_usj(book: dict, notes: dict | None = None, stats: dict | None = None) -> dict:
+    """One complete.json book -> one USJ book with bibles' converter (merge_book_usj: chapter_to_usj per chapter, joined)."""
+    chapters = []
     for chwrap in book["chapters"]:
         ch = chwrap.get("chapter", chwrap)                        # complete.json wraps: {chapter:{…}}
-        out += [f"\\c {ch.get('number')}", "\\p"]
-        for item in ch.get("content", []):
-            if isinstance(item, dict) and item.get("type") == "verse":
-                text = _verse_text(item.get("content", []))
-                want = (notes or {}).get((book["id"], int(ch.get("number")), int(item["number"])))
-                if want:
-                    text, n = strip_notes(text, want)
-                    if stats is not None:
-                        stats["notes"] = stats.get("notes", 0) + len(want)
-                        stats["removed"] = stats.get("removed", 0) + n
-                out.append(f"\\v {item['number']} {text}")
-    return "\n".join(out) + "\n"
+        if notes:
+            ch = _strip_chapter_notes(book["id"], ch, notes, stats)
+        chapters.append({"chapter": ch})
+    return _converter().merge_book_usj(book["id"], chapters)
 
 
 def to_usj(comp: dict, usj_dir: Path, only: list[str] | None, notes: dict | None = None) -> int:
     """complete.json books → USJ <NN>-<BOOK>.json (aligner numbering). Returns book count."""
-    try:
-        import usfmtc
-    except ImportError:
-        raise SystemExit("[helloao] USFM→USJ needs usfmtc — pip install -e '.[ingest]'")
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
 
     usj_dir.mkdir(parents=True, exist_ok=True)
@@ -163,16 +185,14 @@ def to_usj(comp: dict, usj_dir: Path, only: list[str] | None, notes: dict | None
     wanted = [b for b in by_id if not only or b in only]
     n = 0
     stats: dict = {}
-    with tempfile.TemporaryDirectory() as td:
-        for book in wanted:
-            nn = _BOOK_FILE_NUM.get(book)
-            if not nn:
-                print(f"[helloao] skip {book}: not in NN map", file=sys.stderr)
-                continue
-            uf = Path(td) / f"{book}.usfm"
-            uf.write_text(_book_usfm(by_id[book], notes, stats), encoding="utf-8")
-            usfmtc.readFile(str(uf)).outUsj(str(usj_dir / f"{nn}-{book}.json"))
-            n += 1
+    for book in wanted:
+        nn = _BOOK_FILE_NUM.get(book)
+        if not nn:
+            print(f"[helloao] skip {book}: not in NN map", file=sys.stderr)
+            continue
+        doc = book_to_usj(by_id[book], notes, stats)
+        (usj_dir / f"{nn}-{book}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        n += 1
     if notes is not None:
         print(f"[helloao] inline footnotes (config/inline_notes.json): {stats.get('removed', 0)} of {stats.get('notes', 0)} "
               f"eBible notes found in the verse text and removed", file=sys.stderr)

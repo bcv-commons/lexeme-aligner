@@ -297,3 +297,44 @@ def test_without_a_multiverse_file_nothing_changes(tmp_path, monkeypatch):
     _scheme_dir(tmp_path, monkeypatch, [("LEV 14:56", "LEV 14:57")], None)
     assert vf.multiverse_pairs("rso") == []
     assert vf.remapper_for_scheme("rso")("LEV", 14, 56) == ("LEV", 14, 56)
+
+
+# --- 2026-10-12: New Testament numbering per edition (bcv-commons/bibles nt-variants.json). The spine (Nestle 1904)
+# follows their `greek` profile; an NT spine verse goes spine -> eng -> the edition's own variants.
+def test_spine_nt_follows_the_greek_profile():
+    assert vf.spine_nt_variants() == ("2CO13-13", "ACT19-40")
+
+
+def test_eng_target_gets_the_greek_spine_nt_shift():
+    f = vf.remapper_for_scheme("protestant", ())
+    assert f("2CO", 13, 12) == ("2CO", 13, 12)      # spine 13:12 = English 13:12-13: paired with the first
+    assert f("2CO", 13, 13) == ("2CO", 13, 14)      # the benediction
+    assert f("ACT", 19, 40) == ("ACT", 19, 40)
+    assert f("MAT", 1, 1) == ("MAT", 1, 1)
+
+
+def test_edition_variants_are_applied_after_eng():
+    f = vf.remapper_for_scheme("protestant", ("3JN1-14", "REV12-17"))   # KJV profile
+    assert f("REV", 12, 18) == ("REV", 13, 1)       # KJV 13:1 holds 12:18 + 13:1: both spine verses pool there
+    assert f("REV", 13, 1) == ("REV", 13, 1)
+    assert f("3JN", 1, 15) == ("3JN", 1, 14)
+    assert f("2CO", 13, 13) == ("2CO", 13, 14)      # the spine's own shift still applies
+
+
+def test_hebrew_target_with_the_spines_nt_numbering_needs_no_remap():
+    assert vf.remapper_for_scheme("hebrew", ("2CO13-13", "ACT19-40")) is None
+    f = vf.remapper_for_scheme("hebrew", ())
+    assert f("PSA", 3, 2) == ("PSA", 3, 2) and f("2CO", 13, 13) == ("2CO", 13, 14)
+
+
+def test_detect_nt_variants_and_the_rev_pair():
+    last = {"2CO": {13: 13}, "ACT": {19: 40}, "REV": {12: 17}}
+    found = vf.detect_nt_variants(last)
+    assert {"2CO13-13", "ACT19-40", "REV12-17", "REV12-17esv"} <= set(found)
+    assert vf._resolve_rev(found, None) == ("2CO13-13", "ACT19-40", "REV12-17")
+    assert vf._resolve_rev(found, {"variants": ["REV12-17esv"]}) == ("2CO13-13", "ACT19-40", "REV12-17esv")
+
+
+def test_verse_map_name():
+    assert vf.verse_map_name("eng") == "_versification_eng.json"
+    assert vf.verse_map_name("eng", ("REV12-17", "3JN1-14")) == "_versification_eng+3JN1-14+REV12-17.json"

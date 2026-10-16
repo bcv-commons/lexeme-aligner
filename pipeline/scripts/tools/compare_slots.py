@@ -13,6 +13,9 @@ Two modes:
 
     .venv/bin/python pipeline/scripts/tools/compare_slots.py --mode exact \\
         --a publish/full-alignments-manual/e/eng/eng_BSB+manual+bsb-tables --b <their layer dir> [--book RUT ...] [--json out.json]
+
+Self-contained (standard library only). Outside this repo pass `--index <dir>` = a local copy of compact-alignments' `_index/`
+(the `<BOOK>_lexemes.json`, `_keys.json` and `_fn_keys.json` of the books compared).
 """
 from __future__ import annotations
 
@@ -151,13 +154,16 @@ def compare(a: dict, b: dict, mode: str) -> collections.Counter:
 
 
 def main(argv=None) -> int:
+    global INDEX
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--a", type=Path, required=True, help="layer dir A (e.g. ours, the BSB tables)")
     ap.add_argument("--b", type=Path, required=True, help="layer dir B (e.g. theirs)")
     ap.add_argument("--mode", choices=("exact", "anchor"), required=True)
     ap.add_argument("--book", action="append", help="books (default: every book both layers have)")
     ap.add_argument("--json", type=Path, default=None)
+    ap.add_argument("--index", type=Path, default=INDEX, help="compact-alignments _index/ directory (default: this repo's copy)")
     args = ap.parse_args(argv)
+    INDEX = args.index
     books = args.book or sorted({f.name.split("_")[0] for f in args.a.glob("*_*.json")} & {f.name.split("_")[0] for f in args.b.glob("*_*.json")})
     t: collections.Counter = collections.Counter()
     for book in books:

@@ -60,7 +60,8 @@ def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_s
     # content hash cannot detect (it covers verse TEXT, identical across tokenizer versions). It was
     # never in this list, so that instruction pointed at a file that had never been published.
     _COMPANIONS = ("manifest.json", "README.md", "tokenize.js", "tokenizer_sensitive_languages.json",
-                   "pipeline_decisions.json")      # the ledger the manifest tells clients to look entries up in
+                   "pipeline_decisions.json",      # the ledger the manifest tells clients to look entries up in
+                   "layers.json")                  # registry of full-alignment layers published in other repositories
     global_files = sorted(
         str(fp.relative_to(root)) for fp in root.glob("_index/*.json")
     ) + [f for f in _COMPANIONS if (root / f).exists()]

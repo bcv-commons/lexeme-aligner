@@ -63,3 +63,33 @@ def stage_layer(src_root: Path, layer: str, rel_paths: list[str], staging: Path 
     readme = layer_readme(layer)
     (stage / "README.md").write_bytes(readme.read_bytes())
     return stage, sorted(set(rel_paths) | {"README.md"})
+
+
+# --- layers.json: full-alignment layers published by others, in their own repositories (2026-10-16) ------------------------------
+REGISTRY_NOTE = ("Full-alignment layers published in other repositories, in the compact-alignments layout (manifest.json, paths, "
+                 "_layer.json). Read a layer's files from its repo at the same relative path; its manifest says where its text is.")
+
+
+def registry_entry(repo: str, kind: str, license: str, editions: list[dict]) -> dict:
+    """One repository's entry; every edition is {iso, edition, layer} and the layer id must be `<edition>+<kind>+<source>`."""
+    if "/" not in repo:
+        raise ValueError(f"{repo!r}: expected an owner/name repository id")
+    out = []
+    for e in editions:
+        if set(e) != {"iso", "edition", "layer"}:
+            raise ValueError(f"{e}: an edition entry has exactly iso, edition, layer")
+        parts = e["layer"].split("+")
+        if len(parts) != 3 or parts[0] != e["edition"] or parts[1] != kind:
+            raise ValueError(f"{e['layer']!r}: expected {e['edition']}+{kind}+<source>")
+        out.append({"iso": e["iso"], "edition": e["edition"], "layer": e["layer"]})
+    return {"repo": repo, "kind": kind, "license": license, "editions": sorted(out, key=lambda x: (x["iso"], x["edition"]))}
+
+
+def write_registry(path: Path, entries: list[dict]) -> None:
+    """Write `layers.json` (sorted, so a rewrite with the same content is byte-identical)."""
+    path.write_text(json_dumps({"note": REGISTRY_NOTE, "layers": sorted(entries, key=lambda x: x["repo"])}) + "\n", encoding="utf-8")
+
+
+def json_dumps(d) -> str:
+    import json
+    return json.dumps(d, ensure_ascii=False, indent=1)

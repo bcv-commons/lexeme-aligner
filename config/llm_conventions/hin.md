@@ -3,6 +3,8 @@ Target positions are the letter/mark runs of the verse in reading order. Punctua
 visible letters. Position numbers refer to that tokenization.
 
 Hindi notes:
+- GENITIVE `का / की / के` belongs to the POSSESSOR it follows, never to the possessed noun after it: `दुष्टों की | योजना` —
+  `की` goes with `दुष्टों` (in a Hebrew construct chain that is the second noun, the rectum), `योजना` alone with its own source word.
 - Hindi is postpositional: `का / की / के`, `से`, `में`, `को`, `ने`, `पर`, `तक` follow the noun as separate words. A
   postposition immediately following a name or noun is normally PART OF THAT NOUN'S OWN SPAN, not a free-standing
   function word to trim off separately — a Greek/Hebrew genitive, dative, or preposition is usually realized BY
@@ -10,11 +12,14 @@ Hindi notes:
   `मरियम की`, keeping `की`). Do not remove a postposition from a name/noun span just because it is a "function
   word" in isolation — check whether removing it would leave the source word's case/relation unrepresented before
   trimming it.
-- Verbs are a main verb plus auxiliaries (`है`, `था`, `थे`, `हुआ`, `गया`, `रहा`, `सकता`). Align the source verb to the main
-  verb; include an auxiliary only when it carries tense/aspect the source verb encodes.
+- Verbs are a main verb plus auxiliaries (`है`, `था`, `थे`, `हुआ`, `गया`, `रहा`, `सकता`). The auxiliaries render the source verb's
+  tense / aspect / person, so they ALWAYS go with that verb, contiguous with the main verb: `बैठता है` (not `बैठता` + `है` marked
+  `+`). Never mark an auxiliary as supplied (`+s`) when a source verb is there to own it.
 - Compound and light-verb constructions (`स्वीकार करना`, `प्रकट होना`): a noun or adjective + `होना / करना / देना`. Align the
   source verb to the whole compound (contiguous), light verb included.
-- Conjunctions (`और`, `व`, `तथा`) are function words.
+- Conjunctions (`और`, `व`, `तथा`, `न`, `परन्तु`, `तब`) render the Hebrew prefix וְ / וַ (its own source id, the first morpheme of
+  the next word) or Greek καί / δέ. Give the conjunction to THAT source id: in `और न` / `और दोनों` / `और उसकी पत्नी` the `और`
+  belongs to the וְ of the following Hebrew word. Do not leave `और` unowned or `+s` when the source has a conjunction.
 - Proper names are transliterated into Devanagari and spelling varies between editions (`हेसरोन` / `हिसरोन` / `हेजरोन`).
   Treat the given transliteration as a guide and match by sound, not by the exact spelling of a seed.
 - Word order is SOV: the verb comes late in the clause; do not expect the source order.

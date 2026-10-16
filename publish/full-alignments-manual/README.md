@@ -47,7 +47,8 @@ does not carry. No file holds a word of any text: every target reference is a to
 <BOOK>_<hash>.json       main: one string per spine verse, position-parallel to _index/<BOOK>_lexemes.json
                          "srcOrd:span ..." = the winning link of each CONTENT source token (compact's own meaning)
 <BOOK>_<hash>.meta.json  channels (a verse's entry is "" when empty; null = the channel has nothing in this book)
-_layer.json              attribution constants and the profile table (char -> method / score / prior / extra / attribution)
+_layer.json              version, flags (`lists`, `keyed`), the `spine_index_sha256` of the `_index/_source.json` the layer was
+                         built against, attribution constants and the profile table (char -> method / score / prior / extra / attribution)
 ```
 
 `<hash>` = the last 5 hex characters of the book's content hash (compact-alignments `book_content_hash`), so a file only matches
@@ -57,8 +58,8 @@ the exact text it was built on.
 
 | channel | content |
 |---|---|
-| `fn` | `"fnOrd:span ..."` links of FUNCTION-WORD source tokens (articles, prepositions, suffixes …; `_index/<BOOK>_fn.json` lists them in order) |
-| `wp` | one profile character per main entry; `.` = a view of a multi-source row whose row is in `rows` |
+| `fn` | `"fnOrd:span ..."` links of FUNCTION-WORD source tokens (articles, prepositions, suffixes …; `_index/<BOOK>_fn.json` lists them in order), plus their decision lists and the verse's `+` entry (below) |
+| `wp` | one profile character per main entry; `.` = a view of a row kept in `rows`; `-` = a `+` entry whose words belong to their owner's link |
 | `fp` | the same per `fn` entry |
 | `wx` | per entry, space separated: `_` or `;`-joined parts: `t<ints>` the gold's own target-token numbers, `S<id>` a source id other than the token's spine key, `P<ints>` the profile's arguments. Main entries first, then fn entries |
 | `rows` | `"srcs:span:prof[:ext]..."` every row that is not a claimed winner: losing alternatives, multi-token source attachments, unplaced rows, markers, joint rows |
@@ -67,9 +68,42 @@ the exact text it was built on.
 **Slots:** `c<N>` = content token srcOrd N · `f<N>` = function word fnOrd N · `p<N>` = token N of a verse folded into another
 verse's group (two source verses = one target verse).
 
-**Spans:** `5`, `5-7` contiguous, `5,9` scattered, `L3,1,2` an out-of-order list, `~` unplaced (verse not mappable), `!` explicitly
-empty, `@6e` / `@-1u` a MARKER: the source word has no target word of its own and sits after target word 6 (-1 = verse start);
-kind `u` = untranslated (BSB `-`), `e` = rendered elsewhere (BSB `. . .`).
+**Spans** (links and `rows`): `5`, `5-7` contiguous, `5,9` scattered, `L3,1,2` an out-of-order list, `~` unplaced (verse not
+mappable), `!` explicitly empty, `@6e` / `@-1u` a MARKER in `rows`: the source word has no target word of its own and sits after target
+word 6 (-1 = verse start); kind `u` = untranslated (BSB `-`), `e` = rendered elsewhere (BSB `. . .`).
+
+**Decision lists** (layer version 3, `"lists": true` in `_layer.json`). A source token or target word that the `main` / `fn`
+strings do not mention is **not decided**. Every other decision is a short list entry in the same strings, written with the span
+syntax (numbers, `4-5` ranges, commas); each entry takes one profile character in `wp` / `fp` and one `wx` entry, like a link.
+
+| entry | meaning | example |
+|---|---|---|
+| `!<ordinals>` | these source tokens have no target word | `!6`, `!0,4-5` |
+| `u<ord>[@<pos>],…` | untranslated (BSB `-`) | `u9`, `u9@10` |
+| `e<ord>[@<pos>],…` | rendered elsewhere (BSB `. . .`) | `e6` |
+| `+<pos>[><ord>],…` | `fn` only, once per verse: these target words were ADDED, optionally for content token `<ord>` (`>f<n>` = function token; BSB `[x]`) | `+1>5,10,29` |
+
+`!`, `u` and `e` go in the string of the tokens they list: content ordinals in `main`, function ordinals in `fn`.
+`@<pos>` is the **slot** of a source word with no target word of its own (it sits after target word `<pos>`, `-1` = verse start), for
+reverse interlinears. It is written only where the slot differs from the **default slot**, which a reader computes from the
+`main` / `fn` strings alone: take the nearest *preceding* source token (source order = `_index` key order) for which the strings show
+target positions — its link's span (a view counts) plus the `+` words that name it as owner — and the slot is after the last of
+those positions; `-1` if no preceding token shows any. On the BSB tables the default holds for 69% of untranslated and 82% of rendered-elsewhere marks; the rest are
+word-order changes (Ruth 1:6: אֶת sits after "attended to", not after "the LORD").
+
+A verse is **complete** when every ordinal of `_index/<BOOK>_keys.json` and `_fn_keys.json` appears (in a link or a list) and every
+target position is covered (by a span or by `+`); no flag is needed. Example, Ruth 1:6 in `eng_BSB+manual+bsb-tables`:
+
+```
+main  "0:24 1:19-23 2:25-26 3:27-28 4:29-30 5:2 7:3-4 8:8-10 9:6-7 10:11-12 11:13-14 12:16-17 e6"
+fn    "0:24 1:18 2:19-23 3:25-26 4:25-26 5:27-28 6:0 8:5 10:13-14 11:13-14 12:15 13:15 u9@10 e7 +1>5"
+```
+
+(c6 שְׂדֵה rendered elsewhere at the default slot; f9 אֶת untranslated after word 10; "Naomi", word 1, supplied for c5 "she had heard".
+Entries with profile `.` are views of multi-token BSB rows, whose full data stays in `rows`.)
+
+**Keyed layers** (`"keyed": true`, the BSB tables): a row with one source token has that token as its keyed token unless the row says
+`k-`; `k<i>` is written only for rows with several source tokens.
 
 **Row extensions:** `k<i>` index (into the srcs) of the keyed token · `v` joint with the following phrase (BSB `vvv`) ·
 `s<pos,..>` target words the editor SUPPLIED (BSB `[x]`, not in the span) · `i<pos,..>` inflection words made explicit (BSB `{x}`,

@@ -34,6 +34,20 @@ Profile arguments: a number inside a row's `prior` is per-row data (span extensi
 Vetoed rows: a row whose profile `extra` carries `"veto": "<check>"` (a word-level check judged the link wrong, eval/word_checks.py)
          is never claimed into main/fn and never shown as a view there; it stays whole in `rows`.
 
+Decision lists (layer version 3, `"lists": true` in _layer.json; agreed with bsb-add-books 2026-10-16). A token or target word
+the main/fn strings do not mention is NOT DECIDED. Decisions other than links are list entries in the same strings, written with
+the span syntax (numbers, `4-5` ranges, commas); each entry takes one profile character in wp/fp and one wx entry like a link:
+      !<ords>              these source tokens have no target word                                   `!0,4-5`
+      u<ord>[@<pos>],...   untranslated / e<ord>[@<pos>],... rendered elsewhere; `@` = the slot (after target word <pos>, -1 =
+                           verse start), written ONLY where it differs from the default slot (default_slot)   `u9@10`, `e6`
+      +<pos>[><ord>],...   (fn only) these target words were ADDED, optionally in service of content token <ord> (`>f<n>` =
+                           function token); profile `-` = attached to that token's claimed link (BSB `[x]`), a letter = a row
+                           of its own with no source token                                             `+1>5,10,29`
+      `!`, `u`, `e` go in the string of the tokens they list (content ordinals in main, function ordinals in fn).
+      Profile `.` on a list entry = a VIEW of a row kept in `rows` (as for links).
+Keyed layers (`"keyed": true`, BSB tables): a single-source row has key 0 unless it says `k-` (no keyed token), so such rows can
+be claimed into main/fn.
+
 Derived on decode, never stored: lexeme/strong/lemma/stem/surface/gloss_en/content (from the spine) and `target` (from the
 positions and the edition text).  The BHSA-derived `sense` is NOT carried (licence).
 """
@@ -49,7 +63,10 @@ PROFILE_CHARS = string.ascii_letters + string.digits
 PRIORITY = ["spanext", "eflomal", "exact", "stem", "prefix", "head", "multi", "fuzzy", "gapfill", "residual", "llm", "manual"]
 MARK_ROWS = {"-": "u", ". . .": "e"}               # BSB-tables placeholder cells -> marker kind
 JOINT_CELL = "vvv"
-LAYER_VERSION = 2                                  # 2: profile arguments (P) — a prior's numbers are per-row data
+LAYER_VERSION = 3                                  # 2: profile arguments (P) — a prior's numbers are per-row data
+                                                   # 3: decision lists (! u e +) and keyed layers; a layer using neither stays 2
+LIST_KINDS = "!ue"                                 # no target word / untranslated / rendered elsewhere
+NO_PROFILE = "-"                                   # profile char of a `+` entry whose words belong to their owner's link
 
 
 # --- span codec ------------------------------------------------------------------------------------------
@@ -93,6 +110,50 @@ def dec_marker(s: str) -> tuple[int, str]:
 
 def is_marker(s: str) -> bool:
     return s.startswith("@")
+
+
+def enc_items(items, sep: str) -> str:
+    """[(n, extra)] -> "0,4-5,9@10": sorted by n; an item with an extra (a slot after `@`, an owner after `>`) stands alone,
+    runs of plain items become ranges."""
+    parts: list[str] = []
+    run: list[int] = []
+
+    def flush():
+        if run:
+            parts.append(str(run[0]) if len(run) == 1 else f"{run[0]}-{run[-1]}" if len(run) > 2 else f"{run[0]},{run[1]}")
+            run.clear()
+    for n, x in sorted(items, key=lambda it: it[0]):
+        if x is None:
+            if run and n != run[-1] + 1:
+                flush()
+            run.append(n)
+        else:
+            flush()
+            parts.append(f"{n}{sep}{x}")
+    flush()
+    return ",".join(parts)
+
+
+def dec_items(s: str, sep: str) -> list[tuple[int, str | None]]:
+    out: list[tuple[int, str | None]] = []
+    for p in s.split(","):
+        if sep in p:
+            n, x = p.split(sep, 1)
+            out.append((int(n), x))
+        elif "-" in p:
+            a, b = p.split("-")
+            out += [(n, None) for n in range(int(a), int(b) + 1)]
+        else:
+            out.append((int(p), None))
+    return out
+
+
+def owner_str(slot: tuple[str, int]) -> str:
+    return str(slot[1]) if slot[0] == "c" else f"f{slot[1]}"
+
+
+def parse_owner(s: str) -> tuple[str, int]:
+    return ("f", int(s[1:])) if s.startswith("f") else ("c", int(s))
 
 
 # --- slots -------------------------------------------------------------------------------------------------
@@ -364,11 +425,16 @@ def bsb_crows(vrows: list[dict], group: Group, base: dict, letters) -> list[CRow
 
 
 # --- row entries (the `rows` channel) -------------------------------------------------------------------------
-def fmt_row(c: CRow, profiles: Profiles, has_ids: bool, group: Group | None) -> str:
+def fmt_row(c: CRow, profiles: Profiles, has_ids: bool, group: Group | None, keyed: bool = False) -> str:
     srcs = ",".join(slot_str(s) for s in c.src) or "-"
     span = enc_marker(*c.mark) if c.mark else enc_span(c.span)
     parts = [srcs, span, profiles.add(c.prof)]
-    if c.key is not None:                       # present <=> the row has a keyed token (BSB tables)
+    if keyed and len(c.src) == 1:               # keyed layer: a single source token is the keyed one unless `k-`
+        if c.key is None:
+            parts.append("k-")
+        elif c.key != 0:
+            parts.append(f"k{c.key}")
+    elif c.key is not None:                     # present <=> the row has a keyed token (BSB tables)
         parts.append(f"k{c.key}")
     if c.joint:
         parts.append("v")
@@ -387,11 +453,13 @@ def fmt_row(c: CRow, profiles: Profiles, has_ids: bool, group: Group | None) -> 
     return ":".join(parts)
 
 
-def parse_row(entry: str, ref: str, profiles: Profiles, has_ids: bool, group: Group | None) -> CRow:
+def parse_row(entry: str, ref: str, profiles: Profiles, has_ids: bool, group: Group | None, keyed: bool = False) -> CRow:
     f = entry.split(":")
     c = CRow(ref=ref)
     if f[0] != "-":
         c.src = [parse_slot(s) for s in f[0].split(",")]
+    if keyed and len(c.src) == 1:
+        c.key = 0
     if is_marker(f[1]):
         c.mark = dec_marker(f[1])
         c.span = []
@@ -402,7 +470,7 @@ def parse_row(entry: str, ref: str, profiles: Profiles, has_ids: bool, group: Gr
     for x in f[3:]:
         t, rest = x[0], x[1:]
         if t == "k":
-            c.key = int(rest)
+            c.key = None if rest == "-" else int(rest)
         elif t == "v":
             c.joint = True
         elif t == "s":
@@ -440,28 +508,53 @@ def with_veto(extra: str | None, check: str) -> str:
     return json.dumps(d, ensure_ascii=False, sort_keys=True)
 
 
-def plain_single(c: CRow) -> bool:
-    """A row that can be a claimed winner: one c/f source token, no keyed/marker/joint/role data, a real span, not vetoed."""
-    return (len(c.src) == 1 and c.src[0][0] in "cf" and c.key is None and c.mark is None and not c.joint
-            and not c.sup and not c.inf and c.tstrong is None and bool(c.span) and not is_vetoed(c))
+def plain_single(c: CRow, keyed: bool = False, lists: bool = False) -> bool:
+    """A row that can be a claimed winner: one c/f source token, no keyed/marker/joint/role data, a real span, not vetoed.
+    Keyed layer: the token must be the keyed one (key 0). Lists layer: supplied words are allowed (they move to a `+` entry)."""
+    key_ok = c.key == 0 if keyed else c.key is None
+    return (len(c.src) == 1 and c.src[0][0] in "cf" and key_ok and c.mark is None and not c.joint
+            and (lists or not c.sup) and not c.inf and c.tstrong is None and bool(c.span) and not is_vetoed(c))
+
+
+def list_single(c: CRow, keyed: bool) -> bool:
+    """A row that can be a claimed list item (`!`, `u`, `e`): one c/f source token, an empty span, nothing else."""
+    key_ok = c.key == 0 if keyed else c.key is None
+    return (len(c.src) == 1 and c.src[0][0] in "cf" and key_ok and c.span == [] and not c.joint and not c.sup
+            and not c.inf and c.tstrong is None and not is_vetoed(c))
+
+
+def added_only(c: CRow) -> bool:
+    """A row with no source token that only says 'these target words were added' (a `+` entry of its own)."""
+    return (not c.src and c.span == [] and bool(c.sup) and c.mark is None and not c.joint and not c.inf and c.key is None
+            and c.tstrong is None and c.tids is None and c.sid is None and not c.pargs and not is_vetoed(c))
+
+
+def default_slot(slot_pos: dict, order: dict, slot) -> int:
+    """Where a source token with no target word of its own sits when the layer does not say (`u9` without `@`): after the last
+    target position SHOWN in the main/fn strings for the nearest PRECEDING source token (source order) that has any: its link's
+    span (claimed or view) plus the `+` words that name it as owner. -1 = verse start. Computed from the strings alone, so the
+    encoder, our decoder and a client agree. `slot_pos` = {slot: set of positions}, `order` = {slot: source position}."""
+    h = order[slot]
+    prev = [s for s, p in slot_pos.items() if p and order.get(s, h) < h]
+    return max(slot_pos[max(prev, key=lambda s: order[s])]) if prev else -1
 
 
 @dataclass
 class VerseOut:
-    main: list = field(default_factory=list)       # [(ord, span_str, prof_char, ext)]
+    main: list = field(default_factory=list)       # [(sortkey, entry text, prof_char, ext)]
     fn: list = field(default_factory=list)
     rows: list = field(default_factory=list)       # row entry strings
 
 
 def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: bool,
-                 hint: dict | None = None) -> VerseOut:
+                 hint: dict | None = None, keyed: bool = False, lists: bool = False) -> VerseOut:
     """`hint` = {srcOrd: span list} of an existing compact main entry for this verse (statistical layer): main then keeps
     exactly those entries (compact's own winners) and claims the matching row of each."""
     out = VerseOut()
     claimed: set[int] = set()
     cand: dict[tuple, list[int]] = collections.defaultdict(list)
     for i, c in enumerate(crows):
-        if plain_single(c):
+        if plain_single(c, keyed, lists):
             cand[c.src[0]].append(i)
 
     def pick(slot, want=None):
@@ -472,60 +565,118 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
         bits = []
         if has_ids and c.tids:
             bits.append("t" + ",".join(map(str, c.tids)))
-        if has_ids and c.sid is not None and c.sid != default_sid(group, c.src[0]):
+        if has_ids and c.src and c.sid is not None and c.sid != default_sid(group, c.src[0]):
             bits.append("S" + c.sid)
         if c.pargs:
             bits.append("P" + ",".join(map(str, c.pargs)))
         return ";".join(bits) or "_"
 
+    def link(o, span_str, prof, ext):
+        return ((0, o, ""), f"{o}:{span_str}", prof, ext)
+
     if hint is not None:
         for o in sorted(hint):
             i = pick(("c", o), hint[o])
             if i is None:
-                out.main.append((o, enc_span(hint[o]), ".", "_"))
+                out.main.append(link(o, enc_span(hint[o]), ".", "_"))
             else:
                 claimed.add(i)
-                out.main.append((o, enc_span(hint[o]), profiles.add(crows[i].prof), ext_of(crows[i])))
+                out.main.append(link(o, enc_span(hint[o]), profiles.add(crows[i].prof), ext_of(crows[i])))
     else:
         for slot in sorted((s for s in cand if s[0] == "c"), key=lambda s: s[1]):
             i = pick(slot)
             if i is not None:
                 claimed.add(i)
-                out.main.append((slot[1], enc_span(crows[i].span), profiles.add(crows[i].prof), ext_of(crows[i])))
+                out.main.append(link(slot[1], enc_span(crows[i].span), profiles.add(crows[i].prof), ext_of(crows[i])))
     for slot in sorted((s for s in cand if s[0] == "f"), key=lambda s: s[1]):
         i = pick(slot)
         if i is not None:
             claimed.add(i)
-            out.fn.append((slot[1], enc_span(crows[i].span), profiles.add(crows[i].prof), ext_of(crows[i])))
+            out.fn.append(link(slot[1], enc_span(crows[i].span), profiles.add(crows[i].prof), ext_of(crows[i])))
+    have = {"c": {e[0][1] for e in out.main}, "f": {e[0][1] for e in out.fn}}
+    groups_l: dict[tuple, list] = collections.defaultdict(list)    # (string kind, list kind, prof, ext) -> [(n, mark or None)]
+    plus: dict[str, list] = collections.defaultdict(list)          # prof char -> [(pos, owner)]
+    slot_pos: dict[tuple, set] = collections.defaultdict(set)      # what the strings SHOW per slot (for the default slot)
+    for kind, entries in (("c", out.main), ("f", out.fn)):
+        for e in entries:
+            slot_pos[(kind, e[0][1])] |= set(dec_span(e[1].split(":")[1]) or [])
+
+    if lists:
+        for i in sorted(claimed):                                   # supplied words of a claimed link -> `+pos>owner`
+            for p in crows[i].sup:
+                plus[NO_PROFILE].append((p, owner_str(crows[i].src[0])))
+        for i, c in enumerate(crows):                               # one claimed decision per slot; a second one stays a row
+            if i in claimed:
+                continue
+            if list_single(c, keyed) and c.src[0][1] not in have[c.src[0][0]]:
+                kind, o = c.src[0]
+                lk = "!" if c.mark is None else c.mark[1]
+                groups_l[(kind, lk, profiles.add(c.prof), ext_of(c))].append((o, c.mark))
+                claimed.add(i)
+                have[kind].add(o)
+            elif added_only(c):
+                ch = profiles.add(c.prof)
+                plus[ch + "#" + str(i)] = [(p, None) for p in c.sup]   # one entry per row (its words stay one row)
+                claimed.add(i)
     # every other row is kept whole; a placed one also shows as a VIEW on each of its still-empty c/f slots
-    have_main = {o for o, *_ in out.main}
-    have_fn = {o for o, *_ in out.fn}
     for i, c in enumerate(crows):
         if i in claimed:
             continue
-        out.rows.append(fmt_row(c, profiles, has_ids, group))
-        if c.span and c.mark is None and not c.joint and not is_vetoed(c):   # joint (BSB `vvv`) / vetoed rows: sidecar ONLY
+        out.rows.append(fmt_row(c, profiles, has_ids, group, keyed))
+        if is_vetoed(c) or c.joint:                                 # joint (BSB `vvv`) / vetoed rows: sidecar ONLY
+            continue
+        if c.span and c.mark is None:
             for kind, n in c.src:
-                if kind == "c" and hint is None and n not in have_main:
-                    out.main.append((n, enc_span(c.span), ".", "_"))
-                    have_main.add(n)
-                elif kind == "f" and n not in have_fn:
-                    out.fn.append((n, enc_span(c.span), ".", "_"))
-                    have_fn.add(n)
+                if kind == "c" and hint is None and n not in have["c"]:
+                    out.main.append(link(n, enc_span(c.span), ".", "_"))
+                    have["c"].add(n)
+                    slot_pos[("c", n)] |= set(c.span)
+                elif kind == "f" and n not in have["f"]:
+                    out.fn.append(link(n, enc_span(c.span), ".", "_"))
+                    have["f"].add(n)
+                    slot_pos[("f", n)] |= set(c.span)
+            if lists and c.sup:
+                ks = c.src[c.key] if c.src and c.key is not None else (c.src[0] if c.src else None)
+                own = owner_str(ks) if ks and ks[0] in "cf" else None
+                plus["."] += [(p, own) for p in c.sup]
+        elif lists and c.span == []:
+            for kind, n in c.src:
+                if kind in "cf" and n not in have[kind]:
+                    lk = "!" if c.mark is None else c.mark[1]
+                    groups_l[(kind, lk, ".", "_")].append((n, c.mark))
+                    have[kind].add(n)
+    for its in plus.values():                                       # supplied words count for their owner's slot
+        for p, own in its:
+            if own is not None:
+                slot_pos[parse_owner(own)].add(p)
+    order = {s: h for s, h in group.h_of.items()}
+
+    def slot_str_of(kind, n, mark):
+        if mark is None:
+            return None
+        return None if default_slot(slot_pos, order, (kind, n)) == mark[0] else str(mark[0])
+    for (kind, lk, prof, ext), items in groups_l.items():
+        e = ((1, LIST_KINDS.index(lk), prof), lk + enc_items([(n, slot_str_of(kind, n, m)) for n, m in items], "@"), prof, ext)
+        (out.main if kind == "c" else out.fn).append(e)
+    for key, items in plus.items():
+        prof = key.split("#")[0]
+        out.fn.append(((2, 0, key), "+" + enc_items(items, ">"), prof, "_"))
     out.main.sort(key=lambda e: e[0])
     out.fn.sort(key=lambda e: e[0])
     return out
 
 
 def pack_entries(entries: list) -> tuple[str, str, str]:
-    """[(ord, span, prof, ext)] -> ("ord:span ...", "profs", "ext ext ...")"""
-    return (" ".join(f"{o}:{sp}" for o, sp, _p, _e in entries), "".join(p for _o, _s, p, _e in entries),
-            " ".join(e for _o, _s, _p, e in entries))
+    """[(sortkey, text, prof, ext)] -> ("text text ...", "profs", "ext ext ...")"""
+    return (" ".join(t for _k, t, _p, _e in entries), "".join(p for _k, _t, p, _e in entries),
+            " ".join(e for _k, _t, _p, e in entries))
 
 
 class LayerEncoder:
-    def __init__(self, layer_id: str, kind: str, base_attribution: dict, has_ids: bool):
+    def __init__(self, layer_id: str, kind: str, base_attribution: dict, has_ids: bool, *, keyed: bool = False,
+                 lists: bool = False, index_sha256: str | None = None):
         self.layer_id, self.kind, self.base, self.has_ids = layer_id, kind, base_attribution, has_ids
+        self.keyed, self.lists, self.index_sha256 = keyed, lists, index_sha256
         self.profiles = Profiles()
 
     def encode_book(self, crows_by_ref: dict[str, list[CRow]], refs: list[str], groups: dict[str, Group],
@@ -538,10 +689,11 @@ class LayerEncoder:
         ch = {k: [""] * n for k in ("fn", "wp", "fp", "wx", "rows")}
         off: dict[str, list[str]] = {}
         for ref, crows in crows_by_ref.items():
-            sourced = [c for c in crows if c.src]
+            in_verse = self.lists and ref in groups and ref in pos  # a lists layer files an added-words row under its verse
+            sourced = [c for c in crows if c.src or (in_verse and added_only(c))]
             for c in crows:
-                if not c.src:
-                    off.setdefault(ref, []).append(fmt_row(c, self.profiles, self.has_ids, None))
+                if not c.src and not (in_verse and added_only(c)):
+                    off.setdefault(ref, []).append(fmt_row(c, self.profiles, self.has_ids, None, self.keyed))
             if not sourced:
                 continue
             if ref not in groups or ref not in pos:
@@ -550,7 +702,7 @@ class LayerEncoder:
             # With hints (compact's own main), a verse compact has NO entries for (e.g. a parenthetical whose alignments compact
             # drops on purpose) is an EMPTY hint, never "no hint": nothing may be claimed into a main that stays empty.
             vo = encode_verse(sourced, groups[ref], self.profiles, self.has_ids,
-                              None if hints is None else hints.get(ref, {}))
+                              None if hints is None else hints.get(ref, {}), self.keyed, self.lists)
             main[i], ch["wp"][i], wx_m = pack_entries(vo.main)
             ch["fn"][i], ch["fp"][i], wx_f = pack_entries(vo.fn)
             ch["wx"][i] = " ".join(x for x in (wx_m, wx_f) if x)
@@ -569,8 +721,16 @@ class LayerEncoder:
         return main, meta
 
     def layer_json(self) -> dict:
-        return {"version": LAYER_VERSION, "layer": self.layer_id, "kind": self.kind, "has_ids": self.has_ids,
-                "attribution": self.base, "profiles": self.profiles.to_json()}
+        v3 = self.keyed or self.lists
+        d = {"version": LAYER_VERSION if v3 else 2, "layer": self.layer_id, "kind": self.kind, "has_ids": self.has_ids}
+        if self.lists:
+            d["lists"] = True
+        if self.keyed:
+            d["keyed"] = True
+        if self.index_sha256:
+            d["spine_index_sha256"] = self.index_sha256
+        d.update({"attribution": self.base, "profiles": self.profiles.to_json()})
+        return d
 
 
 # --- decoding --------------------------------------------------------------------------------------------------
@@ -578,27 +738,62 @@ class LayerDecoder:
     def __init__(self, layer_json: dict):
         self.layer = layer_json
         self.has_ids = layer_json["has_ids"]
+        self.keyed = bool(layer_json.get("keyed"))
         self.profiles = Profiles.from_json(layer_json["profiles"])
 
-    def _claimed(self, ref: str, group: Group | None, slot_kind: str, entries: list[str], profs: str, exts: list[str]
-                 ) -> list[CRow]:
+    def _ext(self, c: CRow, ext: str) -> None:
+        if ext != "_":
+            for part in ext.split(";"):
+                if part[0] == "t" and self.has_ids:
+                    c.tids = [int(x) for x in part[1:].split(",")]
+                elif part[0] == "S" and self.has_ids:
+                    c.sid = part[1:]
+                elif part[0] == "P":
+                    c.pargs = [int(x) for x in part[1:].split(",")]
+
+    def _single(self, ref: str, group: Group | None, slot: tuple, span, prof) -> CRow:
+        c = CRow(ref=ref, src=[slot], span=span, prof=prof)
+        if self.keyed:
+            c.key = 0
+        if self.has_ids:
+            c.sid = default_sid(group, slot) if group else None
+        return c
+
+    def _claimed(self, ref: str, group: Group | None, slot_kind: str, entries: list[str], profs: str, exts: list[str],
+                 owned: list, unslotted: list, slot_pos: dict) -> list[CRow]:
         out = []
         for k, e in enumerate(entries):
-            if profs[k] == ".":
-                continue                                     # a view of a multi-source row (the row is in `rows`)
-            o, sp = e.split(":")
-            c = CRow(ref=ref, src=[(slot_kind, int(o))], span=dec_span(sp), prof=self.profiles.of_char[profs[k]])
-            if self.has_ids:
-                c.sid = default_sid(group, c.src[0]) if group else None
-            if exts[k] != "_":
-                for part in exts[k].split(";"):
-                    if part[0] == "t" and self.has_ids:
-                        c.tids = [int(x) for x in part[1:].split(",")]
-                    elif part[0] == "S" and self.has_ids:
-                        c.sid = part[1:]
-                    elif part[0] == "P":
-                        c.pargs = [int(x) for x in part[1:].split(",")]
-            out.append(c)
+            p, head = profs[k], e[0]
+            if head.isdigit():                               # every link, a view too, shows positions for the default slot
+                o, sp = e.split(":")
+                slot_pos[(slot_kind, int(o))] |= set(dec_span(sp) or [])
+            elif head == "+":
+                for pos_, own in dec_items(e[1:], ">"):
+                    if own is not None:
+                        slot_pos[parse_owner(own)].add(pos_)
+            if p == ".":
+                continue                                     # a view of a row kept in `rows`
+            if head == "+":
+                items = dec_items(e[1:], ">")
+                if p == NO_PROFILE:
+                    owned += items
+                else:
+                    out.append(CRow(ref=ref, src=[], span=[], sup=sorted(n for n, _x in items), prof=self.profiles.of_char[p]))
+            elif head in LIST_KINDS:
+                for n, x in dec_items(e[1:], "@"):
+                    c = self._single(ref, group, (slot_kind, n), [], self.profiles.of_char[p])
+                    if head != "!":
+                        if x is None:
+                            unslotted.append((c, head))
+                        else:
+                            c.mark = (int(x), head)
+                    self._ext(c, exts[k])
+                    out.append(c)
+            else:
+                o, sp = e.split(":")
+                c = self._single(ref, group, (slot_kind, int(o)), dec_span(sp), self.profiles.of_char[p])
+                self._ext(c, exts[k])
+                out.append(c)
         return out
 
     def decode_book(self, main: list, meta: dict, refs: list[str], groups: dict[str, Group]) -> list[CRow]:
@@ -611,12 +806,24 @@ class LayerDecoder:
             exts = g("wx", i).split()
             m_ext = exts[:len(m_entries)] if exts else ["_"] * len(m_entries)
             f_ext = exts[len(m_entries):] if exts else ["_"] * len(f_entries)
-            out += self._claimed(ref, group, "c", m_entries, g("wp", i), m_ext)
-            out += self._claimed(ref, group, "f", f_entries, g("fp", i), f_ext)
+            owned: list = []
+            unslotted: list = []
+            slot_pos: dict = collections.defaultdict(set)
+            verse = self._claimed(ref, group, "c", m_entries, g("wp", i), m_ext, owned, unslotted, slot_pos)
+            verse += self._claimed(ref, group, "f", f_entries, g("fp", i), f_ext, owned, unslotted, slot_pos)
+            for pos_, own in owned:                          # `+pos>owner`: a supplied word of the owner's claimed link
+                slot = parse_owner(own)
+                hit = [c for c in verse if c.src == [slot] and c.span and c.mark is None]
+                if len(hit) != 1:
+                    raise ValueError(f"{ref}: `+{pos_}>{own}` has {len(hit)} claimed links to attach to")
+                hit[0].sup = sorted(hit[0].sup + [pos_])
             for entry in g("rows", i).split():
-                out.append(parse_row(entry, ref, self.profiles, self.has_ids, group))
+                verse.append(parse_row(entry, ref, self.profiles, self.has_ids, group, self.keyed))
+            for c, kind in unslotted:                        # a marker without `@` sits at the default slot
+                c.mark = (default_slot(slot_pos, group.h_of, c.src[0]), kind)
+            out += verse
         for ref, entries in (meta.get("off") or {}).items():
-            out += [parse_row(e, ref, self.profiles, self.has_ids, None) for e in entries]
+            out += [parse_row(e, ref, self.profiles, self.has_ids, None, self.keyed) for e in entries]
         return out
 
 

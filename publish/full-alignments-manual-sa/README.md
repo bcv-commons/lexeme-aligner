@@ -32,8 +32,14 @@ does not carry. No file holds a word of any text: every target reference is a to
 <BOOK>_<hash>.json       main: one string per spine verse, position-parallel to _index/<BOOK>_lexemes.json
                          "srcOrd:span ..." = the winning link of each CONTENT source token (compact's own meaning)
 <BOOK>_<hash>.meta.json  channels (a verse's entry is "" when empty; null = the channel has nothing in this book)
-_layer.json              attribution constants and the profile table (char -> method / score / prior / extra / attribution)
+_layer.json              version, flags (`lists`, `keyed`), the `spine_index_sha256` of the `_index/_source.json` the layer was
+                         built against, attribution constants and the profile table (char -> method / score / prior / extra / attribution)
 ```
+
+Layers of version 3 (`"lists": true`) also write **decision lists** in the `main` / `fn` strings: `!<ords>` no target word,
+`u<ord>[@<pos>]` untranslated, `e<ord>[@<pos>]` rendered elsewhere, `+<pos>[><ord>]` added target words; a token or word the strings
+do not mention is not decided. They are described, with the default slot rule, in the
+[full-alignments-manual](https://huggingface.co/datasets/bcv-commons/full-alignments-manual) card ("Decision lists").
 
 `<hash>` = the last 5 hex characters of the book's content hash (compact-alignments `book_content_hash`), so a file only matches
 the exact text it was built on.

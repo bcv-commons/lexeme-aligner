@@ -122,7 +122,16 @@ def to_crows(kind: str, rows: list[dict], groups: dict, base: dict, has_ids: boo
                 if dropped is not None:
                     dropped["rows of a verse with no spine group"] += len(vrows)
                 continue
-            crows = [fc.simple_crow(r, groups[ref], base, has_ids) for r in vrows]
+            crows = []
+            for r in vrows:
+                try:
+                    crows.append(fc.simple_crow(r, groups[ref], base, has_ids))
+                except ValueError as e:                               # the gold filed the row under another verse than the one the
+                    if "target id" not in str(e):                     # spine verse maps to (Clear 2CO 13:13 = BSB 13:13, but spine
+                        raise                                         # 2CO 13:13 = BSB 13:14 since the per-edition NT numbering)
+                    if dropped is not None:
+                        dropped["rows dropped: gold target verse is not the spine verse's mapped verse"] += 1
+                        print(f"   [diag] {ref}: {e}", file=sys.stderr)
         out[ref] = crows
     return out
 
@@ -147,6 +156,9 @@ def verify_derived(kind: str, rows: list[dict], groups: dict) -> collections.Cou
             else:
                 bad["no key token"] += 1
             continue
+        tids = (r.get("attribution") or {}).get("target_ids") or []
+        if kind != "bsb" and g.tprefix and any(x[:-3] != g.tprefix for x in tids):
+            continue                                                  # a misfiled row: to_crows dropped and counted it already
         for k, v in (("lexeme", tok.lexeme), ("content", bool(tok.is_content))):
             if r[k] != v:
                 bad[k] += 1
@@ -321,6 +333,12 @@ def _canon_digest(crows) -> str:
     return hashlib.sha256("\n".join(sorted(repr(c.canon()) for c in crows)).encode("utf-8")).hexdigest()
 
 
+def spine_index_sha256(compact_root: Path = COMPACT_ROOT) -> str | None:
+    """The `_index/_source.json` stamp a layer was built against (clients check it before decoding ordinals)."""
+    p = compact_root / "_index" / "_source.json"
+    return json.loads(p.read_text(encoding="utf-8")).get("spine_index_sha256") if p.exists() else None
+
+
 def encode_verify(kind: str, lid: str, rows: list[dict], groups: dict, refs: list[str], layer_dir: Path, book: str,
                   digest: str, t: collections.Counter, encoders: dict, *, has_ids: bool, title_tokens=None,
                   compact_main: list | None = None, compact_meta: dict | None = None, veto=None) -> str:
@@ -329,7 +347,9 @@ def encode_verify(kind: str, lid: str, rows: list[dict], groups: dict, refs: lis
     base = base_attribution(rows)
     le = encoders.get(lid)
     if le is None:
-        le = encoders[lid] = fc.LayerEncoder(lid, "statistical" if kind == "statistical" else "manual", base, has_ids)
+        manual = kind != "statistical"                          # statistical: compact's own main, so the v2 encoding stays
+        le = encoders[lid] = fc.LayerEncoder(lid, "manual" if manual else "statistical", base, has_ids, keyed=kind == "bsb",
+                                             lists=manual, index_sha256=spine_index_sha256() if manual else None)
     elif le.base != base:
         t["books whose base attribution differs from the layer's first book"] += 1
     dropped: collections.Counter = collections.Counter()

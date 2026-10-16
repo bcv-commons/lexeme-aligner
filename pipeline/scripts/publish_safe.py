@@ -191,7 +191,8 @@ def selected_files(name: str, kind: str, isos: list[str], local_root: Path) -> l
         return sorted(files) + [f for f in ("README.md",) if (local_root / f).exists()]
     files = [f for f in files if compact_layers.layer_of(f) == "main"]      # sidecars go to their own repos (publish_layer)
     files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
-    files += [f for f in ("README.md", "tokenize.js", "tokenizer_sensitive_languages.json", "pipeline_decisions.json")
+    files += [f for f in ("README.md", "tokenize.js", "tokenizer_sensitive_languages.json", "pipeline_decisions.json",
+                          "layers.json")                            # registry of layers published in other repos (if any)
               if (local_root / f).exists()]
     return files
 

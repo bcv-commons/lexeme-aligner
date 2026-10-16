@@ -466,8 +466,14 @@ same container format, in three places:
   (Clear, HELFI, ChiUns, BSB tables) and [full-alignments-manual-sa](https://huggingface.co/datasets/bcv-commons/full-alignments-manual-sa)
   (Door43, CC BY-SA), layer id `<edition>+manual+<source>`, same relative paths and `_index/` as here.
 
-For now only editions with a hand-made layer carry the statistical full alignment. The file format is described in the
-full-alignments-manual card. Function-word sources are listed in `_index/<BOOK>_fn.json` (below).
+- **layers published by others** in their own repositories, in the same layout (`manifest.json`, paths, `_layer.json`, plus where
+  their text is fetched). `layers.json` at the root of this repository lists them: repository, kind, licence and, per edition,
+  `{iso, edition, layer}`. It changes only when a repository or an edition is added.
+
+For now only editions with a hand-made layer carry the statistical full alignment. The file format, including the decision lists
+of layer version 3 (`!` no target word, `u`/`e` untranslated / rendered elsewhere with an optional slot, `+` added target words;
+anything not mentioned is not decided), is described in the full-alignments-manual card. Function-word sources are listed in
+`_index/<BOOK>_fn.json` (below).
 
 ## Edition-side channel `rend` (meta repo, since 2026-10)
 

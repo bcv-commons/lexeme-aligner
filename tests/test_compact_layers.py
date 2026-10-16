@@ -46,3 +46,18 @@ def test_publish_safe_compact_selection_excludes_sidecars(tmp_path):
     assert not [f for f in main if f.endswith((".meta.json", ".extra.json"))]
     assert ps.layer_files(["aaz"], "meta", tmp_path) == ["a/aaz/aaz_C01/GEN_1a2b3.meta.json"]
     assert ps.layer_files(["aaz"], "extra", tmp_path) == ["a/aaz/aaz_C01/GEN_1a2b3.extra.json"]
+
+
+def test_registry_entries_check_the_layer_id_and_write_sorted(tmp_path):
+    import json
+    import pytest
+    e = cl.registry_entry("bcv-commons/full-alignments-bsb-add-books", "auto", "CC0-1.0",
+                                      [{"iso": "kvg", "edition": "kvg_BSB", "layer": "kvg_BSB+auto+bsb-add-books"},
+                                       {"iso": "dan", "edition": "dan_BSB", "layer": "dan_BSB+auto+bsb-add-books"}])
+    assert [x["iso"] for x in e["editions"]] == ["dan", "kvg"]
+    with pytest.raises(ValueError):
+        cl.registry_entry("x/y", "auto", "CC0-1.0", [{"iso": "dan", "edition": "dan_BSB", "layer": "dan_BSB+draft+x"}])
+    p = tmp_path / "layers.json"
+    cl.write_registry(p, [e])
+    d = json.loads(p.read_text())
+    assert d["layers"][0]["repo"] == "bcv-commons/full-alignments-bsb-add-books" and "note" in d

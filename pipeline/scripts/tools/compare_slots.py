@@ -60,6 +60,7 @@ def read_verse(main: str, fn: str, order: dict) -> dict:
     links: dict = {}
     none: dict = {}
     added: dict = {}
+    explicit: set = set()                                        # slots written with `@` (the rest are at the default slot)
     pending = []
     for kind, s in (("c", main), ("f", fn)):
         for e in s.split():
@@ -75,6 +76,7 @@ def read_verse(main: str, fn: str, order: dict) -> dict:
                         pending.append(((kind, n), h))
                     else:
                         none[(kind, n)] = (h, int(x))
+                        explicit.add((kind, n))
             elif h == "+":
                 for p, own in dec_items(e[1:], ">"):
                     added[p] = None if own is None else (("f", int(own[1:])) if own.startswith("f") else ("c", int(own)))
@@ -86,7 +88,7 @@ def read_verse(main: str, fn: str, order: dict) -> dict:
         h = order[slot]
         prev = [s for s, p in shown.items() if p and order.get(s, h) < h]
         none[slot] = (kind, max(shown[max(prev, key=lambda s: order[s])]) if prev else -1)
-    return {"links": links, "none": none, "added": added, "shown": shown}
+    return {"links": links, "none": none, "added": added, "shown": shown, "explicit": explicit}
 
 
 def read_book(layer: Path, book: str) -> dict[str, dict]:
@@ -150,10 +152,16 @@ def compare(a: dict, b: dict, mode: str) -> collections.Counter:
             if pa is None or pb is None:                         # `!` has no slot
                 continue
             t["slots compared"] += 1
+            how = {(True, True): "both explicit", (False, False): "both default"}.get(
+                (s in va["explicit"], s in vb["explicit"]), "explicit in a only" if s in va["explicit"] else "explicit in b only")
+            t[f"slots compared: {how}"] += 1
             if mode == "exact":
-                t["slots equal"] += pa == pb
+                eq = pa == pb
+                t["slots equal"] += eq
             else:
-                t["slot anchors equal"] += anchor_of(va, pa) == anchor_of(vb, pb)
+                eq = anchor_of(va, pa) == anchor_of(vb, pb)
+                t["slot anchors equal"] += eq
+            t[f"slots equal: {how}"] += eq
         if mode == "exact":
             # per Hebrew WORD (tokens whose _index keys share all but the last digit = the morphemes of one word): the union of the
             # word's links, so a whole-word layer (BSB tables) and a token-by-token one compare on the same unit
@@ -204,6 +212,9 @@ def main(argv=None) -> int:
               f"recall counting b's added words {rate(WITH_ADDED, 'word pairs (word, position): in a')}")
     else:
         print(f"slot anchors equal: {rate('slot anchors equal', 'slots compared')}")
+    print("slots by how they were written (`@` explicit or the default slot): " + " · ".join(
+        f"{h} {t[f'slots equal: {h}']}/{t[f'slots compared: {h}']}" for h in
+        ("both explicit", "explicit in a only", "explicit in b only", "both default") if t[f"slots compared: {h}"]))
     if args.json:
         args.json.write_text(json.dumps({"mode": args.mode, "books": books, "counts": dict(t)}, indent=1) + "\n", encoding="utf-8")
     return 0

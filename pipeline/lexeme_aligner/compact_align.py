@@ -45,7 +45,8 @@ from lexeme_aligner.manifest_io import update_json
 from lexeme_aligner.usj_source import (TOKENIZER_VERSION, read_verse_ranges, remap_clean_to_raw,
                                        _rules_for, annotation_spans, _token_spans, tokenize)
 from lexeme_aligner.reverse_align_check import load_lexeme_vocab_scored
-from lexeme_aligner.versification import edition_nt_variants, edition_scheme, remapper, verse_map, verse_map_name
+from lexeme_aligner.versification import (edition_nt_variants, edition_ot_variants, edition_scheme, remapper, verse_map,
+                                          verse_map_name)
 
 ALL_BOOKS = OT_BOOKS + NT_BOOKS
 METHODS = ("eflomal", "gloss", "gapfill")
@@ -245,6 +246,11 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "_versification_<scheme>+<variant>....json when it has variants. The spine's NT (Nestle 1904) numbers 2CO 13 with 13 verses "
           "and ACT 19 with 40, so the plain scheme files now also carry NT rows (spine 2CO 13:13 -> English 13:14). Where one spine "
           "verse covers two target verses (spine 2CO 13:12 = English 13:12-13) the span is read from the FIRST.",
+          "OT BLOCK VARIANTS (since 2026-10-16): a few Old Testament blocks are laid out differently by editions of the same scheme "
+          "(Job 38-41: five layouts; Ecclesiastes 11-12; Hosea 13-14). An edition whose layout moves verses there carries "
+          "`versification_ot` in its manifest entry (bcv-commons/bibles ot-variants.json names of the blocks whose layout differs from "
+          "its scheme's map, e.g. [\"ECC-lsg\", \"HOS-eng\"]; absent = the scheme's own layout), and its `verse_map` file name lists them before the NT variants "
+          "(_versification_orgw+ECC-lsg+HOS-eng+JOB-lsg.json). The map file already applies them; nothing else changes.",
           "FUNCTION-WORD INDEX (since 2026-10): _index/<BOOK>_fn.json = {\"BOOK C:V\": [lexeme, ...]} has the same key order as "
           "_index/<BOOK>_lexemes.json and lists each verse's source tokens that have NO srcOrd slot (articles, prepositions, "
           "conjunctions, suffix pronouns, particles) in source order; the list position is the token's fnOrd. A token without a "
@@ -299,19 +305,20 @@ def rend_id(rend_ids: dict[str, dict[str, int]], lexeme: str, raw_toks: list[str
     return ids.setdefault(surface, len(ids) + 1)
 
 
-def write_verse_map(heb, scheme: str, index_root: Path, nt_variants=()) -> Path:
+def write_verse_map(heb, scheme: str, index_root: Path, nt_variants=(), ot_variants=()) -> Path:
     """`_index/_versification_<scheme>.json`: {spine ref: target ref} for every verse where this numbering scheme differs
     from the spine (Hebrew/WLC numbering in the OT), exactly as the aligner paired them. Compact arrays are keyed by
     SPINE verse, so a client reads the target words of spine "PSA 3:2" from target verse "PSA 3:1" (English
     numbering). Written only when missing or different, so a re-run does not touch an unchanged file."""
     vm = verse_map(scheme, ((b, ch, v) for b in OT_BOOKS + NT_BOOKS for ch in heb.chapters(b) for v in heb.verses(b, ch)),
-                   nt_variants)
-    doc = {"scheme": scheme, **({"nt_variants": sorted(nt_variants)} if nt_variants else {}),
+                   nt_variants, ot_variants)
+    doc = {"scheme": scheme, **({"ot_variants": sorted(ot_variants)} if ot_variants else {}),
+           **({"nt_variants": sorted(nt_variants)} if nt_variants else {}),
            "doc": "Spine verse -> this scheme's verse, only where they differ (identity elsewhere). Spine = the MACULA "
                   "source text's numbering (Hebrew/WLC in the OT). 'C:title' = a verse this scheme leaves unnumbered "
                   "(Psalm superscription). Mapping authority: TVTMS (STEPBible Data, CC BY 4.0).",
            "map": vm}
-    fp = index_root / verse_map_name(scheme, nt_variants)
+    fp = index_root / verse_map_name(scheme, nt_variants, ot_variants)
     data = json.dumps(doc, ensure_ascii=False, indent=0, sort_keys=False) + "\n"
     if not fp.exists() or fp.read_text(encoding="utf-8") != data:
         index_root.mkdir(parents=True, exist_ok=True)
@@ -903,11 +910,14 @@ def main() -> int:
             print(f"[compact_align] {publish_iso}/{book} → {fp}", file=sys.stderr)
         scheme = edition_scheme(args.iso, str(usj_dir))
         nt_variants = edition_nt_variants(args.iso, str(usj_dir)) or ()
-        vm_fp = write_verse_map(heb, scheme, args.index_root, nt_variants)
+        ot_variants = edition_ot_variants(args.iso, str(usj_dir)) or ()   # only those that change this edition's pairing
+        vm_fp = write_verse_map(heb, scheme, args.index_root, nt_variants, ot_variants)
         manifest_entry = {"tag": args.iso, "books": sorted(written),
                           "source": sources.get(args.iso, {}), "versification": scheme,
                           "versification_nt": list(nt_variants), "verse_map": vm_fp.name,
                           "rend_stopwords": load_rend_stopwords(publish_iso)[1]}
+        if ot_variants:
+            manifest_entry["versification_ot"] = sorted(ot_variants)   # absent = the scheme's own OT layout everywhere
         if takedown.rend_scope(args.iso) != "all":
             manifest_entry["rend_scope"] = takedown.rend_scope(args.iso)      # absent = every aligned entry carries an id
         if args.not_in_statistics_pool:

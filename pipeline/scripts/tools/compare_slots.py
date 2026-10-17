@@ -6,7 +6,9 @@ Reads ONLY what a client reads: the `main` / `fn` strings of each book (layer ve
 Two modes:
   exact   both layers are alignments of the SAME text (e.g. an agent tagging the BSB English vs our eng_BSB+manual+bsb-tables):
           for every source token both call "no target word" (`!`/`u`/`e`): is the slot the same? for every added target word: added
-          in both, and for the same source token? plus link agreement per token (same positions).
+          in both, and for the same source token? plus link agreement per token (same positions) and per Hebrew WORD (the union of
+          its tokens' links: the BSB tables link whole words, an agent may link token by token), with precision/recall over
+          (word, position) pairs and a recall that also counts b's added words (a whole-word layer folds such words into its phrase).
   anchor  different texts (a Danish draft vs the BSB tables): slots are compared by the source token they attach to — the token
           the slot follows (its shown positions end at the slot) or, failing that, the token it precedes. Word-order differences
           between the languages count as disagreements, so read it as a rough check.
@@ -25,6 +27,7 @@ import json
 from pathlib import Path
 
 INDEX = Path("publish/compact-alignments/_index")
+WITH_ADDED = "word pairs of a: in b's links or b's added words"
 
 
 # --- a string-level reader of one verse -------------------------------------------------------------------------------------------
@@ -120,6 +123,16 @@ def anchor_of(v: dict, slot_pos: int):
     return ("none", None)
 
 
+def _word_spans(v: dict) -> dict:
+    """{word key: set of positions} — the union of the links of a Hebrew word's tokens."""
+    out: dict = collections.defaultdict(set)
+    for slot, pos in v["links"].items():
+        k = v["order"].get(slot)
+        if k is not None and pos:
+            out[k[:-1]] |= pos
+    return dict(out)
+
+
 def compare(a: dict, b: dict, mode: str) -> collections.Counter:
     t: collections.Counter = collections.Counter()
     for ref in sorted(set(a) & set(b)):
@@ -142,6 +155,16 @@ def compare(a: dict, b: dict, mode: str) -> collections.Counter:
             else:
                 t["slot anchors equal"] += anchor_of(va, pa) == anchor_of(vb, pb)
         if mode == "exact":
+            # per Hebrew WORD (tokens whose _index keys share all but the last digit = the morphemes of one word): the union of the
+            # word's links, so a whole-word layer (BSB tables) and a token-by-token one compare on the same unit
+            wa, wb = _word_spans(va), _word_spans(vb)
+            for w in set(wa) & set(wb):
+                t["words linked in both"] += 1
+                t["words with the same positions"] += wa[w] == wb[w]
+                t["word pairs (word, position): in a"] += len(wa[w])
+                t["word pairs (word, position): in b"] += len(wb[w])
+                t["word pairs: in both"] += len(wa[w] & wb[w])
+                t[WITH_ADDED] += len(wa[w] & (wb[w] | set(vb["added"])))
             common = set(va["links"]) & set(vb["links"])
             t["links compared (token linked in both)"] += len(common)
             t["links with the same positions"] += sum(va["links"][s] == vb["links"][s] for s in common)
@@ -175,6 +198,10 @@ def main(argv=None) -> int:
         print(f"slots equal: {rate('slots equal', 'slots compared')} · links equal: "
               f"{rate('links with the same positions', 'links compared (token linked in both)')} · added owners equal: "
               f"{rate('added words in both: same owner', 'added words: in both')}")
+        print(f"per Hebrew word: same positions {rate('words with the same positions', 'words linked in both')} · "
+              f"precision of b {rate('word pairs: in both', 'word pairs (word, position): in b')} · "
+              f"recall of a {rate('word pairs: in both', 'word pairs (word, position): in a')} · "
+              f"recall counting b's added words {rate(WITH_ADDED, 'word pairs (word, position): in a')}")
     else:
         print(f"slot anchors equal: {rate('slot anchors equal', 'slots compared')}")
     if args.json:

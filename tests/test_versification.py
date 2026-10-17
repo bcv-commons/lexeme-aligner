@@ -348,3 +348,43 @@ def test_orgw_target_keeps_hebrew_psalms_and_english_elsewhere():
 def test_cdn_orgw_and_catm_are_no_longer_identity():
     assert vf._CDN_TABLE["orgw"] == "orgw" and vf._CDN_TABLE["catm"] == "catm"
     assert vf._CDN_TABLE["org"] == "hebrew"
+
+
+# ── OT block variants (bcv-commons/bibles ot-variants.json, 2026-10-16; these tests read the vendored file) ──────────────────────────────────
+
+def test_ot_variants_are_detected_per_block_from_chapter_lengths():
+    lsg = {"JOB": {38: 38, 39: 38, 40: 28, 41: 25}, "ECC": {11: 8, 12: 16}, "HOS": {13: 16, 14: 9}}
+    assert vf.detect_ot_variants(lsg) == ("ECC-lsg", "HOS-eng", "JOB-lsg")
+    eng_job = {"JOB": {38: 41, 39: 30, 40: 24, 41: 34}}                     # no ECC/HOS text: those blocks get nothing
+    assert vf.detect_ot_variants(eng_job) == ("JOB-eng",)
+    assert vf.detect_ot_variants({"JOB": {38: 40, 39: 30, 40: 24, 41: 34}}) == ()
+
+
+def test_an_ot_variant_replaces_the_scheme_map_in_its_block():
+    # orgw's map follows the Segond Job (the majority); an orgw edition with the ENGLISH Job (ACEIBS) needs JOB-eng
+    f = vf.remapper_for_scheme("orgw", (), ("JOB-eng",))
+    assert f("JOB", 40, 25) == ("JOB", 41, 1)                               # Hebrew 40:25 = English 41:1
+    assert f("JOB", 41, 1) == ("JOB", 41, 9)
+    assert f("JOB", 38, 39) == ("JOB", 38, 39)                              # no row: keeps its number
+    g = vf.remapper_for_scheme("orgw", ())
+    assert g("JOB", 38, 39) == ("JOB", 39, 1)                               # the Segond map without the variant
+    assert f("GEN", 31, 55) == g("GEN", 31, 55)                             # outside the block nothing changes
+
+
+def test_a_hebrew_layout_variant_moves_nothing_but_still_overrides_an_english_scheme():
+    assert vf.ot_variant_rows(("HOS-heb",)) == 0
+    eng = vf.remapper_for_scheme("protestant", ())
+    heb = vf.remapper_for_scheme("protestant", (), ("HOS-heb",))
+    assert eng("HOS", 14, 1) == ("HOS", 13, 16) and heb("HOS", 14, 1) == ("HOS", 14, 1)
+    assert vf.ot_variant_changes("protestant", (), "HOS-heb") and not vf.ot_variant_changes("protestant", (), "HOS-eng")
+
+
+def test_verse_map_names_list_ot_variants_before_nt_variants():
+    assert vf.verse_map_name("orgw", ("2CO13-13",), ("JOB-eng", "HOS-eng")) == "_versification_orgw+HOS-eng+JOB-eng+2CO13-13.json"
+    assert vf.verse_map_name("eng") == "_versification_eng.json"
+
+
+def test_an_incomplete_block_takes_the_variant_its_other_blocks_share():
+    partial_job = {"JOB": {38: 41, 39: 30, 40: 14, 41: 11}}                 # xtepkf: 40 and 41 incomplete -> JOB-eng or JOB-heb
+    assert vf.detect_ot_variants(partial_job) == ()                         # ambiguous on its own
+    assert vf.detect_ot_variants({**partial_job, "HOS": {13: 16, 14: 9}}) == ("HOS-eng", "JOB-eng")

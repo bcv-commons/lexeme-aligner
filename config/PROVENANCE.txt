@@ -549,3 +549,16 @@ pipeline/vendor/versification/schemes/{orgw,catm}.tsv + {orgw,catm}.multiverse.j
   (apart from titles, which we map to "no verse") and catm; pairing audit equal or better for ours on rus_syn, ukr_npu, bulbob (rso PSA 116:9), lat_clv,
   eng_dra, dji_wbt (vul), fra_lsg, swe_fol (orgw JOB 40/41); lxx differs in 1,081 verses (our lxx.tsv is bcv-query's; no lxx edition in the dataset).
 
+
+pipeline/vendor/versification/ot-variants.json (NEW) + schemes/orgw.tsv + vrs/orgw.vrs; config/bibles_vrs/{orgw-to-eng.json, dbt_vrs_index.json}
+  — bcv-commons/bibles, fetched 2026-10-16 from https://cdn.bibel.wiki/_vrs/ (TVTMS 902681f77a, CC BY 4.0, STEPBible.org).
+  map/ot-variants.json   10 variants (JOB-eng/heb/lsg/ces/bel/hun, ECC-eng/lsg, HOS-eng/heb)  sha256 95dd7d89ca23…  -> ot-variants.json
+                         (each: the block's chapter lengths for detection; rows s edition verse -> t eng -> o org/Hebrew; no row = same number)
+  map/orgw-to-eng.json   1,467 rows (1,466 OT)  sha256 6c088abf…  -> schemes/orgw.tsv (now the majority layout per block: Job Segond,
+                         Ecclesiastes English, Hosea Hebrew; vs the 10-12 table only JOB 39-41 and HOS 14 rows differ)
+  orgw.vrs                                       sha256 1f00151de979…  -> vrs/orgw.vrs (scheme detection: bel_njo moves org -> orgw, its GEN 31 has
+                                                                         55 verses; pairing audit 1/1 -> 0/0)
+  dbt/_vrs/index.json    sha256 3b5e61ed94c6…  -> config/bibles_vrs/dbt_vrs_index.json (new `ot` field; still read only for the REV12-17 hint)
+  orgw-to-eng.multiverse.json unchanged (f05f1012). Our detection (versification.edition_ot_variants: chapter lengths, keep only variants that
+  change the pairing vs the edition's scheme map) agrees with bibles' index `ot` entries on every edition checked. Re-run 2026-10-16: 37 chain
+  editions in 29 languages whose Job/Ecclesiastes/Hosea pairing changed (pipeline/work/logs/ot_variants_rerun_editions.json).

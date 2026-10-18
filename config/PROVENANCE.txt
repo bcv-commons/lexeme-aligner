@@ -562,3 +562,30 @@ pipeline/vendor/versification/ot-variants.json (NEW) + schemes/orgw.tsv + vrs/or
   orgw-to-eng.multiverse.json unchanged (f05f1012). Our detection (versification.edition_ot_variants: chapter lengths, keep only variants that
   change the pairing vs the edition's scheme map) agrees with bibles' index `ot` entries on every edition checked. Re-run 2026-10-16: 37 chain
   editions in 29 languages whose Job/Ecclesiastes/Hosea pairing changed (pipeline/work/logs/ot_variants_rerun_editions.json).
+
+## bcv-commons/bibles tools/verse-text 1.0.0 — vendored 2026-10-17 (supersedes the 2026-10-12 pins of verse_text.py / helloao_to_usj.py)
+- What: pipeline/vendor/bibles/{VERSION, CHANGELOG.md, verse_text.py, plain_text.py, usx_to_usj.py, helloao_to_usj.py, bcv_tokenize.py,
+  content_fingerprint.py} copied unchanged from github.com/bcv-commons/bibles tools/verse-text/python at commit 91ac9823a9e9 (2026-10-17,
+  "verse-text 1.0.0"). CC0 1.0 (LICENSE alongside). Never edit the copies; fixes go to bibles, then re-vendor and update this pin.
+- First versioned release: tokenizer v2 + text fingerprint v1 are OUR handover of 2026-10-17 (bcv_tokenize.py byte-identical to ours), now owned by
+  bibles; extract_usj / extract_sofria / extract_plain; usx_to_usj (usfmtc); content fingerprint v1 (diagnosis only); the `|` rules (\w word|lemma
+  keeps the word, `| default="X"` -> `|X`, legacy |i |sc |r |d dropped where they read as codes). A change to any output = a new MAJOR version.
+- sha256 (first 16): 
+    59854984853104df  VERSION
+    ee39e3bf75bf90fe  verse_text.py
+    b576fdd29a0c66e2  plain_text.py
+    a4f15f73f56ba5f6  usx_to_usj.py
+    93736957ebfc4e49  helloao_to_usj.py
+    4ef0a18b6162caa0  bcv_tokenize.py
+    6c389919c68ef833  content_fingerprint.py
+- Conformance: their suite (30 rule cases, 169 helloAO chapters through the whole chain, 11 DBT chapters x routes) staged in
+  pipeline/work/bibles-verse-text-1.0.0/ (git-ignored; python/ symlinks to the vendored files): `cd .../python && ../../../../.venv/bin/python conformance.py`
+  -> 0 failures. tests/test_bibles_conformance.py runs it when the folder is present. With `--dbt` they fetch the DBT chapters live.
+  Our adapter + reader reproduce all 30 DBT chapter-route text fingerprints (scratchpad dbt_conformance_ours.py, 2026-10-17).
+- usj_source follows the rule: walker applies word_before_pipe for \w and clean() to the joined verse text; Sofria and plain DBT books are read with
+  extract_sofria / extract_plain. Effect on the current ingest cache: 0 verses change (2,434 editions scanned).
+
+config/dbt_catalog/text-route.json — bibles' catalog/text-route.json, fetched 2026-10-17 from https://cdn.bibel.wiki/catalog/text-route.json
+  (260,872 bytes, sha256 244cf27b37d95b35…; doc/catalog-text-route.md): the ONE canonical text per edition and testament (route sofria | usx |
+  usj | helloao | plain | pkf, + fileset id or path, + `why`). dbt_source reads it (all 1,032 DBT editions we hold are listed: 820 sofria,
+  142 usx incl. 5 `sofria_damaged` (CARBSS RELBTL BGTNEW FFMWBT MZWNVS), 271 plain). Refresh whenever bibles republishes it.

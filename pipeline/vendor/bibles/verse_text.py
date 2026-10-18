@@ -14,7 +14,17 @@ The rule (agreed with lexeme-aligner, 2026-10-12; see ../js/rule.js):
   that number is the verse's text; introductions; figures; remarks (\\rem, and
   Paratext's \\restore metadata); \\rq (quotation source); \\qac (acrostic letter); \\fm
   (footnote mark); \\vp and \\va/\\ca (published or alternative numbers).
-- Word-level markup (\\w, \\wj, \\nd, ...) contributes its text, never attributes.
+- Word-level markup (\\w, \\wj, \\nd, ...) contributes its text, never attributes. Inside
+  \\w, text from a `|` on is an attribute the source failed to parse (USX
+  <char style="w">word|lemma</char>, DBT HLBMSS / YBBCAB): it is dropped.
+- `| default="X"` (proskomma's rendering of a `|` in text, found in DBT's own Sofria,
+  CARBSS) reads as `|X`, the source text.
+- Legacy formatting codes are dropped: `|i` / `|sc` (italic, small caps on) where followed
+  by an uppercase letter, a space or opening punctuation, and `|r` / `|d` (back to normal)
+  where followed by a space, punctuation or the end ("|iEli, Eli ...?|r"; DBT CARBSS, COEWBT,
+  FFMWBT, LAMABT, MDAWBT, MZWNVS, MYKWBT, KABCEB). A Sanskrit danda before a lowercase word
+  ("cAvarA|isrAyel") matches neither.
+- Any other `|` is text (a Sanskrit danda, LSV).
 - A bridged verse 4-5 is one verse, under its first number (4).
 - A verse number given twice: both texts, in document order, joined by one space.
 - A verse with no text of its own is skipped.
@@ -26,6 +36,7 @@ both languages agree on every character.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 Verses = list[dict[str, str]]
@@ -35,6 +46,7 @@ SKIP_CHAR = {"rq", "qac", "fm", "vp", "va", "ca", "fig"}
 SKIP_PARA = re.compile(r"(rem|restore|cp|ide|h[0-9]*|toc[0-9]*|toca[0-9]*|i[A-Za-z0-9_]+)")
 
 # JavaScript's \s and String.prototype.trim() whitespace
+_WS_CHARS = set("\t\n\v\f\r \u00a0\u1680\u2028\u2029\u202f\u205f\u3000\ufeff") | {chr(c) for c in range(0x2000, 0x200b)}
 _WS = "\t\n\v\f\r    -     　﻿"
 _WS_RUN = re.compile(f"[{_WS}]+")
 _TRIM = re.compile(f"^[{_WS}]+|[{_WS}]+$")
@@ -48,8 +60,40 @@ def first_number(v) -> str:
     return _trim(re.split("[-,‐-―]", _trim(str(v)))[0])
 
 
+# closing quote optional: proskomma truncates long values at 255 bytes, quote included
+PROSKOMMA_PIPE = re.compile(r'\| default="?([^"|]*)"?')
+
+
+_OPEN_PUNCT = set("«“\"‘'<&¿¡([—-")
+_LEGACY_OPEN = re.compile(r"\|(?:sc|i)(?=(.))", re.S)
+_LEGACY_CLOSE = re.compile(r"\|[rd](?=(.)|$)", re.S)
+
+
+def _drop_open(m) -> str:
+    c = m.group(1)
+    return "" if (c in _WS_CHARS or unicodedata.category(c) == "Lu" or c in _OPEN_PUNCT) else m.group(0)
+
+
+def _drop_close(m) -> str:
+    c = m.group(1)
+    return "" if (c is None or c in _WS_CHARS or unicodedata.category(c).startswith("P")) else m.group(0)
+
+
 def clean(s: str) -> str:
+    s = PROSKOMMA_PIPE.sub(r"|\1", s)
+    s = _LEGACY_CLOSE.sub(_drop_close, _LEGACY_OPEN.sub(_drop_open, s))
     return _trim(_WS_RUN.sub(" ", s))
+
+
+def word_before_pipe(items) -> list:
+    """A \\w's content up to its first `|` (the rest is an unparsed attribute)."""
+    out = []
+    for it in items or []:
+        if isinstance(it, str) and "|" in it:
+            out.append(it[: it.index("|")])
+            break
+        out.append(it)
+    return out
 
 
 def _first(key: str) -> str:
@@ -118,7 +162,8 @@ def extract_usj(usj: dict[str, Any]) -> dict[str, Verses]:
                 pass
             elif t == "char":
                 if it.get("marker") not in SKIP_CHAR:
-                    inline(it.get("content"), ctx)
+                    content = it.get("content")
+                    inline(word_before_pipe(content) if it.get("marker") == "w" else content, ctx)
             else:
                 inline(it.get("content"), ctx)
 
@@ -217,7 +262,7 @@ def extract_sofria(doc: dict[str, Any]) -> Verses:
                 # a table cell is a word boundary on both sides
                 if sub == "cell":
                     out.add(st["verse"], " ")
-                inline(it.get("content"), ctx)
+                inline(word_before_pipe(it.get("content")) if sub == "usfm:w" else it.get("content"), ctx)
                 if sub == "cell":
                     out.add(st["verse"], " ")
 

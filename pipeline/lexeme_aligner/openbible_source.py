@@ -1,12 +1,13 @@
 """Ingest adapter for the catalog's `o` source: editions bibles republishes itself on its CDN, wherever the licence permits and
 the original source is not directly usable (openbible/Biblica, audiobiblia.org; see each edition's own `_meta.json`).
 
-    https://cdn.bibel.wiki/openbible/<iso>/<edition>/<BOOK>/<chapter>.json
-    {"book": "MAT", "chapter": 1, "verses": [{"verse": "1", "text": "..."}, ...]}
+Since 2026-10-17 we read bibles' canonical form, unchanged: the book USJ named in the edition's `_meta.json` `formats`
+(`<BOOK>.usj.json`, USJ 3.0 "as the source gave it"; bibles publishes the same text as Sofria per chapter, and either is canonical).
+Each book is written as it came to `<NN>-<BOOK>.json`; usj_source reads its verse text with bibles' rule. The old per-chapter
+verse-json (`<BOOK>/<chapter>.json`) was removed by bibles, and its minimal-USFM conversion lost text after a literal `|`.
 
-`<edition>` is literally the catalog's `o:<ABBR>` value, `<BOOK>` the USFM code. A chapter number past the last chapter answers 404, so
-a book is read until its first 404; a book whose chapter 1 is missing is skipped. The result is the same `<NN>-<BOOK>.json` USJ tree
-every other adapter writes (verses under `\\p`, via usfmtc), plus the pin and the config/sources.json licence pointer.
+    https://cdn.bibel.wiki/openbible/<iso>/<edition>/_meta.json           books, formats, licences
+    https://cdn.bibel.wiki/openbible/<iso>/<edition>/<BOOK>.usj.json
 
     python -m lexeme_aligner.openbible_source --iso mgw --edition MATUMBI --tag matumbi --to-usj DIR [--pin FILE] [--book MAT]
 """
@@ -15,7 +16,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -27,7 +27,6 @@ _dns_cache.install()
 
 BASE = "https://cdn.bibel.wiki/openbible"
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
-MAX_CHAPTERS = 151
 
 
 def _get(url: str, retries: int = 6) -> bytes | None:
@@ -49,23 +48,9 @@ def _get(url: str, retries: int = 6) -> bytes | None:
     return None
 
 
-def chapter(iso: str, edition: str, book: str, ch: int) -> list[dict] | None:
-    raw = _get(f"{BASE}/{iso}/{edition}/{book}/{ch}.json")
-    if raw is None:
-        return None
-    return json.loads(raw).get("verses") or []
-
-
-def book_usfm(book: str, chapters: list[list[dict]]) -> str:
-    """Minimal USFM for one book: verses under \\p, one \\c per chapter (see helloao_source._book_usfm for why \\p)."""
-    out = [f"\\id {book}"]
-    for n, verses in enumerate(chapters, 1):
-        out += [f"\\c {n}", "\\p"]
-        for v in verses:
-            text = " ".join(str(v.get("text") or "").split())
-            if text:
-                out.append(f"\\v {v['verse']} {text}")
-    return "\n".join(out) + "\n"
+def book_usj(iso: str, edition: str, book: str, path: str = "<BOOK>.usj.json") -> bytes | None:
+    """The book's USJ exactly as bibles publishes it (None = not published)."""
+    return _get(f"{BASE}/{iso}/{edition}/{path.replace('<BOOK>', book)}")
 
 
 def meta(iso: str, edition: str) -> dict:
@@ -89,33 +74,28 @@ def build_pin(iso: str, edition: str, tag: str, m: dict, n_books: int) -> dict:
     }
 
 
-def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None) -> int:
-    try:
-        import usfmtc  # noqa: F401  (feature check)
-        from lexeme_aligner import usfm_to_usj
-    except ImportError:
-        raise SystemExit("[openbible] USFM→USJ needs usfmtc — pip install -e '.[ingest]'")
+def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None, m: dict | None = None) -> int:
+    """Every book the edition's `_meta.json` lists, as bibles' book USJ, written unchanged to <NN>-<BOOK>.json."""
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
-
+    m = m if m is not None else meta(iso, edition)
+    path = ((m.get("formats") or {}).get("usj") or {}).get("path") or "<BOOK>.usj.json"
+    books = m.get("books") or list(_BOOK_FILE_NUM)
     usj_dir.mkdir(parents=True, exist_ok=True)
     n = 0
-    with tempfile.TemporaryDirectory() as td:
-        for book, nn in _BOOK_FILE_NUM.items():
-            if only and book not in only:
-                continue
-            chapters: list[list[dict]] = []
-            for ch in range(1, MAX_CHAPTERS):
-                verses = chapter(iso, edition, book, ch)
-                if verses is None:
-                    break
-                chapters.append(verses)
-            if not chapters:
-                continue
-            uf = Path(td) / f"{book}.usfm"
-            uf.write_text(book_usfm(book, chapters), encoding="utf-8")
-            usfm_to_usj.write(uf, usj_dir / f"{nn}-{book}.json")   # keeps whitespace between elements (usfm_to_usj docstring)
-            n += 1
-    print(f"[openbible] {iso}/{edition}: {n} book(s) → {usj_dir}", file=sys.stderr)
+    for book in books:
+        nn = _BOOK_FILE_NUM.get(book)
+        if not nn or (only and book not in only):
+            continue
+        raw = book_usj(iso, edition, book, path)
+        if raw is None:
+            print(f"[openbible] {iso}/{edition} {book}: no USJ published — skipped", file=sys.stderr)
+            continue
+        doc = json.loads(raw)
+        if doc.get("type") != "USJ":
+            raise SystemExit(f"[openbible] {iso}/{edition} {book}: not a USJ document")
+        (usj_dir / f"{nn}-{book}.json").write_bytes(raw)
+        n += 1
+    print(f"[openbible] {iso}/{edition}: {n} book(s) → {usj_dir} (bibles' USJ, unchanged)", file=sys.stderr)
     return n
 
 
@@ -136,7 +116,7 @@ def main(argv=None) -> int:
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     a = ap.parse_args(argv)
     m = meta(a.iso, a.edition)
-    n = to_usj(a.iso, a.edition, a.to_usj, a.book)
+    n = to_usj(a.iso, a.edition, a.to_usj, a.book, m)
     if not n:
         print(f"[openbible] {a.iso}/{a.edition}: no book answered — nothing ingested", file=sys.stderr)
         return 1

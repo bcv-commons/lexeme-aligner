@@ -101,36 +101,18 @@ def _load_vrs(name: str) -> dict:
 
 
 def _usj_structure(usj_dir: str) -> dict:
-    """Last-verse-per-chapter of an ingested USJ dir: {book: {chapter: last_verse}}."""
+    """Last-verse-per-chapter of an ingested edition dir: {book: {chapter: last_verse}} (a bridge counts by its FIRST number).
+    Any canonical book format (USJ, Sofria, plain verses: usj_source.verse_markers)."""
+    from lexeme_aligner.usj_source import verse_markers
     R: dict[str, dict] = collections.defaultdict(dict)
     for fp in glob.glob(os.path.join(usj_dir, "*.json")):
         try:
-            doc = json.load(open(fp, encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            book, marks = verse_markers(Path(fp))
+        except (json.JSONDecodeError, OSError, ValueError, KeyError):
             continue
-        cur = [None, 0]
-
-        def walk(node):
-            for it in (node if isinstance(node, list) else node.get("content", [])):
-                if not isinstance(it, dict):
-                    continue
-                if it.get("type") == "book":
-                    cur[0] = it.get("code")
-                if it.get("marker") == "c":
-                    try:
-                        cur[1] = int(it.get("number"))
-                    except (TypeError, ValueError):
-                        pass
-                if it.get("marker") == "v":
-                    try:
-                        vn = int(str(it.get("number")).split("-")[0])
-                    except (TypeError, ValueError):
-                        vn = 0
-                    if cur[0]:
-                        R[cur[0]][cur[1]] = max(R[cur[0]].get(cur[1], 0), vn)
-                if "content" in it:
-                    walk(it["content"])
-        walk(doc.get("content", doc))
+        if book:
+            for ch, vs, _ve in marks:
+                R[book][ch] = max(R[book].get(ch, 0), vs)
     return R
 
 
@@ -198,34 +180,18 @@ def detect_nt_variants(last_verses: dict) -> tuple[str, ...]:
 
 
 def _usj_last_verses(usj_dir: str, books: frozenset = _NT_BOOKS) -> dict:
-    """{book: {chapter: last verse}} of an ingested USJ dir, `books` only (default the NT), a bridge counting by its END ("12-13" -> 13)."""
+    """{book: {chapter: last verse}} of an ingested edition dir, `books` only (default the NT), a bridge counting by its END ("12-13" -> 13).
+    Any canonical book format (usj_source.verse_markers)."""
+    from lexeme_aligner.usj_source import verse_markers
     out: dict[str, dict] = collections.defaultdict(dict)
     for fp in glob.glob(os.path.join(usj_dir, "*.json")):
         try:
-            doc = json.load(open(fp, encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            book, marks = verse_markers(Path(fp))
+        except (json.JSONDecodeError, OSError, ValueError, KeyError):
             continue
-        cur = [None, 0]
-
-        def walk(node):
-            for it in (node if isinstance(node, list) else node.get("content", [])):
-                if not isinstance(it, dict):
-                    continue
-                if it.get("type") == "book":
-                    cur[0] = it.get("code")
-                if it.get("marker") == "c":
-                    try:
-                        cur[1] = int(it.get("number"))
-                    except (TypeError, ValueError):
-                        pass
-                if it.get("marker") == "v" and cur[0] in books:
-                    m = re.match(r"^(\d+)(?:\D+(\d+))?", str(it.get("number") or ""))
-                    if m:
-                        vn = int(m.group(2) or m.group(1))
-                        out[cur[0]][cur[1]] = max(out[cur[0]].get(cur[1], 0), vn)
-                if "content" in it:
-                    walk(it["content"])
-        walk(doc.get("content", doc))
+        if book in books:
+            for ch, _vs, ve in marks:
+                out[book][ch] = max(out[book].get(ch, 0), ve)
     return out
 
 

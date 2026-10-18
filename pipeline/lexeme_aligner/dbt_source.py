@@ -22,6 +22,17 @@ Verified live (2026-07-22) against the actual DBP v4 routes (`github.com/faithco
     python3 -m lexeme_aligner.dbt_source --bible-id SPARVC --iso spa --to-usj pipeline/work/ingest-cache/usj-spa-rvc
     python3 -m lexeme_aligner.dbt_source --bible-id SPARVC --iso spa --to-usj pipeline/work/ingest-cache/usj-spa-rvc --book RUT
 
+TEXT ROUTES (2026-10-17, bcv-commons/bibles). DBT offers an edition's text in several forms; they are NOT the same text at word level
+(BIVWBT Acts 13: the plain text keeps `\\rq` references the structured text marks; BVZYSS Luke 18: "fi koadamam" vs "fikoadamam"; CARBSS /
+RELBTL / BGTNEW / FFMWBT / MZWNVS: DBT's Sofria is damaged and the USX is canonical). bibles names the CANONICAL text per edition and testament
+in catalog/text-route.json (config/dbt_catalog/text-route.json, pinned in PROVENANCE): `sofria` (DBT's `text_json`), `usx` (`text_usx`,
+converted to USJ with bibles' usx_to_usj.py), or `plain` (`text_plain`, only where nothing structured exists). We read exactly that route and
+fileset, with no fallback to another route: a book the canonical text lacks is missing, as it is for any client following the catalog.
+An edition the catalog does not list falls back to Sofria > USX > plain by what the bible offers. Nothing is converted between formats on our
+side: a Sofria book is stored as fetched (`{"format": "sofria", ...}`), plain verses as given (`{"format": "verses", ...}`), USX as the USJ
+bibles' converter makes; usj_source reads their verse text with bibles' extractors. Structured books cost ONE API call per book
+(`bibles/filesets/{id}?type=text_json|text_usx&book_id=`), which lists a signed CloudFront link per chapter (Sofria) or for the whole book (USX).
+
 Cache fast path: the sibling `audio-sync` repo independently downloads DBT/helloAO chapter text
 for its own audio-timing work into `downloads/BB/{ot,nt}/{iso}/{bible_id}/{book}/
 {BOOK}_{chapter:03d}_{fileset_id}.raw.json` (a `{source, fileset_id, verses:[{verse_start, verse_end,
@@ -41,6 +52,7 @@ with audio-sync 2026-08-28); never overwrites an existing file there.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import sys
@@ -70,7 +82,10 @@ AUDIO_SYNC_BB = Path(os.environ.get("AUDIO_SYNC_BB_DIR",
 # (live-tested); text_json/text_usx/text_html are untested there and, for at least one real bible
 # (PORNLH), text_usx silently 404s on that endpoint even though the fileset exists. Only fall back
 # to them if no plain/format fileset is offered at all.
-_PREFERRED_TYPES = ("text_plain", "text_format", "text_json", "text_usx", "text_html")
+_PREFERRED_TYPES = ("text_json", "text_usx", "text_plain", "text_format")        # = the route order json > usx > plain (see TEXT ROUTES)
+_ROUTE_OF_TYPE = {"text_json": "sofria", "text_usx": "usx", "text_plain": "plain", "text_format": "plain"}
+_TYPE_OF_ROUTE = {"sofria": "text_json", "usx": "text_usx"}
+TEXT_ROUTE = Path("config/dbt_catalog/text-route.json")                           # bibles' catalog/text-route.json (pinned copy)
 
 
 def _api_key() -> str:
@@ -119,26 +134,41 @@ def bible_info(bible_id: str) -> dict:
     return d["data"]
 
 
+@functools.lru_cache(maxsize=None)
+def catalog_routes() -> dict:
+    """{bible_id: {"ot"|"nt": {"route", "id", "why"?}}} for the DBT (`d:`) sources of bibles' text-route.json; {} if the file is absent."""
+    if not TEXT_ROUTE.exists():
+        return {}
+    out: dict[str, dict] = {}
+    for key, srcs in json.loads(TEXT_ROUTE.read_text(encoding="utf-8")).get("entries", {}).items():
+        canon = key.split(":")[1]
+        for sid, entry in srcs.items():
+            if sid.startswith("d:") and entry.get("id"):
+                out.setdefault(sid[2:], {})[canon] = entry
+    return out
+
+
 def text_filesets(info: dict) -> dict:
-    """Pick the best fileset for each testament. Some bibles split NT and OT into SEPARATE filesets
-    (`size` == 'OT'/'NT' — e.g. PORNLH, live-verified); others have one combined fileset (any other
-    `size`, e.g. 'C', 'NTPOTP' — e.g. SPARVC, live-verified); some have BOTH, of differing quality
-    (e.g. INDASV: a combined text_plain 'INDASV' AND testament-specific text_usx ones — live-
-    verified: preferring the testament-specific one blindly picked the broken text_usx fileset over
-    the working combined one). So candidates for a testament are the union of its own testament-
-    specific filesets AND any combined (non-OT/NT-sized) ones, ranked by _PREFERRED_TYPES — type
-    quality wins regardless of whether the fileset is testament-specific or combined. Returns
-    {'OT': fileset_id|None, 'NT': fileset_id|None}."""
+    """The text fileset(s) to read per testament: {'OT': [(route, fileset_id), ...], 'NT': [...]}. The catalog's canonical route is the
+    ONLY candidate when bibles lists the edition (see TEXT ROUTES); otherwise every route the bible offers, Sofria > USX > plain, and a
+    book tries them in order."""
+    listed = catalog_routes().get(info.get("abbr"))
+    if listed:
+        picks = {t: ([(listed[t.lower()]["route"], listed[t.lower()]["id"])] if t.lower() in listed else []) for t in ("OT", "NT")}
+        if not any(picks.values()):
+            raise SystemExit(f"[dbt_source] '{info.get('abbr')}': text-route.json lists no OT/NT text")
+        return picks
     all_filesets = [f for group in (info.get("filesets") or {}).values() for f in group]
 
-    def best_for(testament: str) -> str | None:
-        candidates = [f for f in all_filesets
-                      if f.get("size") == testament or f.get("size") not in ("OT", "NT")]
+    def best_for(testament: str) -> list[tuple[str, str]]:
+        cands = [f for f in all_filesets if f.get("size") in (testament, testament + "P") or f.get("size") not in ("OT", "NT", "OTP", "NTP")]
+        out: list[tuple[str, str]] = []
         for t in _PREFERRED_TYPES:
-            for f in candidates:
-                if f.get("type") == t:
-                    return f["id"]
-        return None
+            route = _ROUTE_OF_TYPE[t]
+            for f in sorted((f for f in cands if f.get("type") == t), key=lambda f: f.get("size") not in (testament, testament + "P")):
+                if all(r != route for r, _ in out):
+                    out.append((route, f["id"]))
+        return out
 
     picks = {"OT": best_for("OT"), "NT": best_for("NT")}
     if not any(picks.values()):
@@ -253,116 +283,149 @@ def _write_back_to_audio_sync(bare_iso: str, bible_id: str, testament: str, book
         print(f"[dbt_source] write-back to audio-sync failed for {stem}: {e}", file=sys.stderr)
 
 
-def _book_usfm(book: str, chapters: dict[int, list[dict]]) -> str:
-    out = [f"\\id {book}"]
-    for ch, verses in sorted(chapters.items()):
-        out += [f"\\c {ch}", "\\p"]
-        for v in verses:
-            text = (v.get("verse_text") or "").strip()
-            if text:
-                out.append(f"\\v {v['verse_start']} {text}")
-    return "\n".join(out) + "\n"
+def _download(url: str, retries: int = 5) -> bytes:
+    """A signed CloudFront link from the API (valid for minutes): fetched at once, with retries on transient errors."""
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": _UA}), timeout=90).read()
+        except urllib.error.HTTPError as e:
+            if e.code in (400, 401, 403, 404):
+                raise
+            last = e
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            last = e
+        time.sleep(min(2 ** attempt, 30))
+    raise last  # type: ignore[misc]
+
+
+def book_links(fileset_id: str, route: str, book: str) -> list[dict]:
+    """ONE API call: the rows (with a signed `path`) of a structured fileset's book — a Sofria document per chapter (`chapter_start`),
+    or one row with the whole book's USX. [] when the fileset does not have the book."""
+    try:
+        d = _get(f"bibles/filesets/{fileset_id}", {"type": _TYPE_OF_ROUTE[route], "book_id": book})
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 404):
+            return []
+        raise
+    return [r for r in (d.get("data") or []) if r.get("path")]
+
+
+def sofria_book(fileset_id: str, book: str) -> dict | None:
+    """The book's Sofria chapters exactly as DBT gives them, in the stored wrapper; None = the fileset has no such book / chapter 1."""
+    rows = book_links(fileset_id, "sofria", book)
+    chapters: dict[str, dict] = {}
+    for r in sorted(rows, key=lambda r: int(r.get("chapter_start") or 0)):
+        ch = r.get("chapter_start")
+        if not ch:
+            continue
+        try:
+            chapters[str(int(ch))] = json.loads(_download(r["path"]))
+        except urllib.error.HTTPError as e:
+            if e.code not in (403, 404):
+                raise
+    return {"format": "sofria", "book": book, "fileset": fileset_id, "chapters": chapters} if chapters else None
+
+
+def usx_book(fileset_id: str, book: str) -> dict | None:
+    """The book's USX through bibles' usx_to_usj.py (usfmtc; USX and USJ are one document model). None = the fileset has no such book."""
+    rows = book_links(fileset_id, "usx", book)
+    if not rows:
+        return None
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vendor" / "bibles"))
+    from usx_to_usj import usx_to_usj
+    usj = usx_to_usj(_download(rows[0]["path"]).decode("utf-8"))
+    return usj if isinstance(usj, dict) and usj.get("content") else None
+
+
+def _plain_book(bible_id, fileset_id, book, meta, cached_dirs, bare_iso, stats) -> dict | None:
+    """The plain verses of a book as the API (or audio-sync's cache of it) gives them, in the stored wrapper."""
+    book_chapter_list = list(meta["chapters"])
+    ordered = ["1"] + [c for c in book_chapter_list if c != "1"] if "1" in book_chapter_list else book_chapter_list
+    chapters: dict[str, list[dict]] = {}
+    for i, ch in enumerate(ordered):
+        verses = _cached_chapter_verses(cached_dirs, book, ch)
+        if verses is not None:
+            stats["cache_hits"] += 1
+        else:
+            stats["cache_misses"] += 1
+            try:
+                verses = chapter_verses(fileset_id, book, ch)
+            except urllib.error.HTTPError as e:
+                if e.code != 404:
+                    raise
+                if i == 0:
+                    break                      # chapter 1 missing: the book has nothing in this fileset
+                continue
+            if verses and bare_iso:
+                _write_back_to_audio_sync(bare_iso, bible_id, meta["testament"], book, ch, fileset_id, verses)
+        if verses:
+            chapters[ch] = [{"verse_start": v["verse_start"], "verse_end": v.get("verse_end"), "verse_text": v.get("verse_text") or ""}
+                            for v in verses]
+    return {"format": "verses", "book": book, "fileset": fileset_id, "chapters": chapters} if chapters else None
 
 
 def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
-           bare_iso: str | None = None) -> int:
-    """Fetch every book/chapter for a bible and convert to USJ <NN>-<BOOK>.json. Each book is routed
-    to its OWN testament's fileset (falling back to 'ALL') — see text_filesets()."""
-    try:
-        import usfmtc  # noqa: F401  (feature check)
-        from lexeme_aligner import usfm_to_usj
-    except ImportError:
-        raise SystemExit("[dbt_source] USFM→USJ needs usfmtc — pip install -e '.[ingest]'")
+           bare_iso: str | None = None) -> dict:
+    """Fetch every book of a bible in its canonical form (TEXT ROUTES in the module docstring) into <NN>-<BOOK>.json. A book tries its
+    testament's routes in order (json > usx > plain, or the edition's override first) and keeps the first that has it. Returns
+    {"books": n, "routes": {"sofria": n, ...}, "missing": [books listed by DBT but not fetchable]}."""
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
 
     usj_dir.mkdir(parents=True, exist_ok=True)
     books_meta = book_chapters(bible_id)
     wanted = [b for b in books_meta if not only or b in only]
-    n = 0
-    cache_hits = 0
-    cache_misses = 0
-    # Circuit breaker for a fileset that's entirely 404 (verified live: AYZYSS returned 404 for
-    # EVERY chapter of the first book tried) — without this, the per-chapter 404-skip above would
-    # dutifully grind through every chapter of every remaining book one at a time (each paced
-    # BIBLE_API_DELAY_MS apart) before giving up, burning many minutes on a fileset that was never
-    # going to produce anything. Two signals, both fast:
-    #  1. Per book: translators fill in chapter 1 before chapter 2 — if chapter 1 itself 404s, the
-    #     book has no content yet and there's no point probing the rest of its chapters one at a
-    #     time. Try chapter 1 first; a 404 there aborts the whole book immediately (chapters list
-    #     order doesn't have to start at "1" — we look it up explicitly rather than assuming index 0).
-    #  2. Per fileset: two CONSECUTIVE books that both fail this way (not just one — a single
-    #     genuinely-missing book is normal) marks the fileset dead for the rest of this run.
-    dead_filesets: set[str] = set()
-    consecutive_empty: dict[str, int] = {}
-    with tempfile.TemporaryDirectory() as td:
-        for book in wanted:
-            nn = _BOOK_FILE_NUM.get(book)
-            if not nn:
-                print(f"[dbt_source] skip {book}: not in NN map", file=sys.stderr)
-                continue
-            meta = books_meta[book]
-            fileset_id = picks.get(meta["testament"])
-            if not fileset_id:
-                print(f"[dbt_source] skip {book}: no fileset covers testament "
-                      f"{meta['testament']!r}", file=sys.stderr)
-                continue
-            if fileset_id in dead_filesets:
-                print(f"[dbt_source] skip {book}: fileset {fileset_id} produced nothing for "
-                      f"2 consecutive books — treating as dead, not trying further", file=sys.stderr)
-                continue
-            book_chapter_list = list(meta["chapters"])
-            ordered = book_chapter_list
-            if "1" in book_chapter_list:
-                ordered = ["1"] + [c for c in book_chapter_list if c != "1"]
-            cached_dirs = _cached_book_dirs(bible_id, meta["testament"], book)
-            chapters = {}
-            for i, ch in enumerate(ordered):
-                # A single chapter 404ing later in the book is real and NOT rare — book_chapters()'s
-                # own chapter list is sometimes stale/wrong relative to what's actually fetchable
-                # per-chapter (verified live: BBCLAI's own chapter listing included at least one
-                # chapter the fileset endpoint 404s on). _get() already treats 4xx (except 429) as
-                # non-retryable — correctly, a 404 here means "this specific chapter genuinely isn't
-                # there", not a transient blip. But chapter 1 (tried first, see above) is different:
-                # if it 404s, the book has nothing yet — bail out of the whole book instead of
-                # dutifully probing every remaining chapter one at a time.
-                verses = _cached_chapter_verses(cached_dirs, book, ch)
-                if verses is not None:
-                    cache_hits += 1
-                else:
-                    cache_misses += 1
-                    try:
-                        verses = chapter_verses(fileset_id, book, ch)
-                    except urllib.error.HTTPError as e:
-                        if e.code != 404:
-                            raise
-                        print(f"[dbt_source] skip {book} {ch}: 404 (chapter listed but not fetchable)",
-                              file=sys.stderr)
-                        if i == 0:
-                            break
-                        continue
-                    if verses and bare_iso:
-                        _write_back_to_audio_sync(bare_iso, bible_id, meta["testament"], book, ch,
-                                                   fileset_id, verses)
-                if verses:
-                    chapters[ch] = verses
-            if not chapters:
-                consecutive_empty[fileset_id] = consecutive_empty.get(fileset_id, 0) + 1
-                if consecutive_empty[fileset_id] >= 2:
-                    dead_filesets.add(fileset_id)
-                print(f"[dbt_source] skip {book}: no verse text returned "
-                      f"(fileset={fileset_id})", file=sys.stderr)
-                continue
-            consecutive_empty[fileset_id] = 0
-            uf = Path(td) / f"{book}.usfm"
-            uf.write_text(_book_usfm(book, chapters), encoding="utf-8")
-            usfm_to_usj.write(uf, usj_dir / f"{nn}-{book}.json")   # keeps whitespace between elements (usfm_to_usj docstring)
-            n += 1
-    cache_note = f", {cache_hits} chapter(s) from audio-sync cache" if cache_hits else ""
-    print(f"[dbt_source] {n} book(s) → {usj_dir}{cache_note}", file=sys.stderr)
-    return n
+    routes: dict[str, int] = {}
+    missing: list[str] = []
+    stats = {"cache_hits": 0, "cache_misses": 0}
+    # Circuit breaker for a fileset set that is entirely empty (verified live: AYZYSS 404s EVERY chapter). Only when NOTHING at all has
+    # come through after five books in a row; it used to stop after two empty books and so dropped the rest of partial filesets
+    # (458 books in 34 editions went missing that way, found 2026-10-17).
+    consecutive_empty = 0
+    got_any = False
+    for book in wanted:
+        nn = _BOOK_FILE_NUM.get(book)
+        if not nn:
+            print(f"[dbt_source] skip {book}: not in NN map", file=sys.stderr)
+            continue
+        meta = books_meta[book]
+        candidates = picks.get(meta["testament"]) or []
+        if not candidates:
+            print(f"[dbt_source] skip {book}: no fileset covers testament {meta['testament']!r}", file=sys.stderr)
+            continue
+        if not got_any and consecutive_empty >= 5:
+            print(f"[dbt_source] skip {book}: nothing came through for {consecutive_empty} books — treating the bible as empty", file=sys.stderr)
+            continue
+        doc = None
+        cached_dirs = None
+        for route, fileset_id in candidates:
+            if route == "sofria":
+                doc = sofria_book(fileset_id, book)
+            elif route == "usx":
+                doc = usx_book(fileset_id, book)
+            else:
+                if cached_dirs is None:
+                    cached_dirs = _cached_book_dirs(bible_id, meta["testament"], book)
+                doc = _plain_book(bible_id, fileset_id, book, meta, cached_dirs, bare_iso, stats)
+            if doc:
+                routes[route] = routes.get(route, 0) + 1
+                break
+        if not doc:
+            consecutive_empty += 1
+            missing.append(book)
+            print(f"[dbt_source] skip {book}: no verse text from any route {[r for r, _ in candidates]}", file=sys.stderr)
+            continue
+        consecutive_empty = 0
+        got_any = True
+        (usj_dir / f"{nn}-{book}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    n = sum(routes.values())
+    cache_note = f", {stats['cache_hits']} plain chapter(s) from audio-sync cache" if stats["cache_hits"] else ""
+    print(f"[dbt_source] {n} book(s) → {usj_dir} · routes {routes}{cache_note}"
+          + (f" · NOT fetched: {missing}" if missing else ""), file=sys.stderr)
+    return {"books": n, "routes": routes, "missing": missing}
 
 
-def build_pin(info: dict, picks: dict, iso: str) -> dict:
+def build_pin(info: dict, picks: dict, iso: str, result: dict | None = None) -> dict:
     publishers = info.get("publishers") or []
     license_url = next((p.get("url_website") for p in publishers if p.get("url_website")), None)
     return {
@@ -370,7 +433,9 @@ def build_pin(info: dict, picks: dict, iso: str) -> dict:
         "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)",
         "language_name": info.get("language"),   # e.g. "Cebuano" — DBP's own language field
         "bible_id": info.get("abbr"),
-        "filesets": picks,   # {'OT':..., 'NT':..., 'ALL':...} — see text_filesets()
+        "filesets": {t: [fid for _, fid in c] for t, c in picks.items()},   # the fileset(s) read per testament
+        "text_route": {t: c[0][0] for t, c in picks.items() if c},       # canonical route per testament (bibles' catalog/text-route.json)
+        "text_route_books": (result or {}).get("routes"),                # books fetched per route: {"sofria": n, "usx": n, "plain": n}
         "name": info.get("vname") or info.get("name"),
         "copyright": info.get("mark"),
         "license_url": license_url,
@@ -410,8 +475,10 @@ def main() -> int:
     print(f"[dbt_source] {args.iso}: {pin['bible_id']} (filesets={picks}, {pin['name']}) · "
           f"license→{pin['license_url']}", file=sys.stderr)
 
-    to_usj(args.bible_id, picks, args.to_usj, args.book, bare_iso=args.bare_iso)
-    return 0
+    result = to_usj(args.bible_id, picks, args.to_usj, args.book, bare_iso=args.bare_iso)
+    pin = build_pin(info, picks, args.iso, result)
+    pin_path.write_text(json.dumps(pin, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    return 0 if result["books"] else 1
 
 
 if __name__ == "__main__":

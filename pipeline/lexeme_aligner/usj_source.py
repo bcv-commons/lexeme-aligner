@@ -279,6 +279,151 @@ _KNOWN_PARA = {"p", "m", "po", "pr", "cls", "pmo", "pm", "pmc", "pmr", "pi", "mi
                "lh", "li", "lf", "lim", "tr", "tc", "tcr", "th", "thr", "b", "sd", "lit", "periph"}
 
 
+# --- canonical text formats (2026-10-17, agreed with bcv-commons/bibles) ------------------------------------------------------
+# An ingested book file `<NN>-<BOOK>.json` holds the edition's CANONICAL text exactly as its source publishes it (bibles' catalog names
+# the route per edition): USJ (bibles' own USJ, helloAO through bibles' converter, USX through bibles' usx_to_usj.py), or one of two
+# wrappers that keep a source document unchanged:
+#     {"format": "sofria", "book": "JHN", "chapters": {"3": <Sofria document as fetched>, ...}}
+#     {"format": "verses", "book": "JHN", "chapters": {"3": [{"verse_start": 1, "verse_end": 1, "verse_text": "..."}, ...]}}
+#       (a source with nothing structured: DBT's plain text, its verses as the API gave them)
+# Verse text is read with bibles' extraction rule for that format (vendored verse_text.extract_sofria; our walker below IS the USJ
+# rule, parity-tested against extract_usj). Nothing is converted between formats on our side.
+CANONICAL_FORMATS = ("sofria", "verses")
+
+
+def book_format(doc) -> str:
+    """'usj', 'sofria' or 'verses' for a loaded book file."""
+    f = doc.get("format") if isinstance(doc, dict) else None
+    return f if f in CANONICAL_FORMATS else "usj"
+
+
+def _verse_text_module():
+    """bibles' tools/verse-text (vendored, pinned in config/PROVENANCE.txt): extract_usj / extract_sofria / extract_plain / clean."""
+    vendor = str(Path(__file__).resolve().parents[1] / "vendor" / "bibles")
+    if vendor not in sys.path:
+        sys.path.insert(0, vendor)
+    import verse_text
+    import plain_text
+    verse_text.extract_plain = plain_text.extract_plain
+    return verse_text
+
+
+_VT = None
+
+
+def _sofria_bridge_ends(doc: dict) -> dict[int, int]:
+    """{first verse: last verse} of every bridged verse label in a Sofria chapter ("4-5" -> {4: 5}); numbers only."""
+    out: dict[int, int] = {}
+
+    def walk(items):
+        for it in items or []:
+            if not isinstance(it, dict):
+                continue
+            if it.get("type") == "mark" and it.get("subtype") == "verses_label":
+                n = (it.get("atts") or {}).get("number")
+                m = re.match(r"^(\d+)\D+(\d+)", str(n[0] if isinstance(n, list) else n or ""))
+                if m:
+                    out[int(m.group(1))] = int(m.group(2))
+            walk(it.get("content"))
+            if it.get("type") == "graft":
+                walk((it.get("sequence") or {}).get("blocks"))
+
+    walk((doc.get("sequence") or {}).get("blocks"))
+    return out
+
+
+def _canonical_pieces(doc: dict):
+    """(chapter, verse_start, verse_end, text) per verse of a 'sofria' or 'verses' book file, chapters in numeric order. Both go
+    through bibles' extractors (extract_sofria; extract_plain for DBT's plain verses: `~` and a literal `//` read as spaces)."""
+    global _VT
+    fmt = book_format(doc)
+    if _VT is None:
+        _VT = _verse_text_module()
+    for ch_key in sorted(doc.get("chapters") or {}, key=lambda c: int(c)):
+        ch, body = int(ch_key), doc["chapters"][ch_key]
+        if fmt == "sofria":
+            ends = _sofria_bridge_ends(body)
+            entries = _VT.extract_sofria(body)
+        else:
+            ends: dict[int, int] = {}
+            for v in body or []:
+                a = int(v["verse_start"])
+                ends[a] = max(ends.get(a, a), int(v.get("verse_end") or a))
+            entries = _VT.extract_plain(body)
+        for e in entries:
+            m = re.match(r"\d+", str(e["verse"]))
+            if m:
+                vs = int(m.group())
+                yield ch, vs, ends.get(vs, vs), e["text"]
+
+
+def verse_markers(path: Path) -> tuple[str | None, list[tuple[int, int, int]]]:
+    """(book code, [(chapter, verse_start, verse_end)]) — every verse number a book file gives, with text or without, in any canonical
+    format. For the structure fingerprints (versification.detect_scheme, NT/OT variant detection)."""
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    fmt = book_format(doc)
+    out: list[tuple[int, int, int]] = []
+    if fmt == "sofria":
+        for ch_key, body in doc.get("chapters", {}).items():
+            def walk(items, ch=int(ch_key)):
+                for it in items or []:
+                    if not isinstance(it, dict):
+                        continue
+                    if it.get("type") == "mark" and it.get("subtype") == "verses_label":
+                        n = (it.get("atts") or {}).get("number")
+                        m = re.match(r"^(\d+)(?:\D+(\d+))?", str(n[0] if isinstance(n, list) else n or ""))
+                        if m:
+                            out.append((ch, int(m.group(1)), int(m.group(2) or m.group(1))))
+                    walk(it.get("content"))
+                    if it.get("type") == "graft":
+                        walk((it.get("sequence") or {}).get("blocks"))
+            walk((body.get("sequence") or {}).get("blocks"))
+        return doc.get("book"), out
+    if fmt == "verses":
+        for ch_key, body in doc.get("chapters", {}).items():
+            out += [(int(ch_key), int(v["verse_start"]), int(v.get("verse_end") or v["verse_start"])) for v in body or []]
+        return doc.get("book"), out
+    book, cur = None, 0
+
+    def walk(node):
+        nonlocal book, cur
+        for it in (node if isinstance(node, list) else node.get("content", [])):
+            if not isinstance(it, dict):
+                continue
+            if it.get("type") == "book":
+                book = it.get("code")
+            if it.get("marker") == "c":
+                try:
+                    cur = int(it.get("number"))
+                except (TypeError, ValueError):
+                    pass
+            if it.get("marker") == "v":
+                m = re.match(r"^(\d+)(?:\D+(\d+))?", str(it.get("number") or ""))
+                if m:
+                    out.append((cur, int(m.group(1)), int(m.group(2) or m.group(1))))
+            if "content" in it:
+                walk(it["content"])
+    walk(doc.get("content", doc))
+    return book, out
+
+
+def _word_before_pipe(items) -> list:
+    """A \\w's content up to its first `|` (the rest is an unparsed attribute): bibles' verse_text.word_before_pipe."""
+    global _VT
+    if _VT is None:
+        _VT = _verse_text_module()
+    return _VT.word_before_pipe(items)
+
+
+def _clean_pipes(text: str) -> str:
+    """bibles' text-level rule for `|` (verse_text.clean): proskomma's `| default="X"` reads as `|X`, legacy codes |i |sc |r |d are
+    dropped where they read as codes, every other `|` is text; whitespace collapsed and trimmed."""
+    global _VT
+    if _VT is None:
+        _VT = _verse_text_module()
+    return _VT.clean(text)
+
+
 def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
     """Shared walker for read_verses/read_verse_ranges — yields (chapter, verse_start, verse_end,
     text_piece) per text-bearing item, verse_end == verse_start for a bare (non-range) marker.
@@ -327,6 +472,14 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
         if state["ch"] and state["vs"] and text:
             yield (state["ch"], state["vs"], state["ve"], text)
 
+    if book_format(usj) != "usj":                           # Sofria / plain verses: bibles' extractor gives each verse's text
+        for ch, vs, ve, text in _canonical_pieces(usj):
+            state["ch"], state["vs"], state["ve"] = ch, vs, ve
+            yield from emit(text)
+        if buffered:
+            yield from flush()
+        return
+
     seen: set[int] = set()                                  # verse numbers already opened in this chapter
 
     def inline(items, ctx):
@@ -360,7 +513,10 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
             elif t == "char":
                 if _base_marker(it.get("marker", "")) in _SKIP_CHAR:
                     continue
-                yield from inline(it.get("content") or [], ctx)
+                content = it.get("content") or []
+                if it.get("marker") == "w":                 # bibles' rule (1.0.0): in \w, text from a `|` on is an unparsed attribute
+                    content = _word_before_pipe(content)
+                yield from inline(content, ctx)
             else:
                 yield from inline(it.get("content") or [], ctx)
 
@@ -421,7 +577,7 @@ def read_verses(usj_path: Path, warn=sys.stderr, *, rules: dict | None = None) -
     verses: dict[tuple[int, int], list[str]] = {}
     for ch, vs, _ve, text in _walk_verses(usj_path, warn, rules=rules):
         verses.setdefault((ch, vs), []).append(text)
-    return {k: _collapse("".join(parts)) for k, parts in verses.items()}
+    return {k: _collapse(_clean_pipes("".join(parts))) for k, parts in verses.items()}
 
 
 def read_verse_ranges(usj_path: Path, warn=sys.stderr, *, rules: dict | None = None) -> dict[tuple[int, int], dict]:
@@ -437,7 +593,7 @@ def read_verse_ranges(usj_path: Path, warn=sys.stderr, *, rules: dict | None = N
             verses[key] = {"text": [], "verse_end": ve}
         verses[key]["text"].append(text)
         verses[key]["verse_end"] = max(verses[key]["verse_end"], ve)
-    return {k: {"text": _collapse("".join(v["text"])), "verse_end": v["verse_end"]} for k, v in verses.items()}
+    return {k: {"text": _collapse(_clean_pipes("".join(v["text"]))), "verse_end": v["verse_end"]} for k, v in verses.items()}
 
 
 def read_raw_verses(usj_path: Path, warn=sys.stderr) -> dict[tuple[int, int], str]:

@@ -48,6 +48,14 @@ eng_BSB 3JN fa0a526b 2026-10-15 73644
 A client that does not know the edition id fetches this one file, looks for its book's file hash and gets the edition (or learns that
 no edition matches its text), without listing folders through the Hub API.
 
+Editions that have only a full-alignment layer and no compact alignment (for example the Door43 texts) are listed after the compact
+editions, with `<dataset>/<layer id>` in place of the edition folder:
+```
+full-alignments-manual-sa/hin_higlt+manual+door43 RUT 0b69d368 2026-10-16 87ab3 5611d 263fa 32795
+```
+The files of such a line are in `bcv-commons/<dataset>`, folder `<iso[0]>/<iso>/<layer id>/` (the same `<BOOK>_<hash>.json` names).
+The first field of a compact edition never contains `/`. Only layers that are published are listed.
+
 ## Full-alignment channels (since 2026-10)
 
 For the editions that also have a hand-made (gold) alignment, the `.meta.json` additionally carries the **statistical full

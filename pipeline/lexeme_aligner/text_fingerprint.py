@@ -31,7 +31,7 @@ MAP_HEX = 5                  # chapter fingerprint characters in the optional _f
 MAP_NAME = "_fingerprints.txt"
 
 __all__ = ["TEXT_FP_VERSION", "TOKENIZER_VERSION", "NAME_HEX", "MAP_HEX", "MAP_NAME", "verse_line", "chapter_lines",
-           "fingerprints", "usj_verses", "usj_fingerprints", "file_hash", "map_line", "book_file_hash", "update_map", "update_language_map", "read_map"]
+           "fingerprints", "usj_verses", "usj_fingerprints", "file_hash", "map_line", "book_file_hash", "update_map", "update_language_map", "layer_map_lines", "read_map"]
 
 verse_line = _BCV.verse_line          # "{verse}:{tokens}" or None (verse with no tokens: left out)
 chapter_lines = _BCV.chapter_lines    # {(chapter, verse): text} -> {chapter: [verse lines]}
@@ -76,7 +76,7 @@ def read_map(edition_dir: Path) -> dict[str, str]:
     return {ln.split(" ", 1)[0]: ln for ln in fp.read_text(encoding="utf-8").splitlines() if ln.strip()}
 
 
-def update_map(edition_dir: Path, lines: dict[str, str]) -> Path:
+def update_map(edition_dir: Path, lines: dict[str, str], language: bool = True) -> Path:
     """Put each {book: map line} into the edition's _fingerprints.txt, REPLACING that book's line (the map names only the latest
     version of each book; older book files stay published). Lines sorted in canonical book order; locked + atomic, because
     several builders can write one edition folder."""
@@ -97,14 +97,34 @@ def update_map(edition_dir: Path, lines: dict[str, str]) -> Path:
             os.replace(tmp, path)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
-    update_language_map(edition_dir.parent)
+    if language:                          # compact edition folders only; a full-align layer folder has no language map of its own
+        update_language_map(edition_dir.parent)
     return path
 
 
-def update_language_map(lang_dir: Path) -> Path | None:
+def layer_map_lines(layer_dir: Path, usj_dir: Path) -> dict[str, str]:
+    """{book: map line} for a full-align layer folder, from the text it was built on: only books whose file name is that text's
+    fingerprint (a layer built on an older text gets no line). Build date = the main file's mtime."""
+    import re
+    out = {}
+    for f in sorted(Path(layer_dir).glob("*_*.json")):
+        m = re.fullmatch(r"([0-9A-Z]{3})_([0-9a-f]{%d})\.json" % NAME_HEX, f.name)
+        usj = next(Path(usj_dir).glob(f"*-{m[1]}.json"), None) if m else None
+        if usj is None:
+            continue
+        fp, chapters = usj_fingerprints(usj)
+        if file_hash(fp) == m[2]:
+            out[m[1]] = map_line(m[1], fp, datetime.fromtimestamp(f.stat().st_mtime, timezone.utc).strftime("%Y-%m-%d"), chapters)
+    return out
+
+
+def update_language_map(lang_dir: Path, layers: dict[str, Path] | None = None) -> Path | None:
     """Rewrite the language's combined <iso[0]>/<iso>/_fingerprints.txt: every edition map's lines, each prefixed by the edition folder
     name, editions in name order (client request 2026-10-21: find which edition, if any, matches a text with one request, without the
-    tree API). Derived from the edition maps only; removed when no edition has a map. Locked + atomic like update_map."""
+    tree API). Then the editions that have ONLY a full-alignment layer (client request 2026-10-21, e.g. Door43 texts): their layer map's
+    lines prefixed by "<dataset>/<layer id>" (e.g. "full-alignments-manual-sa/hin_higlt+manual+door43"), the repo and folder that hold
+    the files. `layers` = {that prefix: layer folder}; publish_safe passes the layers that pass the publish gate. None keeps the layer
+    lines the file already has, so a chain rewriting an edition map does not drop them. Removed when nothing is left. Locked + atomic."""
     import fcntl
     import os
     lang_dir = Path(lang_dir)
@@ -114,6 +134,11 @@ def update_language_map(lang_dir: Path) -> Path | None:
         try:
             out = [f"{d.name} {ln}\n" for d in sorted(p for p in lang_dir.iterdir() if (p / MAP_NAME).is_file())
                    for ln in read_map(d).values()]
+            if layers is None:
+                out += [ln + "\n" for ln in (path.read_text(encoding="utf-8").splitlines() if path.exists() else [])
+                        if "/" in ln.split(" ", 1)[0]]
+            else:
+                out += [f"{prefix} {ln}\n" for prefix in sorted(layers) for ln in read_map(layers[prefix]).values()]
             if not out:
                 path.unlink(missing_ok=True)
                 return None

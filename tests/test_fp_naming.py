@@ -148,3 +148,48 @@ def test_language_map_is_removed_without_edition_maps(tmp_path):
     (lang / "eng_A").mkdir(parents=True)
     (lang / tf.MAP_NAME).write_text("stale\n")
     assert tf.update_language_map(lang) is None and not (lang / tf.MAP_NAME).exists()
+
+
+def test_language_map_lists_layer_only_editions_and_keeps_them(tmp_path):
+    lang = tmp_path / "e/eng"
+    tf.update_map(lang / "eng_A", {"GEN": "GEN 22222222 2026-10-01 ccccc"})
+    layer = tmp_path / "fa/e/eng/eng_glt+manual+door43"
+    tf.update_map(layer, {"RUT": "RUT 33333333 2026-10-16 ddddd"}, language=False)
+    assert not (layer.parent / tf.MAP_NAME).exists()                         # no language map in a full-align tree
+    tf.update_language_map(lang, {"full-alignments-manual-sa/eng_glt+manual+door43": layer})
+    want = ["eng_A GEN 22222222 2026-10-01 ccccc", "full-alignments-manual-sa/eng_glt+manual+door43 RUT 33333333 2026-10-16 ddddd"]
+    assert (lang / tf.MAP_NAME).read_text(encoding="utf-8").splitlines() == want
+    tf.update_map(lang / "eng_A", {"GEN": "GEN 44444444 2026-10-22 eeeee"})   # a chain rewrite keeps the layer line
+    assert (lang / tf.MAP_NAME).read_text(encoding="utf-8").splitlines()[1] == want[1]
+    tf.update_language_map(lang, {})                                           # publish_safe: the layer no longer passes the gate
+    assert (lang / tf.MAP_NAME).read_text(encoding="utf-8").splitlines() == ["eng_A GEN 44444444 2026-10-22 eeeee"]
+
+
+def test_layer_map_lines_only_for_the_text_the_layer_was_built_on(tmp_path):
+    usj = _usj(tmp_path / "usj/08-RUT.json", {(1, 1): "In the days"})
+    _usj(tmp_path / "usj/57-TIT.json", {(1, 1): "Paul a servant"})
+    layer = tmp_path / "layer"
+    layer.mkdir()
+    (layer / f"RUT_{tf.book_file_hash(usj)}.json").write_text("[]")
+    (layer / "TIT_0bad0bad.json").write_text("[]")                            # built on an older text: no line
+    (layer / "_layer.json").write_text("{}")
+    lines = tf.layer_map_lines(layer, tmp_path / "usj")
+    assert list(lines) == ["RUT"] and lines["RUT"].split()[1] == tf.book_file_hash(usj)
+
+
+def test_language_map_layers_respect_the_publish_gate(tmp_path):
+    comp = tmp_path / "publish/compact-alignments"
+    (comp / "e/eng/eng_A").mkdir(parents=True)
+    (comp / "manifest.json").write_text(json.dumps({"languages": {"eng": {"editions": {"eng_A": {"tag": "enga"}}}}}))
+    root = tmp_path / "publish/full-alignments-manual-sa"
+    layers = {"eng_A+manual+door43": "eng_A", "eng_glt+manual+door43": "eng_glt", "eng_held+manual+door43": "eng_held"}
+    for lid in layers:
+        tf.update_map(root / "e/eng" / lid, {"RUT": "RUT 33333333 2026-10-16 ddddd"}, language=False)
+    (root / "manifest.json").write_text(json.dumps({"languages": {"eng": {"layers": {
+        lid: {"edition": ed, "license": "CC BY-SA 4.0"} for lid, ed in layers.items()}}}}))
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/fullalign_publish.json").write_text(json.dumps({"open_licence": r"\bcc[- ]?by\b",
+                                                                         "hold": {"eng_held+manual+door43": {"reason": "test"}},
+                                                                         "text_licences": {e: {"licence": "CC BY-SA 4.0"} for e in ("eng_glt", "eng_held")}}))
+    got = ps.language_map_layers("eng", tmp_path)
+    assert list(got) == ["full-alignments-manual-sa/eng_glt+manual+door43"]   # has a compact edition / held: not listed

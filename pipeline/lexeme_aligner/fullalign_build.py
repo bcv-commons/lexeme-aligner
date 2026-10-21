@@ -545,7 +545,7 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
         report["layers"][lid] = dict(t)
         report["layers"][lid]["problems"] = problems(t)
     if lids:
-        _update_manual_manifests(publish_iso, ced, lids, report, manual_out)
+        _update_manual_manifests(publish_iso, ced, lids, report, manual_out, usj_dir)
     return report
 
 
@@ -635,6 +635,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
     report["layers"][lid]["problems"] = problems(t)
     if written and not report["layers"][lid]["problems"]:
         from lexeme_aligner.manifest_io import update_json
+        tf.update_map(ldir, tf.layer_map_lines(ldir, usj_dir), language=False)
         files = {f.name.split("_")[0]: f.name for f in sorted(ldir.glob("*_*.json")) if f.name.count(".") == 1 and not f.name.startswith("_")}
 
         def mutate(doc):
@@ -646,7 +647,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
     return report
 
 
-def _update_manual_manifests(iso: str, ced: str, lids: dict, report: dict, manual_out: Path | None) -> None:
+def _update_manual_manifests(iso: str, ced: str, lids: dict, report: dict, manual_out: Path | None, usj_dir: Path) -> None:
     from lexeme_aligner.manifest_io import update_json
     by_root: dict[Path, dict] = collections.defaultdict(dict)
     for lid, (ml, ldir) in lids.items():
@@ -654,6 +655,7 @@ def _update_manual_manifests(iso: str, ced: str, lids: dict, report: dict, manua
         if not t or t.get("problems"):
             continue
         root = ldir.parents[2]
+        tf.update_map(ldir, tf.layer_map_lines(ldir, usj_dir), language=False)   # the layer's own map: feeds compact's language map
         files = {f.name.split("_")[0]: f.name for f in sorted(ldir.glob("*_*.json")) if f.name.count(".") == 1 and not f.name.startswith("_")}
         by_root[root][lid] = {"edition": ced, "source": ml["source"], "base_text": ml["base_text"], "license": ml["license"],
                               "rows": t.get("rows", 0), "books": files, "has_ids": ml["source"] in HAS_IDS}

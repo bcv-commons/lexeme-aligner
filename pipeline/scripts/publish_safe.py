@@ -35,6 +35,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "pipeline"))
 from lexeme_aligner import compact_layers  # noqa: E402
+from lexeme_aligner import text_fingerprint as tf  # noqa: E402
 
 DATASETS = {                                   # local dir name -> (HF repo, kind)
     "lexeme-alignments": ("bcv-commons/lexeme-alignments", "partition"),
@@ -361,9 +362,46 @@ def ready_report(isos: list[str], ledger: dict, busy: set[str], lex: dict, comp:
     return ready, blocked
 
 
+def language_map_layers(iso: str, repo: Path = REPO) -> dict[str, Path]:
+    """{"<dataset>/<layer id>": layer folder} for the full-align layers of `iso` whose edition has NO compact edition folder and that pass
+    the publish gate (fullalign_publish.json): the extra lines of compact's language map (text_fingerprint.update_language_map)."""
+    comp_root = repo / "publish/compact-alignments"
+    comp = json.loads((comp_root / "manifest.json").read_text(encoding="utf-8"))["languages"]
+    tag_of = {ed: info.get("tag", ed) for e in comp.values() for ed, info in e.get("editions", {}).items()}
+    cfg = json.loads((repo / FA_PUBLISH.relative_to(REPO)).read_text(encoding="utf-8"))
+    out = {}
+    for name, (hf_repo, kind) in DATASETS.items():
+        mf = repo / "publish" / name / "manifest.json"
+        if kind != "fullalign" or not mf.exists():
+            continue
+        local = json.loads(mf.read_text(encoding="utf-8"))
+        held = unpublishable_layers(local, cfg, tag_of, repo)
+        for lid, info in local.get("languages", {}).get(iso, {}).get("layers", {}).items():
+            ldir = repo / "publish" / name / iso[0] / iso / lid
+            if lid not in held and not (comp_root / iso[0] / iso / (info.get("edition") or lid.split("+")[0])).is_dir() \
+                    and (ldir / tf.MAP_NAME).is_file():
+                out[f"{hf_repo.split('/', 1)[1]}/{lid}"] = ldir
+    return out
+
+
+def refresh_language_maps(isos: list[str], repo: Path = REPO) -> int:
+    """Rewrite compact's per-language _fingerprints.txt for `isos` with exactly the layer-only editions that may be published now
+    (a layer that becomes held disappears from the map). Returns the number of layer lines written."""
+    n = 0
+    for iso in isos:
+        lang_dir = repo / "publish/compact-alignments" / iso[0] / iso
+        if lang_dir.is_dir():
+            layers = language_map_layers(iso, repo)
+            tf.update_language_map(lang_dir, layers)
+            n += sum(len(tf.read_map(d)) for d in layers.values())
+    return n
+
+
 def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch: Path, schema_change: bool = False) -> dict:
     from lexeme_aligner.hf_bulk_publish import publish_chunked
     repo, kind = DATASETS[name]
+    if kind == "compact":
+        print(f"[publish_safe] {name}: language maps refreshed ({refresh_language_maps(isos)} full-alignment-only line(s))", file=sys.stderr)
     local_root = REPO / "publish" / name
     local = json.loads((local_root / "manifest.json").read_text(encoding="utf-8"))
     held: set[str] = set()

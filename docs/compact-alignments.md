@@ -353,7 +353,9 @@ format never change it:
 4. File name = first 8 hex characters. `_fingerprints.txt` per edition (meta repo) lists the latest
    version of each book with its build date and 5-hex chapter fingerprints; `<iso>/_fingerprints.txt` (meta repo) combines
    them per language, each line prefixed by the edition folder (`text_fingerprint.update_language_map`, rewritten with every
-   edition map).
+   edition map). Editions with only a full-alignment layer are added as `<dataset>/<layer id>` lines from the layer's own
+   `_fingerprints.txt` (written by `fullalign_build`, local only); `publish_safe` rewrites the language maps before a compact
+   publish with exactly the layers that pass `config/fullalign_publish.json`.
 
 Before 2026-10-21 the names used the last 5 hex characters of `book_content_hash` (SHA-256 over
 `"{chapter}:{verse}:{raw text}"` lines). It is kept only to recognise old names:

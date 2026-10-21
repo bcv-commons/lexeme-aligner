@@ -34,7 +34,8 @@ Each row records in its profile (`_layer.json`) whether the link was **kept** fr
 that proposed it), **edited** by the model (`llm_edit_edited`) or is a function word carried **inside** another word, for example by a
 prefix or suffix (`llm_edit_inside`). A source word the model leaves unrendered is an explicit no-rendering (`!`). Verses with nothing to
 ask (mostly name lists) or no target text keep the chain's proposal. Model version, design and threshold are in each layer's
-`_layer.json`.
+`_layer.json`. The questions are built by `lexeme_aligner.eval.jev_check` and the layer by `lexeme_aligner.fullalign_build`
+(github.com/bcv-commons/lexeme-aligner).
 
 ## File format
 

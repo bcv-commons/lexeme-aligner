@@ -765,6 +765,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
             _ensure_index_current(heb, book, index_root)
         book_index = list(json.loads(lexemes_fp.read_text(encoding="utf-8")).keys())
         array = [by_ref.get(ref, "") for ref in book_index]
+        if not any(array):                                   # text but no alignment (a testament outside the chain's scope,
+            continue                                         # e.g. heb OT, excluded): an all-empty file is not "aligned"
         digest = book_content_hash(usj_path)[-hash_len:]
         out_fp = out_root / iso[0] / iso / edition / f"{book}_{digest}.json"
         out_fp.parent.mkdir(parents=True, exist_ok=True)

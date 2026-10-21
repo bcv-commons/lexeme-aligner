@@ -14360,26 +14360,33 @@
     },
     "heb": {
       "base_texts": [
+        "HEBM95",
         "heb_lbm",
         "heb_mod",
         "heb_scg"
       ],
-      "books": 295,
+      "books": 400,
       "by_base_text": {
-        "heb_lbm": 4570,
-        "heb_mod": 2314,
-        "heb_scg": 3094
+        "HEBM95": 2553,
+        "heb_lbm": 4516,
+        "heb_mod": 2407,
+        "heb_scg": 3150
       },
-      "content_sha256": "36d42533492ce55af3f78b749b859348f4c575eda1ec114d28401705a03a86aa",
+      "content_sha256": "1a7577bb4ded442618defdab8a7c3ae83392c9b9e758e2546cc7747aa449a352",
       "file": "iso=heb/data.parquet",
       "language": "Hebrew",
-      "lexemes": 2762,
+      "lexemes": 3045,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 9360,
-      "rows": 9978,
+      "phrases": 11521,
+      "rows": 12626,
       "scattered_dropped": 0,
       "sources": {
+        "HEBM95": {
+          "edition": "HEBM95",
+          "license_url": null,
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
         "heb_lbm": {
           "edition": "heb_lbm",
           "license_url": "https://ebible.org/Scriptures/details.php?id=heblb",

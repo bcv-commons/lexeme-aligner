@@ -27,8 +27,10 @@ TEXT ROUTES (2026-10-17, bcv-commons/bibles). DBT offers an edition's text in se
 RELBTL / BGTNEW / FFMWBT / MZWNVS: DBT's Sofria is damaged and the USX is canonical). bibles names the CANONICAL text per edition and testament
 in catalog/text-route.json (config/dbt_catalog/text-route.json, pinned in PROVENANCE): `sofria` (DBT's `text_json`), `usx` (`text_usx`,
 converted to USJ with bibles' usx_to_usj.py), or `plain` (`text_plain`, only where nothing structured exists). We read exactly that route and
-fileset, with no fallback to another route: a book the canonical text lacks is missing, as it is for any client following the catalog.
-An edition the catalog does not list falls back to Sofria > USX > plain by what the bible offers. Nothing is converted between formats on our
+fileset. A book that fileset does not have (a partial `text_json`, e.g. BVZYSS: 8 of 27 books) is taken from the next route DOWN the order
+sofria > usx > plain that has it, never from a higher one and never when the catalog gives a `why` (damaged Sofria: its plain text is damaged
+too); the route used per book is recorded in <dir>/_routes.txt (JSON). (To be confirmed with bibles: the catalog names one route per edition.)
+An edition the catalog does not list uses Sofria > USX > plain by what the bible offers. Nothing is converted between formats on our
 side: a Sofria book is stored as fetched (`{"format": "sofria", ...}`), plain verses as given (`{"format": "verses", ...}`), USX as the USJ
 bibles' converter makes; usj_source reads their verse text with bibles' extractors. Structured books cost ONE API call per book
 (`bibles/filesets/{id}?type=text_json|text_usx&book_id=`), which lists a signed CloudFront link per chapter (Sofria) or for the whole book (USX).
@@ -128,7 +130,12 @@ def _get(path: str, params: dict, retries: int = 8) -> dict:
 
 def bible_info(bible_id: str) -> dict:
     """GET /bibles/{bible_id} — metadata + filesets. Raises if the bible_id doesn't exist."""
-    d = _get(f"bibles/{bible_id}", {})
+    try:
+        d = _get(f"bibles/{bible_id}", {})
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise SystemExit(f"[dbt_source] '{bible_id}': DBT does not know this bible (404)")
+        raise
     if "data" not in d:
         raise SystemExit(f"[dbt_source] '{bible_id}': {d.get('error', d)}")
     return d["data"]
@@ -153,11 +160,6 @@ def text_filesets(info: dict) -> dict:
     ONLY candidate when bibles lists the edition (see TEXT ROUTES); otherwise every route the bible offers, Sofria > USX > plain, and a
     book tries them in order."""
     listed = catalog_routes().get(info.get("abbr"))
-    if listed:
-        picks = {t: ([(listed[t.lower()]["route"], listed[t.lower()]["id"])] if t.lower() in listed else []) for t in ("OT", "NT")}
-        if not any(picks.values()):
-            raise SystemExit(f"[dbt_source] '{info.get('abbr')}': text-route.json lists no OT/NT text")
-        return picks
     all_filesets = [f for group in (info.get("filesets") or {}).values() for f in group]
 
     def best_for(testament: str) -> list[tuple[str, str]]:
@@ -170,9 +172,23 @@ def text_filesets(info: dict) -> dict:
                     out.append((route, f["id"]))
         return out
 
-    picks = {"OT": best_for("OT"), "NT": best_for("NT")}
+    own = {"OT": best_for("OT"), "NT": best_for("NT")}
+    if not listed:
+        if not any(own.values()):
+            raise SystemExit(f"[dbt_source] '{info.get('abbr')}' has no text fileset (audio/video-only)")
+        return own
+    order = ("sofria", "usx", "plain")
+    picks: dict[str, list[tuple[str, str]]] = {}
+    for t in ("OT", "NT"):
+        e = listed.get(t.lower())
+        if not e:
+            picks[t] = []
+            continue
+        picks[t] = [(e["route"], e["id"])]                                  # the catalog's canonical fileset, even if the bible listing lacks it
+        if not e.get("why") and e["route"] in order:                       # lower routes only; none for a damaged-Sofria edition
+            picks[t] += [(r, fid) for r, fid in own[t] if r in order and order.index(r) > order.index(e["route"])]
     if not any(picks.values()):
-        raise SystemExit(f"[dbt_source] '{info.get('abbr')}' has no text fileset (audio/video-only)")
+        raise SystemExit(f"[dbt_source] '{info.get('abbr')}': text-route.json lists no OT/NT text")
     return picks
 
 
@@ -311,19 +327,24 @@ def book_links(fileset_id: str, route: str, book: str) -> list[dict]:
     return [r for r in (d.get("data") or []) if r.get("path")]
 
 
+DOWNLOAD_THREADS = int(os.environ.get("DBT_DOWNLOAD_THREADS", "6"))        # CloudFront downloads inside one book (the API calls stay paced)
+
+
 def sofria_book(fileset_id: str, book: str) -> dict | None:
-    """The book's Sofria chapters exactly as DBT gives them, in the stored wrapper; None = the fileset has no such book / chapter 1."""
-    rows = book_links(fileset_id, "sofria", book)
-    chapters: dict[str, dict] = {}
-    for r in sorted(rows, key=lambda r: int(r.get("chapter_start") or 0)):
-        ch = r.get("chapter_start")
-        if not ch:
-            continue
+    """The book's Sofria chapters exactly as DBT gives them, in the stored wrapper; None = the fileset has no such book / no chapters."""
+    from concurrent.futures import ThreadPoolExecutor
+    rows = [r for r in book_links(fileset_id, "sofria", book) if r.get("chapter_start")]
+    rows.sort(key=lambda r: int(r["chapter_start"]))
+
+    def fetch(r):
         try:
-            chapters[str(int(ch))] = json.loads(_download(r["path"]))
+            return str(int(r["chapter_start"])), json.loads(_download(r["path"]))
         except urllib.error.HTTPError as e:
             if e.code not in (403, 404):
                 raise
+            return None
+    with ThreadPoolExecutor(max(1, DOWNLOAD_THREADS)) as ex:
+        chapters = dict(x for x in ex.map(fetch, rows) if x)
     return {"format": "sofria", "book": book, "fileset": fileset_id, "chapters": chapters} if chapters else None
 
 
@@ -376,11 +397,12 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
     books_meta = book_chapters(bible_id)
     wanted = [b for b in books_meta if not only or b in only]
     routes: dict[str, int] = {}
+    per_book: dict[str, dict] = {}
     missing: list[str] = []
     stats = {"cache_hits": 0, "cache_misses": 0}
-    # Circuit breaker for a fileset set that is entirely empty (verified live: AYZYSS 404s EVERY chapter). Only when NOTHING at all has
-    # come through after five books in a row; it used to stop after two empty books and so dropped the rest of partial filesets
-    # (458 books in 34 editions went missing that way, found 2026-10-17).
+    # Circuit breaker for a bible that is entirely empty (verified live: AYZYSS 404s EVERY chapter). Only when NOTHING at all has come
+    # through after 15 books in a row (a partial fileset can start late; ATBWYI's first five books are in none of its filesets' first
+    # route). It used to stop after two empty books and so dropped the rest of partial filesets (458 books in 34 editions, 2026-10-17).
     consecutive_empty = 0
     got_any = False
     for book in wanted:
@@ -393,7 +415,7 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
         if not candidates:
             print(f"[dbt_source] skip {book}: no fileset covers testament {meta['testament']!r}", file=sys.stderr)
             continue
-        if not got_any and consecutive_empty >= 5:
+        if not got_any and consecutive_empty >= 15:
             print(f"[dbt_source] skip {book}: nothing came through for {consecutive_empty} books — treating the bible as empty", file=sys.stderr)
             continue
         doc = None
@@ -409,6 +431,7 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
                 doc = _plain_book(bible_id, fileset_id, book, meta, cached_dirs, bare_iso, stats)
             if doc:
                 routes[route] = routes.get(route, 0) + 1
+                per_book[book] = {"route": route, "fileset": fileset_id}
                 break
         if not doc:
             consecutive_empty += 1
@@ -418,6 +441,7 @@ def to_usj(bible_id: str, picks: dict, usj_dir: Path, only: list[str] | None,
         consecutive_empty = 0
         got_any = True
         (usj_dir / f"{nn}-{book}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    (usj_dir / "_routes.txt").write_text(json.dumps(per_book, indent=1, sort_keys=True), encoding="utf-8")
     n = sum(routes.values())
     cache_note = f", {stats['cache_hits']} plain chapter(s) from audio-sync cache" if stats["cache_hits"] else ""
     print(f"[dbt_source] {n} book(s) → {usj_dir} · routes {routes}{cache_note}"

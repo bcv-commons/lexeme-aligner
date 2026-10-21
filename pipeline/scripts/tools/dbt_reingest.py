@@ -64,9 +64,15 @@ def compare(new_dir: Path, old_dir: Path) -> dict:
     return {**t, "examples": examples}
 
 
+MIN_FREE_GB = 25.0
+
+
 def run_one(tag: str, pin: dict, out: Path, state: dict, state_fp: Path, force: bool) -> None:
     if not force and state.get(tag, {}).get("status") == "done":
         return
+    free = shutil.disk_usage(out).free / 1e9
+    if free < MIN_FREE_GB:
+        raise SystemExit(f"[dbt_reingest] only {free:.0f} GB free (< {MIN_FREE_GB:.0f}): stopping before {tag}; resume later")
     from lexeme_aligner import dbt_source as ds
     rec: dict = {"bible_id": pin["bible_id"], "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     new_dir = out / f"usj-{tag}"

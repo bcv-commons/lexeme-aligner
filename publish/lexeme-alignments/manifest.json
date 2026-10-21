@@ -20683,27 +20683,29 @@
     },
     "heb": {
       "base_texts": [
+        "HEBM95",
         "heb_lbm",
         "heb_mod",
         "heb_scg"
       ],
       "books": 27,
       "by_base_text": {
-        "heb_lbm": 38903,
-        "heb_mod": 36255,
-        "heb_scg": 37203
+        "HEBM95": 35893,
+        "heb_lbm": 38330,
+        "heb_mod": 36279,
+        "heb_scg": 37001
       },
       "by_method": {
-        "eflomal": 76556,
-        "gapfill": 2170,
-        "gloss": 32809,
-        "spanext": 826
+        "eflomal": 100003,
+        "gapfill": 2945,
+        "gloss": 43468,
+        "spanext": 1087
       },
-      "content_sha256": "eabd4d48ce91617dd33bf7b76bb3fd98d66089a1648863928aabbfd50255b245",
+      "content_sha256": "5d844da93a04cfcf2ef7c3f0b2929d175fb8e7b3cc14fc9c6155cfcd70ea70c5",
       "file": "iso=heb/data.parquet",
-      "hi_conf_ge_0.9": 62619,
+      "hi_conf_ge_0.9": 83658,
       "language": "Hebrew",
-      "lexemes": 4967,
+      "lexemes": 4969,
       "methods": [
         "spanext",
         "eflomal",
@@ -20711,8 +20713,13 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 112361,
+      "rows": 147503,
       "sources": {
+        "HEBM95": {
+          "edition": "HEBM95",
+          "license_url": null,
+          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
         "heb_lbm": {
           "edition": "heb_lbm",
           "license_url": "https://ebible.org/Scriptures/details.php?id=heblb",
@@ -20729,8 +20736,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 4966,
-      "surfaces": 39048,
+      "strongs": 4968,
+      "surfaces": 45785,
       "testament": "NT"
     },
     "heg": {

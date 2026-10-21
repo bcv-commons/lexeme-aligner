@@ -50,7 +50,10 @@ CHECK_VERSION = "llm-edit-v2"         # iteration 2 (2026-10-09): a CHECK line p
                                       # they carry, owner's choice); no "mostly right" framing
 CHECK3_VERSION = "llm-edit-v3"        # iteration 3: `t+` only with a reason letter (s = supplied for style/grammar, x = explanation);
                                       # a function word belongs to a source word unless one of those applies
+CHECK4_VERSION = "llm-edit-v4"        # 2026-10-20 (Modern Hebrew NT): check3 + `h7@t10`, a source word carried INSIDE a target word
+                                      # that keeps its owner (a prefix ב/ל/ה/ו, a pronoun suffix) — a shared link, not `=`
 SIGNALS = ("uncovered", "low", "spanext", "gapfill", "contested", "checks", "overlap", "unowned", "unowned-fn")
+EXTRA_SIGNALS = ("uncovered-fn",)     # opt-in via --doubt: a FUNCTION source word with no target (every one is asked, not only content)
 METHODS = ("spanext", "eflomal", "gloss", "gapfill", "residual")
 PRIORITY = ["spanext", "eflomal", "gloss", "gapfill", "residual"]
 SCHEMA_EDITS = {"type": "object", "additionalProperties": False, "required": ["edits"],
@@ -148,6 +151,8 @@ def build_proposals(tag: str, publish_iso: str, usj_dir: Path, books: list[str],
                 p.owner[t.idx] = []
                 if "uncovered" in signals and t.idx in content:
                     p.doubt_h[t.idx].add("uncovered")
+                elif "uncovered-fn" in signals and t.idx not in content:
+                    p.doubt_h[t.idx].add("uncovered-fn")
         aligned = {h: s for h, s in p.owner.items() if s}
         if aligned:
             fn = lambda j, toks=p.toks: j < len(toks) and stop.is_function(toks[j])    # noqa: E731
@@ -280,6 +285,17 @@ _CONTRACT_V3 = (_CONTRACT_V2
    find the source word it could belong to: a case ending, a prefix, a suffix, an article, a verb's person or tense often explains a
    target function word. Only when no source word licenses it is it `+s` (supplied) or `+x` (explanation)."""))
 
+_CONTRACT_V4 = (_CONTRACT_V3
+    .replace("""  h3=          h3 has no target word of its own\n""",
+             """  h3=          h3 has no target word of its own and is not rendered inside one either
+  h3@t10       h3 has no target word of its own but is rendered INSIDE t10 (a prefix, suffix or ending of t10); t10 keeps its owner
+""")
+    .replace("""5. Grammar tags (the source's own morphology) and glosses are evidence; the proposal is evidence, not authority.""",
+             """5. Grammar tags (the source's own morphology) and glosses are evidence; the proposal is evidence, not authority.
+6. A source function word (article, preposition, conjunction, pronoun) whose meaning the translation writes as a prefix or suffix of
+   another word is `@` that word, not `=`: `=` only when the translation really leaves it out."""))
+
+
 _EXAMPLE_V2 = """Input (English target, format only; the proposal below contains mistakes on purpose):
 REF 8001016  RUT 1:16
 SOURCE:
@@ -316,6 +332,7 @@ def render_prefix(publish_iso: str, lang_name: str, conventions_md: str | None =
     from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS
     contract, version, example = {"check": (_CONTRACT_V2, CHECK_VERSION, _EXAMPLE_V2),
                                   "check3": (_CONTRACT_V3, CHECK3_VERSION, _EXAMPLE_V2.replace("t6+?", "t6+?").replace("h5>t6\"", "h5>t6\"")),
+                                  "check4": (_CONTRACT_V4, CHECK4_VERSION, _EXAMPLE_V2),
                                   "edits": (_CONTRACT_V1, EDIT_VERSION, _EXAMPLE)}[mode]
     return "\n".join([contract.format(version=version, lang_name=lang_name, publish_iso=publish_iso),
                       f"## Language conventions ({lang_name})", (conventions_md or _GENERIC_CONVENTIONS).strip() + "\n",
@@ -354,7 +371,7 @@ def render_verse(p: Proposal, lex_pos: dict, mode: str = "check") -> str:
         mark = ("+?" if j in p.doubt_t else "+") if j in added else ""
         tw.append(f"t{j}:{w}{mark}")
     lines += ["TARGET:", "  " + " ".join(tw)]
-    if mode in ("check", "check3") and check_ids(p):
+    if mode in ("check", "check3", "check4") and check_ids(p):
         lines.append("CHECK: " + " ".join(check_ids(p)))
     return "\n".join(lines)
 
@@ -365,7 +382,7 @@ def render_chunk(chunk: list[Proposal], label: str, lex_pos: dict, mode: str = "
 
 
 # --- edits ----------------------------------------------------------------------------------------------------------------
-_CODE = re.compile(r"^(?:h(\d+)(?:>t?([\d,\-t]+)|\+t?([\d,\-t]+)|(=)|(\.))|t(\d+)([+.])([sx]?))$")
+_CODE = re.compile(r"^(?:h(\d+)(?:>t?([\d,\-t]+)|\+t?([\d,\-t]+)|(=)|(\.))|t(\d+)([+.])([sx]?)|h(\d+)@t?(\d+))$")
 
 
 @dataclass
@@ -395,7 +412,9 @@ def parse_edits(e: str) -> tuple[list[Edit], list[str]]:
             bad.append(code)
             continue
         h = int(m.group(1)) if m.group(1) is not None else None
-        if m.group(6) is not None:
+        if m.group(9) is not None:
+            edits.append(Edit("inside", h=int(m.group(9)), t=[int(m.group(10))]))
+        elif m.group(6) is not None:
             edits.append(Edit("added" if m.group(7) == "+" else "keep", t=[int(m.group(6))], reason=m.group(8) or None))
         elif m.group(5):
             edits.append(Edit("keep", h=h))
@@ -410,9 +429,11 @@ def parse_edits(e: str) -> tuple[list[Edit], list[str]]:
     return edits, bad
 
 
-def apply_edits(p: Proposal, edits: list[Edit]) -> tuple[dict[int, list[int]], set[int], collections.Counter]:
+def apply_edits(p: Proposal, edits: list[Edit], inside: dict[int, int] | None = None
+                ) -> tuple[dict[int, list[int]], set[int], collections.Counter]:
     """(final owner map, h_idx changed, counts). Invalid codes (unknown h, a position outside the verse) are dropped and counted;
-    the result is always a partition."""
+    the result is always a partition. `h@t` (check4) gives h no words of its own and records h -> t in `inside` (when given): a
+    shared link to a word that keeps its owner; a later edit of h removes it again."""
     owner = {h: list(s) for h, s in p.owner.items()}
     hs = {t.idx for t in p.heb}
     n = len(p.toks)
@@ -427,6 +448,16 @@ def apply_edits(p: Proposal, edits: list[Edit]) -> tuple[dict[int, list[int]], s
             continue
         if e.kind == "keep":
             c["kept (h. / t.)"] += 1
+            continue
+        if inside is not None and e.h is not None:
+            inside.pop(e.h, None)
+        if e.kind == "inside":
+            if owner.get(e.h):
+                owner[e.h] = []
+            if inside is not None:
+                inside[e.h] = e.t[0]
+            changed.add(e.h)
+            c["h@t"] += 1
             continue
         if e.kind == "add":                                     # h+t: extend h's span with these positions
             e = Edit("assign", h=e.h, t=sorted(set(owner.get(e.h, [])) | set(e.t)))
@@ -464,12 +495,18 @@ def to_records(proposals: list[Proposal], finals: dict[int, tuple[dict, set]], r
     """{BOOK: [verse record]} in gapfill's shape (pairs / llm_skipped / llm_added), read by pos_score `--method llm:<tag>`."""
     by_book: dict[str, list[dict]] = collections.defaultdict(list)
     for p in proposals:
-        owner, changed = finals.get(p.ref, (p.owner, set()))
+        owner, changed, *rest = finals.get(p.ref, (p.owner, set()))
+        inside = rest[0] if rest else {}
         pairs, skipped = [], []
         for t in p.heb:
             s = owner.get(t.idx, [])
             how = "edited" if t.idx in changed else "kept"
-            if s:
+            if not s and t.idx in inside:                       # check4: rendered inside a word that keeps its owner (shared link)
+                j = inside[t.idx]
+                pairs.append({"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong, "lemma": t.lemma, "surface": t.surface,
+                              "target": p.toks[j], "t_idx": [j], "score": 0.75, "method": "llm", "content": bool(t.is_content),
+                              "prior": "llm_edit_inside", "proposal_method": p.method.get(t.idx)})
+            elif s:
                 pairs.append({"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong, "lemma": t.lemma, "surface": t.surface,
                               "target": " ".join(p.toks[j] for j in s), "t_idx": s, "score": 0.9 if how == "kept" else 0.75,
                               "method": "llm", "content": bool(t.is_content), "prior": f"llm_edit_{how}",
@@ -546,8 +583,8 @@ def main(argv=None) -> int:
     ap.add_argument("--book", action="append", required=True)
     ap.add_argument("--chapter", type=int, action="append", help="only these chapters (a pilot slice)")
     ap.add_argument("--cap", type=int, default=40, help="max verses per call; a longer chapter is split evenly")
-    ap.add_argument("--doubt", default=",".join(SIGNALS), help=f"doubt signals (any of {','.join(SIGNALS)})")
-    ap.add_argument("--mode", default="check", choices=["check", "check3", "edits"],
+    ap.add_argument("--doubt", default=",".join(SIGNALS), help=f"doubt signals (any of {','.join(SIGNALS + EXTRA_SIGNALS)})")
+    ap.add_argument("--mode", default="check", choices=["check", "check3", "check4", "edits"],
                     help="check (iteration 2, default): every flagged id answered; edits (iteration 1): changes only")
     ap.add_argument("--lang-name", default=None)
     ap.add_argument("--provider", default="mock", choices=["mock", "cli", "anthropic"])
@@ -628,7 +665,7 @@ def main(argv=None) -> int:
         if ans is None:
             tally["chunks without an answer (proposal kept)"] += 1
             continue
-        if a.mode in ("check", "check3"):                      # did the model answer every flagged id?
+        if a.mode in ("check", "check3", "check4"):            # did the model answer every flagged id?
             said: dict[int, set] = collections.defaultdict(set)
             for item in ans.get("edits", []):
                 for e in parse_edits(item.get("e", ""))[0]:
@@ -646,14 +683,15 @@ def main(argv=None) -> int:
                 continue
             edits, bad = parse_edits(item.get("e", ""))
             tally["dropped: unparsed code"] += len(bad)
-            owner, changed, cnt = apply_edits(p, edits)
             prev = finals.get(p.ref)
-            finals[p.ref] = (owner, changed | (prev[1] if prev else set()))
+            inside = dict(prev[2]) if prev else {}
+            owner, changed, cnt = apply_edits(p, edits, inside)
+            finals[p.ref] = (owner, changed | (prev[1] if prev else set()), inside)
             tally.update(cnt)
             tally["verses edited"] += 1
             tally["source tokens changed"] += len(changed)
             tally["changed tokens that were doubtful"] += len(changed & set(p.doubt_h))
-    meta = {"edit_version": {"check": CHECK_VERSION, "check3": CHECK3_VERSION}.get(a.mode, EDIT_VERSION), "mode": a.mode, "provider": a.provider, "model": a.model if a.provider != "mock" else f"mock-{a.mock}",
+    meta = {"edit_version": {"check": CHECK_VERSION, "check3": CHECK3_VERSION, "check4": CHECK4_VERSION}.get(a.mode, EDIT_VERSION), "mode": a.mode, "provider": a.provider, "model": a.model if a.provider != "mock" else f"mock-{a.mock}",
             "effort": a.effort, "doubt": a.doubt, "cap": a.cap}
     paths = write_records(to_records(props, finals, meta), out_tag, Path(OUT))
     ledger = {"out_tag": out_tag, **meta, "chunks": len(cs), "verses": len(props), "proposal": dict(st), "edits": dict(tally),

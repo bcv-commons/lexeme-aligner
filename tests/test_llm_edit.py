@@ -120,3 +120,25 @@ def test_the_check_line_lists_flagged_source_then_target_ids_and_only_in_check_m
     assert le.render_verse(p, {}, "check").splitlines()[-1] == "CHECK: h0 h1 t4"
     assert "CHECK" not in le.render_verse(p, {}, "edits")
     assert "llm-edit-v2" in le.render_prefix("fra", "French", None, "check") and "llm-edit-v1" in le.render_prefix("fra", "French", None, "edits")
+
+
+def test_inside_code_shares_a_word_that_keeps_its_owner():
+    p = prop()
+    inside: dict[int, int] = {}
+    owner, changed, c = le.apply_edits(p, le.parse_edits("h2@t2 h1@1")[0], inside)
+    assert owner == {0: [0, 1], 1: [], 2: []} and inside == {2: 2, 1: 1} and changed == {1, 2} and c["h@t"] == 2
+    owner, _, _ = le.apply_edits(p, le.parse_edits("h2@t2 h2>t5")[0], inside)      # a later edit of h2 replaces the shared link
+    assert owner[2] == [5] and 2 not in inside
+
+
+def test_inside_links_are_written_as_shared_pairs():
+    p = prop()
+    recs = le.to_records([p], {p.ref: ({0: [0, 1], 1: [2], 2: []}, {2}, {2: 0})}, {})["RUT"]
+    assert [(x["h_idx"], x["t_idx"], x["prior"]) for x in recs[0]["pairs"]] == [
+        (0, [0, 1], "llm_edit_kept"), (1, [2], "llm_edit_kept"), (2, [0], "llm_edit_inside")]
+    assert recs[0]["llm_skipped"] == []
+
+
+def test_check4_contract_adds_the_inside_code_and_leaves_check3_alone():
+    assert "h3@t10" in le._CONTRACT_V4 and "h3@t10" not in le._CONTRACT_V3
+    assert le._CONTRACT_V4.count("6. A source function word") == 1

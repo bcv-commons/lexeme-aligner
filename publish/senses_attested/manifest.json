@@ -3151,26 +3151,32 @@
     },
     "ell": {
       "base_texts": [
-        "ELLELL"
+        "ELLELL",
+        "GreVamvas"
       ],
-      "books": 249,
-      "content_sha256": "2649828b8fb8276608ddf2134a6f81c59839461a918700b01c16cb2249b3894e",
+      "books": 506,
+      "content_sha256": "3b5d2d3b0bdcda538fdf7193eecd6391b7c00d2788eebc2baaf41e0e781f291c",
       "file": "iso=ell/data.parquet",
       "language": "Greek",
-      "lexeme_stem_senses": 17514,
-      "lexemes": 8681,
+      "lexeme_stem_senses": 17652,
+      "lexemes": 8731,
       "method": "eflomal+gapfill+gloss+spanext",
       "min_count": 1,
-      "rows": 103008,
+      "rows": 202513,
       "source_corpus": "WLC",
       "sources": {
         "ELLELL": {
           "edition": "ELLELL",
           "license_url": null,
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "GreVamvas": {
+          "edition": "GreVamvas",
+          "license_url": "https://cdn.bibel.wiki/crosswire/ell/GreVamvas/_meta.json",
+          "provider": "cdn.bibel.wiki/crosswire"
         }
       },
-      "surfaces": 39520,
+      "surfaces": 71805,
       "testament": "OT"
     },
     "emi": {

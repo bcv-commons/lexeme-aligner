@@ -1,5 +1,6 @@
-"""Ingest adapter for the catalog's `o` source: editions bibles republishes itself on its CDN, wherever the licence permits and
-the original source is not directly usable (openbible/Biblica, audiobiblia.org; see each edition's own `_meta.json`).
+"""Ingest adapter for the catalog's `o` and `c` sources: editions bibles republishes itself on its CDN, wherever the licence permits
+and the original source is not directly usable (`o`: openbible/Biblica, audiobiblia.org; `c`: CrossWire SWORD modules, since
+2026-10-21, e.g. ell GreVamvas; see each edition's own `_meta.json`). Same layout under both roots (`--root openbible|crosswire`).
 
 Since 2026-10-17 we read bibles' canonical form, unchanged: the book USJ named in the edition's `_meta.json` `formats`
 (`<BOOK>.usj.json`, USJ 3.0 "as the source gave it"; bibles publishes the same text as Sofria per chapter, and either is canonical).
@@ -10,6 +11,7 @@ verse-json (`<BOOK>/<chapter>.json`) was removed by bibles, and its minimal-USFM
     https://cdn.bibel.wiki/openbible/<iso>/<edition>/<BOOK>.usj.json
 
     python -m lexeme_aligner.openbible_source --iso mgw --edition MATUMBI --tag matumbi --to-usj DIR [--pin FILE] [--book MAT]
+    python -m lexeme_aligner.openbible_source --root crosswire --iso ell --edition GreVamvas --tag ell_grevamvas --to-usj DIR
 """
 from __future__ import annotations
 
@@ -25,7 +27,9 @@ from lexeme_aligner import dns_cache as _dns_cache
 
 _dns_cache.install()
 
-BASE = "https://cdn.bibel.wiki/openbible"
+CDN = "https://cdn.bibel.wiki"
+ROOTS = ("openbible", "crosswire")              # `o` -> openbible, `c` -> crosswire
+BASE = f"{CDN}/openbible"
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 
 
@@ -48,36 +52,40 @@ def _get(url: str, retries: int = 6) -> bytes | None:
     return None
 
 
-def book_usj(iso: str, edition: str, book: str, path: str = "<BOOK>.usj.json") -> bytes | None:
+def book_usj(iso: str, edition: str, book: str, path: str = "<BOOK>.usj.json", root: str = "openbible") -> bytes | None:
     """The book's USJ exactly as bibles publishes it (None = not published)."""
-    return _get(f"{BASE}/{iso}/{edition}/{path.replace('<BOOK>', book)}")
+    return _get(f"{CDN}/{root}/{iso}/{edition}/{path.replace('<BOOK>', book)}")
 
 
-def meta(iso: str, edition: str) -> dict:
-    raw = _get(f"{BASE}/{iso}/{edition}/_meta.json")
+def meta(iso: str, edition: str, root: str = "openbible") -> dict:
+    raw = _get(f"{CDN}/{root}/{iso}/{edition}/_meta.json")
     try:
         return json.loads(raw) if raw else {}
     except ValueError:
         return {}
 
 
-def build_pin(iso: str, edition: str, tag: str, m: dict, n_books: int) -> dict:
+def build_pin(iso: str, edition: str, tag: str, m: dict, n_books: int, root: str = "openbible") -> dict:
+    lic = [x.get("type") for x in (m.get("licenses") or []) if isinstance(x, dict) and x.get("type")]
     return {
         "iso": tag,
-        "provider": "cdn.bibel.wiki/openbible",
+        "provider": f"cdn.bibel.wiki/{root}",
+        **({"license": "; ".join(lic)} if lic else {}),
+        **({"original_source": m["source"]} if isinstance(m.get("source"), str) else {}),
         "language_name": m.get("language_name") or m.get("languageName"),
         "version_id": edition,
         "sha256": None,
         "books": n_books,
-        "license_url": m.get("license_url") or m.get("licenseUrl") or m.get("license") or f"{BASE}/{iso}/{edition}/_meta.json",
+        "license_url": m.get("license_url") or m.get("licenseUrl") or m.get("license") or f"{CDN}/{root}/{iso}/{edition}/_meta.json",
         "name": m.get("name") or m.get("title"),
     }
 
 
-def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None, m: dict | None = None) -> int:
+def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None, m: dict | None = None,
+           root: str = "openbible") -> int:
     """Every book the edition's `_meta.json` lists, as bibles' book USJ, written unchanged to <NN>-<BOOK>.json."""
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
-    m = m if m is not None else meta(iso, edition)
+    m = m if m is not None else meta(iso, edition, root)
     path = ((m.get("formats") or {}).get("usj") or {}).get("path") or "<BOOK>.usj.json"
     books = m.get("books") or list(_BOOK_FILE_NUM)
     usj_dir.mkdir(parents=True, exist_ok=True)
@@ -86,7 +94,7 @@ def to_usj(iso: str, edition: str, usj_dir: Path, only: list[str] | None = None,
         nn = _BOOK_FILE_NUM.get(book)
         if not nn or (only and book not in only):
             continue
-        raw = book_usj(iso, edition, book, path)
+        raw = book_usj(iso, edition, book, path, root)
         if raw is None:
             print(f"[openbible] {iso}/{edition} {book}: no USJ published — skipped", file=sys.stderr)
             continue
@@ -107,6 +115,7 @@ def update_sources(pin: dict, path: Path) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--root", default="openbible", choices=ROOTS, help="CDN folder: openbible (catalog source o) or crosswire (c)")
     ap.add_argument("--iso", required=True, help="the language code in the CDN path (the catalog's iso)")
     ap.add_argument("--edition", required=True, help="the catalog's o:<ABBR> value")
     ap.add_argument("--tag", required=True, help="our per-edition tag (pins/sources are keyed by it)")
@@ -115,12 +124,12 @@ def main(argv=None) -> int:
     ap.add_argument("--pin", type=Path, default=None)
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     a = ap.parse_args(argv)
-    m = meta(a.iso, a.edition)
-    n = to_usj(a.iso, a.edition, a.to_usj, a.book, m)
+    m = meta(a.iso, a.edition, a.root)
+    n = to_usj(a.iso, a.edition, a.to_usj, a.book, m, a.root)
     if not n:
         print(f"[openbible] {a.iso}/{a.edition}: no book answered — nothing ingested", file=sys.stderr)
         return 1
-    pin = build_pin(a.iso, a.edition, a.tag, m, n)
+    pin = build_pin(a.iso, a.edition, a.tag, m, n, a.root)
     pin_path = a.pin or Path("config/pins") / f"{a.tag}.json"
     pin_path.parent.mkdir(parents=True, exist_ok=True)
     pin_path.write_text(json.dumps(pin, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")

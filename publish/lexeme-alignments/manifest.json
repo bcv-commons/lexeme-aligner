@@ -15768,23 +15768,25 @@
     },
     "ell": {
       "base_texts": [
-        "ELLELL"
+        "ELLELL",
+        "GreVamvas"
       ],
       "books": 66,
       "by_base_text": {
-        "ELLELL": 121316
+        "ELLELL": 121316,
+        "GreVamvas": 119700
       },
       "by_method": {
-        "eflomal": 64222,
-        "gapfill": 486,
-        "gloss": 40412,
-        "spanext": 16196
+        "eflomal": 130562,
+        "gapfill": 1105,
+        "gloss": 78458,
+        "spanext": 30891
       },
-      "content_sha256": "ffdf409d23a53a7cc8b985787043dca6f1f8c7c39ccafab30cc48e1516a0c3ee",
+      "content_sha256": "184469a324e67f91d33eabdf8994345fcfb6f20f2684861f85f95757948dc421",
       "file": "iso=ell/data.parquet",
-      "hi_conf_ge_0.9": 55263,
+      "hi_conf_ge_0.9": 109535,
       "language": "Greek",
-      "lexemes": 13928,
+      "lexemes": 14017,
       "methods": [
         "spanext",
         "eflomal",
@@ -15792,16 +15794,21 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 121316,
+      "rows": 241016,
       "sources": {
         "ELLELL": {
           "edition": "ELLELL",
           "license_url": null,
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "GreVamvas": {
+          "edition": "GreVamvas",
+          "license_url": "https://cdn.bibel.wiki/crosswire/ell/GreVamvas/_meta.json",
+          "provider": "cdn.bibel.wiki/crosswire"
         }
       },
-      "strongs": 13055,
-      "surfaces": 49992,
+      "strongs": 13137,
+      "surfaces": 90689,
       "testament": "NT+OT"
     },
     "emi": {

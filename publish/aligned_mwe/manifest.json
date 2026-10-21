@@ -10882,26 +10882,33 @@
     },
     "ell": {
       "base_texts": [
-        "ELLELL"
+        "ELLELL",
+        "GreVamvas"
       ],
-      "books": 249,
+      "books": 506,
       "by_base_text": {
-        "ELLELL": 21033
+        "ELLELL": 21033,
+        "GreVamvas": 18936
       },
-      "content_sha256": "cb9c06c11f60f1e2b935f69122a479fdcc57535c4b937a68511de1709a63d573",
+      "content_sha256": "402bc2430998c58ae0b47dd0a390d2b7a309526bb72230cbd870d25c140a3023",
       "file": "iso=ell/data.parquet",
       "language": "Greek",
-      "lexemes": 6417,
+      "lexemes": 7878,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 17932,
-      "rows": 21033,
+      "phrases": 31603,
+      "rows": 39969,
       "scattered_dropped": 0,
       "sources": {
         "ELLELL": {
           "edition": "ELLELL",
           "license_url": null,
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "GreVamvas": {
+          "edition": "GreVamvas",
+          "license_url": "https://cdn.bibel.wiki/crosswire/ell/GreVamvas/_meta.json",
+          "provider": "cdn.bibel.wiki/crosswire"
         }
       }
     },

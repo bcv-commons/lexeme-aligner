@@ -351,7 +351,9 @@ format never change it:
 3. Chapter fingerprint = SHA-256 of its verse lines joined by `"\n"`; book fingerprint = SHA-256 of
    `"{chapter}:{chapter fingerprint}"` lines joined by `"\n"`.
 4. File name = first 8 hex characters. `_fingerprints.txt` per edition (meta repo) lists the latest
-   version of each book with its build date and 5-hex chapter fingerprints.
+   version of each book with its build date and 5-hex chapter fingerprints; `<iso>/_fingerprints.txt` (meta repo) combines
+   them per language, each line prefixed by the edition folder (`text_fingerprint.update_language_map`, rewritten with every
+   edition map).
 
 Before 2026-10-21 the names used the last 5 hex characters of `book_content_hash` (SHA-256 over
 `"{chapter}:{verse}:{raw text}"` lines). It is kept only to recognise old names:

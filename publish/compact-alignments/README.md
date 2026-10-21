@@ -398,11 +398,14 @@ book `6e149a855b269724f0bc352d1367cad54608b130887e31145051ad28fc590873` → `f/f
   3JN 6e149a85 2026-10-12 0848e
   RUT 44f46079 2026-10-12 262a1 8a8c3 ccd3c 8f71d
   ```
+- Don't know the edition id: `<iso[0]>/<iso>/_fingerprints.txt` in the meta repo has the same lines for every edition of the
+  language, each prefixed by the edition folder name — one request tells which edition, if any, has your text.
 - A 404 or a mismatch you want to understand: compute your own chapter fingerprints and compare them with
   the map's line for the book; the chapters that differ are where your text and the aligned text part ways.
 
 Before 2026-10 the file names carried the last 5 hex characters of a different hash (over raw verse text).
-Those names stay available for a transition period after the switch; the change is announced in this card.
+The switch was made on 2026-10-21: the old names of the current versions stay published, unchanged, until **2026-12-20** and are
+deleted after that date (in all three repos). Use the fingerprint names from now on.
 
 ## Layout — why the bulk data isn't in git
 

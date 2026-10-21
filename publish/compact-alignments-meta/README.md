@@ -39,6 +39,15 @@ fingerprint in chapter order (`n:xxxxx` where the chapter sequence breaks). It i
 finds its file without it. It tells which version is current, and comparing chapter fingerprints shows where a text differs. The
 definition of the fingerprint is the main repo's README, "The text fingerprint".
 
+Each language folder also holds `<iso[0]>/<iso>/_fingerprints.txt` (since 2026-10-21): the lines of all its edition maps, each
+prefixed by the edition folder name, editions in name order:
+```
+ENGEVD GEN c5958b5f 2026-10-15 0779b 3770d ...
+eng_BSB 3JN fa0a526b 2026-10-15 73644
+```
+A client that does not know the edition id fetches this one file, looks for its book's file hash and gets the edition (or learns that
+no edition matches its text), without listing folders through the Hub API.
+
 ## Full-alignment channels (since 2026-10)
 
 For the editions that also have a hand-made (gold) alignment, the `.meta.json` additionally carries the **statistical full

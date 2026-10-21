@@ -128,3 +128,23 @@ def test_move_superseded_keeps_one_version_per_book(tmp_path):
     assert sorted(p.name for p in d.iterdir()) == ["GEN_cccccccc.json", "RUT_bbbbbbbb.extra.json", "RUT_bbbbbbbb.json"]
     assert sorted(p.relative_to(tmp_path / "superseded").as_posix() for p in moved) == ["e/eng/eng_X/RUT_aaaaaaaa.json",
                                                                                        "e/eng/eng_X/RUT_aaaaaaaa.meta.json"]
+
+
+def test_language_map_combines_the_edition_maps(tmp_path):
+    lang = tmp_path / "e/eng"
+    tf.update_map(lang / "eng_B", {"RUT": "RUT 44444444 2026-10-21 aaaaa"})
+    tf.update_map(lang / "eng_A", {"MAT": "MAT 11111111 2026-10-01 bbbbb", "GEN": "GEN 22222222 2026-10-01 ccccc"})
+    assert (lang / tf.MAP_NAME).read_text(encoding="utf-8").splitlines() == [
+        "eng_A GEN 22222222 2026-10-01 ccccc", "eng_A MAT 11111111 2026-10-01 bbbbb", "eng_B RUT 44444444 2026-10-21 aaaaa"]
+    tf.update_map(lang / "eng_B", {"RUT": "RUT 55555555 2026-10-22 ddddd"})                 # an edition update refreshes it
+    assert (lang / tf.MAP_NAME).read_text(encoding="utf-8").splitlines()[-1] == "eng_B RUT 55555555 2026-10-22 ddddd"
+    assert cl.layer_of("e/eng/_fingerprints.txt") == "meta"
+    assert ps.layer_files(["eng"], "meta", tmp_path) == ["e/eng/_fingerprints.txt", "e/eng/eng_A/_fingerprints.txt",
+                                                         "e/eng/eng_B/_fingerprints.txt"]
+
+
+def test_language_map_is_removed_without_edition_maps(tmp_path):
+    lang = tmp_path / "e/eng"
+    (lang / "eng_A").mkdir(parents=True)
+    (lang / tf.MAP_NAME).write_text("stale\n")
+    assert tf.update_language_map(lang) is None and not (lang / tf.MAP_NAME).exists()

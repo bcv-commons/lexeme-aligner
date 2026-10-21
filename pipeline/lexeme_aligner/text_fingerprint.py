@@ -31,7 +31,7 @@ MAP_HEX = 5                  # chapter fingerprint characters in the optional _f
 MAP_NAME = "_fingerprints.txt"
 
 __all__ = ["TEXT_FP_VERSION", "TOKENIZER_VERSION", "NAME_HEX", "MAP_HEX", "MAP_NAME", "verse_line", "chapter_lines",
-           "fingerprints", "usj_verses", "usj_fingerprints", "file_hash", "map_line", "book_file_hash", "update_map", "read_map"]
+           "fingerprints", "usj_verses", "usj_fingerprints", "file_hash", "map_line", "book_file_hash", "update_map", "update_language_map", "read_map"]
 
 verse_line = _BCV.verse_line          # "{verse}:{tokens}" or None (verse with no tokens: left out)
 chapter_lines = _BCV.chapter_lines    # {(chapter, verse): text} -> {chapter: [verse lines]}
@@ -94,6 +94,31 @@ def update_map(edition_dir: Path, lines: dict[str, str]) -> Path:
             cur.update(lines)
             tmp = edition_dir / f".{MAP_NAME}.{os.getpid()}.tmp"
             tmp.write_text("".join(cur[b] + "\n" for b in sorted(cur, key=lambda b: (order.get(b, len(order)), b))), encoding="utf-8")
+            os.replace(tmp, path)
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+    update_language_map(edition_dir.parent)
+    return path
+
+
+def update_language_map(lang_dir: Path) -> Path | None:
+    """Rewrite the language's combined <iso[0]>/<iso>/_fingerprints.txt: every edition map's lines, each prefixed by the edition folder
+    name, editions in name order (client request 2026-10-21: find which edition, if any, matches a text with one request, without the
+    tree API). Derived from the edition maps only; removed when no edition has a map. Locked + atomic like update_map."""
+    import fcntl
+    import os
+    lang_dir = Path(lang_dir)
+    path = lang_dir / MAP_NAME
+    with open(lang_dir / f".{MAP_NAME}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            out = [f"{d.name} {ln}\n" for d in sorted(p for p in lang_dir.iterdir() if (p / MAP_NAME).is_file())
+                   for ln in read_map(d).values()]
+            if not out:
+                path.unlink(missing_ok=True)
+                return None
+            tmp = lang_dir / f".{MAP_NAME}.{os.getpid()}.tmp"
+            tmp.write_text("".join(out), encoding="utf-8")
             os.replace(tmp, path)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)

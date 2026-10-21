@@ -489,6 +489,8 @@ def publish_layer(layer: str, isos: list[str], push: bool, chunk: int) -> dict:
 
 
 def main() -> int:
+    from lexeme_aligner.hf_bulk_publish import install_timeout
+    install_timeout()                       # every HF call of this run (manifest download, preflight, verify), not only the commits
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", default="", help="comma-separated languages")
     ap.add_argument("--ready-file", type=Path, help="JSON list of languages (e.g. pipeline/work/logs/publish_ready_latest.json)")

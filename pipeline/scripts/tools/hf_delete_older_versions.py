@@ -23,6 +23,9 @@ NAME = re.compile(r"^(.+)/([0-9A-Z]{3})_([0-9a-f]{5})\.(json|meta\.json|extra\.j
 
 def main() -> int:
     from huggingface_hub import CommitOperationDelete, HfApi
+    sys.path.insert(0, str(REPO / "pipeline"))
+    from lexeme_aligner.hf_bulk_publish import install_timeout
+    install_timeout()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--push", action="store_true")
     ap.add_argument("--chunk", type=int, default=3000)

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -115,17 +116,38 @@ def _publish_state_path(root: Path) -> Path:
     return root / ".publish_state.json"
 
 
+HF_TIMEOUT = float(os.environ.get("ALIGNER_HF_TIMEOUT", "300"))   # seconds without a byte before a request fails
+
+
+def install_timeout(seconds: float = HF_TIMEOUT) -> None:
+    """Give huggingface_hub's HTTP client a timeout (its default client has none). 2026-10-21: HF accepted a commit whose reply never
+    came back and the push waited 22 min on a dead connection; with a timeout the request fails, `_retry_transient` re-sends it, and an
+    identical re-sent commit is a no-op on HF. Keeps the library's own request hook; idempotent."""
+    import httpx
+    from huggingface_hub import set_client_factory
+    from huggingface_hub.utils._http import hf_request_event_hook
+    set_client_factory(lambda: httpx.Client(event_hooks={"request": [hf_request_event_hook]}, follow_redirects=True,
+                                            timeout=httpx.Timeout(seconds, connect=30.0)))
+
+
 def _retry_transient(fn, what: str, attempts: int = 6, base_delay: float = 5.0):
-    """Retry transient network errors only; HfHubHTTPError (auth/rate-limit) propagates immediately —
-    those need a human decision (re-login, wait out the hourly quota), not a few quick retries that
-    would just re-trigger the same failure."""
+    """Retry transient errors: network errors, timeouts and HF server errors (5xx, e.g. the 502 of 2026-10-21). Any other
+    HfHubHTTPError (auth, rate limit) propagates immediately — those need a human decision (re-login, wait out the hourly quota),
+    not a few quick retries that would just re-trigger the same failure."""
     from huggingface_hub.errors import HfHubHTTPError
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:
             return fn()
-        except HfHubHTTPError:
-            raise
+        except HfHubHTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status is None or status < 500:
+                raise
+            last_exc = e
+            if attempt < attempts:
+                delay = base_delay * (2 ** (attempt - 1))
+                print(f"[publish] {what} failed (HTTP {status}) — retrying in {delay:.0f}s ({attempt}/{attempts})", file=sys.stderr)
+                time.sleep(delay)
         except Exception as e:
             last_exc = e
             if attempt < attempts:
@@ -167,6 +189,7 @@ def publish_chunked(root: Path, repo_id: str, files: list[str], create: bool, dr
         from huggingface_hub.errors import HfHubHTTPError
     except ImportError:
         raise SystemExit("[publish] needs huggingface_hub — pip install -e '.[publish]'")
+    install_timeout()
     api = HfApi()
     try:
         _retry_transient(api.whoami, "whoami() check")

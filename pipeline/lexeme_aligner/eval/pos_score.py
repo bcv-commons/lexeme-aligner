@@ -95,8 +95,12 @@ def clear_tokens(text: str) -> list[str]:
 
 def _letters(s: str) -> str:
     """Letters and marks only, normalized — the part of a token both tokenizations share (hyphens, apostrophes
-    and digits are exactly what they disagree on)."""
-    return "".join(c for c in norm_surface(s) if unicodedata.category(c)[0] in ("L", "M"))
+    and digits are exactly what they disagree on). NFC, combining marks dropped, casefolded like norm_surface, but WITHOUT its
+    edge stripping: `\\W` covers spacing vowel signs (Devanagari ा, ि, ...), so "क्या" lost its final ा while Clear's one token
+    "क्या-क्या" kept the inner one, the letters never matched and every verse with such a hyphenated word was refused
+    (2026-10-21, reported by a client on HINIRV GEN 2:19: 2,166 HINIRV, 1,203 asm_irv, 19 ben_irv verses)."""
+    s = unicodedata.normalize("NFC", s or "").casefold()
+    return "".join(c for c in s if not unicodedata.combining(c) and unicodedata.category(c)[0] in ("L", "M"))
 
 
 def map_positions(text: str) -> list[list[int]] | None:

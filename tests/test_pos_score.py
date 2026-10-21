@@ -119,3 +119,13 @@ def test_score_words_pools_the_morphemes_of_a_word():
     assert r["gold_links"] == 1 and r["exact_span"] == 1 and r["link_f1"] == pytest.approx(1.0)
     # content_only: the gold link sits on the function morpheme, so the word is not judged
     assert score_words({1: gv}, ours, sp, content_only=True).row()["gold_links"] == 0
+
+
+def test_hyphenated_indic_word_maps():
+    # 2026-10-21: _letters edge-stripped spacing vowel signs (Mc), so a Clear token "क्या-क्या" never matched our two tokens
+    # and the verse (HINIRV GEN 2:19 and 2,165 more) was refused
+    from lexeme_aligner.eval.pos_score import clear_tokens, map_positions
+    text = "वह उनका क्या-क्या नाम रखता है; और जिस-जिस जीवित प्राणी का"
+    m = map_positions(text)
+    assert m is not None
+    assert len(clear_tokens(text)) == 12 and m[2] == [2, 3] and m[8] == [8, 9]   # each hyphenated Clear token = two of ours

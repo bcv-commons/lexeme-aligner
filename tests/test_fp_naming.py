@@ -193,3 +193,18 @@ def test_language_map_layers_respect_the_publish_gate(tmp_path):
                                                                          "text_licences": {e: {"licence": "CC BY-SA 4.0"} for e in ("eng_glt", "eng_held")}}))
     got = ps.language_map_layers("eng", tmp_path)
     assert list(got) == ["full-alignments-manual-sa/eng_glt+manual+door43"]   # has a compact edition / held: not listed
+
+
+def test_manual_manifest_update_writes_the_layer_map(tmp_path):
+    # 2026-10-21: _update_manual_manifests called tf without importing it (NameError after the layer files were written)
+    from lexeme_aligner import fullalign_build as fb
+    usj = _usj(tmp_path / "usj/08-RUT.json", {(1, 1): "In the days"})
+    ldir = tmp_path / "root/e/eng/eng_X+manual+clear"
+    ldir.mkdir(parents=True)
+    (ldir / f"RUT_{tf.book_file_hash(usj)}.json").write_text("[]")
+    ml = {"source": "clear", "base_text": "X", "license": "CC BY 4.0"}
+    fb._update_manual_manifests("eng", "eng_X", {"eng_X+manual+clear": (ml, ldir)}, {"layers": {"eng_X+manual+clear": {"rows": 1}}},
+                                None, tmp_path / "usj")
+    assert list(tf.read_map(ldir)) == ["RUT"]
+    entry = json.loads((tmp_path / "root/manifest.json").read_text())["languages"]["eng"]["layers"]["eng_X+manual+clear"]
+    assert entry["books"] == {"RUT": f"RUT_{tf.book_file_hash(usj)}.json"}

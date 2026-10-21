@@ -648,6 +648,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
 
 
 def _update_manual_manifests(iso: str, ced: str, lids: dict, report: dict, manual_out: Path | None, usj_dir: Path) -> None:
+    from lexeme_aligner import text_fingerprint as tf
     from lexeme_aligner.manifest_io import update_json
     by_root: dict[Path, dict] = collections.defaultdict(dict)
     for lid, (ml, ldir) in lids.items():

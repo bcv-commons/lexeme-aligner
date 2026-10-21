@@ -548,6 +548,100 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
     return report
 
 
+LLM_ROOT = Path("pipeline/work/full-alignments-llm")             # LLM layers are never published: a local tree, same layout
+
+
+def llm_rows(cell: str, book: str, out_dir: Path, cell_label: str | None = None) -> list[dict]:
+    """Full-align rows of one llm_edit-shaped record file (`align_llm_<cell>_<BOOK>.jsonl`): every pair (kept / edited / `inside`
+    = a shared link to a word another source token owns) plus every `llm_skipped` token as an explicit no-rendering (`t_idx: []`).
+    Attribution per verse from the record's `llm` block: `answered_by` (the model version that answered) when present. `cell_label` is
+    what the rows record as their cell (the `{BOOK}` template for per-book cells: one value per layer, not one profile set per book)."""
+    from lexeme_aligner.align_files import tag_files
+    from lexeme_aligner.eval.gold_to_fullalign import make_row
+    rows: list[dict] = []
+    for fp in tag_files(out_dir, "llm", cell):
+        if not fp.name.endswith((f"_{book}.jsonl", f"_{book}.jsonl.gz")):
+            continue
+        opener = __import__("gzip").open if fp.name.endswith(".gz") else open
+        with opener(fp, "rt", encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                meta = rec.get("llm") or {}
+                model = meta.get("answered_by")                  # None: no answer, the chain's proposal stands
+                attr = {"source": f"{meta.get('provider') or 'llm'}/{model or 'none'}", "kind": "model", "license": None,
+                        "cell": cell_label or cell, "model": model, "strategy": meta.get("design"),
+                        "prompt_version": None if meta.get("theta") is None else f"theta={meta['theta']:g}"}
+                for p in rec["pairs"]:
+                    rows.append(make_row(rec["ref"], rec["book"], p, attr))
+                for sk in rec.get("llm_skipped", []):
+                    p = dict(sk, t_idx=[], target=None, method="llm", content=None)
+                    rows.append(make_row(rec["ref"], rec["book"], p, attr))
+    return rows
+
+
+def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: str, *, books: list[str] | None = None,
+                    out_dir: Path | None = None, out_root: Path = LLM_ROOT, compact_root: Path = COMPACT_ROOT, heb=None,
+                    sources_path: Path = Path("config/sources.json")) -> dict:
+    """One LLM layer `<compact edition>+llm+<name>` from llm_edit-shaped records (`cell` may hold `{BOOK}` for per-book cells), encoded
+    as a decision-list (v3) layer and verified like a manual layer (checks 1, 2, 5). Written under `out_root` only, never publish/."""
+    from lexeme_aligner.compact_align import ALL_BOOKS, book_content_hash, edition_id
+    from lexeme_aligner.config import OUT
+    from lexeme_aligner.hebrew_source import HebrewSource
+    from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
+    from lexeme_aligner.versification import remapper
+    out_dir = Path(out_dir or OUT)
+    sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}
+    ced = edition_id(publish_iso, tag, sources)
+    lid = f"{ced}+llm+{name}"
+    ldir = out_root / publish_iso[0] / publish_iso / lid
+    report: dict = {"tag": tag, "iso": publish_iso, "edition": ced, "layers": {}, "skipped": []}
+    heb = heb or HebrewSource()
+    remap = remapper(tag, str(usj_dir))
+    index_root = compact_root / "_index"
+    books = books or [b for b in ALL_BOOKS if (index_root / f"{b}_lexemes.json").exists()]
+    t: collections.Counter = collections.Counter()
+    encoders: dict = {}
+    written, groups_of, refs_of = {}, {}, {}
+    for book in books:
+        usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
+        rows = llm_rows(cell.format(BOOK=book), book, out_dir, cell) if usj_path.exists() else []
+        if not rows:
+            continue
+        refs = list(json.loads((index_root / f"{book}_lexemes.json").read_text(encoding="utf-8")))
+        groups = fc.build_groups(heb, book, usj_path, remap)
+        groups_of[book], refs_of[book] = groups, refs
+        for r in rows:                                   # llm_edit records leave out fields the format derives anyway (gloss_en; most
+            g = groups.get(f"{r['book']} {r['chapter']}:{r['verse']}")      # fields of a skipped token): fill ONLY the missing ones,
+            tok = g.tok_of.get(r["h_idx"]) if g else None                    # so every field a record does carry is still checked
+            if tok is None:
+                continue
+            for k, v in (("content", bool(tok.is_content)), ("lemma", tok.lemma), ("stem", tok.stem), ("surface", tok.surface),
+                         ("gloss_en", tok.gloss_en)):
+                if r[k] is None:
+                    r[k] = v
+            if r["target"] is None and r["t_idx"] is not None:
+                r["target"] = " ".join(g.toks[i] for i in r["t_idx"] if i < len(g.toks))
+        written[book] = encode_verify("manual", lid, rows, groups, refs, ldir, book, book_content_hash(usj_path)[-5:], t, encoders,
+                                      has_ids=False)
+    if written:
+        final_check(lid, ldir, written, groups_of, refs_of, t)
+    report["layers"][lid] = dict(t)
+    report["layers"][lid]["problems"] = problems(t)
+    if written and not report["layers"][lid]["problems"]:
+        from lexeme_aligner.manifest_io import update_json
+        files = {f.name.split("_")[0]: f.name for f in sorted(ldir.glob("*_*.json")) if f.name.count(".") == 1 and not f.name.startswith("_")}
+
+        def mutate(doc):
+            doc.setdefault("languages", {}).setdefault(publish_iso, {"layers": {}}).setdefault("layers", {})[lid] = {
+                "edition": ced, "source": "llm", "name": name, "cell": cell, "rows": t.get("rows", 0), "books": files,
+                "published": False}
+            doc["layout"] = "<iso[0]>/<iso>/<edition>+llm+<name>/<BOOK>_<hash>.json (+ .meta.json, _layer.json)"
+        update_json(out_root / "manifest.json", mutate)
+    return report
+
+
 def _update_manual_manifests(iso: str, ced: str, lids: dict, report: dict, manual_out: Path | None) -> None:
     from lexeme_aligner.manifest_io import update_json
     by_root: dict[Path, dict] = collections.defaultdict(dict)
@@ -585,7 +679,24 @@ def main(argv=None) -> int:
     ap.add_argument("--manual-out", type=Path, default=None, help="scratch tree for the manual layers (default: publish/full-alignments-manual[-sa])")
     ap.add_argument("--force", action="store_true", help="build the statistical channels even without a manual layer")
     ap.add_argument("--report", type=Path, default=None, help="write the JSON report here")
+    ap.add_argument("--llm-cell", default=None, help="build ONLY an LLM layer from align_llm_<cell>_<BOOK>.jsonl (`{BOOK}` allowed)")
+    ap.add_argument("--llm-name", default=None, help="the LLM layer's name: id <edition>+llm+<name>")
+    ap.add_argument("--llm-out", type=Path, default=LLM_ROOT, help="root of the (never published) LLM layers")
     a = ap.parse_args(argv)
+    if a.llm_cell:
+        rep = build_llm_layer(a.iso, a.publish_iso, a.usj_dir, a.llm_cell, a.llm_name or a.llm_cell.replace("{BOOK}", "x"),
+                              books=a.book, out_root=a.llm_out, compact_root=a.compact_root)
+        if a.report:
+            a.report.parent.mkdir(parents=True, exist_ok=True)
+            a.report.write_text(json.dumps(rep, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        bad = False
+        for lid, t in rep["layers"].items():
+            print(f"[fullalign_build] {lid}: " + ", ".join(f"{k} {v:,}" for k, v in t.items() if k != "problems" and v), file=sys.stderr)
+            bad |= bool(t["problems"])
+            if t["problems"]:
+                print(f"[fullalign_build] {lid}: PROBLEMS {t['problems']}", file=sys.stderr)
+        print(f"[fullalign_build] {a.iso}: {'ROUND TRIP OK' if not bad else 'PROBLEMS FOUND'}", file=sys.stderr)
+        return 1 if bad else 0
     layers = tuple(a.layers.split(","))
     if "statistical" in layers and a.stat_out is None and not a.stat_in_place:
         layers = tuple(x for x in layers if x != "statistical")

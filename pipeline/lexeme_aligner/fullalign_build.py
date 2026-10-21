@@ -549,7 +549,9 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
     return report
 
 
-LLM_ROOT = Path("pipeline/work/full-alignments-llm")             # LLM layers are never published: a local tree, same layout
+# LLM layers (2026-10-21: published to bcv-commons/full-alignments-llm, same layout as the manual repos; a layer listed in
+# config/fullalign_publish_hold.json stays local — publish_safe leaves it out).
+LLM_ROOT = Path("publish/full-alignments-llm")
 
 
 def llm_rows(cell: str, book: str, out_dir: Path, cell_label: str | None = None) -> list[dict]:
@@ -638,7 +640,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
         def mutate(doc):
             doc.setdefault("languages", {}).setdefault(publish_iso, {"layers": {}}).setdefault("layers", {})[lid] = {
                 "edition": ced, "source": "llm", "name": name, "cell": cell, "rows": t.get("rows", 0), "books": files,
-                "published": False}
+                "license": "CC0-1.0"}
             doc["layout"] = "<iso[0]>/<iso>/<edition>+llm+<name>/<BOOK>_<hash>.json (+ .meta.json, _layer.json)"
         update_json(out_root / "manifest.json", mutate)
     return report
@@ -683,7 +685,7 @@ def main(argv=None) -> int:
     ap.add_argument("--report", type=Path, default=None, help="write the JSON report here")
     ap.add_argument("--llm-cell", default=None, help="build ONLY an LLM layer from align_llm_<cell>_<BOOK>.jsonl (`{BOOK}` allowed)")
     ap.add_argument("--llm-name", default=None, help="the LLM layer's name: id <edition>+llm+<name>")
-    ap.add_argument("--llm-out", type=Path, default=LLM_ROOT, help="root of the (never published) LLM layers")
+    ap.add_argument("--llm-out", type=Path, default=LLM_ROOT, help="root of the LLM layers (publish/full-alignments-llm)")
     a = ap.parse_args(argv)
     if a.llm_cell:
         rep = build_llm_layer(a.iso, a.publish_iso, a.usj_dir, a.llm_cell, a.llm_name or a.llm_cell.replace("{BOOK}", "x"),

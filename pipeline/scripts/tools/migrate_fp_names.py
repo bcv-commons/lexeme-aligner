@@ -34,7 +34,7 @@ from lexeme_aligner.manifest_io import update_json  # noqa: E402
 COMPACT = REPO / "publish/compact-alignments"
 LAYER_TREES = {"full-alignments-manual": REPO / "publish/full-alignments-manual",
                "full-alignments-manual-sa": REPO / "publish/full-alignments-manual-sa",
-               "full-alignments-llm": REPO / "pipeline/work/full-alignments-llm"}
+               "full-alignments-llm": REPO / "publish/full-alignments-llm"}
 INGEST = REPO / "pipeline/work/ingest-cache"
 WORK = REPO / "pipeline/work/fp-migration"
 NAME = re.compile(r"^([0-9A-Z]{3})_([0-9a-f]{5}|[0-9a-f]{8})(\.json|\.meta\.json|\.extra\.json)$")

@@ -132,7 +132,7 @@ and for the manual layers of full-align (step 9a, which skips languages without 
 
 ### 2.7 LLM passes (opt-in, never in the default chain, never published)
 
-`eval/llm_align.py` / `eval/llm_edit.py` send verses to a model and write LLM layers to `pipeline/work/full-alignments-llm/`.
+`eval/llm_align.py` / `eval/llm_edit.py` send verses to a model and write LLM layers to `publish/full-alignments-llm/` (HF `bcv-commons/full-alignments-llm`; layers listed in `config/fullalign_publish_hold.json` are never published).
 Providers in `eval/llm_providers.py`: the `claude` CLI (subscription) or the Anthropic API (`ANTHROPIC_API_KEY`, `[llm]` extra).
 Responses are cached in `pipeline/work/llm-cache/` (`ALIGNER_LLM_CACHE`), so re-runs are free. Per-language conventions sent
 with each request: `config/llm_conventions/<iso>.md` (tracked). The TypeSafe Jev runs (HEBM95, Vamvas) use a work script

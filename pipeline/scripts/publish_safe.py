@@ -46,10 +46,12 @@ DATASETS = {                                   # local dir name -> (HF repo, kin
     # Explicit --datasets only. The statistical full-align channels are NOT here: they live in compact's meta files (compact-alignments-meta).
     "full-alignments-manual": ("bcv-commons/full-alignments-manual", "fullalign"),         # Clear / HELFI (CC BY 4.0), ChiUns (PD), BSB tables (CC0)
     "full-alignments-manual-sa": ("bcv-commons/full-alignments-manual-sa", "fullalign"),   # Door43 (CC BY-SA 4.0)
+    "full-alignments-llm": ("bcv-commons/full-alignments-llm", "fullalign"),               # LLM-checked layers (fullalign_build --llm-cell; 2026-10-21)
 }
 DEFAULT = ["lexeme-alignments", "senses_attested", "compact-alignments"]
-NO_LEDGER = {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa"}   # repos that carry no pipeline_decisions.json; do not add one
+NO_LEDGER = {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa", "full-alignments-llm"}   # repos that carry no pipeline_decisions.json; do not add one
 STAGING = REPO / "pipeline/work/publish-staging"
+FA_PUBLISH = REPO / "config/fullalign_publish.json"            # which full-align layers may be published (open text licence, hold list)
 STALE_BEFORE = time.mktime(time.strptime("2026-09-28", "%Y-%m-%d"))
 
 
@@ -191,13 +193,59 @@ def hf_manifest(repo: str, dest: Path) -> dict:
                                            force_download=True)).read_text(encoding="utf-8"))
 
 
-def selected_files(name: str, kind: str, isos: list[str], local_root: Path) -> list[str]:
+def text_licence(edition: str, cfg: dict, tag_of: dict, repo: Path = REPO) -> str:
+    """The licence line of a full-aligned edition's TEXT: config `text_licences`, else the pin's `license`, else eBible's licence line
+    (edition_struct) — "" when none is recorded. A pin's `copyright` is never used (it names no licence)."""
+    if edition in cfg.get("text_licences", {}):
+        return cfg["text_licences"][edition]["licence"]
+    tag = tag_of.get(edition, edition)
+    pin = repo / "config/pins" / f"{tag}.json"
+    if pin.exists() and json.loads(pin.read_text(encoding="utf-8")).get("license"):
+        return json.loads(pin.read_text(encoding="utf-8"))["license"]
+    es = repo / "config/edition_struct" / f"{tag}.json"
+    if es.exists():
+        eb = (json.loads(es.read_text(encoding="utf-8")).get("derived") or {}).get("ebible") or {}
+        if re.search(r"public\s*domain", eb.get("license") or "", re.I):
+            return eb["license"]
+    return ""
+
+
+def unpublishable_layers(local: dict, cfg: dict, tag_of: dict, repo: Path = REPO) -> dict[str, str]:
+    """{layer id: why} for every layer of a full-align manifest that must stay local: on the hold list, or no open text licence."""
+    pat = re.compile(cfg.get("open_licence", r"$^"), re.I)
+    out = {}
+    for e in local.get("languages", {}).values():
+        for lid, info in e.get("layers", {}).items():
+            if lid in cfg.get("hold", {}):
+                out[lid] = "hold: " + cfg["hold"][lid].get("reason", "")
+                continue
+            ed = info.get("edition") or lid.split("+")[0]
+            lic = text_licence(ed, cfg, tag_of, repo)
+            if not pat.search(lic):
+                out[lid] = f"no open text licence recorded for {ed} ({lic or 'none'})"
+    return out
+
+
+def drop_held(local: dict, held: set[str]) -> dict:
+    """A copy of a full-align manifest without the held layers; a language left with no layer is removed."""
+    out = {k: v for k, v in local.items() if k != "languages"}
+    langs = {}
+    for iso, e in local.get("languages", {}).items():
+        layers = {lid: v for lid, v in e.get("layers", {}).items() if lid not in held}
+        if layers:
+            langs[iso] = {**e, "layers": layers}
+    out["languages"] = langs
+    return out
+
+
+def selected_files(name: str, kind: str, isos: list[str], local_root: Path, held: set[str] = frozenset()) -> list[str]:
     from lexeme_aligner.export_lex import _COMPANION_RESOURCES
     if kind == "partition":
         return [f"iso={i}/data.parquet" for i in isos if (local_root / f"iso={i}/data.parquet").exists()] + \
                [f for f in ["README.md", *_COMPANION_RESOURCES] if (local_root / f).exists()]
     files = [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("*.json")]
     if kind == "fullalign":                                                 # one repo holds a layer's main + meta + _layer.json
+        files = [f for f in files if Path(f).parts[2] not in held]          # <iso[0]>/<iso>/<layer id>/...
         return sorted(files) + [f for f in ("README.md",) if (local_root / f).exists()]
     files = [f for f in files if compact_layers.layer_of(f) == "main"]      # sidecars go to their own repos (publish_layer)
     files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
@@ -318,6 +366,16 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
     repo, kind = DATASETS[name]
     local_root = REPO / "publish" / name
     local = json.loads((local_root / "manifest.json").read_text(encoding="utf-8"))
+    held: set[str] = set()
+    if kind == "fullalign":
+        cfg = json.loads(FA_PUBLISH.read_text(encoding="utf-8"))
+        comp = json.loads((REPO / "publish/compact-alignments/manifest.json").read_text(encoding="utf-8"))["languages"]
+        tag_of = {ed: info.get("tag", ed) for e in comp.values() for ed, info in e.get("editions", {}).items()}
+        why = unpublishable_layers(local, cfg, tag_of)
+        for lid, w in sorted(why.items()):
+            print(f"[publish_safe] {name}: NOT published {lid} — {w} ({FA_PUBLISH.name})", file=sys.stderr)
+        held = set(why)
+        local = drop_held(local, held)
     isos = [i for i in isos if i in local.get("languages", {})]
     if not isos:
         print(f"[publish_safe] {name}: none of the selected languages has a local entry — nothing to do", file=sys.stderr)
@@ -342,7 +400,7 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
         merged.update({k: v for k, v in local.items() if k != "languages"})
         print(f"[publish_safe] {name}: SCHEMA CHANGE — {conflict}; all {len(isos)} languages go out together", file=sys.stderr)
     stage = STAGING / name
-    rel = selected_files(name, kind, isos, local_root)
+    rel = selected_files(name, kind, isos, local_root, held)
     stage_links(local_root, stage, rel)
     (stage / "manifest.json").write_text(json.dumps(merged, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     files = sorted(set(rel) | {"manifest.json"})

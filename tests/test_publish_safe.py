@@ -184,7 +184,7 @@ def test_default_datasets_use_the_ubs_senses_not_the_legacy_ones():
     assert ps.DEFAULT == ["lexeme-alignments", "senses_attested", "compact-alignments"]
     assert ps.DATASETS["senses_attested"] == ("bcv-commons/senses-attested", "partition")
     assert ps.DATASETS["senses_attested_bhsa"][0] == "bcv-commons/senses-attested-bhsa" and "senses_attested_bhsa" not in ps.DEFAULT          # legacy still reachable, only explicitly
-    assert ps.NO_LEDGER == {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa"}
+    assert ps.NO_LEDGER == {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa", "full-alignments-llm"}
 
 
 def test_ubs_partition_selection_has_no_ledger_when_the_root_has_none(tmp_path):

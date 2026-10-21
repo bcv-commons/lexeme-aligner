@@ -7,6 +7,7 @@ passed Hugging Face's recommended 100,000 files (180k on HF, ~205k expected; thr
     <BOOK>_<hash>.meta.json   provenance sidecar (method / conf / contested / bonus)   -> bcv-commons/compact-alignments-meta
     <BOOK>_<hash>.extra.json  opt-in residual layer                                     -> bcv-commons/compact-alignments-extra
     <edition>/_layer.json     the full-align profile table the meta file's full-align channels decode with (2026-10-09) -> the meta repo
+    <edition>/_fingerprints.txt  the optional text-fingerprint map, latest version of each book (2026-10-21)          -> the meta repo
 
 The relative path is IDENTICAL in all three repos, so a reader that wants a sidecar only needs a second base URL. Locally nothing changed: all three
 file kinds still live side by side under publish/compact-alignments/; only the publishers route them (`split_layers`, `stage_layer`).
@@ -17,7 +18,7 @@ import os
 from pathlib import Path
 
 LAYERS: dict[str, dict[str, str]] = {
-    "meta": {"repo": "bcv-commons/compact-alignments-meta", "suffix": ".meta.json", "names": ("_layer.json",)},
+    "meta": {"repo": "bcv-commons/compact-alignments-meta", "suffix": ".meta.json", "names": ("_layer.json", "_fingerprints.txt")},
     "extra": {"repo": "bcv-commons/compact-alignments-extra", "suffix": ".extra.json"},
 }
 MAIN_REPO = "bcv-commons/compact-alignments"

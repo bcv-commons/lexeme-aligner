@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO / "pipeline"))
 import pyarrow.parquet as pq  # noqa: E402
 
 import lexeme_aligner.fullalign_compact as fc  # noqa: E402
-from lexeme_aligner.compact_align import book_content_hash  # noqa: E402
+from lexeme_aligner.text_fingerprint import book_file_hash  # noqa: E402
 from lexeme_aligner.hebrew_source import HebrewSource  # noqa: E402
 from lexeme_aligner.compact_align import ALL_BOOKS  # noqa: E402
 from lexeme_aligner.run_pilot import _BOOK_FILE_NUM  # noqa: E402
@@ -145,7 +145,7 @@ def main(argv=None) -> int:
             continue
         refs = list(json.loads((INDEX / f"{book}_lexemes.json").read_text(encoding="utf-8")))
         groups = fc.build_groups(heb, book, usj_path, remap)
-        digest = book_content_hash(usj_path)[-5:]
+        digest = book_file_hash(usj_path)
         for lab, (kind, lid, has_ids, _) in enc.items():
             rows = read_rows(pq_root / lab / f"{book}.parquet", kind)
             if not rows:

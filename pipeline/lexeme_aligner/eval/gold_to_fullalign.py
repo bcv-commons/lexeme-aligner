@@ -1,5 +1,5 @@
 """gold → full-align: convert every per-occurrence gold we hold into the full-align row format, and
-lay the statistical + LLM layers of the same editions beside it (docs/architecture.md §4).
+lay the statistical + LLM layers of the same editions beside it (docs/data-structures.md §4).
 
 full-align is the COMPLETE per-edition alignment as provenance-tagged ROWS, in up to three layers for
 the same text — `statistical` (the base chain's own rows, method/score kept), `manual` (gold converted
@@ -700,7 +700,7 @@ def write_card(out: Path, manifest: dict, internal: bool) -> None:
              "The complete per-edition alignment as provenance-tagged rows, in up to three layers for the same "
              "text — `statistical` (the base chain's own rows), `manual` (per-occurrence gold converted into the "
              "identical record), `llm` (model rows). Layers are never merged; agreement between them is a signal a "
-             "consumer computes. See docs/architecture.md §4.", "",
+             "consumer computes. See docs/data-structures.md §4.", "",
              "**\"Gold\" is a role, not a method.** `method` keeps lex-lexicon's vocabulary (`eflomal`/`gloss`/"
              "`spanext`/`gapfill`/`llm`/`manual`/`transfer`); who made a row and under what terms is the "
              "`attribution` block (`source`, `kind`, `license`, `base_text`, the source's raw `source_ids`/"

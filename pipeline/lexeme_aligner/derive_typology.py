@@ -56,7 +56,7 @@ SLOTS WRITTEN (OT-only, per D0's own scope — Greek-side derivation is D1, a se
   `compute_order_stats`'s own caller (`gapfill.main()`) uses (n>=50 for possessor, n>=100 per func
   pair, |rate-0.5|>=0.20) — confident results get a real direction; results that ran but stayed inside
   that margin get `direction: null, reason: "mixed"`; a pair with too little data (or a testament with
-  no OT content at all) gets NO KEY at all (absence = unknown, not attempted) — per docs/architecture.md
+  no OT content at all) gets NO KEY at all (absence = unknown, not attempted) — per docs/data-structures.md
   §2's null-vs-absent contract.
 
 AUDIT FACTS (never slots — `gram_struct.py`'s merge would reject a partition writing a slot key another
@@ -196,7 +196,7 @@ def quality_gate(iso: str, tag: str, all_books: list[str], usj_dir: Path, out_di
 
 def _order_slot(rate: float | None, n: int, min_n: int) -> dict | None:
     """None (omit the key) if n is below the gate's own minimum; else a written fact — a real
-    direction if confident, else `direction: null, reason: "mixed"`. Matches docs/architecture.md
+    direction if confident, else `direction: null, reason: "mixed"`. Matches docs/data-structures.md
     §2's null-vs-absent contract: absence means "not attempted", null-with-reason means "attempted,
     inconclusive"."""
     if n < min_n or rate is None:

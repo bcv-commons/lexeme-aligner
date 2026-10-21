@@ -1,7 +1,7 @@
 """Roadmap E2 (internal-docs/aim1-typology-source-structure-plan.md §4R, "### edition-struct"): the
 per-edition analog of `gram_struct.py` — one record per edition TAG (never the bare iso; edition-struct
 answers "what is this text and how do I read it", gram-struct answers "how does this language render
-source structure", see `docs/architecture.md` §5) built ADDITIVELY from files that already exist and
+source structure", see `docs/data-structures.md` §5) built ADDITIVELY from files that already exist and
 are already read directly by their own consumers. This module changes NO reader — every existing
 `config/pins/<tag>.json` / `config/textual_basis.json` / `config/text_strip_rules.json` /
 `config/dbt_catalog/` consumer keeps reading its own file exactly as before; `edition_struct.py` is a

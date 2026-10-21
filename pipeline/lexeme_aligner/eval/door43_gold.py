@@ -103,7 +103,7 @@ def rows_for_book(iso: str, book: str, spans_by_verse: dict, texts: dict, words:
 def _strip_augment(strong: str) -> str:
     """"H1121a" -> "H1121"; "H8199" unchanged. Door43's bare-content rows carry MACULA's own AUGMENTED
     strong (a trailing homonym-disambiguating letter); our spine's own `strong` field is already the
-    augment-stripped rollup those augmented forms collapse to (docs/architecture.md, hebrew_source.py) --
+    augment-stripped rollup those augmented forms collapse to (docs/data-structures.md, hebrew_source.py) --
     without this, every augmented content row (H1121a, H0834a, H3588a, ... -- ~38-11 occurrences each,
     the single largest failure class found on real RUT data) silently fails to match."""
     if strong and strong[-1].isalpha():

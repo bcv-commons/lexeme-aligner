@@ -168,6 +168,16 @@ def preflight(iso: str, ledger: dict, busy: set[str], lex: dict, comp: dict, all
         got = {p.name.split("_")[0] for p in d.glob("*.json")} if d.is_dir() else set()
         if set(info["books"]) - got:
             why.append(f"compact edition {ed} is missing book files {sorted(set(info['books']) - got)[:3]}")
+    if eds and not why:
+        cache_fp = REPO / "pipeline/work/fp-cache.json"                   # 'path|size|mtime' -> file hash; a re-run reads no unchanged book
+        cache = json.loads(cache_fp.read_text()) if cache_fp.exists() else {}
+        n = len(cache)
+        why += fingerprint_problems(iso, eds, cache)
+        if len(cache) != n:
+            cache_fp.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cache_fp.with_name(f".{cache_fp.name}.{os.getpid()}.tmp")
+            tmp.write_text(json.dumps(cache), encoding="utf-8")
+            os.replace(tmp, cache_fp)
     if not allow_stale and f.stat().st_mtime < STALE_BEFORE:
         why.append("stale (unchanged since the 14 Sept publish and about to be rewritten by the fleet refresh)")
     return why
@@ -191,7 +201,7 @@ def selected_files(name: str, kind: str, isos: list[str], local_root: Path) -> l
         return sorted(files) + [f for f in ("README.md",) if (local_root / f).exists()]
     files = [f for f in files if compact_layers.layer_of(f) == "main"]      # sidecars go to their own repos (publish_layer)
     files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
-    files += [f for f in ("README.md", "tokenize.js", "tokenizer_sensitive_languages.json", "pipeline_decisions.json",
+    files += [f for f in ("README.md", "tokenize.js", "text_fingerprint.mjs", "tokenizer_sensitive_languages.json", "pipeline_decisions.json",
                           "layers.json")                            # registry of layers published in other repos (if any)
               if (local_root / f).exists()]
     return files
@@ -242,6 +252,56 @@ def sync_ledger(roots: list[Path], src: Path = LEDGER_SRC) -> list[Path]:
             dst.write_bytes(data)
             updated.append(Path(root))
     return updated
+
+
+JS_SRC = REPO / "pipeline" / "vendor" / "bibles" / "js"
+JS_FILES = ("tokenize.js", "text_fingerprint.mjs")
+
+
+def sync_js(root: Path = REPO / "publish" / "compact-alignments", src: Path = JS_SRC) -> list[str]:
+    """tokenize.js and text_fingerprint.mjs ship beside the compact data as COPIES of bcv-commons/bibles' verse-text JS (vendored, pinned in
+    config/PROVENANCE.txt) — the same code clients need to find a file by its fingerprint. Refresh the copies before staging; returns the
+    names that changed."""
+    changed = []
+    for name in JS_FILES:
+        data = (src / name).read_bytes()
+        dst = Path(root) / name
+        if not dst.exists() or dst.read_bytes() != data:
+            dst.write_bytes(data)
+            changed.append(name)
+    return changed
+
+
+def fingerprint_problems(iso: str, eds: dict, cache: dict) -> list[str]:
+    """Every compact book file must be named with the fingerprint of the edition's CURRENT ingested text, and there must be exactly one per
+    book: a stale name would publish an alignment no client text can reach (2026-10-21, text fingerprint v1). `cache` maps
+    'path|size|mtime' -> file hash so a re-run does not re-read unchanged books."""
+    from lexeme_aligner import text_fingerprint as tf
+    why = []
+    for ed, info in eds.items():
+        d = REPO / "publish/compact-alignments" / iso[0] / iso / ed
+        usj = REPO / "pipeline/work/ingest-cache" / f"usj-{info.get('tag', ed)}"
+        mains: dict[str, list[str]] = {}
+        for p in d.glob("*.json") if d.is_dir() else ():
+            if p.name.count(".") == 1 and not p.name.startswith("_"):
+                mains.setdefault(p.stem.split("_")[0], []).append(p.stem.split("_", 1)[1])
+        bad, many = [], [b for b, hs in mains.items() if len(hs) > 1]
+        for book, hs in mains.items():
+            src = next(iter(usj.glob(f"*-{book}.json")), None)
+            if src is None:
+                bad.append(f"{book} (no ingested text)")
+                continue
+            st = src.stat()
+            key = f"{src}|{st.st_size}|{st.st_mtime_ns}"
+            if key not in cache:
+                cache[key] = tf.book_file_hash(src)
+            if cache[key] not in hs:
+                bad.append(f"{book}_{hs[0]} (text says {cache[key]})")
+        if many:
+            why.append(f"compact edition {ed} has several files for {sorted(many)[:3]}")
+        if bad:
+            why.append(f"compact edition {ed} has book files not named with their text fingerprint: {bad[:3]}")
+    return why
 
 
 def ready_report(isos: list[str], ledger: dict, busy: set[str], lex: dict, comp: dict, allow_stale: bool) -> tuple[list[str], dict[str, list[str]]]:
@@ -317,9 +377,11 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
 
 
 def layer_files(isos: list[str], layer: str, local_root: Path) -> list[str]:
-    """Every `<BOOK>_<hash>.<layer>.json` of the selected languages (relative to the compact root)."""
-    suffix = compact_layers.LAYERS[layer]["suffix"]
-    return sorted(str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob(f"*{suffix}"))
+    """Every `<BOOK>_<hash>.<layer>.json` of the selected languages, plus the layer's per-edition files (`names`: the meta repo's _layer.json and
+    _fingerprints.txt), relative to the compact root."""
+    spec = compact_layers.LAYERS[layer]
+    pats = [f"*{spec['suffix']}", *spec.get("names", ())]
+    return sorted({str(p.relative_to(local_root)) for i in isos for pat in pats for p in (local_root / i[0] / i).rglob(pat)})
 
 
 def forget_pushed(stage: Path, repo: str, paths: list[str]) -> int:
@@ -429,6 +491,8 @@ def main() -> int:
     synced = sync_ledger([REPO / "publish" / n for n in names if n not in NO_LEDGER])
     if synced:
         print(f"[publish_safe] refreshed the shipped ledger copy from config/pipeline_decisions.json in: {[p.name for p in synced]}", file=sys.stderr)
+    if "compact-alignments" in names and (js := sync_js()):
+        print(f"[publish_safe] refreshed {js} from the vendored bibles verse-text JS", file=sys.stderr)
     results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch, schema_change=(n == args.schema_change)) for n in names]
     if "compact-alignments" in names:                          # the two optional sidecar layers live in their own repos
         results += [publish_layer(layer, ok, args.push, args.chunk_size) for layer in compact_layers.LAYERS]

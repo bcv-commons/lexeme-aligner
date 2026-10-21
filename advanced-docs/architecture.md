@@ -4,7 +4,9 @@
 [root README](../README.md) and [`publish/lexeme-alignments/README.md`](../publish/lexeme-alignments/README.md) instead —
 this doc is for building, running, or extending the pipeline itself.
 
-The "you are here" map. Detail lives in the companion docs: **`aligner-plan.md`** (the ensemble +
+The "you are here" map. **Which external resources the pipeline needs, where each comes from and which step reads it:
+[`docs/architecture.md`](../docs/architecture.md)** (the data structures it produces: [`docs/data-structures.md`](../docs/data-structures.md)).
+Detail lives in the companion docs: **`aligner-plan.md`** (the ensemble +
 projection channels, the full spec), **`bibles-recipe-layer.md`** (target-text ingest),
 **`benchmark.md`** (validation), **`data-contracts.md`** (cross-repo/service flows), **`DATA.md`**
 (input/output schemas), **`publishing-principles.md`** (the lexeme-anchored, additive-union publish

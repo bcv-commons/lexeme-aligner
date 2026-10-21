@@ -41,8 +41,8 @@ Layers of version 3 (`"lists": true`) also write **decision lists** in the `main
 do not mention is not decided. They are described, with the default slot rule, in the
 [full-alignments-manual](https://huggingface.co/datasets/bcv-commons/full-alignments-manual) card ("Decision lists").
 
-`<hash>` = the last 5 hex characters of the book's content hash (compact-alignments `book_content_hash`), so a file only matches
-the exact text it was built on.
+`<hash>` = the first 8 hex characters of the book's text fingerprint (compact-alignments README, "The text fingerprint"), the same
+name the compact file of that text has, so a file only matches the exact text it was built on.
 
 **Channels** (in `.meta.json`):
 

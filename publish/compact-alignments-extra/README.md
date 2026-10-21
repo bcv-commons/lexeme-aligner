@@ -16,8 +16,8 @@ An optional, additive layer of [`compact-alignments`](https://huggingface.co/dat
 <iso[0]>/<iso>/<edition>/<BOOK>_<hash>.extra.json
 ```
 
-For an alignment array at `a/arb/arb_vdv/GEN_1a2b3.json` in the main repo, this layer's file is `a/arb/arb_vdv/GEN_1a2b3.extra.json` here. The `<hash>`
-is the main file's content hash, so the two always belong together. Not every book has this layer; a missing file is a 404, not an error.
+For an alignment array at `a/arb/arb_vdv/GEN_1a2b3c4d.json` in the main repo, this layer's file is `a/arb/arb_vdv/GEN_1a2b3c4d.extra.json` here. The `<hash>`
+is the main file's text fingerprint, so the two always belong together. Not every book has this layer; a missing file is a 404, not an error.
 
 Content: the same compact string format as the main array, for target words a second, residual alignment pass could still explain after
 eflomal, gloss, span extension and gap-fill. It is deliberately NOT merged into the main array. Format: see the main repo's README (the `r` method

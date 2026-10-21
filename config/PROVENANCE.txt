@@ -156,6 +156,10 @@ usj-fra-lsg/ — French target text (66 USJ books, WHOLE BIBLE) — GOLD BENCHMA
   WHY THIS EDITION: gold attestations/fra base_text=LSG — matching editions is required for a
     valid benchmark (else surfaces differ = measuring translation, not aligner quality).
   use: run the aligner on this -> produced lexeme-alignments/fra -> score vs strongs/attestations/fra (gold).
+  2026-10-21: REPLACED by the whitespace-keeping re-conversion (usfm_to_usj, pipeline/work/usj-reconvert/usj-fra-lsg, made 10-12). The July copy came
+    from usfmtc 0.4.8, which dropped the spaces between \w ... \w* words ("AucommencementétaitlaParole"), so the Clear gold mapped onto almost nothing
+    (60,214 links beyond the text; the published fra_lsg+manual+clear layer had 18 rows). Now: 83,326 gold rows, 0 beyond text; layer 82,864 rows.
+    Old copy kept at pipeline/work/usj-reconvert/old-cache/usj-fra-lsg. Token-identical to fra_lsg in 31,121 of 31,170 verses.
   NOTE 2026-07-09: fra was initially aligned NT-only; OT now aligned (96.1% cov) → lexeme-alignments/fra is
     whole-Bible (60,276 rows) + senses_attested/fra built. Clears shoresh's "publish OT for all langs" ask.
 
@@ -364,7 +368,7 @@ pipeline/vendor/bsb/tables/ — BSB Translation Tables, the Berean Standard Bibl
   "The Berean Bible and Majority Bible texts are officially placed into the public domain as of April 30,
   2023." — carried as CC0-1.0 in full-align attribution (the same text BSB-publishing distributes as CC0).
   Gitignored under the existing pipeline/vendor/bsb/ rule; regenerable via --fetch. Consumed by
-  bsb_tables.py into full-align rows (docs/architecture.md §4) with every column kept as data and the
+  bsb_tables.py into full-align rows (docs/data-structures.md §4) with every column kept as data and the
   reverse direction (--emit-tsv) round-tripping exactly; output staged under pipeline/work/full-align-bsb/.
 
 config/grc_frames/role.tsv, config/grc_frames/frames.tsv — Greek NT role + argument-structure export from
@@ -589,3 +593,10 @@ config/dbt_catalog/text-route.json — bibles' catalog/text-route.json, fetched 
   (260,872 bytes, sha256 244cf27b37d95b35…; doc/catalog-text-route.md): the ONE canonical text per edition and testament (route sofria | usx |
   usj | helloao | plain | pkf, + fileset id or path, + `why`). dbt_source reads it (all 1,032 DBT editions we hold are listed: 820 sofria,
   142 usx incl. 5 `sofria_damaged` (CARBSS RELBTL BGTNEW FFMWBT MZWNVS), 271 plain). Refresh whenever bibles republishes it.
+
+pipeline/vendor/bibles/js/{tokenize.js, text_fingerprint.mjs} — bcv-commons/bibles tools/verse-text/js at commit 91ac9823a9e9 (verse-text 1.0.0), vendored 2026-10-21
+  sha256 tokenize.js 667cf0ff0e68556391f3640ddaa644cdca6271258e24af42026720e84c44edf9 (byte-identical to the tokenize.js we published since tokenizer v2),
+  text_fingerprint.mjs 643822fff5adff7c4ee265b6afeba725626f7d3af1a698b84120725442033359. CC0 1.0. Never edit; publish_safe.sync_js copies both into
+  publish/compact-alignments/ before every compact publish (they ship in the main repo). Our generator pipeline/scripts/gen_js_tokenizer.py was removed.
+  Same day: usj_source.tokenize / strip_marks and text_fingerprint's fingerprint functions now ARE the vendored python bcv_tokenize.py (parity before the
+  switch: 2,420 editions, 1.65M verses, 44.3M tokens, 0 differences); tests/test_fp_naming.py checks JS == Python fingerprints with node.

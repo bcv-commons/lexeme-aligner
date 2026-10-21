@@ -1,4 +1,4 @@
-"""Synthetic tests for gold_to_fullalign.py (docs/architecture.md §4): record shape + attribution per
+"""Synthetic tests for gold_to_fullalign.py (docs/data-structures.md §4): record shape + attribution per
 layer, occurrence-ambiguity exclusion, refused-verse accounting, vendor-only routing, quarantine flag,
 manifest coverage math. No real spine/gold/corpus needed."""
 import collections

@@ -37,6 +37,7 @@ import sys
 from pathlib import Path
 
 from lexeme_aligner import takedown
+from lexeme_aligner import text_fingerprint as tf
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT
 from lexeme_aligner.hebrew_source import HebrewSource
@@ -156,7 +157,7 @@ def _method_char(pair: dict) -> str:
 
 _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index, published once per book",
           "<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json = [\"srcOrd:span ...\", ...] — position-parallel "
-          "to that book's _index/<BOOK>.json; hash = last N hex chars of book_content_hash()",
+          "to that book's _index/<BOOK>.json; hash = the book's text fingerprint (TEXT FINGERPRINT paragraph)",
           "span punctuation is a CONFIDENCE signal, free to use: '-' is a contiguous range, ',' a "
           "scattered one, and a scattered span is measurably weaker — with span length held constant at "
           "2, token precision against Clear gold is eng 62.3% scattered vs 84.5% contiguous, hin 64.0 vs "
@@ -218,14 +219,14 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "paths and _index/). Format: the full-alignments-manual card, 'File format'.",
           "tokenizer_version = the tokenization these target positions are indexed against. Target words "
           "are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that "
-          "exact tokenization — the per-file content hash covers the verse TEXT, which is identical across "
-          "tokenizer versions, so it cannot detect a mismatch. Use the published tokenize.js (generated "
-          "from the producing side by scripts/gen_js_tokenizer.py) or match it exactly; if your "
+          "exact tokenization — the file-name fingerprint is computed WITH the tokenizer, so a different tokenizer "
+          "finds no file rather than a wrong one, but check the version anyway. Use the published tokenize.js (bcv-commons/bibles "
+          "verse-text, the same code the producer runs) or match it exactly; if your "
           "implementation declares a different version, REFUSE TO DECODE rather than silently resolve "
           "positions to the wrong words.",
           "SIDECAR REPOS (since 2026-10-02): the optional <BOOK>_<hash>.meta.json and <BOOK>_<hash>.extra.json files are published in "
           "their own repos, bcv-commons/compact-alignments-meta and bcv-commons/compact-alignments-extra, under the IDENTICAL relative "
-          "path <iso[0]>/<iso>/<edition>/. The alignment arrays, _index/, manifest.json and tokenize.js stay in this repo.",
+          "path <iso[0]>/<iso>/<edition>/ (with the optional _fingerprints.txt map in the meta repo). The alignment arrays, _index/, manifest.json, tokenize.js and text_fingerprint.mjs stay in this repo.",
           "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in "
           "the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS "
           "edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned "
@@ -262,7 +263,17 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "Stamped in _index/_source.json as keys_sha256 / fn_keys_sha256.",
           "REND SCOPE (since 2026-10): an edition under a takedown rule (config/takedown.json) has `rend_scope` in its manifest entry: "
           "'eflomal' = entries another stage added carry 0 (withheld, no id taken), 'none' = no rend array; no rend_scope = every entry has "
-          "an id. rend is published for compact alignments only, never for full-alignment layers."]
+          "an id. rend is published for compact alignments only, never for full-alignment layers.",
+          "TEXT FINGERPRINT (text_fp_version 1, since 2026-10): <hash> in <BOOK>_<hash>.json is the first 8 hex characters of the book's "
+          "text fingerprint, computed from the edition's own text in its own verse numbering: tokenize each verse (tokenize.js); a verse "
+          "line is '<verse>:<tokens joined by one space>' (verses with no tokens are left out, a bridged verse counts under its first "
+          "number); a chapter fingerprint is SHA-256 of its verse lines joined by '\\n'; the book fingerprint is SHA-256 of the lines "
+          "'<chapter>:<chapter fingerprint>' joined by '\\n'. Reference implementation: text_fingerprint.mjs (with tokenize.js; "
+          "bcv-commons/bibles verse-text). Have text, want its alignment: compute the fingerprint and fetch <BOOK>_<hash>.json; no file = "
+          "no alignment for exactly that text. Older versions of a book stay published under their own fingerprints. OPTIONAL map in the "
+          "meta repo: <iso[0]>/<iso>/<edition>/_fingerprints.txt, one line per book for the LATEST version: book, hash, the date that "
+          "version was built, then the first 5 hex characters of each chapter fingerprint in chapter order ('n:xxxxx' where the "
+          "chapter sequence breaks) — compare your own chapter fingerprints with it to find where your text differs."]
 
 
 _STOPWORD_DIR = Path("publish/target-stopwords")
@@ -335,6 +346,7 @@ def update_manifest(path: Path, iso: str, edition: str, entry: dict) -> None:
     def _merge(doc: dict) -> None:
         doc["schema"] = _SCHEMA
         doc["tokenizer_version"] = TOKENIZER_VERSION
+        doc["text_fp_version"] = tf.TEXT_FP_VERSION
         doc.setdefault("languages", {}).setdefault(iso, {}).setdefault("editions", {})[edition] = entry
 
     update_json(path, _merge, default={"schema": _SCHEMA, "languages": {}})
@@ -665,7 +677,10 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
 
 
 def book_content_hash(usj_path: Path) -> str:
-    """SHA-256 hex digest over a book's TRANSLATABLE TEXT ONLY (not its USJ file bytes/structure) — a
+    """LEGACY (file names before text fingerprint v1, 2026-10-21; the last 5 hex chars): kept only to recognise old-scheme files during the
+    transition (pipeline/scripts/tools/migrate_fp_names.py). File names now come from `text_fingerprint` (tokens + verse numbers).
+
+    SHA-256 hex digest over a book's TRANSLATABLE TEXT ONLY (not its USJ file bytes/structure) — a
     reader must be able to reproduce this from any copy of the same edition's text, in any container
     format (USJ, USFM, plain verse dump), so the hash basis is the WORDS, not our JSON serialization.
     Deliberately sensitive to any revision: verse text is joined as `"{chapter}:{verse}:{text}"` per
@@ -682,6 +697,24 @@ def book_content_hash(usj_path: Path) -> str:
     ranges = read_verse_ranges(usj_path, rules={})
     parts = [f"{ch}:{v}:{info['text']}" for (ch, v), info in sorted(ranges.items())]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+# Where publish_compact moves the files of an OLDER version of a book when it writes a new one (the text changed): every edition folder holds
+# exactly one version per book (publish_safe checks it); the older version stays published on Hugging Face under its own name.
+SUPERSEDED = Path("pipeline/work/compact-superseded")
+
+
+def move_superseded(edition_dir: Path, book: str, digest: str, out_root: Path, superseded_root: Path = SUPERSEDED) -> list[Path]:
+    """Move every <BOOK>_<other hash>.* file in `edition_dir` to the same relative path under `superseded_root` (never deleted)."""
+    import shutil
+    moved = []
+    for f in sorted(edition_dir.glob(f"{book}_*.json")):
+        if f.name.split(".", 1)[0] != f"{book}_{digest}":
+            dst = superseded_root / f.parent.relative_to(out_root) / f.name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(f), str(dst))
+            moved.append(dst)
+    return moved
 
 
 SAFE_EDITION = re.compile(r"[A-Za-z0-9_.\-]+")    # 2026-10-09: "HAUBIB (Hausa Contemporary Bible / OHCB)" split a compact folder in two
@@ -705,17 +738,19 @@ def edition_id(iso: str, tag: str, sources: dict) -> str:
 def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_root: Path,
                     index_root: Path,
                     books: list[str] = ALL_BOOKS, methods=METHODS,
-                    out_dir: Path = OUT, hash_len: int = 5, edition: str | None = None,
+                    out_dir: Path = OUT, edition: str | None = None,
                     sources_path: Path = Path("config/sources.json"),
                     with_layer: bool = True, contest: dict | None = None,
-                    with_sidecars: bool = True, layer_methods=LAYER_METHODS) -> dict[str, Path]:
+                    with_sidecars: bool = True, layer_methods=LAYER_METHODS,
+                    superseded_root: Path = SUPERSEDED) -> dict[str, Path]:
     """Writes one compact-alignment JSON per (edition, book) at
-    `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<last-hash_len-hex-of-book-content-hash>.json` — `iso` is
+    `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<fp8>.json` (fp8 = the book's text fingerprint, `text_fingerprint`) — `iso` is
     the true published language code (NOT the internal alignment `tag`, which can be an edition-specific
     id like `arb_vdv`), `edition` defaults to `edition_id(iso, tag, ...)` unless overridden. The content
-    hash makes the filename itself the integrity check: a client hashes ITS OWN copy of the book's text
-    (see `book_content_hash`) and looks for a matching file; if the edition was revised since this was
-    published, no matching filename exists, so a stale alignment is never silently served.
+    fingerprint makes the filename itself the integrity check: a client fingerprints ITS OWN copy of the book's text
+    (tokens + verse numbers, bibles' bcv_tokenize) and looks for a matching file; if the edition was revised since this was
+    published, no matching filename exists, so a stale alignment is never silently served. Each written book also replaces
+    its line in the edition's `_fingerprints.txt` (latest version per book, with chapter fingerprints; meta repo).
 
     Per-edition files are a PLAIN ARRAY of compact strings, position-parallel to that book's own shared
     `index_root/<BOOK>_lexemes.json` — `{"BOOK C:V": [lexeme, ...], ...}` (see `build_source_lexemes`) —
@@ -744,6 +779,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}
         edition = edition_id(iso, tag, sources)
     written: dict[str, Path] = {}
+    map_lines: dict[str, str] = {}
     by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest, cross_edition_iso=iso)
     layer = (build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref, layer_methods=layer_methods)
             if with_layer else {})
@@ -767,10 +803,13 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         array = [by_ref.get(ref, "") for ref in book_index]
         if not any(array):                                   # text but no alignment (a testament outside the chain's scope,
             continue                                         # e.g. heb OT, excluded): an all-empty file is not "aligned"
-        digest = book_content_hash(usj_path)[-hash_len:]
+        book_fp, chapter_fps = tf.usj_fingerprints(usj_path)
+        digest = tf.file_hash(book_fp)
         out_fp = out_root / iso[0] / iso / edition / f"{book}_{digest}.json"
+        map_lines[book] = tf.map_line(book, book_fp, tf.today(), chapter_fps)
         out_fp.parent.mkdir(parents=True, exist_ok=True)
         out_fp.write_text(json.dumps(array, ensure_ascii=False) + "\n", encoding="utf-8")
+        move_superseded(out_fp.parent, book, digest, out_root, superseded_root)
         written[book] = out_fp
         # the opt-in layer, written ONLY when it has content — its absence means "no residual here",
         # which is exactly true for every edition published before it existed, so there is no
@@ -792,6 +831,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
             if any(any(a) for a in meta.values()):
                 (out_fp.parent / f"{book}_{digest}.meta.json").write_text(
                     json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
+    if map_lines:
+        tf.update_map(out_root / iso[0] / iso / edition, map_lines)
     return written
 
 
@@ -872,7 +913,6 @@ def main() -> int:
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--index-root", type=Path, default=Path("publish/compact-alignments/_index"),
                     help="root for the shared per-book verse-ref indices (--publish mode)")
-    ap.add_argument("--hash-len", type=int, default=5)
     args = ap.parse_args()
 
     heb = HebrewSource()
@@ -903,7 +943,7 @@ def main() -> int:
         sources = json.loads(args.sources.read_text(encoding="utf-8")) if args.sources.exists() else {}
         resolved_edition = args.edition or edition_id(publish_iso, args.iso, sources)
         written = publish_compact(args.iso, publish_iso, usj_dir, heb, args.publish,
-                                  methods=methods, out_dir=args.out_dir, hash_len=args.hash_len,
+                                  methods=methods, out_dir=args.out_dir,
                                   with_layer=not args.no_layer, contest=contest,
                                   with_sidecars=not args.no_sidecars,
                                   edition=resolved_edition, sources_path=args.sources,

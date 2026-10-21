@@ -53,7 +53,7 @@ base URL (and a reader that only wants alignments changes nothing):
 | provenance sidecar | `<BOOK>_<hash>.meta.json` | [`bcv-commons/compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta) |
 | opt-in residual layer | `<BOOK>_<hash>.extra.json` | [`bcv-commons/compact-alignments-extra`](https://huggingface.co/datasets/bcv-commons/compact-alignments-extra) |
 
-`_index/`, `manifest.json`, `tokenize.js` and `pipeline_decisions.json` stay here. Not every book has a sidecar file — a missing one is simply a 404.
+`_index/`, `manifest.json`, `tokenize.js`, `text_fingerprint.mjs` and `pipeline_decisions.json` stay here; the optional per-edition `_fingerprints.txt` map is in the meta repo. Not every book has a sidecar file — a missing one is simply a 404.
 
 ## Two kinds of file
 
@@ -228,7 +228,7 @@ layer. Until that layer ships, treat folded function words as "attached to the c
 | `<iso>` | the TRUE published language code | `eng` |
 | `<edition>` | which edition/translation of that language, iso-prefixed unless it already carries one | `eng_BSB`, `arb_vdv` |
 | `<BOOK>` | 3-letter USFM book code | `RUT` |
-| `<hash>` | last 5 hex chars of that book's content hash (below) | `101a1` |
+| `<hash>` | first 8 hex chars of that book's text fingerprint (below) | `6e149a85` |
 
 `<edition>` comes from the same identifier already published as `base_text` in `lexeme-alignments` — so
 a consumer of both datasets can join on it directly.
@@ -358,32 +358,51 @@ non-adjacent English words. The comma form exists precisely to represent real ca
 contiguous `"a-b"` range would be wrong here (it would also claim token 5, "my", which this Hebrew word
 did not align to).
 
-## The content hash — reproducible by ANY client, in any text format
+## The text fingerprint — find the alignment for the text you have
 
 **Alignment is extremely sensitive to any wording difference in a revised Bible book.** If a publisher
 fixes a typo or re-versifies a chapter, an alignment computed against the OLD text is silently wrong
-against the new one. The hash in the filename turns that into a fail-closed lookup: a client hashes its
-OWN copy of the edition's book text and looks for a matching filename — no match means no stale
-alignment can be served by accident.
+against the new one. The fingerprint in the file name turns that into a fail-closed lookup: a client
+fingerprints ITS OWN copy of the book and asks for that file — no file means no alignment exists for
+exactly that text, so a stale alignment is never served by accident.
 
-**Algorithm** (`book_content_hash` in `compact_align.py` — reimplementable in any language):
+**Definition** (text fingerprint v1, `text_fp_version` in `manifest.json`; reference implementation
+`text_fingerprint.mjs` next to `tokenize.js` in this repo, from
+[bcv-commons/bibles verse-text](https://github.com/bcv-commons/bibles/tree/main/tools/verse-text), with a Python twin there):
 
-1. Extract every verse's **translatable text only** (no footnotes, headings, or titles — the same rule
-   alignment itself follows).
-2. For each `(chapter, verse)` pair, ascending, form the string `"{chapter}:{verse}:{text}"`.
-3. Join all of a book's verse-strings with `"\n"`.
-4. UTF-8 encode.
-5. SHA-256, hex digest.
-6. The **filename** uses the last 5 hex characters (a client wanting stronger collision resistance can
-   still recompute and compare the full 64-char digest — only the filename is truncated).
+1. Take each verse of the book in the edition's **own** verse numbering, translatable text only (no
+   notes, headings or titles; a bridged verse such as `4-5` counts under its first number).
+2. Tokenize it with `tokenize.js` (tokenizer v2, the same tokenization the positions in the arrays use).
+   A verse with no tokens is left out.
+3. Verse line = `"{verse}:{tokens joined by one space}"`.
+4. Chapter fingerprint = SHA-256 (hex) of the chapter's verse lines, in verse order, joined by `"\n"`.
+5. Book fingerprint = SHA-256 (hex) of the lines `"{chapter}:{chapter fingerprint}"`, in chapter order, joined by `"\n"`.
+6. The **file name** uses the first 8 hex characters: `<BOOK>_<first 8 hex>.json`.
 
-Including `chapter:verse` in the hashed string (not just the bare words) means a re-versification
-(a verse split, merge, or renumbering) changes the hash too, even when every word stayed the same — a
-re-versified book needs a fresh alignment exactly as much as a reworded one does.
+Because it is computed from tokens, whitespace, punctuation, digits and the container format (USJ, USFM,
+plain text) do not change it; any change of a word or of verse numbering does. Reference digests, Louis
+Segond 1910 (`fra_lsg`) 3 John: chapter 1 `0848eefc352b072d02fe6c2730e363ece252c2d6242d94296e3b58156ef93d24`,
+book `6e149a855b269724f0bc352d1367cad54608b130887e31145051ad28fc590873` → `f/fra/fra_lsg/3JN_6e149a85.json`.
 
-This is deliberately based on the extracted **words**, never the container format (USJ/USFM/plain-text
-JSON bytes) — verified: re-serializing identical content with different JSON formatting keeps the hash
-unchanged; changing a single word anywhere in the book changes it.
+**Client rule**
+
+- Have text, want its alignment: compute the book fingerprint and fetch `<BOOK>_<first 8 hex>.json`. A 404
+  means there is no alignment for exactly that text.
+- Older versions of a book stay published under their own fingerprints, so text you cached earlier keeps
+  finding its file.
+- Want the latest version: the optional map `_fingerprints.txt` in each edition folder of
+  [`compact-alignments-meta`](https://huggingface.co/datasets/bcv-commons/compact-alignments-meta) has one
+  line per book for the LATEST version: book, file hash, the date that version was built, then the first 5
+  hex characters of each chapter fingerprint in chapter order (`n:xxxxx` where the chapter sequence breaks):
+  ```
+  3JN 6e149a85 2026-10-12 0848e
+  RUT 44f46079 2026-10-12 262a1 8a8c3 ccd3c 8f71d
+  ```
+- A 404 or a mismatch you want to understand: compute your own chapter fingerprints and compare them with
+  the map's line for the book; the chapters that differ are where your text and the aligned text part ways.
+
+Before 2026-10 the file names carried the last 5 hex characters of a different hash (over raw verse text).
+Those names stay available for a transition period after the switch; the change is announced in this card.
 
 ## Layout — why the bulk data isn't in git
 
@@ -396,7 +415,7 @@ compact-alignments/
     GEN_lexemes.json
     ...
   e/eng/eng_BSB/          # GIT-IGNORED — bulk data, published out-of-band (HF / object storage)
-    RUT_101a1.json
+    RUT_44f46079.json
     ...
   a/arb/arb_vdv/
     ...
@@ -413,7 +432,7 @@ per-verse output (`align_files.tag_files`, exact-tag matched).
 
 Same content-addressed model as `lexeme-alignments`: eflomal is non-deterministic (seeds from
 `/dev/urandom`), so a regenerated edition's spans can drift ~1% run-to-run. There's no single dataset-wide
-hash to pin against here — the book-content hash in each filename pins the **source text**, not the
+hash to pin against here — the text fingerprint in each filename pins the **source text**, not the
 alignment output; two regenerations of the same edition can legitimately publish under the same filename
 with slightly different span content.
 

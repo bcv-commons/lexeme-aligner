@@ -293,14 +293,14 @@ matters (many CDNs also gzip-transport plain JSON automatically, so check before
 ## Publish layout — per-book, content-addressed (the decided HF path)
 
 The whole-bible array above is a dev/debug convenience (`--out`). The **published** artifact is
-per-book, per-edition, with the filename itself carrying a content hash of that book's text — so a
+per-book, per-edition, with the filename itself carrying a fingerprint of that book's text — so a
 client can verify (and locate) the RIGHT file without downloading anything first:
 
 ```
-<iso[0]>/<iso>/<edition>/<BOOK>_<last-5-hex-of-book-content-hash>.json
+<iso[0]>/<iso>/<edition>/<BOOK>_<first-8-hex-of-the-text-fingerprint>.json
 ```
 
-e.g. `e/eng/eng_BSB/RUT_101a1.json` — `iso` is the TRUE published language code (`eng`), never the
+e.g. `e/eng/eng_BSB/RUT_44f46079.json` — `iso` is the TRUE published language code (`eng`), never the
 internal alignment tag (`bsb`, which is edition-specific — see `onboard.py`'s tag-vs-iso split). The
 `<edition>` segment (`eng_BSB`) is derived from `config/sources.json`'s `source.edition` field — the SAME
 identifier already published as `base_text` in `publish/lexeme-alignments` — iso-prefixed unless it already
@@ -333,32 +333,30 @@ e/eng/eng_BSB/RUT_101a1.json          ["0:1 1:2 ...", "0:3 1:1 ...", "0:5 1:4 ..
 a/arb/arb_vdv/RUT_dd972.json          ["0:0 1:2 ...", "0:2 1:3 ...", "0:4 1:0 ...", ...]
 ```
 
-### The content hash — why, and the exact algorithm
+### The text fingerprint — why, and the exact algorithm (since 2026-10-21)
 
-**Alignment is extremely sensitive to any word difference in a revised Bible book** — if a publisher
-fixes a typo or re-versifies a chapter, an alignment computed against the OLD text is silently wrong
-against the new one. Baking a content hash into the filename turns that into a fail-closed lookup: a
-client hashes ITS OWN copy of the book's text and looks for a matching filename. No match → no stale
-alignment gets served by accident.
+**Alignment is extremely sensitive to any word difference in a revised Bible book** — an alignment
+computed against an OLD text is silently wrong against the new one. The file name carries a fingerprint
+of the book's text, so a client fingerprints ITS OWN copy and asks for that file; no file → no stale
+alignment served by accident.
 
-The hash (`book_content_hash` in `compact_align.py`) is computed over the **translatable words**, not
-the JSON container, so it's reproducible from ANY source format (USJ, USFM, a plain verse dump) and
-doesn't spuriously change on irrelevant re-serialization (verified: re-saving the identical USJ with
-different formatting keeps the hash identical; changing one word anywhere in the book changes it):
+The fingerprint (text fingerprint v1, `text_fingerprint.py`, the functions themselves vendored from
+bcv-commons/bibles' verse-text `bcv_tokenize.py`) is computed over the **tokens and verse numbers** — the
+exact things the positions in the arrays depend on — so whitespace, punctuation, digits and the container
+format never change it:
 
-1. Extract each verse's translatable text (`usj_source.read_verse_ranges(usj_path, rules={})` —
-   footnotes/headings/titles excluded like alignment itself, but always RAW: bypasses
-   `config/text_strip_rules.json` even for an edition that opts into cleaning before alignment, since a
-   client verifying "is this the same edition I have" only ever has the unmodified source file).
-2. For each `(chapter, verse)` in ascending order, form the string `"{chapter}:{verse}:{text}"`.
-3. Join all of a book's verse-strings with `"\n"`.
-4. UTF-8 encode, SHA-256, hex digest.
-5. The filename uses the **last 5 hex characters** (a client wanting more collision resistance can
-   still recompute and check the full digest — only the filename is truncated).
+1. Each verse's translatable text in the edition's own numbering (`usj_source.read_verse_ranges(usj_path,
+   rules={})`: always RAW, strip rules bypassed — a client only has the unmodified text).
+2. Verse line = `"{verse}:{tokenize(text) joined by one space}"`; verses with no tokens are left out.
+3. Chapter fingerprint = SHA-256 of its verse lines joined by `"\n"`; book fingerprint = SHA-256 of
+   `"{chapter}:{chapter fingerprint}"` lines joined by `"\n"`.
+4. File name = first 8 hex characters. `_fingerprints.txt` per edition (meta repo) lists the latest
+   version of each book with its build date and 5-hex chapter fingerprints.
 
-Including `chapter:verse` in the hashed string (not just the bare text) means a re-versification
-(verse split/merge, renumbering) changes the hash too, even if every word stayed the same — a
-re-versified book needs a fresh alignment just as much as a reworded one does.
+Before 2026-10-21 the names used the last 5 hex characters of `book_content_hash` (SHA-256 over
+`"{chapter}:{verse}:{raw text}"` lines). It is kept only to recognise old names:
+`pipeline/scripts/tools/migrate_fp_names.py` renamed the local tree, and its `rename_map.tsv` drives the
+server-side rename. Plan: `internal-docs/compact-text-fingerprint-plan-2026-10-12.md`.
 
 ## Multi-edition languages
 

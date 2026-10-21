@@ -51,8 +51,8 @@ _layer.json              version, flags (`lists`, `keyed`), the `spine_index_sha
                          built against, attribution constants and the profile table (char -> method / score / prior / extra / attribution)
 ```
 
-`<hash>` = the last 5 hex characters of the book's content hash (compact-alignments `book_content_hash`), so a file only matches
-the exact text it was built on.
+`<hash>` = the first 8 hex characters of the book's text fingerprint (compact-alignments README, "The text fingerprint"), the same
+name the compact file of that text has, so a file only matches the exact text it was built on.
 
 **Channels** (in `.meta.json`):
 

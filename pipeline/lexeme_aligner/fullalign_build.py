@@ -439,7 +439,8 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
     """Build (and verify) the full-align layers of one chain edition. Returns a report {edition, layers: {lid: counts}, skipped,
     out_of_scope}. `stat_out` / `manual_out` redirect the writes into a scratch tree (the compact edition's files are copied there
     first, so nothing under publish/ changes)."""
-    from lexeme_aligner.compact_align import ALL_BOOKS, book_content_hash, edition_id
+    from lexeme_aligner.compact_align import ALL_BOOKS, edition_id
+    from lexeme_aligner import text_fingerprint as tf
     from lexeme_aligner.config import OUT
     from lexeme_aligner.hebrew_source import HebrewSource
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
@@ -496,7 +497,7 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
         except NotImplementedError as e:
             report["refused"] = str(e)
             return report
-        digest = book_content_hash(usj_path)[-5:]
+        digest = tf.book_file_hash(usj_path)
         groups_of[book], refs_of[book] = groups, refs
         if "statistical" in layers:
             cpath, cmain, cmeta = _compact_book(compact_ed_dir, book)
@@ -525,7 +526,7 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
                         fp = next(iter(sorted(fa_usj.glob(f"*-{book}.json"))), None) if fa_usj else None
                         if fp is None:
                             bad_refs = set(groups)
-                        elif book_content_hash(fp) != book_content_hash(usj_path):
+                        elif tf.usj_fingerprints(fp)[0] != tf.usj_fingerprints(usj_path)[0]:
                             fg = fc.build_groups(heb, book, fp, remapper(fa_ed, str(fa_usj)))
                             bad_refs = {r for r, g in groups.items() if fg.get(r) is None or fg[r].toks != g.toks}
                 if bad_refs:
@@ -586,7 +587,8 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
                     sources_path: Path = Path("config/sources.json")) -> dict:
     """One LLM layer `<compact edition>+llm+<name>` from llm_edit-shaped records (`cell` may hold `{BOOK}` for per-book cells), encoded
     as a decision-list (v3) layer and verified like a manual layer (checks 1, 2, 5). Written under `out_root` only, never publish/."""
-    from lexeme_aligner.compact_align import ALL_BOOKS, book_content_hash, edition_id
+    from lexeme_aligner.compact_align import ALL_BOOKS, edition_id
+    from lexeme_aligner import text_fingerprint as tf
     from lexeme_aligner.config import OUT
     from lexeme_aligner.hebrew_source import HebrewSource
     from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
@@ -623,7 +625,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
                     r[k] = v
             if r["target"] is None and r["t_idx"] is not None:
                 r["target"] = " ".join(g.toks[i] for i in r["t_idx"] if i < len(g.toks))
-        written[book] = encode_verify("manual", lid, rows, groups, refs, ldir, book, book_content_hash(usj_path)[-5:], t, encoders,
+        written[book] = encode_verify("manual", lid, rows, groups, refs, ldir, book, tf.book_file_hash(usj_path), t, encoders,
                                       has_ids=False)
     if written:
         final_check(lid, ldir, written, groups_of, refs_of, t)

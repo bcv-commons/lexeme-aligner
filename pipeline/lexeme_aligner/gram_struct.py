@@ -1,4 +1,4 @@
-"""gram-struct builder — docs/architecture.md §2. ADDITIVE: reads only files that already exist, writes
+"""gram-struct builder — docs/data-structures.md §2. ADDITIVE: reads only files that already exist, writes
 only under `--out` (default `config/gram_struct/`), changes no existing reader, config or module.
 
 One per-language grammatical fact sheet, fused from every source this repo already has, split into
@@ -493,7 +493,7 @@ tags:
 
 One JSON per language, fused from every source the lexeme-aligner already has,
 split into four provenance partitions so that licensing is a directory boundary. Design and contract:
-`docs/architecture.md` §2. Built by `python3 -m lexeme_aligner.gram_struct --build`; never hand-edited.
+`docs/data-structures.md` §2. Built by `python3 -m lexeme_aligner.gram_struct --build`; never hand-edited.
 
 | partition | license | contents | provenance |
 |---|---|---|---|

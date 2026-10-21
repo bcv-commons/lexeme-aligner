@@ -63,10 +63,16 @@ def test_staging_contains_only_the_current_selection_and_keeps_the_caches(tmp_pa
     assert (stage / "iso=ccc/data.parquet").stat().st_ino == (src / "iso=ccc/data.parquet").stat().st_ino   # a hard link, no copy
 
 
-def _world(tmp_path, monkeypatch, rows=3, manifest_rows=3, books=("GEN",), files=("GEN_ab.json",)):
+def _world(tmp_path, monkeypatch, rows=3, manifest_rows=3, books=("GEN",), files=None):
     pa = pytest.importorskip("pyarrow")
     import pyarrow.parquet as pq
+    from lexeme_aligner import text_fingerprint as tf
     monkeypatch.setattr(ps, "REPO", tmp_path)
+    usj = tmp_path / "pipeline/work/ingest-cache/usj-ed1/01-GEN.json"           # the edition's text: book files are named by its fingerprint
+    usj.parent.mkdir(parents=True)
+    usj.write_text(json.dumps({"type": "USJ", "content": [{"type": "chapter", "number": "1"}, {"type": "para", "marker": "p", "content": [
+        {"type": "verse", "number": "1"}, "In the beginning"]}]}), encoding="utf-8")
+    files = files or (f"GEN_{tf.book_file_hash(usj)}.json",)
     part = tmp_path / "publish/lexeme-alignments/iso=xx"
     part.mkdir(parents=True)
     pq.write_table(pa.table({"a": list(range(rows))}), part / "data.parquet")

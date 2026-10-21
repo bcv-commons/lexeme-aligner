@@ -1,5 +1,5 @@
 """BSB Translation Tables (bereanbible.com/bsb_tables.tsv) → full-align rows, losslessly, with the reverse
-direction planned in (docs/architecture.md §4, the BSB round-trip source).
+direction planned in (docs/data-structures.md §4, the BSB round-trip source).
 
 The table is the Berean Standard Bible publisher's master interlinear: ONE tsv (85.5 MB, utf-8-sig, 23
 columns, header row), the 39 OT books (Hebrew rows, `Greek Sort = 0`) followed by the 27 NT books (Greek
@@ -43,7 +43,7 @@ table. The build reports a round-trip on a fixed sample against the raw rows, go
 Parquet (read back, not in-memory): exact on the 19 non-HTML columns, exact and tag-stripped/whitespace-
 collapsed rates on Hdg/Crossref/Par/End text.
 
-Where it lands (docs/architecture.md §4, the published full-align layout): `--build` writes DIRECTLY into
+Where it lands (docs/data-structures.md §4, the published full-align layout): `--build` writes DIRECTLY into
 `publish/full-align/eng/engbsb/manual/BSB-tables/<BOOK>.parquet` (a second manual partition beside Clear's
 `manual/BSB/`), the per-spine-token sidecar under `.../BSB-tables/sidecar/<BOOK>.parquet`, and
 `parsing_table.json` + `layer_manifest.json` next to them; then it MERGES its partition entry into
@@ -82,7 +82,7 @@ URL = "https://bereanbible.com/bsb_tables.tsv"
 VENDOR_DIR = Path("pipeline/vendor/bsb/tables")
 VENDOR_TSV = VENDOR_DIR / "bsb_tables.tsv"
 PIN_FILE = VENDOR_DIR / "bsb_tables.pin.json"
-OUT_DIR = Path("publish/full-align")                # the published full-align root (docs/architecture.md §4)
+OUT_DIR = Path("publish/full-align")                # the published full-align root (docs/data-structures.md §4)
 STAGING_DIR = Path("pipeline/work/full-align-bsb")   # the first build's staging tree — still accepted via --out-dir
 _SOURCES_FILE = Path("config/sources.json")
 _INGEST_ROOT = Path("pipeline/work/ingest-cache")

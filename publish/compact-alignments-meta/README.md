@@ -16,8 +16,8 @@ An optional, additive layer of [`compact-alignments`](https://huggingface.co/dat
 <iso[0]>/<iso>/<edition>/<BOOK>_<hash>.meta.json
 ```
 
-For an alignment array at `a/arb/arb_vdv/GEN_1a2b3.json` in the main repo, this layer's file is `a/arb/arb_vdv/GEN_1a2b3.meta.json` here. The `<hash>`
-is the main file's content hash, so the two always belong together. Not every book has this layer; a missing file is a 404, not an error.
+For an alignment array at `a/arb/arb_vdv/GEN_1a2b3c4d.json` in the main repo, this layer's file is `a/arb/arb_vdv/GEN_1a2b3c4d.meta.json` here. The `<hash>`
+is the main file's text fingerprint, so the two always belong together. Not every book has this layer; a missing file is a 404, not an error.
 
 Content: `{"method": [...], "conf": [...], "contested": [...], "bonus": [...], "rule": [...], "rend": [...]}`, every array position-parallel to the book index. The full
 format — what each method letter and confidence digit means — is section 3 of the main repo's README.
@@ -30,6 +30,14 @@ the sha256 of the list used. Ids are comparable only within one edition and lexe
 same file, are renumbered on every rebuild, and carry no text. An edition under a takedown rule may carry `0` for withheld entries or no `rend` array at all (manifest `rend_scope`). `rend` is published for the compact alignments only, never for full-alignment files. Full definition and the takedown policy: main repo README, "Edition-side channel `rend`".
 
 Spans are keyed by spine verse; read target words from the edition's mapped verse (main README, "Verse numbering").
+
+## The text-fingerprint map `_fingerprints.txt` (since 2026-10)
+
+Each edition folder also holds `<iso[0]>/<iso>/<edition>/_fingerprints.txt`: one line per book for the LATEST version of that book —
+book, the 8-hex file hash (the main file's name), the date that version was built, then the first 5 hex characters of each chapter
+fingerprint in chapter order (`n:xxxxx` where the chapter sequence breaks). It is optional: a client that fingerprints its own text
+finds its file without it. It tells which version is current, and comparing chapter fingerprints shows where a text differs. The
+definition of the fingerprint is the main repo's README, "The text fingerprint".
 
 ## Full-alignment channels (since 2026-10)
 

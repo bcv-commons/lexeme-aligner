@@ -36,7 +36,7 @@ WORK = Path("pipeline/work/jev-testA")                # answer cache (responses/
 URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = os.environ.get("JEV_MODEL", "jev-latest")
 THRESHOLDS = (0.0, 0.5, 0.7, 0.9)
-LANG = {"hin": "Hindi", "eng": "English", "heb": "Modern Hebrew", "ell": "Modern Greek"}
+LANG = {"hin": "Hindi", "eng": "English", "heb": "Modern Hebrew", "ell": "Modern Greek", "kvg": "Kuni-Boazi"}
 # v4 function-word question: what "written inside a word" looks like in this translation language (heb text is unchanged, so its cache holds)
 INSIDE_EXAMPLES = {"Modern Hebrew": " (for example ה for an article, ב/ל/מ/כ for a preposition, ו for and)",
                    "Modern Greek": " (for example a verb ending that carries a subject pronoun)"}

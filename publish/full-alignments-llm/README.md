@@ -27,6 +27,7 @@ A layer id is `<edition>+llm+<name>`, where `<edition>` is the compact-alignment
 | layer | text | model and method | rows |
 |---|---|---|---|
 | `ell_GreVamvas+llm+jev-v4` | Neophytos Vamvas 1850, Modern Greek (public domain; CrossWire GreVamvas via bcv-commons/bibles), 66 books | TypeSafe Jev (`jev-1.13.0`), design v4 | 605,084 |
+| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4 | 140,497 |
 
 **Design v4:** for each verse the model is asked about every target function word and every source function word, and about each
 content link the chain flagged as doubtful: which source word a target word belongs to, or which target word carries a source word.
@@ -56,4 +57,4 @@ Spans are keyed by the source verse (Hebrew WLC numbering in the OT); read the t
 
 ## License
 
-The alignments are CC0 1.0. They hold no text; the edition named by each layer keeps its own licence (Vamvas: public domain).
+The alignments are CC0 1.0. They hold no text; the edition named by each layer keeps its own licence (Vamvas: public domain; Kuni-Boazi `kvg_wbt`: CC BY-NC-ND 4.0, Wycliffe Switzerland).

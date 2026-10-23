@@ -1,0 +1,88 @@
+{
+ "languages": {
+  "heb": {
+   "editions": {
+    "heb_scg": {
+     "books": [
+      "1CO",
+      "1JN",
+      "1PE",
+      "1TH",
+      "1TI",
+      "2CO",
+      "2JN",
+      "2PE",
+      "2TH",
+      "2TI",
+      "3JN",
+      "ACT",
+      "COL",
+      "EPH",
+      "GAL",
+      "HEB",
+      "JAS",
+      "JHN",
+      "JUD",
+      "LUK",
+      "MAT",
+      "MRK",
+      "PHM",
+      "PHP",
+      "REV",
+      "ROM",
+      "TIT"
+     ],
+     "classes": {
+      "kept": 79281,
+      "edited": 6857,
+      "edited-wide": 5243,
+      "inside": 22381,
+      "part": 4075
+     },
+     "ids_linked": 118166,
+     "ids_none": 19580,
+     "ids_on_2plus_tokens": 7428,
+     "part_positions": 64890,
+     "tokens_added": 14659,
+     "spine_verses_not_in_edition": [
+      "MRK 16:99"
+     ],
+     "ids_without_edition_verse": 33,
+     "jev": {
+      "design": "v4",
+      "theta": 0.0,
+      "provider": "typesafe"
+     },
+     "built": "2026-10-23",
+     "hand_check": {
+      "date": "2026-10-23",
+      "kept": "25/25",
+      "edited": "25/39",
+      "edited-wide": "17/36",
+      "inside": "21/25",
+      "part": "21/25 (and 47/61 in the 130-case comparison with Jev)",
+      "none": "19/25"
+     },
+     "parts": {
+      "dataset": "bcv-commons/hebrew-nt-analysis",
+      "revision": "v0.1",
+      "file": "heb_scg/words.parquet",
+      "sha256": "bf6aebcc96dcb330984b9ffc2d44a12b77f24aa91c8d7b654ef4f040a62224b5",
+      "min_p_split": 0.9
+     }
+    }
+   }
+  }
+ },
+ "format_version": 1,
+ "tokenizer_version": 2,
+ "text_fp_version": 1,
+ "spine": {
+  "file": "lexeme-spine-macula.db",
+  "source_greek": "Clear-Bible/macula-greek@main Nestle1904/tsv",
+  "versification_nt": "nestle1904",
+  "spine_content_sha256": "471a3ac7fb152fac5f31e28a383451a0ff35b8d4f2fb5f9a73ff2fe108d742a8",
+  "macula_spine_sha256": "9a1f8bd524c2783d20034bfdcbcffc2fadb78e74e9c1b6cd6c84bc9e758b1e71"
+ },
+ "ids": "MACULA Greek (Nestle 1904) tree word ids: 'n' + BBCCCVVVWWW, e.g. n40001001001"
+}

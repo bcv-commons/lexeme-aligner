@@ -514,6 +514,8 @@ def _merged_pairs(iso: str, book: str, out_dir: Path, methods=METHODS, contest: 
             out[h_idx] = {"t_idx": win["t_idx"], "char": _method_char(win), "agree": agree,
                           "alt": ({"char": _method_char(alt), "t_idx": alt["t_idx"]} if alt else None),
                           "rule": win.get("prior")}
+            if win.get("t_parts") is not None:          # target_parts.fold: which part of each token (not in the compact arrays)
+                out[h_idx]["t_parts"] = win["t_parts"]
     return by_verse
 
 

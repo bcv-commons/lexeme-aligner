@@ -1,0 +1,11 @@
+{
+ "_doc": "Editions whose target words eflomal aligns as PARTS (prefixes, stem, suffixes), from a part analysis pinned here by dataset, tag and sha256 (lexeme_aligner/target_parts.py; run_pilot consults this file per edition tag unless --target-parts is given). Measured 2026-10-23 on heb_scg vs Nestle 1904, eflomal step, 3 runs each (pipeline/work/parts-ab): function words linked 55.9% -> 82.0%, class-compatible function links 57.5% -> 76.4%, content words linked 94.3% -> 95.5%, links stable over runs 79.5% -> 83.8%; hand check function links ~19/30 -> ~24/30, content disagreements won 14 vs 6. Letters beat lemma+class (no gain, less stable).",
+ "heb_scg": {
+  "dataset": "bcv-commons/hebrew-nt-analysis",
+  "revision": "v0.1",
+  "file": "heb_scg/words.parquet",
+  "sha256": "bf6aebcc96dcb330984b9ffc2d44a12b77f24aa91c8d7b654ef4f040a62224b5",
+  "form": "letters",
+  "min_p_split": 0.9
+ }
+}

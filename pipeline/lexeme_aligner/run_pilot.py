@@ -56,6 +56,7 @@ class VerseRec:
     heb: list[HebToken]
     text: str
     toks: list[str] = field(default_factory=list)
+    tref: tuple[int, int] | None = None     # (chapter, verse) of the edition's own verse `text` is (the first verse of a range)
 
 
 def _range_coverage(ranges: dict) -> dict[tuple[int, int], tuple[int, int]]:
@@ -149,9 +150,10 @@ def build_corpus(books: list[str], usj_dir: Path, heb: HebrewSource, remap=None)
             continue
         ranges = read_verse_ranges(usj_path)
         for ch in heb.chapters(book):
-            for v, _vs, _ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
+            for v, vs, _ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
                 toks = [tok for _orig_v, tok in members]
-                recs.append(VerseRec(book, ch, v, toks, text, tokenize(text) if text else []))
+                tch = remap(book, ch, v)[1] if remap else ch
+                recs.append(VerseRec(book, ch, v, toks, text, tokenize(text) if text else [], (tch, vs)))
     return recs
 
 

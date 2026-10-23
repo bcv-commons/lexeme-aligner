@@ -149,10 +149,45 @@ def main() -> int:
         entry = json.loads(lex_manifest_fp.read_text(encoding="utf-8")).get("languages", {}).get(args.iso, {})
         lang_name = entry.get("language") or lang_name
 
+    # steps 2+4-5b on WORD PARTS for an edition with a part analysis pinned in config/target_parts.json (target_parts.py; heb_scg so far).
+    # The edition's text is rewritten as a "parts view" (each analysed word becomes its prefixes/stem/suffixes, the verse-number token is
+    # left out), every per-edition alignment step runs on that view unchanged in a private out dir, and `fold` maps the links back to the
+    # edition's real tokens in OUT (t_idx = tokens, t_parts = [token, part]). Measured on heb_scg against whole words, three runs each
+    # (2026-10-23, pipeline/work/parts-ab): function words linked 58% -> 82%, class-fitting function links 56% -> 76%, stable links 80% ->
+    # 85%, no link onto the verse number (whole words: ~3,700 per run); hand check of changed links, content 10:5, function 14:4 for parts.
+    # Gloss there reads part-level priors from the view's own eflomal links, content words on content parts only
+    # (target_parts.content_priors: a small hand-check win, nothing else moves; whole-word priors forced e.g. μή onto the preposition אל,
+    # unfiltered part priors lost the hand check).
+    from lexeme_aligner import target_parts
+    from lexeme_aligner.config import OUT
+    part_tags = {tag: pinned for tag in run_tags if (pinned := target_parts.for_edition(tag))}
+    for tag, (analysis, entry) in list(part_tags.items()):
+        view, vout = target_parts.VIEW_ROOT / tag / "usj", target_parts.VIEW_ROOT / tag / "out"
+        target_parts.write_view(usj_dirs[tag], view, target_parts.load_parts(analysis, entry.get("min_p_split", 0.9)))
+        venv = dict(env, ALIGNER_OUT=str(vout.resolve()))
+        common = ("--iso", tag, "--publish-iso", args.iso, "--usj-dir", view, "--out", vout)
+        lex_root = target_parts.VIEW_ROOT / tag / "priors"
+        ok = _run("run_pilot", "--method", "eflomal", scope_flag, *common, env=venv, soft=True)
+        if ok:
+            print(f"[full_chain] {tag}: part-level gloss priors {dict(target_parts.content_priors(tag, args.iso, vout, view, analysis, lex_root))}",
+                  file=sys.stderr)
+            ok = _run("run_pilot", "--method", "gloss", scope_flag, *common, *(["--lang-name", lang_name] if lang_name else []),
+                      env=dict(venv, ALIGNER_LEX_ROOT=str(lex_root.resolve())), soft=True)
+        if ok:
+            _run("span_extension", *common, scope_flag, "--methods", "eflomal,gloss", env=venv, soft=True)
+            _run("gapfill", *common, scope_flag, "--methods", "eflomal,gloss,spanext", env=venv, soft=True)
+            _run("residual_align", *common, scope_flag, "--methods", "eflomal,gloss,spanext", env=venv, soft=True)
+            print(f"[full_chain] {tag}: parts view folded into {OUT}: {dict(target_parts.fold(tag, vout, OUT, view, usj_dirs[tag]))}",
+                  file=sys.stderr)
+        else:
+            print(f"[full_chain] WARNING: {tag}: the parts view failed — the edition keeps its whole-word alignment", file=sys.stderr)
+            del part_tags[tag]
+    word_tags = [t for t in run_tags if t not in part_tags]
+
     # step 4: gloss (bootstraps from step 3's eflomal-only export, just written by onboard.py) —
     # --publish-iso is essential here: the bootstrap priors + #3 stopword filter must read/cache
     # against the BARE iso's published data (iso=<args.iso>/), not this tag's own jsonl key
-    for tag in run_tags:
+    for tag in word_tags:
         _run("run_pilot", "--method", "gloss", scope_flag, "--usj-dir", usj_dirs[tag], "--iso", tag,
              "--publish-iso", args.iso,
              *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
@@ -161,7 +196,7 @@ def main() -> int:
     # pairs, writes a SEPARATE align_spanext_<tag>_*.jsonl containing only the widened ones; never
     # touches the eflomal/gloss files themselves. Best-effort: no-ops cleanly (prints, exits 0) for a
     # language with no Grambank coverage or no phase-1-flagged anomaly, which is most languages.
-    for tag in run_tags:
+    for tag in word_tags:
         _run("span_extension", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              scope_flag, "--methods", "eflomal,gloss", env=env, soft=True)
 
@@ -171,7 +206,7 @@ def main() -> int:
     # additive-only (a widened h_idx already in eflomal/gloss's own taken pool, never a new one), so
     # including it here just makes covered_h/taken_t correctly reflect the widened positions — safe by
     # construction (gapfill.load_covered unions t_idx across methods, never a first-wins overwrite).
-    for tag in run_tags:
+    for tag in word_tags:
         _run("gapfill", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
              "--methods", "eflomal,gloss,spanext", env=env, soft=True)
 
@@ -180,7 +215,7 @@ def main() -> int:
     # It feeds compact-alignments' OPT-IN `.extra.json` layer only (step 9 emits it); no aggregated
     # dataset includes it, and the main compact array is unchanged by its presence.
     # Runs after gapfill because it stratifies against gap-fill's own fills (combine_with_gapfill).
-    for tag in run_tags:
+    for tag in word_tags:
         _run("residual_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              scope_flag, "--methods", "eflomal,gloss,spanext", env=env, soft=True)
 

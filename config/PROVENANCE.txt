@@ -100,7 +100,9 @@ tr-textus-receptus-spine.db — ALTERNATE NT spine, Textus Receptus  [ALIGNER_SP
   from bcv-commons/bcv-query (shoresh/macula/build_tr_spine.py), 2026-08-31. 140,856 words, NT only.
   source: github.com/byztxt/greektext-textus-receptus — Robinson's TR with Strong's numbers
   pin: spine_meta.source_sha256 = c70e5b14765e22e98cd27736289c993cfb968a600a192fdc1c910cd1084c8270
-  build sha256 (this artifact): 068a1730fbf0bd1cf9eab98292ed65f6eb3019fe108e09e35da0a46f3681c4cf
+  build sha256 (this artifact): 94b994cea94c1e1c7a9fc3e795981ffba6e8f9fd4845e681a0c70f1ebbf5efd6 (re-copied 2026-10-23: same
+    140,856 rows as 068a1730…, adds spine_meta spine_content_sha256 = 25c5258651578d593e761653e5a7a9dfa3410cbd17789500040b7834d4ebd3e1
+    and the versification rows; this pin is what bcv-commons/alignments-tr names in its manifest)
   license: Public domain — that repo's README ("Public Domain. Copy freely."), verified.
   source_corpus value: grc-tr (hebrew_source.spine_corpus, from spine_meta.edition)
   Carries the Comma Johanneum — spine_meta.comma_johanneum records the direct check; 1 John 5:7 is 22

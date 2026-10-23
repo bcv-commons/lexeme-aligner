@@ -33,6 +33,11 @@ The Shorter Ending of Mark (MACULA `MRK 16:99`, 33 words) is not in Salkinson–
 chapter (3 digits) + verse (3) + word (3), exactly the `xml:id` of the word in the trees; all 137,779 ids were checked against
 the trees. `n1904/manifest.json` → `spine` pins the word list the alignment was made on (`spine_content_sha256`).
 
+## Versions
+
+Each release is a git tag of this repo (`v1.0`, …); pin a tag (`revision="v1.0"`) rather than `main`. A tag is never moved: a
+rebuild becomes a new tag.
+
 ## File format
 
 ```

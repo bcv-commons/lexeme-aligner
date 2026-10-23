@@ -29,7 +29,7 @@ LAYOUT  publish/alignments-by-id/n1904/<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.js
   the pinned analysis), a whole token the integer; <hash> = the book's text fingerprint (as compact-alignments).
 
     python -m lexeme_aligner.alignments_by_id --edition heb_scg --iso heb
-    python -m lexeme_aligner.alignments_by_id --publish [--push]        # dry run unless --push
+    python -m lexeme_aligner.alignments_by_id --publish [--push] [--tag v1.0]   # dry run unless --push; tag after the push
 """
 from __future__ import annotations
 
@@ -196,11 +196,22 @@ def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT) 
     return entry
 
 
-def publish(push: bool, out: Path = OUT) -> None:
+def publish(push: bool, out: Path = OUT, tag: str | None = None) -> None:
+    """Upload the tree; with `tag`, then tag the pushed state (clients pin a tag, not a commit; an existing tag is never moved)."""
     from lexeme_aligner.hf_bulk_publish import install_timeout, publish_chunked
     install_timeout()
     files = sorted(str(p.relative_to(out)) for p in out.rglob("*") if p.is_file() and not p.name.startswith("."))
     publish_chunked(out, HF_REPO, files, create=True, dry_run=not push, label="alignments-by-id", detect_deletions=False)
+    if tag:
+        from huggingface_hub import HfApi
+        api = HfApi()
+        if not push:
+            print(f"[by-id] dry run: would tag {HF_REPO} as {tag}", file=sys.stderr)
+            return
+        if tag in {t.name for t in api.list_repo_refs(HF_REPO, repo_type="dataset").tags}:
+            raise SystemExit(f"[by-id] tag {tag} already exists on {HF_REPO}; tags are never moved, choose a new one")
+        api.create_tag(HF_REPO, tag=tag, repo_type="dataset", tag_message=f"alignments-by-id {tag}")
+        print(f"[by-id] tagged {HF_REPO} {tag}", file=sys.stderr)
 
 
 def main(argv=None) -> int:
@@ -209,9 +220,10 @@ def main(argv=None) -> int:
     ap.add_argument("--iso")
     ap.add_argument("--publish", action="store_true")
     ap.add_argument("--push", action="store_true")
+    ap.add_argument("--tag", help="with --publish: tag the pushed state (e.g. v1.0)")
     a = ap.parse_args(argv)
     if a.publish:
-        publish(a.push)
+        publish(a.push, tag=a.tag)
     elif a.edition and a.iso:
         build(a.edition, a.iso)
     else:

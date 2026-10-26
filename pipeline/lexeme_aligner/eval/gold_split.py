@@ -8,6 +8,13 @@ such word in the span gets no link (rendered by nothing of its own); the content
 copied unchanged. NOT checkable against Clear (it has no morpheme links) — hand-check a sample (`--show`).
 
     .venv/bin/python -m lexeme_aligner.eval.gold_split --iso bsb --publish-iso eng --book RUT --show 30
+
+PUBLISHED as its own manual layer (`--partition`, 2026-10-26): publish/full-align/<iso>/<edition>/manual/<base text>-split/, source
+`clear-split`, one row per morpheme on its own spine token, `prior` = `gold_split:<how>` (word: a one-morpheme word, copied;
+list / gloss: the prefix/suffix's word, by the fixed list or the MACULA gloss; none: no word of its own; rest: the content morpheme,
+what is left of the span), `source_ids` = Clear's word id. fullalign_build then builds `<edition>+manual+clear-split`.
+
+    .venv/bin/python -m lexeme_aligner.eval.gold_split --iso bsb --publish-iso eng --edition engbsb --partition   # every OT book
 """
 from __future__ import annotations
 
@@ -124,6 +131,73 @@ def split_gold(gold: dict[int, GoldVerse], recs, spine, stats: collections.Count
     return out
 
 
+SPLIT_SOURCE = "clear-split"
+
+
+def split_rows(split: dict, recs, spine, base_text: str, stats: collections.Counter) -> list[dict]:
+    """The split GoldVerses -> full-align rows (gold_to_fullalign's schema): one per morpheme link, on the morpheme's own token."""
+    from lexeme_aligner.eval.gold_to_fullalign import _book_of, _tok_pair, make_row
+    from lexeme_aligner.refs import encode
+    rows = []
+    for r in recs:
+        ref = encode(r.book, r.ch, r.v)
+        sv = split.get(ref)
+        if sv is None:
+            continue
+        h_of = {k: h for h, k in spine.key_of[ref].items()}
+        tok_of = {t.idx: t for t in r.heb}
+        toks = list(r.toks)
+        for key, pos in sv.links.items():
+            tok = tok_of.get(h_of.get(key))
+            if tok is None:
+                stats["split link: no token"] += 1
+                continue
+            t_idx = sorted(pos)
+            sid, tids = sv.raw.get(key, (None, []))
+            attr = {"source": SPLIT_SOURCE, "kind": "manual", "license": "CC-BY-4.0", "base_text": base_text,
+                    "source_ids": [sid] if sid else [], "target_ids": list(tids)}
+            pair = _tok_pair(tok, " ".join(toks[p] for p in t_idx if p < len(toks)), t_idx, "manual",
+                             prior=f"gold_split:{sv.unit.get(key, 'word')}")
+            rows.append(make_row(ref, _book_of(ref), pair, attr))
+            stats[f"rows: {sv.unit.get(key, 'word')}"] += 1
+    return rows
+
+
+def write_split_partition(iso: str, publish_iso: str, edition: str, books: list[str], out_root: Path) -> dict:
+    """Split every OT book's Clear gold and write it as the manual partition `<base text>-split` of `edition`, registered in
+    `<out_root>/manifest.json` (locked update) so fullalign_build picks it up."""
+    from lexeme_aligner.eval.contest_rule import gold_base_text
+    from lexeme_aligner.eval.gold_to_fullalign import coverage, write_partition
+    from lexeme_aligner.eval.pos_score import load_gold, load_spine
+    from lexeme_aligner.hebrew_source import HebrewSource
+    from lexeme_aligner.manifest_io import update_json
+    from lexeme_aligner.run_pilot import build_corpus
+    from lexeme_aligner.versification import remapper
+    usj = Path(f"pipeline/work/ingest-cache/usj-{iso}")
+    rm = remapper(iso, str(usj))
+    bt = gold_base_text(publish_iso)
+    gold, gst = load_gold(publish_iso, usj, books, bt, gold_methods=("manual",), remap=rm)
+    spine = load_spine(books, usj, iso)
+    recs = build_corpus(books, usj, HebrewSource(), remap=rm)
+    stats: collections.Counter = collections.Counter()
+    split = split_gold(gold, recs, spine, stats)
+    stats["gold verses"] = len(gold)
+    stats["gold verses not split (folded into another verse's group)"] = len(gold) - len(split)
+    rows = split_rows(split, recs, spine, bt, stats)
+    part = f"{bt}-split"
+    files = write_partition(rows, out_root / publish_iso / edition / "manual" / part)
+    entry = {"source": SPLIT_SOURCE, "gold_method": "manual", "kind": "manual", "license": "CC-BY-4.0", "base_text": bt,
+             "publishable": True, "quarantined": False, "quarantine_reason": None,
+             "derivation": "Clear's word-level OT links split into MACULA morphemes by lexeme_aligner.eval.gold_split (rule in its docstring)",
+             "split_stats": dict(sorted(stats.items())), "coverage": coverage(gst, rows), "files": files}
+
+    def mutate(doc):
+        ed = doc.setdefault("languages", {}).setdefault(publish_iso, {}).setdefault("editions", {}).setdefault(edition, {})
+        ed.setdefault("layers", {}).setdefault("manual", {})[part] = entry
+    update_json(out_root / "manifest.json", mutate)
+    return entry
+
+
 def main() -> int:
     from lexeme_aligner.eval.contest_rule import gold_base_text
     from lexeme_aligner.eval.pos_score import load_gold, load_spine
@@ -133,9 +207,20 @@ def main() -> int:
     from lexeme_aligner.versification import remapper
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--iso", required=True); ap.add_argument("--publish-iso", required=True)
-    ap.add_argument("--book", action="append", required=True)
+    ap.add_argument("--book", action="append", help="default: every OT book (with --partition)")
+    ap.add_argument("--edition", help="--partition: the full-align edition folder the gold maps onto (eng: engbsb)")
+    ap.add_argument("--partition", action="store_true", help="write the split as a manual partition of publish/full-align")
+    ap.add_argument("--out-root", type=Path, default=Path("publish/full-align"))
     ap.add_argument("--show", type=int, default=0, help="print N random split words (multi-morpheme) for a hand check")
     a = ap.parse_args()
+    if a.partition:
+        from lexeme_aligner.eval.gold_to_fullalign import OT_BOOKS
+        import json
+        e = write_split_partition(a.iso, a.publish_iso, a.edition or a.iso, a.book or list(OT_BOOKS), a.out_root)
+        print(json.dumps({k: e[k] for k in ("split_stats", "coverage")}, indent=1))
+        return 0
+    if not a.book:
+        ap.error("--book is required without --partition")
     usj = Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
     rm = remapper(a.iso, str(usj))
     gold, _ = load_gold(a.publish_iso, usj, a.book, gold_base_text(a.publish_iso), gold_methods=("manual",), remap=rm)

@@ -39,8 +39,7 @@ def normalize_greek_strong(raw: str | None) -> str | None:
 
 
 def _mark_stripped(s: str) -> str:
-    """NFD + drop combining marks (Greek accents/breathings) -- the same convention `bsb_tables.
-    _word_forms` uses, so a spine surface and a door43 `content` field compare on letters alone.
+    """NFD + drop combining marks (Greek accents/breathings) -- so a spine surface and a door43 `content` field compare on letters alone.
     Lowercased too: sentence-initial capitalization differs between the spine and door43's own
     source text independent of anything this module is checking."""
     return "".join(c for c in unicodedata.normalize("NFD", s.lower()) if unicodedata.category(c) != "Mn")

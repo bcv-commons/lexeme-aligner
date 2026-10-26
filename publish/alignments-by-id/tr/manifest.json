@@ -1,0 +1,79 @@
+{
+ "languages": {
+  "eng": {
+   "editions": {
+    "eng_kjv": {
+     "books": [
+      "1CO",
+      "1JN",
+      "1PE",
+      "1TH",
+      "1TI",
+      "2CO",
+      "2JN",
+      "2PE",
+      "2TH",
+      "2TI",
+      "3JN",
+      "ACT",
+      "COL",
+      "EPH",
+      "GAL",
+      "HEB",
+      "JAS",
+      "JHN",
+      "JUD",
+      "LUK",
+      "MAT",
+      "MRK",
+      "PHM",
+      "PHP",
+      "REV",
+      "ROM",
+      "TIT"
+     ],
+     "classes": {
+      "kept": 94633,
+      "edited": 10971,
+      "edited-wide": 21900,
+      "inside": 1588,
+      "part": 0
+     },
+     "ids_linked": 129513,
+     "ids_none": 11343,
+     "ids_on_2plus_tokens": 25650,
+     "part_positions": 0,
+     "tokens_added": 21071,
+     "spine_verses_not_in_edition": [],
+     "ids_without_edition_verse": 0,
+     "supplied_tokens": 4196,
+     "linked_ids_with_nestle_id": 119903,
+     "jev": {
+      "design": "v4",
+      "theta": 0.0,
+      "provider": "typesafe"
+     },
+     "built": "2026-10-26"
+    }
+   }
+  }
+ },
+ "format_version": 1,
+ "tokenizer_version": 2,
+ "text_fp_version": 1,
+ "spine": {
+  "file": "tr-textus-receptus-spine.db",
+  "source_greek": "github.com/byztxt/greektext-textus-receptus -- Dr. Maurice A. Robinson's Textus Receptus text with Strong's numbers + morphological parsing; presumed Scrivener 1894 by convention/maintainer match with the sibling greektext-scrivener repo, not confirmed in this repo's own README",
+  "versification_nt": "tr",
+  "spine_content_sha256": "25c5258651578d593e761653e5a7a9dfa3410cbd17789500040b7834d4ebd3e1",
+  "macula_spine_sha256": null
+ },
+ "ids": "Textus Receptus spine word keys (grc-tr:<BOOK>:<n>, as bcv-commons/alignments-tr); links carry the MACULA Nestle 1904 ids of the same words as a 4th element where the two texts agree",
+ "nestle_spine": {
+  "file": "lexeme-spine-macula.db",
+  "source_greek": "Clear-Bible/macula-greek@main Nestle1904/tsv",
+  "versification_nt": "nestle1904",
+  "spine_content_sha256": "471a3ac7fb152fac5f31e28a383451a0ff35b8d4f2fb5f9a73ff2fe108d742a8",
+  "macula_spine_sha256": "9a1f8bd524c2783d20034bfdcbcffc2fadb78e74e9c1b6cd6c84bc9e758b1e71"
+ }
+}

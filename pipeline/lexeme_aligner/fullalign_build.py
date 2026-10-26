@@ -50,7 +50,7 @@ SRC_ROOT = Path("pipeline/work/full-align-src/pub")
 MANUAL_ROOTS = {"manual": Path("publish/full-alignments-manual"), "manual-sa": Path("publish/full-alignments-manual-sa")}
 SA_SOURCES = {"door43"}                                        # share-alike sources: their own repo
 SKIP_SOURCES = {"gbt": "GBT layers are set aside (owner 2026-10-05)"}
-HAS_IDS = {"clear", "door43"}                                  # sources whose rows carry gold word ids (wx channel)
+HAS_IDS = {"clear", "clear-split", "door43"}                   # sources whose rows carry gold word ids (wx channel)
 
 
 # --- rows -> canonical rows (moved from pipeline/scripts/tools/fullalign_pilot.py) ------------------------------------
@@ -59,8 +59,12 @@ def read_rows(path: Path, kind: str) -> list[dict]:
     cols = None
     if kind == "bsb":
         cols = ["ref", "book", "chapter", "verse", "h_idx", "h_idx_key", "lexeme", "strong", "t_idx", "target", "content",
-                "method", "score", "attribution"]
-    return pq.read_table(path, columns=cols).to_pylist() if path.exists() else []
+                "method", "score", "attribution", "bsb"]
+    rows = pq.read_table(path, columns=cols).to_pylist() if path.exists() else []
+    if kind == "bsb":                                   # of the table's own columns only the row id and the source word are used
+        for r in rows:
+            r["bsb"] = {"bsb_sort": r["bsb"]["bsb_sort"], "base": r["bsb"]["base"]}
+    return rows
 
 
 def base_attribution(rows: list[dict]) -> dict:
@@ -222,6 +226,28 @@ def verify_bsb_semantics(rows: list[dict], decoded: list, groups: dict) -> colle
     return res
 
 
+def bsb_basis(rows: list[dict], groups: dict) -> dict[str, dict]:
+    """bsb-add-books B5 (2026-10-26): per verse, where the table's text and the spine's text differ. `table_only`: the row ids
+    (`BSB Sort`) of table words that are not in the spine (a reading of another edition: the row is filed without a source
+    token); `spine_only`: the slots of spine tokens no table row covers (the table's text lacks the word). Only verses with
+    either; verses whose English is not mapped are left out (their rows say nothing about the source)."""
+    out: dict[str, dict] = {}
+    by_verse: dict[str, list[dict]] = collections.defaultdict(list)
+    for r in rows:
+        if not is_padding(r):
+            by_verse[f"{r['book']} {r['chapter']}:{r['verse']}"].append(r)
+    for ref, vrows in by_verse.items():
+        g = groups.get(ref)
+        if g is None:
+            continue
+        covered = {x for r in vrows for x in (r["h_idx"] or [])}
+        table_only = [str(r["bsb"]["bsb_sort"]) for r in vrows if not r["h_idx"] and (r["bsb"].get("base") or "").strip()]
+        spine_only = [fc.slot_str(g.slot_of[x]) for x in sorted(g.slot_of) if x not in covered and g.slot_of[x][0] in "cf"]
+        if table_only or spine_only:
+            out[ref] = {k: v for k, v in (("table_only", table_only), ("spine_only", spine_only)) if v}
+    return out
+
+
 # --- the word-check veto (A3) ------------------------------------------------------------------------------------------
 VETO_ORDER = ("spanext", "eflomal", "gloss", "gapfill")       # first method wins a token, as in word_checks.veto_ab
 
@@ -301,7 +327,7 @@ def manual_layers(publish_iso: str, fa_edition: str, src_manifest: dict) -> tupl
         if why:
             skipped.append(f"{part} ({src}): {why}")
             continue
-        out.append({"part": part, "source": src, "base_text": part, "license": m.get("license"),
+        out.append({"part": part, "source": src, "base_text": m.get("base_text") or part, "license": m.get("license"),
                     "kind": "bsb" if src == "bsb-tables" else "manual"})
     return out, skipped
 
@@ -480,6 +506,7 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
     totals: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     encoders: dict = {}
     written: dict[str, dict] = collections.defaultdict(dict)        # lid -> {book: canon digest}
+    basis: dict[str, dict] = collections.defaultdict(dict)          # lid -> {book: {ref: B5 basis}} (BSB tables only)
     layer_dirs: dict[str, Path] = {}
     groups_of, refs_of = {}, {}
     lids = {}
@@ -539,8 +566,20 @@ def build_edition(tag: str, publish_iso: str, usj_dir: Path, *, books: list[str]
                 written[lid][book] = encode_verify(ml["kind"], lid, rows, groups, refs, ldir, book, digest, totals[lid],
                                                    encoders, has_ids=ml["source"] in HAS_IDS)
                 layer_dirs[lid] = ldir
+                if ml["kind"] == "bsb":
+                    basis[lid][book] = bsb_basis(rows, groups)
     for lid, books_done in written.items():
         final_check(lid, layer_dirs[lid], books_done, groups_of, refs_of, totals[lid])
+    for lid, by_book in basis.items():                          # B5: one file per layer, every book built this run
+        bp = layer_dirs[lid] / "_basis.json"
+        doc = json.loads(bp.read_text(encoding="utf-8")) if bp.exists() else {}
+        doc["doc"] = ("Where the table's source text and the spine's differ, per verse. table_only: row ids (R, = BSB Sort) of table "
+                      "words not in the spine (another edition's reading; the row is in `off` or `rows` without a source token). "
+                      "spine_only: slots (c<N> content, f<N> function) of spine tokens no table row covers.")
+        doc.setdefault("books", {}).update(by_book)
+        bp.write_text(json.dumps(doc, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+        totals[lid]["basis: verses with table-only words"] = sum(1 for b in doc["books"].values() for v in b.values() if "table_only" in v)
+        totals[lid]["basis: verses with spine-only tokens"] = sum(1 for b in doc["books"].values() for v in b.values() if "spine_only" in v)
     for lid, t in totals.items():
         report["layers"][lid] = dict(t)
         report["layers"][lid]["problems"] = problems(t)

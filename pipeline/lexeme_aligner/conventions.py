@@ -235,7 +235,7 @@ def main(argv=None) -> int:
         if a.book_map:
             m = json.loads(a.book_map.read_text(encoding="utf-8"))
             name = a.name or a.pin_layer.name.split("+")[0]
-            by_book = {b: set_path(a.name, Path(p).read_text(encoding="utf-8")) for b, p in m.items()}
+            by_book = {b: set_path(a.name, Path(p).read_text(encoding="utf-8")) for b, p in m.items() if b in books}
         else:
             text = (CONV_DIR / f"{a.name}.md").read_text(encoding="utf-8")
             by_book = {b: set_path(a.name, text) for b in books}

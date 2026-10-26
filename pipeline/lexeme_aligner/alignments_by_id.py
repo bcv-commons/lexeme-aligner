@@ -32,6 +32,7 @@ LAYOUT  publish/alignments-by-id/<spine>/<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.
   the pinned analysis), a whole token the integer; <hash> = the book's text fingerprint (as compact-alignments).
 
     python -m lexeme_aligner.alignments_by_id --edition heb_scg --iso heb
+    ALIGNER_SPINE_DB=pipeline/tr-textus-receptus-spine.db \       # as the chain ran: verse mapping follows the TR's numbering
     python -m lexeme_aligner.alignments_by_id --edition eng_kjv --iso eng --spine tr --align-out pipeline/work/kjv/out-tr \
         --tags pipeline/work/kjv/eng_kjv_tags.json
     python -m lexeme_aligner.alignments_by_id --publish [--push] [--tag v1.0]   # dry run unless --push; tag after the push
@@ -60,6 +61,9 @@ SPINES = {"n1904": dict(db=SPINE_DB, ids="MACULA Greek (Nestle 1904) tree word i
           "tr": dict(db=REPO / "pipeline/tr-textus-receptus-spine.db",
                      ids="Textus Receptus spine word keys (grc-tr:<BOOK>:<n>, as bcv-commons/alignments-tr); links carry the MACULA "
                          "Nestle 1904 ids of the same words as a 4th element where the two texts agree")}
+# the Nestle side of the TR -> Nestle map is ALWAYS the MACULA spine file, whatever ALIGNER_SPINE_DB says (2026-10-26: a run with
+# ALIGNER_SPINE_DB pointing at the TR spine mapped TR onto itself and wrote TR keys as "Nestle ids")
+MACULA_DB = REPO / "pipeline/lexeme-spine-macula.db"
 HF_REPO = "bcv-commons/alignments-by-id"
 FORMAT_VERSION = 1
 CHAIN_METHODS = ("spanext", "eflomal", "gloss", "gapfill")       # full_chain._METHODS: what the compact files resolve
@@ -88,7 +92,7 @@ def _norm_greek(s: str) -> str:
     return s.replace("ς", "σ")
 
 
-def nestle_map(tr_db: Path = SPINES["tr"]["db"], n_db: Path = SPINE_DB) -> dict[str, str]:
+def nestle_map(tr_db: Path = SPINES["tr"]["db"], n_db: Path = MACULA_DB) -> dict[str, str]:
     """TR key -> Nestle 1904 id for the words the two texts share: per verse, the longest common subsequence of the accent-free
     word forms (difflib), so a TR-only word (a variant reading) or a reordering leaves those words unmapped."""
     import difflib
@@ -98,6 +102,8 @@ def nestle_map(tr_db: Path = SPINES["tr"]["db"], n_db: Path = SPINE_DB) -> dict[
                 f"SELECT book, chapter, verse, key, surface FROM spine_words WHERE {cond} ORDER BY book, chapter, verse, idx"):
             out[(b, c, v)].append((key, _norm_greek(surf)))
         return out
+    if Path(tr_db).resolve() == Path(n_db).resolve():
+        raise SystemExit(f"[by-id] nestle_map: the TR and Nestle spines are the same file ({n_db})")
     tr, n1904 = words(tr_db, "1"), words(n_db, "lexeme LIKE 'grc:%'")
     m = {}
     for vk, tw in tr.items():
@@ -243,7 +249,7 @@ def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT, 
     man.update(format_version=FORMAT_VERSION, tokenizer_version=TOKENIZER_VERSION, text_fp_version=tf.TEXT_FP_VERSION,
                spine=spine_pin(sdb), ids=SPINES[spine]["ids"])
     if nmap is not None:
-        man["nestle_spine"] = spine_pin(SPINE_DB)
+        man["nestle_spine"] = spine_pin(MACULA_DB)
     man["languages"].setdefault(iso, {"editions": {}})["editions"][edition] = entry
     man_p.write_text(json.dumps(man, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"[by-id] {edition}: {json.dumps(entry, ensure_ascii=False)}", file=sys.stderr)

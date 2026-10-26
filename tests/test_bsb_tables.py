@@ -96,72 +96,89 @@ def test_parsing_table_reports_non_function_instead_of_forcing():
     assert bt.parsing_long_override(blank_short, {}) == "HTj"
 
 
-def test_map_source_fused_consecutive_same_strong_attaches_to_same_token():
-    # spine fuses "Ἰσαάκ, Ἰσαὰκ" into ONE token; BSB has two rows -> second attaches to the same idx, flagged
-    rows = [bt.parse_row(_cells(language="Greek", heb_sort="999999", grk_sort="1", bsb_sort="1", base="Ἰσαάκ", str_grk="2464", text=" Isaac ")),
-            bt.parse_row(_cells(language="Greek", heb_sort="999999", grk_sort="2", bsb_sort="2", base="Ἰσαὰκ", str_grk="2464", text=" Isaac ")),
-            bt.parse_row(_cells(language="Greek", heb_sort="999999", grk_sort="3", bsb_sort="3", base="δὲ", str_grk="1161", text=" and "))]
-    m = bt.map_source(rows, [(0, "G2464", "Ἰσαάκ Ἰσαὰκ"), (1, "G1161", "δὲ")])
+def _grk(sort, base, strong, text=" x "):
+    return bt.parse_row(_cells(language="Greek", heb_sort="999999", grk_sort=str(sort), bsb_sort=str(sort), base=base,
+                               str_grk=strong, text=text))
+
+
+def _heb(sort, base, strong="", text=" x ", bsb=None):
+    return bt.parse_row(_cells(heb_sort=str(sort), bsb_sort=str(bsb or sort), base=base, str_heb=strong, text=text))
+
+
+def test_map_source_fused_token_takes_both_rows():
+    # spine fuses "Ἰσαάκ, Ἰσαὰκ" (two MACULA words) into ONE token; BSB has two rows -> both on it, the second `fused`
+    rows = [_grk(1, "Ἰσαάκ", "2464"), _grk(2, "Ἰσαὰκ", "2464"), _grk(3, "δὲ", "1161")]
+    m = bt.map_source(rows, [(0, "G2464", "Ἰσαάκ Ἰσαὰκ", ["40001002004", "40001002005"], True),
+                             (1, "G1161", "δὲ", ["40001002006"], False)])
     assert m["1"] == {"h_idx_key": 0, "h_idx": [0], "match": "strong"}
     assert m["2"] == {"h_idx_key": 0, "h_idx": [0], "match": "fused"}
     assert m["3"] == {"h_idx_key": 1, "h_idx": [1], "match": "strong"}
 
 
-def test_map_source_fusion_does_not_consume_a_spine_occurrence():
-    # GEN 6:9 shape: BSB rows Noah, Noah, ..., Noah (3) vs spine "נֹחַ נֹחַ"(fused, 1 token) ... נֹחַ (2 tokens)
-    rows = [bt.parse_row(_cells(heb_sort="1", bsb_sort="1", base="נֹחַ", str_heb="5146", text=" of Noah ")),
-            bt.parse_row(_cells(heb_sort="2", bsb_sort="2", base="נֹחַ", str_heb="5146", text=" Noah ")),
-            bt.parse_row(_cells(heb_sort="3", bsb_sort="3", base="הָיָה", str_heb="1961", text=" was ")),
-            bt.parse_row(_cells(heb_sort="4", bsb_sort="4", base="נֹחַ", str_heb="5146", text=" Noah "))]
-    m = bt.map_source(rows, [(0, "H5146", "נֹ֔חַ נֹ֗חַ"), (1, "H1961", "הָיָה"), (2, "H5146", "נֹֽחַ")])
-    assert m["1"]["match"] == "strong" and m["1"]["h_idx_key"] == 0
+def test_map_source_repeated_strong_follows_order_not_kth_occurrence():
+    # MAT 2:9 shape: the table numbers εἶδον G3708 like ἰδοὺ (MACULA: ἰδοὺ G3708, εἶδον G3708 -> here G1492) ; the old
+    # (Strong's, k-th occurrence) key gave εἶδον the ἰδοὺ token. Order + spelling keep each row on its own word.
+    rows = [_grk(1, "ἰδοὺ", "3708"), _grk(2, "ὁ", "3588"), _grk(3, "ἀστήρ", "792"), _grk(4, "ὃν", "3739"), _grk(5, "εἶδον", "3708")]
+    spine = [(0, "G2400", "ἰδοὺ", ["40002009001"], False), (1, "G3588", "ὁ", ["40002009002"], False),
+             (2, "G0792", "ἀστήρ", ["40002009003"], True), (3, "G3739", "ὃν", ["40002009004"], False),
+             (4, "G3708", "εἶδον", ["40002009005"], True)]
+    m = bt.map_source(rows, spine)
+    assert m["1"] == {"h_idx_key": 0, "h_idx": [0], "match": "spelling"}
+    assert m["5"] == {"h_idx_key": 4, "h_idx": [4], "match": "strong"}
+
+
+def test_map_source_compound_name_two_rows_on_one_fused_token():
+    # BSB: בֵּית (H1004) + אֵל (H1008); spine: ONE token "בֵּית אֵל" H1008 holding two words
+    rows = [_heb(1, "בֵּֽית־", "1004", " vvv "), _heb(2, "אֵ֖ל", "1008", " Bethel ")]
+    m = bt.map_source(rows, [(0, "H1008", "בֵּֽית אֵ֖ל", ["010280190081", "010280190091"], True)])
+    assert m["1"] == {"h_idx_key": 0, "h_idx": [0], "match": "spelling"}
     assert m["2"] == {"h_idx_key": 0, "h_idx": [0], "match": "fused"}
-    assert m["4"] == {"h_idx_key": 2, "h_idx": [2], "match": "strong"}   # the 2nd spine token, not lost
 
 
-def test_map_source_compound_name_with_two_bsb_strongs_attaches_by_exact_surface_word():
-    # BSB: בֵּית (H1004) + אֵל (H1008); spine: ONE token "בֵּית אֵל" H1008 -> בֵּית fused by surface equality, not guessed
-    rows = [bt.parse_row(_cells(heb_sort="1", bsb_sort="1", base="בֵּֽית־", str_heb="1004", text=" vvv ")),
-            bt.parse_row(_cells(heb_sort="2", bsb_sort="2", base="אֵ֖ל", str_heb="1008", text=" Bethel "))]
-    m = bt.map_source(rows, [(0, "H1008", "בֵּֽית אֵ֖ל")])
-    assert m["2"] == {"h_idx_key": 0, "h_idx": [0], "match": "strong"}
-    assert m["1"] == {"h_idx_key": 0, "h_idx": [0], "match": "fused"}
-    # a row whose base is NOT a word of the fused surface stays 'none' even when adjacent
-    m2 = bt.map_source([bt.parse_row(_cells(heb_sort="1", bsb_sort="1", base="שָׁלוֹם", str_heb="1004", text=" x ")), rows[1]],
-                       [(0, "H1008", "בֵּֽית אֵ֖ל")])
-    assert m2["1"]["match"] == "none"
-
-
-def test_map_source_one_bsb_row_to_prefix_plus_word():
-    # spine: בְּ(H0871) רֵאשִׁית(H7225) | BSB: one row "בְּרֵאשִׁית" strong 7225 -> keyed to idx 1, prefix idx 0 attached
-    rows = [bt.parse_row(_cells(heb_sort="1", bsb_sort="1", base="בְּרֵאשִׁ֖ית", str_heb="7225", text=" In the beginning ")),
-            bt.parse_row(_cells(heb_sort="3", bsb_sort="2", base="אֱלֹהִ֑ים", str_heb="430", text=" God ")),
-            bt.parse_row(_cells(heb_sort="2", bsb_sort="3", base="בָּרָ֣א", str_heb="1254", text=" created "))]
-    spine = [(0, "H0871"), (1, "H7225"), (2, "H1254"), (3, "H0430")]
+def test_map_source_row_takes_its_whole_word_prefix_and_suffix():
+    # spine: בְּ רֵאשִׁית | בָּרָא | אֱלֹהִים | ... ; and a word with a pronoun suffix followed by a conjunction word:
+    # אִשְׁתּ+וֹ (wife+his) וְ+... -> the suffix stays with its own word (the old rule gave it to the next row)
+    rows = [_heb(1, "בְּרֵאשִׁ֖ית", "7225"), _heb(2, "בָּרָ֣א", "1254"), _heb(3, "אִשְׁתּ֔וֹ", "802"), _heb(4, "וַיֵּ֣לֶךְ", "1980")]
+    spine = [(0, "H0871", "בְּ", ["010010010011"], False), (1, "H7225", "רֵאשִׁ֖ית", ["010010010012"], True),
+             (2, "H1254", "בָּרָ֣א", ["010010010021"], True),
+             (3, "H0802", "אִשְׁתּ֔", ["010010010031"], True), (4, "H2050", "וֹ", ["010010010032"], False),
+             (5, "H2050", "וַ", ["010010010041"], False), (6, "H1980", "יֵּ֣לֶךְ", ["010010010042"], True)]
     m = bt.map_source(rows, spine)
     assert m["1"] == {"h_idx_key": 1, "h_idx": [0, 1], "match": "strong"}
-    assert m["3"] == {"h_idx_key": 2, "h_idx": [2], "match": "strong"}
-    assert m["2"] == {"h_idx_key": 3, "h_idx": [3], "match": "strong"}
+    assert m["3"] == {"h_idx_key": 3, "h_idx": [3, 4], "match": "strong"}
+    assert m["4"] == {"h_idx_key": 6, "h_idx": [5, 6], "match": "strong"}
 
 
-def test_map_source_kth_occurrence_and_strongless_row_positional():
-    # spine: וְ(H2050) אֵת(H0853) הָ(H1886) אָרֶץ(H0776) לָ(H0871) הֶם(H1886d->H1886) ; BSB rows: וְאֵת/853, הָאָרֶץ/776, לָהֶם/(no strong)
-    rows = [bt.parse_row(_cells(heb_sort="1", bsb_sort="1", base="וְאֵת", str_heb="853", text=" and ")),
-            bt.parse_row(_cells(heb_sort="2", bsb_sort="2", base="הָאָרֶץ", str_heb="776", text=" the earth ")),
-            bt.parse_row(_cells(heb_sort="3", bsb_sort="3", base="לָהֶם", parsing="Prep | 3mp", text=""))]
-    spine = [(0, "H2050"), (1, "H0853"), (2, "H1886"), (3, "H0776"), (4, "H0871"), (5, "H1886")]
+def test_map_source_strongless_row_by_spelling():
+    # לָהֶם "Prep | 3mp" has no Strong's number in the table: placed by order and spelling on its word (both tokens)
+    rows = [_heb(1, "הָאָרֶץ", "776"), _heb(2, "לָהֶם")]
+    spine = [(0, "H1886", "הָ", ["010010010011"], False), (1, "H0776", "אָרֶץ", ["010010010012"], True),
+             (2, "H0871", "לָ", ["010010010021"], False), (3, "H1886", "הֶם", ["010010010022"], False)]
     m = bt.map_source(rows, spine)
     assert m["1"] == {"h_idx_key": 1, "h_idx": [0, 1], "match": "strong"}
-    # trailing unkeyed tokens 4,5 first fall to the last keyed row (suffix convention), then the strongless
-    # row that FOLLOWS it in source order claims them positionally — recorded as such, not as a keyed match
-    assert m["2"] == {"h_idx_key": 3, "h_idx": [2, 3], "match": "strong"}
-    assert m["3"] == {"h_idx_key": None, "h_idx": [4, 5], "match": "positional"}
+    assert m["2"] == {"h_idx_key": 2, "h_idx": [2, 3], "match": "spelling"}
 
 
-def test_map_source_unmatched_strong_is_none_not_guessed():
-    rows = [bt.parse_row(_cells(heb_sort="1", bsb_sort="1", base="x", str_heb="9999", text=" x "))]
-    m = bt.map_source(rows, [(0, "H0430")])
-    assert m["1"] == {"h_idx_key": None, "h_idx": [], "match": "none"}
+def test_aramaic_row_takes_its_strong_from_str_heb():
+    r = bt.parse_row(_cells(language="Aramaic", heb_sort="1", grk_sort="0", base="חָזֵ֤ה", str_heb="2370"))
+    assert r["strong"] == "H2370"
+
+
+def test_map_source_aramaic_rows_go_in_heb_sort_order():
+    # DAN/EZR rows say language "Aramaic" and carry Heb Sort (Greek Sort 0); listed here in English (BSB Sort) order
+    rows = [bt.parse_row(_cells(language="Aramaic", heb_sort="2", grk_sort="0", bsb_sort="1", base="עִם־", text=" with ")),
+            bt.parse_row(_cells(language="Aramaic", heb_sort="1", grk_sort="0", bsb_sort="2", base="חָזֵ֤ה", text=" I saw "))]
+    m = bt.map_source(rows, [(0, "H2370", "חָזֵ֤ה", ["270070130011"], True), (1, "H5974", "עִם", ["270070130061"], False)])
+    assert m["2"]["h_idx_key"] == 0 and m["1"]["h_idx_key"] == 1
+
+
+def test_map_source_word_of_another_edition_is_none_not_guessed():
+    # a table word the spine's text lacks (another edition's reading) and an unrelated Strong's -> none
+    rows = [_grk(1, "καὶ", "2532"), _grk(2, "ἐγένετο", "1096"), _grk(3, "λόγος", "3056")]
+    m = bt.map_source(rows, [(0, "G1096", "ἐγένετο", ["43001003001"], True), (1, "G3056", "λόγος", ["43001003002"], True)])
+    assert m["1"]["match"] == "none" and m["2"]["h_idx_key"] == 0 and m["3"]["h_idx_key"] == 1
+    m2 = bt.map_source([_heb(1, "x", "9999")], [(0, "H0430", "אֱלֹהִים", ["010010010031"], True)])
+    assert m2["1"] == {"h_idx_key": None, "h_idx": [], "match": "none"}
 
 
 def test_map_target_walks_spans_in_bsb_sort_order():

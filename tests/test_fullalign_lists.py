@@ -117,3 +117,29 @@ def test_multi_source_markers_show_list_views_and_their_rows_keep_the_data():
 def test_the_index_pin_is_recorded_in_layer_json():
     enc = fc.LayerEncoder("L", "manual", BASE, False, lists=True, index_sha256="2a5007e4")
     assert enc.layer_json()["spine_index_sha256"] == "2a5007e4"
+
+
+def test_row_ids_ride_every_entry_and_round_trip():
+    # bsb-add-books B6 (2026-10-26): each row's table id (`R`, BSB Sort) on links, on list items (one per item, in ordinal order),
+    # on a row's own `+` entry and in `rows`
+    g = group()
+    rows = [fc.CRow("RUT 1:1", [("c", 0)], span=[2], prof=P, rid="12"),
+            fc.CRow("RUT 1:1", [("c", 1)], span=[0], sup=[1], prof=P, rid="10"),
+            fc.CRow("RUT 1:1", [("f", 1)], span=[], prof=P, rid="15"),
+            fc.CRow("RUT 1:1", [("f", 0)], span=[], prof=P, rid="14"),                 # listed second, ordinal first
+            fc.CRow("RUT 1:1", [], span=[], sup=[5], prof=P, rid="16")]
+    enc, main, meta, dec = _rt({"RUT 1:1": rows}, ["RUT 1:1"], {"RUT 1:1": g}, lists=True)
+    assert meta["fn"] == ["!0,1 +1>1 +5"]
+    assert meta["wx"] == ["R12 R10 R14,15 _ R16"]
+    assert _canon(dec) == _canon(rows)
+
+
+def test_an_all_supplied_row_shows_its_words_under_its_owner():
+    # bsb-add-books B1: τῆς "[wife]" — the row's only words are supplied, it stays in `rows`, and its words also show as `+` for f0
+    g = group()
+    rows = [fc.CRow("RUT 1:1", [("c", 0)], key=0, span=[0], prof=P),
+            fc.CRow("RUT 1:1", [("f", 0)], key=0, span=[], sup=[1], prof=P)]
+    enc, main, meta, dec = _rt({"RUT 1:1": rows}, ["RUT 1:1"], {"RUT 1:1": g}, lists=True, keyed=True)
+    assert "+1>f0" in meta["fn"][0].split()
+    assert meta["rows"] == ["f0:!:a:s1"]
+    assert _canon(dec) == _canon(rows)

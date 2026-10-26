@@ -26,13 +26,12 @@ Column disposition (nothing discarded as DATA; only HTML *tags* are replaced by 
 Anything an HTML parser here cannot account for is kept under `unparsed` (and counted) rather than dropped.
 
 Mapping onto our own coordinates (both reported, never guessed):
-  source: BSB row → spine token(s), 1:n. A BSB row is a whole word ("Prep-b | N-fs"); MACULA splits the
-          prefix into its own token with its own Strong's (בְּ = H0871). Keying is (strong, k-th occurrence
-          in the verse) exactly as pos_score does; the spine's unassigned tokens immediately preceding a
-          keyed token are attached to that row (prefix convention), trailing ones to the previous row
-          (suffix convention), each recorded separately from the keyed token (`h_idx_key` vs `h_idx`).
-          A strongless row (e.g. לָהֶם, "Prep | 3mp", no Str Heb) gets the unassigned tokens lying strictly
-          between its neighbours' tokens (`match: positional`) or nothing (`match: none`).
+  source: BSB row → spine WORD (2026-10-26, `map_source`): a table row is one source word, so rows (Heb Sort / Greek Sort
+          order) are aligned to MACULA words (key[:11]) in order, on Strong's number and spelling together, and a row takes
+          every token of its word (a Hebrew word's prefix, stem and suffix tokens). `match`: strong / spelling (same place and
+          spelling, another Strong's number) / fused (second row on a token the spine fused from two words) / none (a word the
+          spine's text does not have). Before 2026-10-26 rows were keyed on (Strong's, k-th occurrence) and prefixes/suffixes
+          attached by adjacency, which swapped repeated numbers and gave suffixes to the next word (bsb-add-books B2, B4).
   target: ` BSB version ` spans in BSB Sort order → our `engbsb` token positions, by the same letters-run
           walk `pos_score.map_positions` uses (our text IS the BSB text); "vvv" (BSB's own folded-content
           placeholder) and letterless spans ("-") map to no position; a verse whose spans do not tile our
@@ -67,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import difflib
 import datetime as _dt
 import hashlib
 import json
@@ -300,7 +300,7 @@ def norm_strong(raw: str, lang: str) -> tuple[str | None, str | None]:
     m = re.match(r"^(\d+)([a-zA-Z]?)$", raw)
     if not m:
         return None, raw
-    return f"{'H' if lang == 'Hebrew' else 'G'}{int(m.group(1)):04d}", (m.group(2) or None)
+    return f"{'G' if lang == 'Greek' else 'H'}{int(m.group(1)):04d}", (m.group(2) or None)
 
 
 # --- rows ---------------------------------------------------------------------------------------------
@@ -317,7 +317,9 @@ def parse_row(cols: list[str]) -> dict:
     r["par"] = parse_par(r["par"])
     r["end_text"] = parse_end_text(r["end_text"])
     r["footnotes"] = parse_footnote(r["footnotes"])
-    r["strong"], r["strong_suffix"] = norm_strong(r["str_heb"] if r["language"] == "Hebrew" else r["str_grk"],
+    # 2026-10-26: Aramaic rows (DAN, EZR, JER 10:11, GEN 31:47) carry their number in Str Heb, like Hebrew ones; testing
+    # == "Hebrew" read the empty Greek column and left every Aramaic row without a Strong's number
+    r["strong"], r["strong_suffix"] = norm_strong(r["str_grk"] if r["language"] == "Greek" else r["str_heb"],
                                                   r["language"])
     r["kind"] = "empty" if not r["base"].strip() and not r["text"].strip() else "row"
     return r
@@ -485,131 +487,109 @@ def _tile_tolerant(srt: list[dict], toks: list[str]) -> dict[int, list[int]] | N
     return out
 
 
-def _word_forms(surface: str) -> list[str]:
-    """Mark-stripped words of a source surface, maqaf/sof-pasuq/paseq removed — the exact-equality key
-    for the surface-containment check below (never fuzzy)."""
-    out = []
-    for w in surface.replace("\u05be", " ").split():
-        # NFD then drop every combining mark: Hebrew points/cantillation AND Greek accents/breathings
-        # (precomposed ά vs ὰ must compare equal — BSB's "Ἰσαὰκ" vs the spine's "Ἰσαάκ")
-        w = "".join(c for c in unicodedata.normalize("NFD", w) if unicodedata.category(c) != "Mn")
-        w = re.sub(r"[\u05be\u05c0\u05c3\u05c6\u05f3\u05f4\u05e4\u05e1]+$", "", w)   # ־ ׀ ׃ ׆ ׳ ״ and פ/ס section marks
-        w = re.sub(r"^[\u05be\u05c0\u05c3]+", "", w)
-        if w:
-            out.append(w)
+_FINALS = str.maketrans("ךםןףץς", "כמנפצσ")
+
+
+def _skel(s: str) -> str:
+    """Letters only, marks dropped, lower case, final forms folded: the spelling key of the row-to-word alignment."""
+    s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c)[0] == "L")
+    return s.lower().translate(_FINALS)
+
+
+def spine_words(spine: list[tuple]) -> list[list]:
+    """[[word id, [token idx], surface, {strongs}]] in source order. `spine` = [(idx, strong, surface[, keys])] in spine order.
+    A word is a MACULA word: key[:11] (Hebrew keys carry a 12th digit, the morpheme), so a Hebrew word's prefix, stem and suffix
+    tokens are one word; a token holding two words (the spine fuses "Ἰσαάκ, Ἰσαὰκ", "בֵּית אֵל") belongs to both, each taking its
+    own part of the surface. Without keys every token is one word (old callers, tests)."""
+    out: list[list] = []
+    at: dict[str, int] = {}
+    for entry in spine:
+        idx, strong = entry[0], entry[1]
+        surface = entry[2] if len(entry) > 2 and entry[2] else ""
+        keys = list(entry[3]) if len(entry) > 3 and entry[3] else [f"t{idx}"]
+        parts = surface.split()
+        for j, k in enumerate(keys):
+            wid = k[:11]
+            if wid not in at:
+                at[wid] = len(out)
+                out.append([wid, [], "", set()])
+            w = out[at[wid]]
+            if idx not in w[1]:
+                w[1].append(idx)
+            w[2] += parts[j] if len(parts) == len(keys) else (surface if j == 0 else "")
+            if strong:
+                w[3].add(strong)
     return out
 
 
+_BAND = 12          # rows and words are aligned within this distance of the diagonal (verses differ by a few variant words)
+
+
+def _row_word_score(r: dict, w: list) -> float | None:
+    same = bool(r["strong"]) and r["strong"] in w[3]
+    a, b = _skel(r["base"]), _skel(w[2])
+    sim = difflib.SequenceMatcher(None, a, b, autojunk=False).ratio() if a and b else 0.0
+    if not same and sim < 0.6:
+        return None
+    return (2.0 if same else 0.0) + sim
+
+
 def map_source(rows: list[dict], spine: list[tuple]) -> dict[str, dict]:
-    """{bsb_sort: {h_idx_key, h_idx, match}} for a verse. `spine` = [(idx, strong[, surface])] in spine
-    order. Keyed on (strong, k-th occurrence) in each side's own order. Our spine FUSES adjacent words
-    into ONE token in two cases BSB keeps as separate rows — consecutive same-Strong's words ("נֹחַ נֹחַ",
-    "τὸν Ἰσαάκ, Ἰσαὰκ δὲ") and compound names carrying one Strong's ("תּוּבַל קַיִן" H8423, "בֵּית אֵל"
-    H1008, "פַּדַּן אֲרָם" H6307) — the fused surface has a space per absorbed word. A BSB row is
-    attached to such a token as `fused` only when its own base is EXACTLY one of that surface's words
-    (mark-stripped) and it is adjacent in source order to a row already on that token — equality, never
-    a guess; the fused rows do not consume a k-th occurrence. Unassigned spine tokens are attached by
-    adjacency (prefix to the next keyed row, suffix to the previous one) and to strongless rows lying
-    between neighbours — each attachment recorded as such, never presented as a keyed match."""
+    """{bsb_sort: {h_idx_key, h_idx, match}} for a verse. `spine` = [(idx, strong, surface, keys)] in spine order.
+
+    2026-10-26 (bsb-add-books B2/B4): a table row is ONE source word (Heb Sort / Greek Sort order), so rows are aligned to the
+    spine's WORDS (`spine_words`) in order, by Strong's number and spelling together (an order-keeping alignment that maximises
+    2 x [same Strong's] + spelling similarity; a pair with another Strong's needs spelling similarity >= 0.6). The row then takes
+    every token of its word: a Hebrew prefix and a pronoun suffix go with their own word (the old adjacency rule gave a suffix
+    to the NEXT row, 68% of OT suffixes), and a repeated Strong's number can no longer swap rows (the old (Strong's, k-th
+    occurrence) key swapped εἶπεν/λέγω, εἶδον/ἰδοὺ and genealogy names). h_idx_key = the word's token with the row's Strong's
+    number, else its content token, else its first.
+    match: `strong` (the word carries the row's Strong's number), `spelling` (same place and spelling, another number:
+    MACULA's G3004 for the table's G2036, ketiv/qere, a row with no Strong's), `fused` (a second row on a token the spine fused
+    from two words, e.g. Ἰσαάκ Ἰσαὰκ), `none` (no word of the spine: a reading of another edition, e.g. ‹SBL› [NA])."""
     lang = rows[0]["language"] if rows else "Hebrew"
-    skey = "heb_sort" if lang == "Hebrew" else "grk_sort"
+    skey = "grk_sort" if lang == "Greek" else "heb_sort"          # Hebrew AND Aramaic rows (DAN, EZR) carry Heb Sort
     src_rows = sorted((r for r in rows if r["kind"] != "empty" and r["base"].strip()), key=lambda r: sort_key(r[skey]))
-    spine_k: dict[tuple[str, int], int] = {}
-    words_of: dict[int, list[str]] = {}
-    seen: collections.Counter = collections.Counter()
-    for entry in spine:
-        idx, strong = entry[0], entry[1]
-        words_of[idx] = _word_forms(entry[2]) if len(entry) > 2 and entry[2] else []
-        if strong:
-            spine_k[(strong, seen[strong])] = idx
-            seen[strong] += 1
-    owner: dict[int, str] = {}                          # spine idx -> bsb_sort (the keyed row)
+    words = spine_words(spine)
+    strong_of = {e[0]: e[1] for e in spine}
+    content_of = {e[0]: e[4] for e in spine if len(e) > 4}
+    n, m = len(src_rows), len(words)
+    D = [[0.0] * (m + 1) for _ in range(n + 1)]
+    B = [[""] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            best, how = D[i - 1][j], "r"
+            if D[i][j - 1] > best:
+                best, how = D[i][j - 1], "w"
+            if abs(i * m - j * n) <= _BAND * max(n, m):
+                sc = _row_word_score(src_rows[i - 1], words[j - 1])
+                if sc is not None and D[i - 1][j - 1] + sc > best:
+                    best, how = D[i - 1][j - 1] + sc, "m"
+            D[i][j], B[i][j] = best, how
+    pair: dict[int, int] = {}
+    i, j = n, m
+    while i and j:
+        if B[i][j] == "m":
+            pair[i - 1] = j - 1
+            i, j = i - 1, j - 1
+        elif B[i][j] == "r":
+            i -= 1
+        else:
+            j -= 1
     result: dict[str, dict] = {}
-    seen_b: collections.Counter = collections.Counter()   # spine occurrences CONSUMED per strong
-    fused_left: dict[int, int] = {}                     # fused spine idx -> words still unclaimed
-    prev_row = None
-    for r in src_rows:
-        res = {"h_idx_key": None, "h_idx": [], "match": "none"}
-        pidx = result[prev_row["bsb_sort"]]["h_idx_key"] if prev_row is not None else None
-        base_w = _word_forms(r["base"])
-        # (1) the continuation of a fused token the previous row sits on: exact word containment
-        if (pidx is not None and fused_left.get(pidx, 0) > 0 and len(base_w) == 1
-                and base_w[0] in words_of.get(pidx, [])):
-            fused_left[pidx] -= 1
-            res.update(h_idx_key=pidx, h_idx=[pidx], match="fused")
-        elif r["strong"]:
-            k = seen_b[r["strong"]]
-            idx = spine_k.get((r["strong"], k))
-            if idx is not None and idx not in owner:
-                owner[idx] = r["bsb_sort"]
-                seen_b[r["strong"]] += 1
-                res.update(h_idx_key=idx, h_idx=[idx], match="strong")
-                n_words = len(words_of.get(idx, []))
-                if n_words > 1:
-                    fused_left[idx] = n_words - 1
-        # (2) a row whose Strong's the spine does not have here, but whose base is the FIRST word of the
-        #     fused token the NEXT keyed row will take ("בֵּית" before "אֵל"/H1008): resolved after the pass
-        result[r["bsb_sort"]] = res
-        prev_row = r
-    # second pass for (2): an unmatched single-word row immediately before a keyed row on a fused token
+    keyed: set[int] = set()
     for i, r in enumerate(src_rows):
-        res = result[r["bsb_sort"]]
-        if res["match"] != "none" or i + 1 >= len(src_rows):
+        if i not in pair:
+            result[r["bsb_sort"]] = {"h_idx_key": None, "h_idx": [], "match": "none"}
             continue
-        nres = result[src_rows[i + 1]["bsb_sort"]]
-        nidx = nres["h_idx_key"]
-        if nidx is None or nres["match"] != "strong" or fused_left.get(nidx, 0) <= 0:
-            continue
-        base_w = _word_forms(r["base"])
-        if len(base_w) == 1 and base_w[0] in words_of.get(nidx, []):
-            fused_left[nidx] -= 1
-            res.update(h_idx_key=nidx, h_idx=[nidx], match="fused")
-    # adjacency attachment of unassigned spine tokens
-    order = [entry[0] for entry in spine]
-    keyed_rows = [r for r in src_rows if result[r["bsb_sort"]]["match"] == "strong"]
-    keyed_rows.sort(key=lambda r: result[r["bsb_sort"]]["h_idx_key"])
-    pending: list[int] = []
-    for idx in order:
-        if idx in owner:
-            b = owner[idx]
-            for p in pending:
-                result[b]["h_idx"].append(p)
-                owner[p] = b
-            pending = []
-        else:
-            pending.append(idx)
-    if pending and keyed_rows:                          # trailing tokens: suffix convention → last keyed row
-        b = keyed_rows[-1]["bsb_sort"]
-        for p in pending:
-            result[b]["h_idx"].append(p)
-            owner[p] = b
-        pending = []
-    # strongless rows: take the tokens strictly between their neighbours' tokens, if any were attached to
-    # the wrong side above — done by re-deriving: a strongless row between keyed rows A and B claims the
-    # unkeyed tokens that sit between A's key and B's key and were attached as B's prefix.
-    for i, r in enumerate(src_rows):
-        res = result[r["bsb_sort"]]
-        if res["match"] != "none" or not r["base"].strip():
-            continue
-        prev_row = next((x for x in reversed(src_rows[:i]) if result[x["bsb_sort"]]["match"] == "strong"), None)
-        next_row = next((x for x in src_rows[i + 1:] if result[x["bsb_sort"]]["match"] == "strong"), None)
-        prev_key = result[prev_row["bsb_sort"]]["h_idx_key"] if prev_row else None
-        if next_row is not None:                        # tokens attached as the NEXT keyed row's prefix
-            donor = result[next_row["bsb_sort"]]
-            between = sorted(p for p in donor["h_idx"] if p != donor["h_idx_key"]
-                             and (prev_key is None or p > prev_key) and p < donor["h_idx_key"])
-        elif prev_row is not None:                      # trailing: tokens attached as the PREVIOUS row's suffix
-            donor = result[prev_row["bsb_sort"]]
-            between = sorted(p for p in donor["h_idx"] if p > prev_key)
-        else:
-            continue
-        if between:
-            for p in between:
-                donor["h_idx"].remove(p)
-                owner[p] = r["bsb_sort"]
-            res.update(h_idx=between, match="positional")
-    for res in result.values():
-        res["h_idx"].sort()
+        w = words[pair[i]]
+        toks = sorted(w[1])
+        cand = ([x for x in toks if r["strong"] and strong_of.get(x) == r["strong"]]
+                or [x for x in toks if content_of.get(x)] or toks)
+        key = cand[0]
+        match = "fused" if key in keyed else "strong" if r["strong"] in w[3] else "spelling"
+        keyed.add(key)
+        result[r["bsb_sort"]] = {"h_idx_key": key, "h_idx": toks, "match": match}
     return result
 
 
@@ -814,7 +794,7 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
             else:
                 sp = sorted(rec.heb, key=lambda t: t.idx)
                 sp_tokens = {t.idx: t for t in sp}
-                smap = map_source(vrows, [(t.idx, t.strong, t.surface) for t in sp])
+                smap = map_source(vrows, [(t.idx, t.strong, t.surface, t.keys, bool(t.is_content)) for t in sp])
                 tmap = map_target(vrows, list(rec.toks), max_skip=_TITLE_SKIP, tolerant=True)
                 if tmap is None:
                     bt["verses_target_refused"] += 1
@@ -901,7 +881,7 @@ def build(books: list[str], out_dir: Path = OUT_DIR, tsv: Path = VENDOR_TSV, usj
             "source_rows": sum(v.get("source_rows", 0) for v in pt.values()),
             "source_strong": sum(v.get("source_strong", 0) for v in pt.values()),
             "source_fused": sum(v.get("source_fused", 0) for v in pt.values()),
-            "source_positional": sum(v.get("source_positional", 0) for v in pt.values()),
+            "source_spelling": sum(v.get("source_spelling", 0) for v in pt.values()),
             "source_none": sum(v.get("source_none", 0) for v in pt.values()),
             "target_rows": sum(v.get("target_rows", 0) for v in pt.values()),
             "target_rows_positioned": sum(v.get("target_rows_positioned", 0) for v in pt.values()),

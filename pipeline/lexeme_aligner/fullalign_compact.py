@@ -225,10 +225,14 @@ class CRow:
     sid: str | None = None
     tstrong: str | None = None
     pargs: list = field(default_factory=list)  # profile arguments (the numbers taken out of the prior)
+    rid: str | None = None                     # the source table's row id (BSB tables: `BSB Sort`), written `R<id>`
 
     def canon(self) -> str:
-        return json.dumps([self.ref, self.src, self.key, self.span, self.mark, self.joint, self.sup, self.inf,
-                           self.prof, self.tids, self.sid, self.tstrong, self.pargs], ensure_ascii=False, default=list)
+        v = [self.ref, self.src, self.key, self.span, self.mark, self.joint, self.sup, self.inf,
+             self.prof, self.tids, self.sid, self.tstrong, self.pargs]
+        if self.rid is not None:
+            v.append(self.rid)
+        return json.dumps(v, ensure_ascii=False, default=list)
 
     def prior(self):
         """The row's original prior (template + arguments)."""
@@ -398,6 +402,7 @@ def bsb_crows(vrows: list[dict], group: Group, base: dict, letters) -> list[CRow
             kh = r.get("h_idx_key")
             c.key = h.index(kh) if kh in h else None
         c.prof = (r["method"], r["score"], None, None, attr_diff(r["attribution"], base))
+        c.rid = str((r.get("bsb") or {}).get("bsb_sort") or "") or None
         tok = group.tok_of.get(h[c.key]) if h and c.key is not None else None
         if (tok.strong if tok else None) != r.get("strong") or tok is None and r.get("strong") is not None:
             c.tstrong = r.get("strong") if r.get("strong") is not None else "-"
@@ -450,6 +455,8 @@ def fmt_row(c: CRow, profiles: Profiles, has_ids: bool, group: Group | None, key
         parts.append("T" + c.tstrong)
     if c.pargs:
         parts.append("P" + ",".join(map(str, c.pargs)))
+    if c.rid is not None:
+        parts.append("R" + c.rid)
     return ":".join(parts)
 
 
@@ -485,6 +492,8 @@ def parse_row(entry: str, ref: str, profiles: Profiles, has_ids: bool, group: Gr
             c.tstrong = rest
         elif t == "P":
             c.pargs = [int(p) for p in rest.split(",")]
+        elif t == "R":
+            c.rid = rest
     if has_ids and c.src:
         c.sid = sid_override if sid_override is not None else (default_sid(group, c.src[0]) if group else None)
     return c
@@ -561,7 +570,7 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
         idxs = [i for i in cand.get(slot, []) if i not in claimed and (want is None or crows[i].span == want)]
         return min(idxs, key=lambda i: (_prio(crows[i]), i)) if idxs else None
 
-    def ext_of(c: CRow) -> str:
+    def ext_of(c: CRow, with_rid: bool = True) -> str:
         bits = []
         if has_ids and c.tids:
             bits.append("t" + ",".join(map(str, c.tids)))
@@ -569,7 +578,16 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
             bits.append("S" + c.sid)
         if c.pargs:
             bits.append("P" + ",".join(map(str, c.pargs)))
+        if c.rid is not None and with_rid:
+            bits.append("R" + c.rid)
         return ";".join(bits) or "_"
+
+    def with_rids(ext: str, rids: list) -> str:
+        """A list entry's ext: the items' row ids as ONE `R` part, comma-joined in item order (none -> nothing)."""
+        if not any(r is not None for r in rids):
+            return ext
+        part = "R" + ",".join(r if r is not None else "-" for r in rids)
+        return part if ext == "_" else ext + ";" + part
 
     def link(o, span_str, prof, ext):
         return ((0, o, ""), f"{o}:{span_str}", prof, ext)
@@ -596,6 +614,7 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
     have = {"c": {e[0][1] for e in out.main}, "f": {e[0][1] for e in out.fn}}
     groups_l: dict[tuple, list] = collections.defaultdict(list)    # (string kind, list kind, prof, ext) -> [(n, mark or None)]
     plus: dict[str, list] = collections.defaultdict(list)          # prof char -> [(pos, owner)]
+    plus_ext: dict[str, str] = {}                                  # a row's own `+` entry -> its ext (row id)
     slot_pos: dict[tuple, set] = collections.defaultdict(set)      # what the strings SHOW per slot (for the default slot)
     for kind, entries in (("c", out.main), ("f", out.fn)):
         for e in entries:
@@ -611,12 +630,13 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
             if list_single(c, keyed) and c.src[0][1] not in have[c.src[0][0]]:
                 kind, o = c.src[0]
                 lk = "!" if c.mark is None else c.mark[1]
-                groups_l[(kind, lk, profiles.add(c.prof), ext_of(c))].append((o, c.mark))
+                groups_l[(kind, lk, profiles.add(c.prof), ext_of(c, with_rid=False))].append((o, c.mark, c.rid))
                 claimed.add(i)
                 have[kind].add(o)
             elif added_only(c):
                 ch = profiles.add(c.prof)
                 plus[ch + "#" + str(i)] = [(p, None) for p in c.sup]   # one entry per row (its words stay one row)
+                plus_ext[ch + "#" + str(i)] = with_rids("_", [c.rid])
                 claimed.add(i)
     # every other row is kept whole; a placed one also shows as a VIEW on each of its still-empty c/f slots
     for i, c in enumerate(crows):
@@ -643,8 +663,12 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
             for kind, n in c.src:
                 if kind in "cf" and n not in have[kind]:
                     lk = "!" if c.mark is None else c.mark[1]
-                    groups_l[(kind, lk, ".", "_")].append((n, c.mark))
+                    groups_l[(kind, lk, ".", "_")].append((n, c.mark, None))
                     have[kind].add(n)
+            if c.sup and c.mark is None and not c.joint:           # 2026-10-26 (bsb-add-books B1): a row whose words are ALL
+                ks = c.src[c.key] if c.src and c.key is not None else (c.src[0] if c.src else None)   # supplied ("[wife]")
+                own = owner_str(ks) if ks and ks[0] in "cf" else None   # shows them for its source word too, not only in `rows`
+                plus["."] += [(p, own) for p in c.sup]
     for its in plus.values():                                       # supplied words count for their owner's slot
         for p, own in its:
             if own is not None:
@@ -656,11 +680,13 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
             return None
         return None if default_slot(slot_pos, order, (kind, n)) == mark[0] else str(mark[0])
     for (kind, lk, prof, ext), items in groups_l.items():
-        e = ((1, LIST_KINDS.index(lk), prof), lk + enc_items([(n, slot_str_of(kind, n, m)) for n, m in items], "@"), prof, ext)
+        items = sorted(items, key=lambda it: it[0])                 # enc_items writes the items by ordinal: row ids follow
+        e = ((1, LIST_KINDS.index(lk), prof), lk + enc_items([(n, slot_str_of(kind, n, m)) for n, m, _r in items], "@"), prof,
+             with_rids(ext, [r for _n, _m, r in items]))
         (out.main if kind == "c" else out.fn).append(e)
     for key, items in plus.items():
         prof = key.split("#")[0]
-        out.fn.append(((2, 0, key), "+" + enc_items(items, ">"), prof, "_"))
+        out.fn.append(((2, 0, key), "+" + enc_items(items, ">"), prof, plus_ext.get(key, "_")))
     out.main.sort(key=lambda e: e[0])
     out.fn.sort(key=lambda e: e[0])
     return out
@@ -741,10 +767,15 @@ class LayerDecoder:
         self.keyed = bool(layer_json.get("keyed"))
         self.profiles = Profiles.from_json(layer_json["profiles"])
 
-    def _ext(self, c: CRow, ext: str) -> None:
+    def _ext(self, c: CRow, ext: str, item: int = 0) -> None:
+        """`item` = the list item's index: a list entry's `R` part holds one row id per item (`-` = none)."""
         if ext != "_":
             for part in ext.split(";"):
-                if part[0] == "t" and self.has_ids:
+                if part[0] == "R":
+                    rids = part[1:].split(",")
+                    r = rids[item] if item < len(rids) else rids[0]
+                    c.rid = None if r == "-" else r
+                elif part[0] == "t" and self.has_ids:
                     c.tids = [int(x) for x in part[1:].split(",")]
                 elif part[0] == "S" and self.has_ids:
                     c.sid = part[1:]
@@ -778,16 +809,18 @@ class LayerDecoder:
                 if p == NO_PROFILE:
                     owned += items
                 else:
-                    out.append(CRow(ref=ref, src=[], span=[], sup=sorted(n for n, _x in items), prof=self.profiles.of_char[p]))
+                    c = CRow(ref=ref, src=[], span=[], sup=sorted(n for n, _x in items), prof=self.profiles.of_char[p])
+                    self._ext(c, exts[k])
+                    out.append(c)
             elif head in LIST_KINDS:
-                for n, x in dec_items(e[1:], "@"):
+                for item, (n, x) in enumerate(dec_items(e[1:], "@")):
                     c = self._single(ref, group, (slot_kind, n), [], self.profiles.of_char[p])
                     if head != "!":
                         if x is None:
                             unslotted.append((c, head))
                         else:
                             c.mark = (int(x), head)
-                    self._ext(c, exts[k])
+                    self._ext(c, exts[k], item)
                     out.append(c)
             else:
                 o, sp = e.split(":")

@@ -33,6 +33,25 @@ def test_load_parts(tmp_path):
     assert [p[0] for p in parts[("MAT", 1, 1, 2)]["parts"]] == [0, 2]   # the hidden article has no letters: no unit
 
 
+
+def test_load_parts_reads_a_bcv_split_file(tmp_path):
+    """bcv-split/0.1 (docs/split-format.md): class from the slot, tone parts and whole rows give no units, p_split 0 keeps a word whole."""
+    def row(i, part, token, slot, text, cid=None, p_split=None):
+        return dict(book="MAT", chapter=2, verse=2, i=i, part=part, token=token, word=token, slot=slot, text=text, chain_id=cid,
+                    form=None, basis="derived", p_split=p_split)
+    rows = [row(0, 0, "Ali", "prefix", "A", "m:a-sm:verb"), row(0, 1, "Ali", "stem", "li"),
+            row(1, 0, "nkahi", "whole", "nkahi"),
+            row(2, 0, "ayaazaalwa", "prefix", "a", "m:a-sm:verb"), row(2, 1, "ayaazaalwa", "stem", "yaazaal"),
+            row(2, 2, "ayaazaalwa", "suffix", "w", "m:w-pass:verb"), row(2, 3, "ayaazaalwa", "tone", ""),
+            row(3, 0, "nikwo", "prefix", "ni", "m:ni:verb", p_split=0.0), row(3, 1, "nikwo", "stem", "kwo")]
+    p = tmp_path / "words.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), p)
+    parts = load_parts(p, 0.9)
+    assert set(parts) == {("MAT", 2, 2, 0), ("MAT", 2, 2, 2)}
+    assert parts[("MAT", 2, 2, 0)]["parts"] == [(0, "A", "m:a-sm:verb", "affix"), (1, "li", "", "stem")]
+    assert [x[0] for x in parts[("MAT", 2, 2, 2)]["parts"]] == [0, 1, 2]
+
+
 def _usj(path, verses):
     content = [{"type": "book", "marker": "id", "code": "MAT", "content": []}, {"type": "chapter", "marker": "c", "number": "1"},
                {"type": "para", "marker": "p", "content": [x for v, t in verses for x in ({"type": "verse", "marker": "v", "number": v}, t)]}]

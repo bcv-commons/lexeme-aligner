@@ -16,6 +16,11 @@ verse (tokenizer v2), `part`, `text` (pointed letters; empty for the article hid
 (macula | model), `p_split` (the tagger's confidence in the split, on part 0). A word is used whole when the tagger is unsure
 (`p_split` below the threshold), when it has one part, or when its token differs from ours. A word of class `verse-number` (Salkinson
 writes each verse's number as Hebrew letters, א, יז ..., as its first token) is left out of the view altogether, so it never gets a link.
+
+Since 2026-10-26 the analysis may also be a split file in the standard format (`bcv-split/0.1`, docs/split-format.md; first: bsb-add-books'
+Zinza, pinned as a local file with `"format": "bcv-split"`). There a part's class comes from its `slot` (prefix/suffix/infix -> `affix`,
+a function part for `content_priors`; stem -> `stem`), a tone part has no letters and is left out, a `whole` row (also the never-split
+words, `p_split` 0) keeps the word whole, and `p_split`, when the file has it, is the threshold as above.
 """
 from __future__ import annotations
 
@@ -39,7 +44,9 @@ def for_edition(tag: str, config: Path = CONFIG, vendor: Path = VENDOR) -> tuple
     entry = json.loads(Path(config).read_text(encoding="utf-8")).get(tag) if Path(config).exists() else None
     if not entry:
         return None
-    local = Path(vendor) / entry["revision"] / entry["file"]
+    local = Path(vendor) / entry["revision"] / entry["file"] if "local" not in entry else Path(__file__).resolve().parents[2] / entry["local"]
+    if not local.exists() and "local" in entry:
+        raise SystemExit(f"[target_parts] {tag}: the pinned local file {entry['local']} is missing ({config})")
     if not local.exists():
         from huggingface_hub import hf_hub_download
         local.parent.mkdir(parents=True, exist_ok=True)
@@ -55,13 +62,30 @@ def _plain(s: str) -> str:
     return strip_marks(ud.normalize("NFC", s or ""))
 
 
+SLOT_CLASS = {"prefix": "affix", "suffix": "affix", "infix": "affix", "stem": "stem", "whole": "whole", "tone": "tone"}
+
+
+def _rows(words_parquet: Path | str) -> list[dict]:
+    """The analysis rows with `class`, `lemma`, `source`, `p_split` filled for both formats: hebrew-nt-analysis as is; a bcv-split file
+    (has `slot`) with class from the slot (unless it has its own `class`), lemma = `chain_id` or `form`, source = `basis`."""
+    import pyarrow.parquet as pq
+    t = pq.read_table(words_parquet)
+    rows = t.to_pylist()
+    if "slot" not in t.column_names:
+        return rows
+    for r in rows:
+        r["class"] = r.get("class") or SLOT_CLASS.get(r["slot"], r["slot"])
+        r["lemma"] = r.get("lemma") or r.get("chain_id") or r.get("form") or ""
+        r["source"] = r.get("basis")
+        r.setdefault("p_split", None)
+    return rows
+
+
 def load_parts(words_parquet: Path | str, min_p_split: float = 0.9) -> dict[tuple, dict]:
     """(book, chapter, verse, i) -> {"token": str, "parts": [(part, letters, lemma, class)]} for every word that splits into at least
     two parts with letters and that the threshold lets through. Parts without letters are left out (eflomal has nothing to see)."""
-    import pyarrow.parquet as pq
-    cols = ["book", "chapter", "verse", "i", "part", "token", "text", "lemma", "class", "source", "p_split"]
     words: dict[tuple, list] = collections.defaultdict(list)
-    for r in pq.read_table(words_parquet, columns=cols).to_pylist():
+    for r in _rows(words_parquet):
         words[(r["book"], r["chapter"], r["verse"], r["i"])].append(r)
     out = {}
     for k, rows in words.items():
@@ -71,6 +95,8 @@ def load_parts(words_parquet: Path | str, min_p_split: float = 0.9) -> dict[tupl
             out[k] = {"token": head["token"], "parts": []}
             continue
         if head["source"] == "model" and (head["p_split"] or 0.0) < min_p_split:
+            continue
+        if head["class"] == "whole" or (head["p_split"] is not None and head["p_split"] < min_p_split and head["source"] != "macula"):
             continue
         parts = [(r["part"], _plain(r["text"]), _plain(r["lemma"]), r["class"]) for r in rows if _plain(r["text"])]
         if len(parts) >= 2:
@@ -203,7 +229,7 @@ def fold(tag: str, view_out: Path, out: Path, view_dir: Path, usj_dir: Path, met
     return stats
 
 
-FUNCTION_CLASSES = frozenset({"cj", "prep", "art", "rel", "pron", "om", "verse-number", "ptcl", "ij", "x", "-"})
+FUNCTION_CLASSES = frozenset({"cj", "prep", "art", "rel", "pron", "om", "verse-number", "ptcl", "ij", "x", "-", "affix"})
 
 
 def content_priors(tag: str, publish_iso: str, view_out: Path, view_dir: Path, analysis: Path, lex_root: Path,
@@ -228,7 +254,7 @@ def content_priors(tag: str, publish_iso: str, view_out: Path, view_dir: Path, a
         trefs = {(r.book, r.ch, r.v): r.tref for r in build_corpus(sorted(maps), Path(view_dir), HebrewSource(), remapper(tag, Path(view_dir)))}
     cls: dict[tuple, str] = {}
     word_cls: dict[tuple, set] = collections.defaultdict(set)
-    for r in pq.read_table(analysis, columns=["book", "chapter", "verse", "i", "part", "class"]).to_pylist():
+    for r in _rows(analysis):
         cls[(r["book"], r["chapter"], r["verse"], r["i"], r["part"])] = r["class"]
         word_cls[(r["book"], r["chapter"], r["verse"], r["i"])].add(r["class"])
     content = {r["lexeme"] for r in pq.read_table(PRIOR_PACK, columns=["lexeme", "keyness"]).to_pylist() if r["keyness"] is not None}

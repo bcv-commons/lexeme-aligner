@@ -64,7 +64,7 @@ letter in the catalog has its own adapter:
 | `d` | Digital Bible Platform (Bible Brain v4) | `4.dbt.io/api`, route per edition from `text-route.json` | `dbt_source.py` | **`BIBLE_API_KEY`** in `.env` |
 | `o` | editions bcv-commons/bibles republishes | `cdn.bibel.wiki/openbible/…` | `openbible_source.py` | — |
 | `c` | CrossWire SWORD modules republished by bibles (e.g. Vamvas) | `cdn.bibel.wiki/crosswire/…` | `openbible_source.py --root crosswire` | — |
-| `e` | eBible editions (listed in the catalog since 2026-10-21) | — | **none yet**: `onboard` stops with "unknown source 'e'" | — |
+| `e` | eBible editions bibles republishes (12 editions in 10 languages, not reachable via helloAO and not duplicates; Strong's tags removed) | `cdn.bibel.wiki/ebible/…` | `openbible_source.py --root ebible` | — |
 
 Output: `pipeline/work/ingest-cache/usj-<tag>/` (ignored, regenerable) plus a tracked pin `config/pins/<tag>.json`
 (sha256 of what was fetched, licence pointer). `config/sources.json` holds the licence pointer published with each
@@ -178,7 +178,8 @@ What a clone does not get today without manual steps, found while writing this p
    `<iso>.json` files, publish them (`pipeline/scripts/tools/stage_gram_struct.py` already stages `publish/gram-struct/`) and pull them, or document `grammar all` as a
    setup step.
 4. **`kin_prior.DEFAULT_DB`** is an absolute path on this machine (`/home/lgunnars/dev/bcv-commons/bcv-query/…`).
-5. **Source `e` (eBible)** is listed in the refreshed catalog for about 13 languages but has no adapter.
+5. ~~Source `e` (eBible) has no adapter~~: read with `openbible_source.py --root ebible` since 2026-10-26 (same CDN layout). Trust the
+   catalog's `edition-struct.json` for script/direction/spaces, not eBible's own metadata (cmnswcb, jpnm, srp1868 are labelled Latin).
 6. **Raw typology inputs** (Grambank, WALS) have fetch code but no single entry point; only needed to rebuild
    `config/grambank` / `config/typology`, which are tracked.
 7. Gold fetches are spread over several modules (`bsb_tables --fetch`, `gbt_fetch`, HF `bcv-commons/strongs`, HELFI by hand).

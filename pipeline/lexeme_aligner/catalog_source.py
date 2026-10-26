@@ -56,9 +56,9 @@ _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 _DIR = Path("config/dbt_catalog")
 _FILES = {"index": "catalog-index.json", "overlap": "catalog-overlap.json"}
 _REMOTE = {"catalog-index.json": "index.json", "catalog-overlap.json": "overlap.json"}   # local name -> name on the CDN
-PRIORITY = ("pkf", "helloao", "dbt", "o", "c")  # `o` / `c` = bibles' own republished editions (openbible / CrossWire): last, so a same-text
+PRIORITY = ("pkf", "helloao", "dbt", "o", "c", "e")  # `o` / `c` / `e` = bibles' own republished editions (openbible / CrossWire / eBible): last, so a same-text
                                                 # family prefers a direct source
-_SOURCE_LETTER = {"p": "pkf", "h": "helloao", "d": "dbt", "o": "o", "c": "c"}
+_SOURCE_LETTER = {"p": "pkf", "h": "helloao", "d": "dbt", "o": "o", "c": "c", "e": "e"}
 
 # each source's OWN raw catalog, fetched independent of catalog-overlap.json — the fallback path for
 # a single-candidate-anywhere language whose one source is helloAO or DBT (overlap.json excludes these
@@ -143,8 +143,8 @@ def _split_id(ref: str) -> tuple[str, str]:
 def _param_for(source: str, iso: str, edition_code: str) -> str | None:
     if source == "pkf":
         return iso
-    if source in ("helloao", "dbt", "o", "c"):
-        return edition_code   # helloao: translation id · dbt: bible_id (dbt_source.py --bible-id) · o / c: the <ABBR> in the CDN path
+    if source in ("helloao", "dbt", "o", "c", "e"):
+        return edition_code   # helloao: translation id · dbt: bible_id (dbt_source.py --bible-id) · o / c / e: the <ABBR> in the CDN path
     return None
 
 

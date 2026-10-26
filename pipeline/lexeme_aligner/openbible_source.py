@@ -28,7 +28,7 @@ from lexeme_aligner import dns_cache as _dns_cache
 _dns_cache.install()
 
 CDN = "https://cdn.bibel.wiki"
-ROOTS = ("openbible", "crosswire")              # `o` -> openbible, `c` -> crosswire
+ROOTS = ("openbible", "crosswire", "ebible")    # `o` -> openbible, `c` -> crosswire, `e` -> ebible (2026-10-26, same layout)
 BASE = f"{CDN}/openbible"
 _UA = "lexeme-aligner/0.1 (+https://github.com/bcv-commons/lexeme-aligner)"
 
@@ -115,7 +115,7 @@ def update_sources(pin: dict, path: Path) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root", default="openbible", choices=ROOTS, help="CDN folder: openbible (catalog source o) or crosswire (c)")
+    ap.add_argument("--root", default="openbible", choices=ROOTS, help="CDN folder: openbible (catalog source o), crosswire (c) or ebible (e)")
     ap.add_argument("--iso", required=True, help="the language code in the CDN path (the catalog's iso)")
     ap.add_argument("--edition", required=True, help="the catalog's o:<ABBR> value")
     ap.add_argument("--tag", required=True, help="our per-edition tag (pins/sources are keyed by it)")

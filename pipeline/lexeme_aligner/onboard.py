@@ -403,7 +403,8 @@ def main() -> int:
                              "--to-usj", usj, "--pin", pin] if ed["source"] == "dbt" else
                             ["openbible_source", "--iso", args.iso, "--edition", ed["param"], "--tag", tag,
                              "--to-usj", usj, "--pin", pin,
-                             *(("--root", "crosswire") if ed["source"] == "c" else ())] if ed["source"] in ("o", "c") else None)
+                             *(("--root", {"c": "crosswire", "e": "ebible"}[ed["source"]]) if ed["source"] in ("c", "e") else ())]
+                            if ed["source"] in ("o", "c", "e") else None)
             if ingest_args is None:
                 raise SystemExit(f"[onboard] unknown source '{ed['source']}' for edition {ed}")
             if not _run_soft(*ingest_args, env=env):

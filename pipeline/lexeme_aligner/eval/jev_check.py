@@ -36,6 +36,8 @@ WORK = Path("pipeline/work/jev-testA")                # answer cache (responses/
 URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = os.environ.get("JEV_MODEL", "jev-latest")
 THRESHOLDS = (0.0, 0.5, 0.7, 0.9)
+if os.environ.get("JEV_BASELINE_CELL"):          # experiments: also write the proposal unchanged (θ > 1), for a no-Jev baseline
+    THRESHOLDS = THRESHOLDS + (1.01,)
 LANG = {"hin": "Hindi", "eng": "English", "heb": "Modern Hebrew", "ell": "Modern Greek", "kvg": "Kuni-Boazi"}
 # v4 function-word question: what "written inside a word" looks like in this translation language (heb text is unchanged, so its cache holds)
 INSIDE_EXAMPLES = {"Modern Hebrew": " (for example ה for an article, ב/ל/מ/כ for a preposition, ו for and)",
@@ -68,8 +70,58 @@ def _span_id(ts: list[int]) -> str:
     return f"t{ts[0]}" if len(ts) == 1 else f"t{ts[0]}-{ts[-1]}"
 
 
-def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, design: str = "v1") -> dict:
+def skip_owned(p: le.Proposal, skip_pairs: set | None) -> set[int]:
+    """Target function words NOT asked in v4 (2026-10-26, cost): already owned by a source word that is not itself doubtful, as a
+    (lowercased word, Strong's) pair Jev kept >= 97% of the time on books of the same edition (`learn_skip_pairs`). Measured on the
+    KJV (train MAT+LUK, test MRK+JHN): 65% of these questions skipped, 24 of 1,261 changes lost."""
+    if not skip_pairs:
+        return set()
+    owner_of = {j: h for h, s in p.owner.items() for j in s}
+    strong = {t.idx: t.strong for t in p.heb}
+    return {j for j in p.stop_t if j in owner_of and j not in p.doubt_t and owner_of[j] not in p.doubt_h
+            and (p.toks[j].lower(), strong.get(owner_of[j])) in skip_pairs}
+
+
+def learn_skip_pairs(tag: str, iso: str, books: list[str], tags: dict | None, min_n: int = 20, min_keep: float = 0.97) -> dict:
+    """Per (target function word, owner Strong's): how often the finished Jev cell (θ = 0) kept the proposal's owner."""
+    from lexeme_aligner.config import OUT
+    n, kept = collections.Counter(), collections.Counter()
+    usj = Path(f"pipeline/work/ingest-cache/usj-{tag}")
+    for book in books:
+        cell = OUT / f"align_llm_jevA.{tag}.{book}.v4.jev-0_{book}.jsonl"
+        final = {}
+        for r in map(json.loads, cell.open(encoding="utf-8")):
+            final[(r["chapter"], r["verse"])] = {j: q["h_idx"] for q in r["pairs"] for j in q["t_idx"]}
+        props, _ = le.build_proposals(tag, iso, usj, [book], signals=le.SIGNALS + ("uncovered-fn",), strong_tags=tags)
+        for p in props:
+            f = final.get((p.ch, p.v))
+            if f is None:
+                continue
+            owner_of = {j: h for h, sp in p.owner.items() for j in sp}
+            strong = {t.idx: t.strong for t in p.heb}
+            for j in set(p.stop_t) - set(p.doubt_t):
+                if j in owner_of:
+                    pair = (p.toks[j].lower(), strong.get(owner_of[j]))
+                    n[pair] += 1
+                    kept[pair] += f.get(j) == owner_of[j]
+    safe = sorted([w, st, n[(w, st)], kept[(w, st)]] for (w, st) in n if n[(w, st)] >= min_n and kept[(w, st)] / n[(w, st)] >= min_keep)
+    return {"edition": tag, "learned_from": books, "rule": {"min_n": min_n, "min_keep": min_keep}, "pairs": safe}
+
+
+def _hint(hints: dict | None, side: str, testament: str, key: str, min_n: int = 20) -> str:
+    """One sentence with the measured default for this function word (derive_conventions profile), or ''."""
+    from lexeme_aligner.eval.derive_conventions import source_hint, target_hint
+    e = ((hints or {}).get(side, {}).get(testament, {}) or {}).get(key)
+    if not e or e["n"] < min_n:
+        return ""
+    text = target_hint(e) if side == "target" else source_hint(e)
+    return f" Measured on a hand-made alignment of this language, it is usually: {text}." if text else ""
+
+
+def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, design: str = "v1",
+                  skip_pairs: set | None = None, hints: dict | None = None) -> dict:
     src_lang = "Hebrew" if p.ref < 40_000_000 else "Greek"
+    testament = "OT" if p.ref < 40_000_000 else "NT"
     owner_of = {j: h for h, s in p.owner.items() for j in s}
     state = {
         "reference": f"{p.book} {p.ch}:{p.v}",
@@ -117,22 +169,26 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
             f"another source word."}
     t_ask = sorted(p.doubt_t)
     if design == "v4":                                   # every target function word, owned or not
-        t_ask = sorted(set(t_ask) | set(p.stop_t))
+        t_ask = sorted(set(t_ask) | (set(p.stop_t) - skip_owned(p, skip_pairs)))
         for t in p.heb:                                  # a flagged FUNCTION source word: which word renders or carries it?
             q = qs.get(f"h{t.idx}")
             if q is None or t.is_content:
                 continue
             gloss = f", gloss {t.gloss_en!r}" if t.gloss_en else ""
+            qs.pop(f"r{t.idx}", None)                    # decide() never reads it for a function word (2026-10-26: 9% of questions)
             q["criteria"] = {"none": "the translation leaves it out: no separate word and no prefix or suffix carries it", **tw}
             q["instructions"] = (f"Source function word h{t.idx} ({t.surface}{gloss}) in `source_words`: which word of `translation_words` "
                                  f"renders it, either as a separate word or as a prefix or suffix written inside that word"
-                                 f"{INSIDE_EXAMPLES.get(lang, '')}? Follow `conventions`.")
+                                 f"{INSIDE_EXAMPLES.get(lang, '')}? Follow `conventions`."
+                                 + _hint(hints, "source", testament,
+                                         f"{t.lemma} (suffix)" if testament == "OT" and t.lemma == "הוּא" else t.lemma))
     for j in t_ask:
         crit = {f"h{t.idx}": f"{t.surface}" + (f" ({t.gloss_en})" if t.gloss_en else "") for t in p.heb}
         crit["none"] = "it renders no source word: supplied by the translator for style or grammar, or part of an added explanation"
         qs[f"t{j}"] = {"type": "choice", "criteria": crit, "instructions":
             f"Translation word t{j} ({p.toks[j]!r}) in `translation_words`: which word of `source_words` does it render, by its "
-            f"meaning or by the grammatical function it carries? Follow `conventions`."}
+            f"meaning or by the grammatical function it carries? Follow `conventions`."
+            + (_hint(hints, "target", testament, p.toks[j].lower()) if j in p.stop_t else "")}
     return {"model": MODEL, "state": state, "questions": qs}
 
 
@@ -316,20 +372,39 @@ def main() -> int:
     ap.add_argument("--chapter", type=int, action="append"); ap.add_argument("--limit", type=int)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--design", default="v1", choices=["v1", "v2", "v3", "v4"])
+    ap.add_argument("--tags", type=Path, help="the edition's own Strong's tagging per target word (llm_edit.apply_strong_tags)")
+    ap.add_argument("--conventions", default=None, help="config/llm_conventions/<name>.md (default: the publish iso)")
+    ap.add_argument("--skip-pairs", type=Path, help="v4: owned function words not asked (learn_skip_pairs output)")
+    ap.add_argument("--learn-pairs", help="comma-separated finished books: write the skip pairs to --pairs-out and stop")
+    ap.add_argument("--pairs-out", type=Path)
+    ap.add_argument("--hints", type=Path, help="derive_conventions --json profile: a measured default in each function-word question")
+    ap.add_argument("--variant", help="suffix for the cell names, so experiment arms do not overwrite each other")
     a = ap.parse_args()
+    if a.learn_pairs:
+        tags0 = json.loads(a.tags.read_text(encoding="utf-8")) if a.tags else None
+        res = learn_skip_pairs(a.iso, a.publish_iso, a.learn_pairs.split(","), tags0)
+        a.pairs_out.write_text(json.dumps(res, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")
+        print(f"[jev] {len(res['pairs'])} skip pairs -> {a.pairs_out}", file=sys.stderr)
+        return 0
+    skip_pairs = ({(w, st) for w, st, *_ in json.loads(a.skip_pairs.read_text(encoding="utf-8"))["pairs"]}
+                  if a.skip_pairs else None)
     from lexeme_aligner.gapfill import load_priors
     usj = Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
     signals = le.SIGNALS + (("uncovered-fn",) if a.design == "v4" else ())
-    props, _ = le.build_proposals(a.iso, a.publish_iso, usj, [a.book], signals=signals)
+    tags = json.loads(a.tags.read_text(encoding="utf-8")) if a.tags else None
+    props, _ = le.build_proposals(a.iso, a.publish_iso, usj, [a.book], signals=signals, strong_tags=tags)
     if a.chapter:
         props = [p for p in props if p.ch in set(a.chapter)]
     props = props[: a.limit] if a.limit else props
     lex_pos, _ = load_priors(PRIOR_PACK)
     lang = LANG.get(a.publish_iso, a.publish_iso)
-    conv_fp = le._CONVENTIONS_DIR / f"{a.publish_iso}.md"
+    conv_fp = (Path(a.conventions) if a.conventions and a.conventions.endswith(".md")          # a file path (experiments)
+               else le._CONVENTIONS_DIR / f"{a.conventions or a.publish_iso}.md")
     conventions = _CONV + f"\n\nLanguage conventions ({lang}):\n" + (conv_fp.read_text(encoding="utf-8") if conv_fp.exists() else _GENERIC_CONVENTIONS)
     key = api_key()
-    jobs = [(p, build_request(p, lex_pos, lang, conventions, "v1" if a.design == "v3" else a.design)) for p in props]
+    hints = json.loads(a.hints.read_text(encoding="utf-8")) if a.hints else None
+    jobs = [(p, build_request(p, lex_pos, lang, conventions, "v1" if a.design == "v3" else a.design, skip_pairs, hints))
+            for p in props]
     jobs = [(p, b) for p, b in jobs if b["questions"] and p.toks]   # no target text (a verse the translation omits): nothing to ask
     t0 = time.monotonic()
     with ThreadPoolExecutor(a.workers) as ex:
@@ -367,6 +442,8 @@ def main() -> int:
                 usage["input_tokens"] += u.get("input_tokens", 0); usage["output_tokens"] += u.get("output_tokens", 0)
                 usage["requests billed"] += 1
     tag = f"jevA.{a.iso}.{a.book}" + ("" if a.design == "v1" else f".{a.design}")
+    if a.variant:                                        # a named experiment arm (e.g. a conventions variant): its own cells
+        tag += f".{a.variant}"
     summary = {"tag": tag, "model": MODEL, "seconds": round(time.monotonic() - t0, 1), "usage": dict(usage), "cells": {}}
     by_ref = {p.ref: p for p in props}
     for theta in THRESHOLDS:

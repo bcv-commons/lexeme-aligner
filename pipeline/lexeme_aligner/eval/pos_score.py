@@ -144,6 +144,8 @@ class GoldVerse:
     # (strong, k) -> the gold's `source_unit` (bcv-commons/strongs >= 22549b1): "word" = the link covers every morpheme of one source
     # word, "morpheme" = part of a multi-morpheme word, "span" = several words; absent in older files and in our own Door43 rows
     unit: dict[tuple[str, int], str] = field(default_factory=dict)
+    # True when the keys are the SPINE's own (strong, k) (resolved through the source ids, e.g. gold_split): no occurrence guessing
+    exact_keys: bool = False
 
 
 def _book_file(usj_dir: Path, book: str) -> Path:
@@ -423,7 +425,7 @@ def score(gold: dict[int, GoldVerse], ours: Ours, spine: Spine, content_only: bo
                 continue
             # the gold lists only ALIGNED source tokens: if it aligned fewer occurrences of this Strong's than
             # the verse holds, its k and ours may not denote the same token — skip rather than guess
-            if g_count[strong] != spine.counts[ref][strong]:
+            if not gv.exact_keys and g_count[strong] != spine.counts[ref][strong]:
                 m.ambiguous += 1
                 continue
             m.links += 1

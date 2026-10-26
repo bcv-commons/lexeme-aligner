@@ -23,12 +23,17 @@ Every Greek word gets ONE outcome, its class:
   else    the word goes to the verse's `none` list.
 A verse's leading verse number (Salkinson writes it in Hebrew letters) is never linked and never `added`.
 
-LAYOUT  publish/alignments-by-id/n1904/<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json
+LAYOUT  publish/alignments-by-id/<spine>/<iso[0]>/<iso>/<edition>/<BOOK>_<hash>.json, <spine> = n1904 | tr
   {"C:V": {"links": [[[positions], [ids], class], ...], "none": [ids], "added": [positions]}, ...}
+  tr/ (2026-10-26, the KJV): ids are the TR spine's keys (`grc-tr:MAT:1`, as alignments-tr); a link carries a 4th element, the
+  MACULA Nestle 1904 ids of the same words where TR and Nestle agree (same word in the same place, `nestle_map`); with `--tags`
+  (the edition's own Strong's tagging, eBible USFM) a verse has "supplied": [positions] = the words printed in italics.
   C:V = the edition's verse; positions = tokenizer v2 tokens of that verse; a part is the string "token.part" (part numbers of
   the pinned analysis), a whole token the integer; <hash> = the book's text fingerprint (as compact-alignments).
 
     python -m lexeme_aligner.alignments_by_id --edition heb_scg --iso heb
+    python -m lexeme_aligner.alignments_by_id --edition eng_kjv --iso eng --spine tr --align-out pipeline/work/kjv/out-tr \
+        --tags pipeline/work/kjv/eng_kjv_tags.json
     python -m lexeme_aligner.alignments_by_id --publish [--push] [--tag v1.0]   # dry run unless --push; tag after the push
 """
 from __future__ import annotations
@@ -51,6 +56,10 @@ from lexeme_aligner.usj_source import TOKENIZER_VERSION, tokenize
 REPO = Path(__file__).resolve().parents[2]
 OUT = REPO / "publish/alignments-by-id"
 SPINE_FOLDER = "n1904"
+SPINES = {"n1904": dict(db=SPINE_DB, ids="MACULA Greek (Nestle 1904) tree word ids: 'n' + BBCCCVVVWWW, e.g. n40001001001"),
+          "tr": dict(db=REPO / "pipeline/tr-textus-receptus-spine.db",
+                     ids="Textus Receptus spine word keys (grc-tr:<BOOK>:<n>, as bcv-commons/alignments-tr); links carry the MACULA "
+                         "Nestle 1904 ids of the same words as a 4th element where the two texts agree")}
 HF_REPO = "bcv-commons/alignments-by-id"
 FORMAT_VERSION = 1
 CHAIN_METHODS = ("spanext", "eflomal", "gloss", "gapfill")       # full_chain._METHODS: what the compact files resolve
@@ -73,14 +82,42 @@ def _pos(i: int, part) -> int | str:
     return i if part is None else f"{i}.{part}"
 
 
-def verse_links(heb, toks, chain: dict, jev: dict | None, parts: dict, gpos) -> tuple[list, list, list]:
+def _norm_greek(s: str) -> str:
+    import unicodedata as ud
+    s = "".join(c for c in ud.normalize("NFD", s.lower()) if ud.category(c)[0] == "L")
+    return s.replace("ς", "σ")
+
+
+def nestle_map(tr_db: Path = SPINES["tr"]["db"], n_db: Path = SPINE_DB) -> dict[str, str]:
+    """TR key -> Nestle 1904 id for the words the two texts share: per verse, the longest common subsequence of the accent-free
+    word forms (difflib), so a TR-only word (a variant reading) or a reordering leaves those words unmapped."""
+    import difflib
+    def words(db, cond):
+        out = collections.defaultdict(list)
+        for b, c, v, key, surf in sqlite3.connect(db).execute(
+                f"SELECT book, chapter, verse, key, surface FROM spine_words WHERE {cond} ORDER BY book, chapter, verse, idx"):
+            out[(b, c, v)].append((key, _norm_greek(surf)))
+        return out
+    tr, n1904 = words(tr_db, "1"), words(n_db, "lexeme LIKE 'grc:%'")
+    m = {}
+    for vk, tw in tr.items():
+        nw = n1904.get(vk, [])
+        sm = difflib.SequenceMatcher(None, [x[1] for x in tw], [x[1] for x in nw], autojunk=False)
+        for blk in sm.get_matching_blocks():
+            for k in range(blk.size):
+                m[tw[blk.a + k][0]] = "n" + nw[blk.b + k][0]
+    return m
+
+
+def verse_links(heb, toks, chain: dict, jev: dict | None, parts: dict, gpos, idf=lambda k: f"n{k}",
+                nmap: dict | None = None) -> tuple[list, list, list]:
     """One verse -> (links, none, added). `heb` the Greek tokens, `toks` the edition verse's tokens, `chain` {h: {t_idx, t_parts}},
     `jev` the Jev record ({pairs, llm_skipped}) or None, `parts` {token: {part: (text, class)}}, gpos(lexeme) -> prior-pack pos."""
     skip = {0} if toks and toks[0] in {numeral(n) for n in range(1, 177)} else set()
     jp = {p["h_idx"]: p for p in (jev or {}).get("pairs", [])}
     links, none = [], []
     for h, t in enumerate(heb):
-        ids = [f"n{k}" for k in t.keys]
+        ids = [idf(k) for k in t.keys]
         c = chain.get(h)
         cparts = {i: pt for i, pt in (c.get("t_parts") or [])} if c else {}
         j = jp.get(h)
@@ -111,6 +148,8 @@ def verse_links(heb, toks, chain: dict, jev: dict | None, parts: dict, gpos) -> 
             cls = "edited-wide"
         if pos:
             links.append([sorted(set(pos), key=lambda x: (int(str(x).split(".")[0]), str(x))), ids, cls])
+            if nmap is not None:
+                links[-1].append([nmap[k] for k in t.keys if k in nmap])
         else:
             none.extend(ids)
     used = {int(str(x).split(".")[0]) for l in links for x in l[0]}
@@ -118,7 +157,8 @@ def verse_links(heb, toks, chain: dict, jev: dict | None, parts: dict, gpos) -> 
     return links, none, added
 
 
-def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT) -> dict:
+def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT, spine: str = SPINE_FOLDER,
+          tags: Path | None = None) -> dict:
     import pyarrow.parquet as pq
     from lexeme_aligner.compact_align import _merged_pairs, load_contest_rule
     from lexeme_aligner.hebrew_source import HebrewSource
@@ -134,8 +174,11 @@ def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT) 
             if tp._plain(r["text"]):
                 allparts[(r["book"], r["chapter"], r["verse"], r["i"])][r["part"]] = (r["text"], r["class"])
     pos_of = {r["lexeme"]: r["pos"] for r in pq.read_table(PRIOR_PACK, columns=["lexeme", "pos"]).to_pylist()}
-    contest, heb, remap = load_contest_rule(), HebrewSource(), remapper(edition, str(usj))
-    edir = out / SPINE_FOLDER / iso[0] / iso / edition
+    sdb = Path(SPINES[spine]["db"])
+    contest, heb, remap = load_contest_rule(), HebrewSource(spine_db=sdb), remapper(edition, str(usj))
+    idf, nmap = (str, nestle_map(sdb)) if spine == "tr" else ((lambda k: f"n{k}"), None)
+    italics = json.loads(Path(tags).read_text(encoding="utf-8")) if tags else {}
+    edir = out / spine / iso[0] / iso / edition
     edir.mkdir(parents=True, exist_ok=True)
     for old in edir.glob("*.json"):
         old.unlink()
@@ -158,14 +201,21 @@ def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT) 
                 raise SystemExit(f"[by-id] {edition} {book} {rec.tref}: aligned text differs from the published text")
             parts = {i: allparts.get((book,) + rec.tref + (i,), {}) for i in range(len(toks))}
             links, none, added = verse_links(rec.heb, toks, chain.get((rec.ch, rec.v), {}), jev.get((rec.ch, rec.v)), parts,
-                                             pos_of.get)
+                                             pos_of.get, idf, nmap)
             key = f"{rec.tref[0]}:{rec.tref[1]}"
+            ann = italics.get(f"{book} {key}")
+            sup = [i for i, a in enumerate(ann) if a[1]] if ann and len(ann) == len(toks) else []
             if key in doc:                                        # two spine verses on one edition verse: merge
                 d = doc[key]
                 used = {int(str(x).split(".")[0]) for l in d["links"] + links for x in l[0]}
                 doc[key] = dict(links=d["links"] + links, none=d["none"] + none, added=[i for i in d["added"] if i not in used])
             else:
                 doc[key] = dict(links=links, none=none, added=added)
+            if sup:
+                doc[key]["supplied"] = sup
+                stats["supplied tokens"] += len(sup)
+            if nmap is not None:
+                stats["ids with a Nestle id"] += sum(len(l[3]) for l in links)
             for l in links:
                 stats[l[2]] += 1
                 stats["ids linked"] += len(l[1])
@@ -179,17 +229,21 @@ def build(edition: str, iso: str, out: Path = OUT, align_out: Path = ALIGN_OUT) 
     entry = dict(books=sorted(books), classes={c: stats[c] for c in CLASSES}, ids_linked=stats["ids linked"],
                  ids_none=stats["ids none"], ids_on_2plus_tokens=stats["ids on 2+ tokens"], part_positions=stats["part positions"],
                  tokens_added=stats["tokens added"], spine_verses_not_in_edition=missing,
-                 ids_without_edition_verse=stats["ids without an edition verse"], jev=dict(design="v4", theta=0.0, provider="typesafe"), built=tf.today())
+                 ids_without_edition_verse=stats["ids without an edition verse"],
+                 **({"supplied_tokens": stats["supplied tokens"]} if tags else {}),
+                 **({"linked_ids_with_nestle_id": stats["ids with a Nestle id"]} if nmap is not None else {}), jev=dict(design="v4", theta=0.0, provider="typesafe"), built=tf.today())
     if edition in HAND_CHECK:
         entry["hand_check"] = HAND_CHECK[edition]
     if pinned:
         a, e = pinned
         entry["parts"] = dict(dataset=e["dataset"], revision=e["revision"], file=e["file"],
                               sha256=hashlib.sha256(Path(a).read_bytes()).hexdigest(), min_p_split=e.get("min_p_split", 0.9))
-    man_p = out / SPINE_FOLDER / "manifest.json"
+    man_p = out / spine / "manifest.json"
     man = json.loads(man_p.read_text(encoding="utf-8")) if man_p.exists() else {"languages": {}}
     man.update(format_version=FORMAT_VERSION, tokenizer_version=TOKENIZER_VERSION, text_fp_version=tf.TEXT_FP_VERSION,
-               spine=spine_pin(), ids="MACULA Greek (Nestle 1904) tree word ids: 'n' + BBCCCVVVWWW, e.g. n40001001001")
+               spine=spine_pin(sdb), ids=SPINES[spine]["ids"])
+    if nmap is not None:
+        man["nestle_spine"] = spine_pin(SPINE_DB)
     man["languages"].setdefault(iso, {"editions": {}})["editions"][edition] = entry
     man_p.write_text(json.dumps(man, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"[by-id] {edition}: {json.dumps(entry, ensure_ascii=False)}", file=sys.stderr)
@@ -221,11 +275,14 @@ def main(argv=None) -> int:
     ap.add_argument("--publish", action="store_true")
     ap.add_argument("--push", action="store_true")
     ap.add_argument("--tag", help="with --publish: tag the pushed state (e.g. v1.0)")
+    ap.add_argument("--spine", default=SPINE_FOLDER, choices=sorted(SPINES))
+    ap.add_argument("--align-out", type=Path, default=ALIGN_OUT, help="where the chain and Jev cells are")
+    ap.add_argument("--tags", type=Path, help="per-verse Strong's tagging with the italics flag (supplied words)")
     a = ap.parse_args(argv)
     if a.publish:
         publish(a.push, tag=a.tag)
     elif a.edition and a.iso:
-        build(a.edition, a.iso)
+        build(a.edition, a.iso, align_out=a.align_out, spine=a.spine, tags=a.tags)
     else:
         ap.error("--edition and --iso, or --publish")
     return 0

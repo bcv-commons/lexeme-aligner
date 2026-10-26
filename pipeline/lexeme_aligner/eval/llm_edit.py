@@ -107,8 +107,39 @@ def resolve_overlaps(p: Proposal, content: set[int]) -> int:
     return n
 
 
+def apply_strong_tags(p: Proposal, ann: list, st: collections.Counter) -> None:
+    """The edition's own Strong's tagging (eBible `\\w word|strong="G1234"\\w*`, per target word: [[strongs], supplied]) as a second
+    opinion on the proposal. A source word whose Strong's number is tagged in the verse: tag == proposal (its untagged words, e.g. an
+    article the convention puts in the span, aside) -> not doubtful (Jev is not
+    asked); proposal empty and the number unique in the verse -> the tagged words become the proposal (method `tag`), doubtful;
+    otherwise they differ -> doubtful (`tag`). Repeated numbers count as agreeing when the proposal lies inside the tagged words.
+    The tagging is not gold (KJV MAT 1:11 tags ἐπί on "time"), so it never overrides a proposal by itself."""
+    by: dict[str, list[int]] = collections.defaultdict(list)
+    for j, (sts, _sup) in enumerate(ann):
+        for s in sts:
+            by[s].append(j)
+    n = collections.Counter(t.strong for t in p.heb if t.strong)
+    for t in p.heb:
+        js = by.get(t.strong or "")
+        if not js:
+            continue
+        own, tagged = set(p.owner.get(t.idx, [])), set(js)
+        untagged = {j for j in own if not ann[j][0]}
+        if own and (own - untagged == tagged or (n[t.strong] > 1 and own - untagged and own - untagged <= tagged)):
+            p.doubt_h.pop(t.idx, None)
+            st["tag agrees"] += 1
+        elif not own and n[t.strong] == 1:
+            p.owner[t.idx] = sorted(js)
+            p.method[t.idx] = "tag"
+            p.doubt_h[t.idx].add("tag")
+            st["tag fills"] += 1
+        elif own:
+            p.doubt_h[t.idx].add("tag")
+            st["tag differs"] += 1
+
+
 def build_proposals(tag: str, publish_iso: str, usj_dir: Path, books: list[str], *, out_dir: Path | None = None,
-                    signals=SIGNALS, heb=None) -> tuple[list[Proposal], collections.Counter]:
+                    signals=SIGNALS, heb=None, strong_tags: dict | None = None) -> tuple[list[Proposal], collections.Counter]:
     from lexeme_aligner.compact_align import _merged_pairs, load_contest_rule
     from lexeme_aligner.config import OUT
     from lexeme_aligner.eval.word_checks import CHECKS, flagged_idx, language_facts, veto_checks_for
@@ -165,6 +196,11 @@ def build_proposals(tag: str, publish_iso: str, usj_dir: Path, books: list[str],
             if "checks" in signals:
                 for h, chk in flagged_idx(p.heb, {h: s for h, s in p.owner.items() if s}, facts, fn, CHECKS).items():
                     p.doubt_h[h].add(f"check:{chk}")
+        ann = (strong_tags or {}).get(f"{r.book} {r.ch}:{r.v}")
+        if ann is not None and len(ann) == ntok:
+            apply_strong_tags(p, ann, st)
+        elif strong_tags is not None:
+            st["verses without tags"] += 1
         st["overlaps"] += resolve_overlaps(p, content)
         for j in p.added():
             if "unowned" in signals and j not in p.stop_t:

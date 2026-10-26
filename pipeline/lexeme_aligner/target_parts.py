@@ -133,6 +133,30 @@ def view_verse(book: str, ch: int, vs: int, text: str, parts: dict[tuple, dict])
     return " ".join(units), umap
 
 
+def unit_words(view_dir: Path, parts: dict[tuple, dict]) -> dict[tuple, list[dict]]:
+    """(book, ch, v) of the target verse -> per unit of the view: {"in_word": the written word, "word_index": its token position,
+    "part": prefix|stem|suffix|infix, or None for a word that is not divided}. Data for a reader (the LLM check), so it can be shown
+    the text as written and told which word each unit is part of; the split itself is never displayed."""
+    maps = json.loads((Path(view_dir) / VIEW_MAP).read_text(encoding="utf-8"))
+    out = {}
+    for book, verses in maps.items():
+        for cv, umap in verses.items():
+            ch, v = map(int, cv.split(":"))
+            row = []
+            for i, part in umap:
+                p = parts.get((book, ch, v, i))
+                if part is None or not p:
+                    row.append({"word_index": i, "in_word": None, "part": None})
+                    continue
+                core = [pt for pt, _l, _m, c in p["parts"] if c not in FUNCTION_CLASSES]
+                cls = next((c for pt, _l, _m, c in p["parts"] if pt == part), None)
+                kind = ("stem" if cls not in FUNCTION_CLASSES or not core else
+                        "prefix" if part < min(core) else "suffix" if part > max(core) else "infix")
+                row.append({"word_index": i, "in_word": p["token"], "part": kind})
+            out[(book, ch, v)] = row
+    return out
+
+
 def write_view(usj_dir: Path, view_dir: Path, parts: dict[tuple, dict]) -> dict:
     """Write the parts view of an ingested edition: one USJ per book with the same file name and verse structure, whose verse
     texts are the units (view_verse), plus `_units.json` {BOOK: {"C:V": [[token, part|null], ...]}} to fold links back with.

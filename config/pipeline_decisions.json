@@ -2165,7 +2165,10 @@
    "value": false
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=22.62)",
+   "edition_overrides": {
+    "cfm_2": "stem"
+   },
+   "source": "self-derived (target_morph.py tokens/type=20.63)",
    "value": "surface"
   }
  },
@@ -3436,6 +3439,9 @@
    "value": false
   },
   "target_normalization": {
+   "edition_overrides": {
+    "enge2t": "stem"
+   },
    "source": "self-derived (target_morph.py tokens/type=21.76)",
    "value": "surface"
   }
@@ -3703,7 +3709,8 @@
     "fra_jnd",
     "fra_lsg",
     "fra_ncl",
-    "fra_ost"
+    "fra_ost",
+    "frasbl"
    ],
    "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
@@ -3718,7 +3725,8 @@
     "fra_jnd",
     "fra_lsg",
     "fra_ncl",
-    "fra_ost"
+    "fra_ost",
+    "frasbl"
    ],
    "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
@@ -3736,7 +3744,8 @@
     "fra_jnd",
     "fra_lsg",
     "fra_ncl",
-    "fra_ost"
+    "fra_ost",
+    "frasbl"
    ],
    "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
@@ -3750,7 +3759,8 @@
     "fra_jnd",
     "fra_lsg",
     "fra_ncl",
-    "fra_ost"
+    "fra_ost",
+    "frasbl"
    ],
    "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
    "pos": [
@@ -4249,7 +4259,7 @@
  },
  "gux": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=15.45)",
+   "source": "self-derived (target_morph.py tokens/type=24.83)",
    "value": "surface"
   }
  },
@@ -4956,7 +4966,7 @@
    "value": false
   },
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=9.19)",
+   "source": "self-derived (target_morph.py tokens/type=9.13)",
    "value": "stem"
   }
  },
@@ -5229,6 +5239,9 @@
  },
  "jpn": {
   "target_normalization": {
+   "edition_overrides": {
+    "jpnm": "surface"
+   },
    "source": "self-derived (target_morph.py tokens/type=8.99)",
    "value": "stem"
   }
@@ -10991,7 +11004,7 @@
  },
  "srp": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=10.25)",
+   "source": "self-derived (target_morph.py tokens/type=10.32)",
    "value": "stem"
   }
  },
@@ -11365,8 +11378,11 @@
  },
  "tcz": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=14.70)",
-   "value": "surface"
+   "edition_overrides": {
+    "tcziem": "surface"
+   },
+   "source": "self-derived (target_morph.py tokens/type=11.04)",
+   "value": "stem"
   }
  },
  "tdc": {

@@ -613,3 +613,10 @@ pipeline/vendor/bsb-add-books/zin-split-2026-10-26/ — Zinza (zin_wbt) split fi
   bundle/ = bcv-segfacts/0.1 (seg_facts.json: 30 morph entries with Greek features + stats, vocab, classes) + bcv_segment.py + morphs.py.
   licences: text CC BY-SA 4.0 (ebible.org/Scriptures/details.php?id=zin, © 2024 Wycliffe Bible Translators); morph entries CC0;
     word list + classes CC BY-SA (text-derived); code MIT. Gitignored (holds the edition's words).
+
+pipeline/vendor/bsb-add-books/zin-split-2026-10-26b/ — Zinza (zin_wbt) split file, second version, + matching segmenter bundle (2026-10-26)
+  source: bsb-add-books-work scratch/outbox/zin-split-2026-10-26b (same box), with their README.md + SHA256SUMS (all OK on copy).
+  split/ = bcv-split/0.1 (words.parquet sha256 f97b8712...; header text_fp_version 1): 173,368 tokens, 237,236 rows, 28,917 divided;
+    li-fut / aa-fut retired; `split_format check --usj` ALL PASS. Used by the Zinza arms P5a / P5b / P2 (pipeline/work/zin-parts-ab).
+  bundle/ = seg_facts.json + bcv_segment.py + morphs.py; export_split.py + seg_bundle.py beside them. NONE of their code has been executed here
+    (data only). Licences as the first file. Gitignored.

@@ -7304,21 +7304,23 @@
     "cfm": {
       "base_texts": [
         "CFMUBS",
-        "FLMBIV"
+        "FLMBIV",
+        "cfm"
       ],
-      "books": 374,
+      "books": 377,
       "by_base_text": {
         "CFMUBS": 8008,
-        "FLMBIV": 7010
+        "FLMBIV": 7010,
+        "cfm": 255
       },
-      "content_sha256": "bcecb7536f62ffdde09dfe7f080167a9d5a5abc6a8163f873ea8038945c310c0",
+      "content_sha256": "a2aedc4721cfa26d173287a1ff7d794c2e6b912c43e81704fbf3e06f2528a685",
       "file": "iso=cfm/data.parquet",
       "language": "Chin, Falam",
-      "lexemes": 4456,
+      "lexemes": 4500,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 12246,
-      "rows": 15018,
+      "phrases": 12440,
+      "rows": 15273,
       "scattered_dropped": 0,
       "sources": {
         "CFMUBS": {
@@ -7330,6 +7332,11 @@
           "edition": "FLMBIV",
           "license_url": null,
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "cfm": {
+          "edition": "cfm",
+          "license_url": "https://cdn.bibel.wiki/ebible/cfm/cfm/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },
@@ -7912,25 +7919,27 @@
         "cmn_cbt",
         "cmn_cu1",
         "cmn_cuv",
-        "cmn_feb"
+        "cmn_feb",
+        "cmnswcb"
       ],
-      "books": 1068,
+      "books": 1262,
       "by_base_text": {
         "CHNCNV": 30694,
         "cmn_cbs": 33253,
         "cmn_cbt": 34051,
         "cmn_cu1": 27236,
         "cmn_cuv": 27684,
-        "cmn_feb": 9910
+        "cmn_feb": 9910,
+        "cmnswcb": 28413
       },
-      "content_sha256": "4e4333646a9615d436895a5948ab2bd60436d208f587f9b0f4d7cd7a9f900bca",
+      "content_sha256": "f26d37c73f9f3f11ca5649f3f3e27cc3ceb2df0ae52fb5feb40fc4bdd883689e",
       "file": "iso=cmn/data.parquet",
       "language": "Chinese",
-      "lexemes": 11594,
+      "lexemes": 12016,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 68155,
-      "rows": 162828,
+      "phrases": 74250,
+      "rows": 191241,
       "scattered_dropped": 0,
       "sources": {
         "CHNCNV": {
@@ -7962,6 +7971,11 @@
           "edition": "cmn_feb",
           "license_url": "https://ebible.org/Scriptures/details.php?id=cmnfeb",
           "provider": "bible.helloao.org"
+        },
+        "cmnswcb": {
+          "edition": "cmnswcb",
+          "license_url": "https://cdn.bibel.wiki/ebible/cmn/cmnswcb/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },
@@ -11048,9 +11062,12 @@
         "eng_t4t",
         "eng_ulb",
         "eng_wyc2017",
-        "eng_ylt"
+        "eng_ylt",
+        "enge2t",
+        "engoebcw",
+        "engoebus"
       ],
-      "books": 6086,
+      "books": 6440,
       "by_base_text": {
         "BSB": 20266,
         "EN1ESV": 18134,
@@ -11077,16 +11094,19 @@
         "eng_t4t": 45396,
         "eng_ulb": 21220,
         "eng_wyc2017": 22700,
-        "eng_ylt": 11626
+        "eng_ylt": 11626,
+        "enge2t": 67,
+        "engoebcw": 9793,
+        "engoebus": 9935
       },
-      "content_sha256": "439a918a92c4814c0c9872cd371dcdae609f8f684d0f1cf55c016b8b638f8744",
+      "content_sha256": "ec7889b5b9dbb42fcc0a3cb7271b333b7fba6c00eb231c878b60d5a985a8680e",
       "file": "iso=eng/data.parquet",
       "language": "English",
-      "lexemes": 12836,
+      "lexemes": 12862,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 178107,
-      "rows": 523051,
+      "phrases": 181535,
+      "rows": 542846,
       "scattered_dropped": 0,
       "sources": {
         "BSB": {
@@ -11218,6 +11238,21 @@
           "edition": "eng_ylt",
           "license_url": "https://ebible.org/Scriptures/details.php?id=engylt",
           "provider": "bible.helloao.org"
+        },
+        "enge2t": {
+          "edition": "enge2t",
+          "license_url": "https://cdn.bibel.wiki/ebible/eng/enge2t/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
+        },
+        "engoebcw": {
+          "edition": "engoebcw",
+          "license_url": "https://cdn.bibel.wiki/ebible/eng/engoebcw/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
+        },
+        "engoebus": {
+          "edition": "engoebus",
+          "license_url": "https://cdn.bibel.wiki/ebible/eng/engoebus/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },
@@ -11804,23 +11839,25 @@
         "fra_jnd",
         "fra_lsg",
         "fra_ncl",
-        "fra_ost"
+        "fra_ost",
+        "frasbl"
       ],
-      "books": 769,
+      "books": 965,
       "by_base_text": {
         "fra_jnd": 3778,
         "fra_lsg": 4367,
         "fra_ncl": 4496,
-        "fra_ost": 4571
+        "fra_ost": 4571,
+        "frasbl": 5053
       },
-      "content_sha256": "fd270f48bea6cba09a96e8cd21fc6fdc2655dae290fdd138b8dc802b1ad165ec",
+      "content_sha256": "690393e239840f055642ee9df3a5c40522a4426fa6e39d2063408fcf568209e0",
       "file": "iso=fra/data.parquet",
       "language": "French",
-      "lexemes": 3966,
+      "lexemes": 4456,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 12143,
-      "rows": 17212,
+      "phrases": 15134,
+      "rows": 22265,
       "scattered_dropped": 0,
       "sources": {
         "fra_jnd": {
@@ -11842,6 +11879,11 @@
           "edition": "fra_ost",
           "license_url": "https://ebible.org/Scriptures/details.php?id=fra_fob",
           "provider": "bible.helloao.org"
+        },
+        "frasbl": {
+          "edition": "frasbl",
+          "license_url": "https://cdn.bibel.wiki/ebible/fra/frasbl/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },
@@ -13716,27 +13758,34 @@
     "gux": {
       "base_texts": [
         "GUXABB",
+        "gux",
         "gux_ulb"
       ],
-      "books": 155,
+      "books": 234,
       "by_base_text": {
         "GUXABB": 1782,
+        "gux": 1761,
         "gux_ulb": 1716
       },
-      "content_sha256": "7a59f074d4ddca729d03592de1469aa1d8c4dc92ddd9eab9872ff5702f393489",
+      "content_sha256": "fb01816413e690b2396bf800aaef18dba50ce1d39d4276650f85c6333785cde7",
       "file": "iso=gux/data.parquet",
       "language": "Gourmanchéma",
-      "lexemes": 1378,
+      "lexemes": 1640,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 3126,
-      "rows": 3498,
+      "phrases": 4248,
+      "rows": 5259,
       "scattered_dropped": 0,
       "sources": {
         "GUXABB": {
           "edition": "GUXABB",
           "license_url": "http://www.sim.org",
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "gux": {
+          "edition": "gux",
+          "license_url": "https://cdn.bibel.wiki/ebible/gux/gux/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         },
         "gux_ulb": {
           "edition": "gux_ulb",
@@ -15977,22 +16026,29 @@
     },
     "isl": {
       "base_texts": [
+        "isl316",
         "isl_bib"
       ],
-      "books": 105,
+      "books": 109,
       "by_base_text": {
+        "isl316": 453,
         "isl_bib": 5298
       },
-      "content_sha256": "ad8537a17b295d778e531271622c37089623d40816bd1d7b3298e9f3b09ca73d",
+      "content_sha256": "18537f02d7a90a0ae316f2ca924ea07029886e96783ffeb489197e84deb38e3b",
       "file": "iso=isl/data.parquet",
       "language": "Icelandic",
-      "lexemes": 2048,
+      "lexemes": 2134,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 4922,
-      "rows": 5298,
+      "phrases": 5326,
+      "rows": 5751,
       "scattered_dropped": 0,
       "sources": {
+        "isl316": {
+          "edition": "isl316",
+          "license_url": "https://cdn.bibel.wiki/ebible/isl/isl316/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
+        },
         "isl_bib": {
           "edition": "isl_bib",
           "license_url": "https://ebible.org/Scriptures/details.php?id=isl",
@@ -16733,26 +16789,33 @@
     },
     "jpn": {
       "base_texts": [
-        "jpn_loc"
+        "jpn_loc",
+        "jpnm"
       ],
-      "books": 78,
+      "books": 275,
       "by_base_text": {
-        "jpn_loc": 10949
+        "jpn_loc": 10949,
+        "jpnm": 31293
       },
-      "content_sha256": "7b1f7325996514e8260aa24236354ec3e3f65638653eb3671990590d5ea1a408",
+      "content_sha256": "8da81cf40a82b33efa7f48cbbb3a2b609cf8f59674b8d87cf0dbe949adb09bd7",
       "file": "iso=jpn/data.parquet",
       "language": "Japanese",
-      "lexemes": 2412,
+      "lexemes": 6483,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 10192,
-      "rows": 10949,
+      "phrases": 33528,
+      "rows": 42242,
       "scattered_dropped": 0,
       "sources": {
         "jpn_loc": {
           "edition": "jpn_loc",
           "license_url": "https://ebible.org/Scriptures/details.php?id=jpn1965",
           "provider": "bible.helloao.org"
+        },
+        "jpnm": {
+          "edition": "jpnm",
+          "license_url": "https://cdn.bibel.wiki/ebible/jpn/jpnm/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },
@@ -36487,26 +36550,33 @@
     },
     "srp": {
       "base_texts": [
+        "srp1868",
         "srp_865",
         "srp_onspc",
         "srp_onstl"
       ],
-      "books": 585,
+      "books": 780,
       "by_base_text": {
+        "srp1868": 7087,
         "srp_865": 5016,
         "srp_onspc": 9649,
         "srp_onstl": 7784
       },
-      "content_sha256": "697bc7a295fa9b984d9d0a8594326e94e34dcc50d2609b48a010e82988e3a7ca",
+      "content_sha256": "208875f4aa08167311654947491d0fdab2bf26bb67c57177647e4c62e829ef82",
       "file": "iso=srp/data.parquet",
       "language": "Serbian",
-      "lexemes": 4762,
+      "lexemes": 5178,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 20523,
-      "rows": 22449,
+      "phrases": 25914,
+      "rows": 29536,
       "scattered_dropped": 0,
       "sources": {
+        "srp1868": {
+          "edition": "srp1868",
+          "license_url": "https://cdn.bibel.wiki/ebible/srp/srp1868/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
+        },
         "srp_865": {
           "edition": "srp_865",
           "license_url": "https://ebible.org/Scriptures/details.php?id=srp1865",
@@ -37650,26 +37720,33 @@
     },
     "tcz": {
       "base_texts": [
-        "TCZIEM"
+        "TCZIEM",
+        "tczchongthu"
       ],
-      "books": 3,
+      "books": 195,
       "by_base_text": {
-        "TCZIEM": 471
+        "TCZIEM": 471,
+        "tczchongthu": 13121
       },
-      "content_sha256": "827c43bae62bab661ebbce23de7031be13c5f805e929c6a6d5a6ecc780f65d24",
+      "content_sha256": "4aca16d4415253d1525eb44c7d7350039fa3678b481ab8292ce86b682ef81fe3",
       "file": "iso=tcz/data.parquet",
       "language": "Chin, Thado",
-      "lexemes": 334,
+      "lexemes": 3680,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 456,
-      "rows": 471,
+      "phrases": 12413,
+      "rows": 13592,
       "scattered_dropped": 0,
       "sources": {
         "TCZIEM": {
           "edition": "TCZIEM",
           "license_url": null,
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
+        },
+        "tczchongthu": {
+          "edition": "tczchongthu",
+          "license_url": "https://cdn.bibel.wiki/ebible/tcz/tczchongthu/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },
@@ -38243,23 +38320,25 @@
         "OTCV-THA",
         "OTNCV",
         "THATSV",
-        "tha_kjv"
+        "tha_kjv",
+        "thafb"
       ],
-      "books": 792,
+      "books": 989,
       "by_base_text": {
         "OTCV-THA": 19692,
         "OTNCV": 17760,
         "THATSV": 31653,
-        "tha_kjv": 13494
+        "tha_kjv": 13494,
+        "thafb": 13382
       },
-      "content_sha256": "278f2168c20914aa8ec4f139ac43ab02711a4274d51925245a36354c3d870ed2",
+      "content_sha256": "ae1386d1efe80ae96f2d07d54ac57f05a47b6d999010ef6473cb48d962b7447b",
       "file": "iso=tha/data.parquet",
       "language": "Thai",
-      "lexemes": 10036,
+      "lexemes": 10351,
       "method": "spanext+eflomal+gloss+gapfill",
       "min_count": 1,
-      "phrases": 55355,
-      "rows": 82599,
+      "phrases": 61751,
+      "rows": 95981,
       "scattered_dropped": 0,
       "sources": {
         "OTCV-THA": {
@@ -38281,6 +38360,11 @@
           "edition": "tha_kjv",
           "license_url": "https://ebible.org/Scriptures/details.php?id=thaKJV",
           "provider": "bible.helloao.org"
+        },
+        "thafb": {
+          "edition": "thafb",
+          "license_url": "https://cdn.bibel.wiki/ebible/tha/thafb/_meta.json",
+          "provider": "cdn.bibel.wiki/ebible"
         }
       }
     },

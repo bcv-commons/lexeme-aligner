@@ -17,7 +17,7 @@ Then the layer: `fullalign_build --iso <tag> --publish-iso <iso> --usj-dir pipel
 from __future__ import annotations
 
 import argparse
-import collections
+import collections, re
 import hashlib
 import json
 import os
@@ -38,7 +38,7 @@ MODEL = os.environ.get("JEV_MODEL", "jev-latest")
 THRESHOLDS = (0.0, 0.5, 0.7, 0.9)
 if os.environ.get("JEV_BASELINE_CELL"):          # experiments: also write the proposal unchanged (θ > 1), for a no-Jev baseline
     THRESHOLDS = THRESHOLDS + (1.01,)
-LANG = {"hin": "Hindi", "eng": "English", "heb": "Modern Hebrew", "ell": "Modern Greek", "kvg": "Kuni-Boazi"}
+LANG = {"hin": "Hindi", "eng": "English", "heb": "Modern Hebrew", "ell": "Modern Greek", "kvg": "Kuni-Boazi", "zin": "Zinza"}
 # v4 function-word question: what "written inside a word" looks like in this translation language (heb text is unchanged, so its cache holds)
 INSIDE_EXAMPLES = {"Modern Hebrew": " (for example ה for an article, ב/ל/מ/כ for a preposition, ו for and)",
                    "Modern Greek": " (for example a verb ending that carries a subject pronoun)"}
@@ -118,8 +118,34 @@ def _hint(hints: dict | None, side: str, testament: str, key: str, min_n: int = 
     return f" Measured on a hand-made alignment of this language, it is usually: {text}." if text else ""
 
 
+def le_strip(w: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", w) if not unicodedata.combining(c))
+
+
+_ID_OPTION = re.compile(r"[th]\d+(-\d+)?")
+LEAN_NOTE = ("\n\nAn option named t<n> (or t<n>-<m>, consecutive words) is the word with that id in `translation_words`; an option "
+             "named h<n> is the word with that id in `source_words`.")
+
+
+def _written(p: le.Proposal, units: list | None) -> str:
+    """The verse as written: the target words, or for a parts view each written word once (its parts are units of one word)."""
+    if not units:
+        return " ".join(p.toks)
+    out, seen = [], set()
+    for w, u in zip(p.toks, units):
+        if u["in_word"] is None:
+            out.append(w)
+        elif u["word_index"] not in seen:
+            seen.add(u["word_index"]); out.append(u["in_word"])
+    return " ".join(out)
+
+
 def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, design: str = "v1",
-                  skip_pairs: set | None = None, hints: dict | None = None) -> dict:
+                  skip_pairs: set | None = None, hints: dict | None = None, units: list | None = None, lean: str | None = None) -> dict:
+    """`units` (a parts view, `target_parts.unit_words`): `translation_text` is the verse as written and every translation word that
+    is a part of a written word carries `in_word` and `part`; positions and every lookup stay on `p.toks`."""
+    units = units if units and len(units) == len(p.toks) else None
     src_lang = "Hebrew" if p.ref < 40_000_000 else "Greek"
     testament = "OT" if p.ref < 40_000_000 else "NT"
     owner_of = {j: h for h, s in p.owner.items() for j in s}
@@ -127,12 +153,13 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
         "reference": f"{p.book} {p.ch}:{p.v}",
         "source_language": src_lang, "translation_language": lang,
         "conventions": conventions,
-        "translation_text": " ".join(p.toks),
+        "translation_text": _written(p, units),
         "source_words": [{"id": f"h{t.idx}", "word": t.surface, "lemma": t.lemma, "strong": t.strong,
                           "part_of_speech": lex_pos.get(t.lexeme), "grammar": _gram_tag(t).strip(" []") or None,
                           "gloss": t.gloss_en, "proposed_rendering": _words(p, p.owner.get(t.idx, [])) or None}
                          for t in p.heb],
-        "translation_words": [{"id": f"t{j}", "word": w, "proposed_source": f"h{owner_of[j]}" if j in owner_of else None}
+        "translation_words": [{"id": f"t{j}", "word": w, "proposed_source": f"h{owner_of[j]}" if j in owner_of else None,
+                               **({"in_word": units[j]["in_word"], "part": units[j]["part"]} if units and units[j]["in_word"] else {})}
                               for j, w in enumerate(p.toks)],
     }
     tw = {f"t{j}": w for j, w in enumerate(p.toks)}
@@ -190,6 +217,13 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
             f"Translation word t{j} ({p.toks[j]!r}) in `translation_words`: which word of `source_words` does it render, by its "
             f"meaning or by the grammatical function it carries? Follow `conventions`."
             + (_hint(hints, "target", testament, p.toks[j].lower()) if j in p.stop_t else "")}
+    if lean:                                             # 2026-10-26: options are billed per question, the state once per request.
+        gl = {f"h{t.idx}": (t.gloss_en or le_strip(t.surface)) for t in p.heb}
+        for q in qs.values():                            # ids: every word option a bare id; src: a source-word option its gloss only
+            if "criteria" in q:                          # (the word itself is in `source_words`), target-word options unchanged
+                q["criteria"] = {k: (None if lean == "ids" and _ID_OPTION.fullmatch(k) else
+                                     gl.get(k, v) if lean == "src" and k in gl else v) for k, v in q["criteria"].items()}
+        state["conventions"] += LEAN_NOTE
     return {"model": MODEL, "state": state, "questions": qs}
 
 
@@ -383,6 +417,11 @@ def main() -> int:
     ap.add_argument("--pairs-out", type=Path)
     ap.add_argument("--hints", type=Path, help="derive_conventions --json profile: a measured default in each function-word question")
     ap.add_argument("--variant", help="suffix for the cell names, so experiment arms do not overwrite each other")
+    ap.add_argument("--lean", choices=["ids", "src"], help="ids: word options as bare ids (-38%% input tokens on BSB RUT, but F1 -.02); "
+                                                           "src: source-word options as their gloss only. A different arm: use --variant")
+    ap.add_argument("--usj-dir", type=Path, help="the text the proposals were made on (default: the ingest cache); a parts view for --parts")
+    ap.add_argument("--parts", type=Path, help="the split file the --usj-dir parts view was written from: the verse is sent as written "
+                                               "and each part carries in_word / part (target_parts.unit_words); positions unchanged")
     a = ap.parse_args()
     if a.learn_pairs:
         tags0 = json.loads(a.tags.read_text(encoding="utf-8")) if a.tags else None
@@ -393,7 +432,7 @@ def main() -> int:
     skip_pairs = ({(w, st) for w, st, *_ in json.loads(a.skip_pairs.read_text(encoding="utf-8"))["pairs"]}
                   if a.skip_pairs else None)
     from lexeme_aligner.gapfill import load_priors
-    usj = Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
+    usj = a.usj_dir or Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
     signals = le.SIGNALS + (("uncovered-fn",) if a.design == "v4" else ())
     tags = json.loads(a.tags.read_text(encoding="utf-8")) if a.tags else None
     props, _ = le.build_proposals(a.iso, a.publish_iso, usj, [a.book], signals=signals, strong_tags=tags)
@@ -407,7 +446,12 @@ def main() -> int:
     conventions = _CONV + f"\n\nLanguage conventions ({lang}):\n" + (conv_fp.read_text(encoding="utf-8") if conv_fp.exists() else _GENERIC_CONVENTIONS)
     key = "" if os.environ.get("JEV_CACHE_ONLY") else api_key()
     hints = json.loads(a.hints.read_text(encoding="utf-8")) if a.hints else None
-    jobs = [(p, build_request(p, lex_pos, lang, conventions, "v1" if a.design == "v3" else a.design, skip_pairs, hints))
+    units = {}
+    if a.parts:
+        from lexeme_aligner import target_parts as tp
+        units = tp.unit_words(usj, tp.load_parts(a.parts))
+    jobs = [(p, build_request(p, lex_pos, lang, conventions, "v1" if a.design == "v3" else a.design, skip_pairs, hints,
+                              units.get((p.book, p.ch, p.v)), a.lean))
             for p in props]
     jobs = [(p, b) for p, b in jobs if b["questions"] and p.toks]   # no target text (a verse the translation omits): nothing to ask
     t0 = time.monotonic()

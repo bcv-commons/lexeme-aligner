@@ -27,6 +27,8 @@ With a split file, an edition gets **two alignments**: one by written words (as 
 | `sha256` | sha256 of `words.parquet` |
 | `text_licence` | the edition's text licence. **The file holds the edition's words** (`word`, `text`), so it is published only where that licence allows; otherwise it stays with its producer (local mode). |
 | `books` | the books covered |
+| `text_fp` | `{BOOK: hash}`: each book's text fingerprint, the 8-hex hash compact-alignments names its files with (compact README, "The text fingerprint", version `text_fp_version`). A reader without the text can then tell that a file was made on another text of the "same" edition (a newer working copy, other books). |
+| `text_fp_version` | the fingerprint version (today `1`) |
 | `date` | when the file was written |
 
 ## Rows (`words.parquet`)
@@ -53,6 +55,7 @@ One row per part, in reading order. A token that is not divided has one row (slo
 | `source` | str | no | this part's producer, when not the header's |
 | `basis` | str | no | this part's basis, when not the header's |
 | `p_split` | float | no | on part 0: the producer's confidence that the token is divided this way. Below the reader's threshold the token is used whole. |
+| `p` | float | no | on any row: the producer's confidence in this part (its boundaries and slot), 0–1. With per-part `basis`, a reader can trust a team-confirmed prefix while still weighing a tagger's stem. |
 
 **Bases**, strongest first: `team` (a translation team decided it), `derived` (counted on the corpus, figures in the fact file),
 `external` (an outside analysis, e.g. MACULA), `model` (a statistical tagger), `labelled` (an agent's tag not yet tested). A reader
@@ -73,6 +76,8 @@ For every token:
 4. The NFC of the result must equal `word`, exactly.
 5. `token` must equal the tokenizer's output for `word` (one token), and, when the edition's USJ is given (`--usj`), the tokenizer's
    token `i` of that verse.
+6. With `--usj`, every book's `text_fp` must equal the fingerprint of that book's USJ; a book whose hash differs is reported, and
+   its rows are still checked.
 
 A file passes only if every token passes.
 

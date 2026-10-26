@@ -38,3 +38,9 @@ def test_a_hyphenated_affix_is_its_own_token_with_a_host_and_whole_stands_alone(
 
 def test_part_numbers_must_run_without_gaps():
     assert "part numbers not 0..n-1" in sf.check_token([_p(0, "prefix", "a", "ab"), _p(2, "stem", "b", "ab")], tokenize)
+
+
+def test_a_confidence_per_part_must_lie_in_0_1():
+    w = "ab"
+    assert sf.check_token([_p(0, "prefix", "a", w, p=1.0, basis="team"), _p(1, "stem", "b", w, p=0.6, basis="model")], tokenize) == []
+    assert "confidence outside 0..1" in sf.check_token([_p(0, "prefix", "a", w, p=1.4), _p(1, "stem", "b", w)], tokenize)

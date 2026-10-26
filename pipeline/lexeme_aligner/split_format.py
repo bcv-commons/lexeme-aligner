@@ -63,6 +63,8 @@ def check_token(parts: list[dict], tokenize) -> list[str]:
             bad.append("an affix written apart without its host")
         if p.get("basis") not in (None, *BASES):
             bad.append("unknown basis")
+        if any(p.get(k) is not None and not 0 <= p[k] <= 1 for k in ("p", "p_split")):
+            bad.append("confidence outside 0..1")
         if p["slot"] == "tone" and (p["text"] or not p.get("tone")):
             bad.append("tone part with text or without marks")
     word = parts[0]["word"]
@@ -91,9 +93,19 @@ def check(d: Path, usj: Path | None = None, show: int = 20) -> int:
         problems[f"header: tokenizer_version {head.get('tokenizer_version')} (this checker: {TOKENIZER_VERSION})"] += 1
     if head.get("sha256") != hashlib.sha256(fp.read_bytes()).hexdigest():
         problems["header: sha256 does not match words.parquet"] += 1
-    for k in ("edition", "source", "basis", "text_licence"):
+    for k in ("edition", "source", "basis", "text_licence", "text_fp"):
         if not head.get(k):
             problems[f"header: no {k}"] += 1
+    if usj and head.get("text_fp"):
+        from lexeme_aligner.text_fingerprint import book_file_hash
+        files = {f.stem.split("-", 1)[-1]: f for f in usj.glob("*.json")}
+        for book, want in sorted(head["text_fp"].items()):
+            if book not in files:
+                problems["header: text_fp book not in --usj"] += 1
+            elif book_file_hash(files[book]) != want:
+                problems["header: text_fp differs from --usj (another text)"] += 1
+                if len(examples) < show:
+                    examples.append(f"{book}: text_fp {want}, --usj {book_file_hash(files[book])}")
     rows = pq.read_table(fp).to_pylist()
     missing = [c for c in REQUIRED if rows and c not in rows[0]]
     if missing:

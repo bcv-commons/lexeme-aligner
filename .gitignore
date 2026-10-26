@@ -37,6 +37,8 @@ pipeline/vendor/prior-pack/.cache/
 pipeline/vendor/prior-pack/.gitattributes
 # bcv-query's hebrew-nt-analysis (HF, CC BY 4.0): part analyses of Hebrew NT editions, fetched at the tag config/target_parts.json pins
 pipeline/vendor/hebrew-nt-analysis/
+# bsb-add-books split files + segmenter bundles (bcv-split/0.1, bcv-segfacts/0.1), copied from their outbox; pinned by sha256 in config/PROVENANCE.txt
+pipeline/vendor/bsb-add-books/
 # copied-in spine.db / hbo.db — provided out-of-band, never committed
 pipeline/*.db
 

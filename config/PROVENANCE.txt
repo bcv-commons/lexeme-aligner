@@ -605,3 +605,11 @@ pipeline/vendor/bibles/js/{tokenize.js, text_fingerprint.mjs} — bcv-commons/bi
   publish/compact-alignments/ before every compact publish (they ship in the main repo). Our generator pipeline/scripts/gen_js_tokenizer.py was removed.
   Same day: usj_source.tokenize / strip_marks and text_fingerprint's fingerprint functions now ARE the vendored python bcv_tokenize.py (parity before the
   switch: 2,420 editions, 1.65M verses, 44.3M tokens, 0 differences); tests/test_fp_naming.py checks JS == Python fingerprints with node.
+
+pipeline/vendor/bsb-add-books/zin-split-2026-10-26/ — Zinza (zin_wbt) split file + segmenter bundle from bsb-add-books (2026-10-26)
+  source: bsb-add-books-work scratch/outbox/zin-split-2026-10-26 (same box), with their README.md + SHA256SUMS (all OK on copy).
+  split/ = bcv-split/0.1 (_split.json + words.parquet sha256 be8c38a3...): 173,368 tokens, 240,383 rows, 29,684 divided;
+    `split_format check --usj usj-zin_wbt` ALL PASS; text_fp == our compact zin_wbt file names, 27/27 books.
+  bundle/ = bcv-segfacts/0.1 (seg_facts.json: 30 morph entries with Greek features + stats, vocab, classes) + bcv_segment.py + morphs.py.
+  licences: text CC BY-SA 4.0 (ebible.org/Scriptures/details.php?id=zin, © 2024 Wycliffe Bible Translators); morph entries CC0;
+    word list + classes CC BY-SA (text-derived); code MIT. Gitignored (holds the edition's words).

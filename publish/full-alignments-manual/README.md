@@ -157,10 +157,16 @@ English chunk, converted without guessing (`lexeme_aligner.eval.bsb_tables`):
   row extension), so a link can be checked against the table.
 - **Text basis.** `_basis.json` lists per verse the table words that are not in the spine (`table_only`, by row id) and the spine
   tokens no table row covers (`spine_only`, by slot): a difference of text, not a missed link.
-- **Two words on one token.** The spine joins some adjacent words into one token (repeated names "Ἰσαάκ, Ἰσαὰκ" in MAT 1:2, compound
-  names "בֵּית אֵל"). Both table rows sit on that token: the first is its link, the second is in `rows` (match `fused`, its own
-  `R`), with its supplied words too (`s<pos>`; they are not `+` words of the token); read both rows for the token's words. In
-  general a row's supplied words appear as `+` words only beside a token that shows that row.
+- **Two words on one token.** The spine joins some adjacent words into one token: repeated names ("Ἰσαάκ, Ἰσαὰκ" in MAT 1:2),
+  compound names ("בֵּית אֵל"), and other neighbouring words with the same Strong's number (articles "ὁ τοῦ" in 1CO 1:18, "τὰ τοῦ";
+  "πνευματικοῖς πνευματικὰ" in 1CO 2:13; "אֱלֹהִים אֱלֹהַי" in 1CH 28:20). There are 602 such tokens in the NT and 1,840 in the OT.
+  A token's words are listed in compact-alignments' `_index/<BOOK>_keys.json` (content tokens) and `_fn_keys.json` (function
+  tokens), joined by `+`: `46001018004+46001018005` (NT: Nestle 1904 ids without `n`), `130280200141+130280200151` (OT: MACULA
+  morpheme keys). Each table row sits on that token: the first is its link, the others are in `rows` (match `fused`, their own
+  `R`), with their supplied words too (`s<pos>`; they are not `+` words of the token). Read every row of the token before
+  dividing its words among the joined source words; the span belongs to the token, not to its first word (in 1CO 1:18 "of the"
+  is τοῦ's, and ὁ's row is the `-` in `rows`). In general a row's supplied words appear as `+` words only beside a token that
+  shows that row.
 
 Revised 2026-10-26 (asked for by bsb-add-books): before, rows were matched by (Strong's number, k-th occurrence) and a Hebrew prefix or
 suffix was attached to a neighbouring row. That swapped repeated numbers (εἶπεν / λέγω, εἶδον / ἰδοὺ, genealogy names) and gave

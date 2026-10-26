@@ -596,6 +596,8 @@ LLM_ROOT = Path("publish/full-alignments-llm")
 def llm_rows(cell: str, book: str, out_dir: Path, cell_label: str | None = None) -> list[dict]:
     """Full-align rows of one llm_edit-shaped record file (`align_llm_<cell>_<BOOK>.jsonl`): every pair (kept / edited / `inside`
     = a shared link to a word another source token owns) plus every `llm_skipped` token as an explicit no-rendering (`t_idx: []`).
+    A record's `llm_none` (target words the checker said render no source word) becomes one row with no source token, encoded as an
+    owner-less `+` entry; the record's other unlinked target words were never asked about and stay undecided.
     Attribution per verse from the record's `llm` block: `answered_by` (the model version that answered) when present. `cell_label` is
     what the rows record as their cell (the `{BOOK}` template for per-book cells: one value per layer, not one profile set per book)."""
     from lexeme_aligner.align_files import tag_files
@@ -619,6 +621,10 @@ def llm_rows(cell: str, book: str, out_dir: Path, cell_label: str | None = None)
                     rows.append(make_row(rec["ref"], rec["book"], p, attr))
                 for sk in rec.get("llm_skipped", []):
                     p = dict(sk, t_idx=[], target=None, method="llm", content=None)
+                    rows.append(make_row(rec["ref"], rec["book"], p, attr))
+                if rec.get("llm_none"):                          # target words the checker said render no source word: one row,
+                    p = {"h_idx": None, "t_idx": rec["llm_none"], "method": "llm", "score": 0.75,   # no source token -> a `+` entry
+                         "prior": "llm_edit_none", "target_only": True}                             # with no owner
                     rows.append(make_row(rec["ref"], rec["book"], p, attr))
     return rows
 
@@ -657,7 +663,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
         groups_of[book], refs_of[book] = groups, refs
         for r in rows:                                   # llm_edit records leave out fields the format derives anyway (gloss_en; most
             g = groups.get(f"{r['book']} {r['chapter']}:{r['verse']}")      # fields of a skipped token): fill ONLY the missing ones,
-            tok = g.tok_of.get(r["h_idx"]) if g else None                    # so every field a record does carry is still checked
+            tok = g.tok_of.get(r["h_idx"]) if g and r["h_idx"] is not None else None                    # so every field a record does carry is still checked
             if tok is None:
                 continue
             for k, v in (("content", bool(tok.is_content)), ("lemma", tok.lemma), ("stem", tok.stem), ("surface", tok.surface),

@@ -175,7 +175,8 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
             if q is None or t.is_content:
                 continue
             gloss = f", gloss {t.gloss_en!r}" if t.gloss_en else ""
-            qs.pop(f"r{t.idx}", None)                    # decide() never reads it for a function word (2026-10-26: 9% of questions)
+            if not os.environ.get("JEV_COMPAT_R"):       # (JEV_COMPAT_R: the body as before 2026-10-26, to rebuild older cells from cache)
+                qs.pop(f"r{t.idx}", None)                # decide() never reads it for a function word (2026-10-26: 9% of questions)
             q["criteria"] = {"none": "the translation leaves it out: no separate word and no prefix or suffix carries it", **tw}
             q["instructions"] = (f"Source function word h{t.idx} ({t.surface}{gloss}) in `source_words`: which word of `translation_words` "
                                  f"renders it, either as a separate word or as a prefix or suffix written inside that word"
@@ -198,7 +199,8 @@ def ask_split(body: dict, key: str, max_parts: int = 8) -> dict:
     fits is asked exactly as before (same body, same cache file)."""
     res = ask(body, key)
     parts = 2
-    while "_error" in res and "max_tokens_exceeded" in res["_error"] and parts <= max_parts:
+    while ("_error" in res and parts <= max_parts and ("max_tokens_exceeded" in res["_error"]   # cache-only: the verse may have been
+           or (os.environ.get("JEV_CACHE_ONLY") and "answer cache" in res["_error"]))):          # asked in parts (only those cached)
         ids = list(body["questions"])
         size = -(-len(ids) // parts)
         subs = [ask({**body, "questions": {q: body["questions"][q] for q in ids[i:i + size]}}, key) for i in range(0, len(ids), size)]
@@ -222,6 +224,8 @@ def ask(body: dict, key: str) -> dict:
     fp = WORK / "responses" / (hashlib.sha256(raw).hexdigest()[:24] + ".json")
     if fp.exists():
         return {**json.loads(fp.read_text(encoding="utf-8")), "_cached": True}
+    if os.environ.get("JEV_CACHE_ONLY"):                 # rebuild cells from cached answers only: a request not in the cache is
+        return {"_error": "not in the answer cache (JEV_CACHE_ONLY)"}               # an error, never a billed call
     req = urllib.request.Request(URL, data=raw, method="POST",
                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     for attempt in range(4):
@@ -401,7 +405,7 @@ def main() -> int:
     conv_fp = (Path(a.conventions) if a.conventions and a.conventions.endswith(".md")          # a file path (experiments)
                else le._CONVENTIONS_DIR / f"{a.conventions or a.publish_iso}.md")
     conventions = _CONV + f"\n\nLanguage conventions ({lang}):\n" + (conv_fp.read_text(encoding="utf-8") if conv_fp.exists() else _GENERIC_CONVENTIONS)
-    key = api_key()
+    key = "" if os.environ.get("JEV_CACHE_ONLY") else api_key()
     hints = json.loads(a.hints.read_text(encoding="utf-8")) if a.hints else None
     jobs = [(p, build_request(p, lex_pos, lang, conventions, "v1" if a.design == "v3" else a.design, skip_pairs, hints))
             for p in props]
@@ -453,7 +457,9 @@ def main() -> int:
             tally.update(c)
             inside: dict[int, int] = {}
             owner, changed, cnt = le.apply_edits(by_ref[ref], edits, inside)
-            finals[ref] = (owner, changed, inside)
+            owned = {j for s in owner.values() for j in s}
+            none_t = {e.t[0] for e in edits if e.kind == "added"} - owned - set(inside.values())   # "renders no source word"
+            finals[ref] = (owner, changed, inside, none_t)
             tally["inside links"] += len(inside)
             tally["source tokens changed"] += len(changed)
         cell = f"{tag}.jev-{theta:g}"

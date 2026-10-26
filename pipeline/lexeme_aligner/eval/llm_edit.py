@@ -528,11 +528,14 @@ def apply_edits(p: Proposal, edits: list[Edit], inside: dict[int, int] | None = 
 
 # --- output ---------------------------------------------------------------------------------------------------------------
 def to_records(proposals: list[Proposal], finals: dict[int, tuple[dict, set]], run_meta: dict) -> dict[str, list[dict]]:
-    """{BOOK: [verse record]} in gapfill's shape (pairs / llm_skipped / llm_added), read by pos_score `--method llm:<tag>`."""
+    """{BOOK: [verse record]} in gapfill's shape (pairs / llm_skipped / llm_added), read by pos_score `--method llm:<tag>`.
+    `llm_added` = every target word no link holds; `llm_none` (2026-10-26) = those the checker itself said render no source word
+    (the rest of llm_added were never asked about). finals[ref] = (owner, changed[, inside[, none_t]])."""
     by_book: dict[str, list[dict]] = collections.defaultdict(list)
     for p in proposals:
         owner, changed, *rest = finals.get(p.ref, (p.owner, set()))
         inside = rest[0] if rest else {}
+        none_t = rest[1] if len(rest) > 1 else set()
         pairs, skipped = [], []
         for t in p.heb:
             s = owner.get(t.idx, [])
@@ -553,7 +556,7 @@ def to_records(proposals: list[Proposal], finals: dict[int, tuple[dict, set]], r
         owned = {j for s in owner.values() for j in s}
         by_book[p.book].append({"ref": p.ref, "book": p.book, "chapter": p.ch, "verse": p.v, "pairs": pairs,
                                 "llm_skipped": skipped, "llm_added": [j for j in range(len(p.toks)) if j not in owned],
-                                "llm": run_meta})
+                                **({"llm_none": sorted(none_t)} if none_t else {}), "llm": run_meta})
     return by_book
 
 

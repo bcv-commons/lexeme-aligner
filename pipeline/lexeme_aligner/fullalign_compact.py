@@ -349,6 +349,15 @@ def simple_crow(row: dict, group: Group, base: dict, has_ids: bool) -> CRow:
     row's own (content) token; `word_h_idx` itself is not kept in the profile — the srcs carry it."""
     h = row["h_idx"]
     extra = row.get("extra")
+    if h is None and extra and json.loads(extra).get("target_only"):
+        # 2026-10-26: target words said to render no source word (an LLM layer's `llm_none`): no source token, the words as `sup`,
+        # encoded as an owner-less `+` entry (added_only)
+        d = json.loads(extra); d.pop("target_only")
+        c = CRow(ref=group.ref, src=[], span=[], sup=sorted(row["t_idx"]))
+        tmpl, c.pargs = split_prior(row.get("prior"))
+        c.prof = (row["method"], row["score"], tmpl, json.dumps(d, ensure_ascii=False, sort_keys=True) if d else None,
+                  attr_diff(row["attribution"], base))
+        return c
     src = [group.slot_of[h]]
     key = None
     if extra and "word_h_idx" in extra:

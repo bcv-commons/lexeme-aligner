@@ -526,6 +526,25 @@ def publish_layer(layer: str, isos: list[str], push: bool, chunk: int) -> dict:
     return result
 
 
+def tag_repo(repo: str, tag: str, push: bool, ok_: bool = True) -> dict:
+    """Tag the repo's current state (clients pin a tag, not a commit). Only after a verified push; an existing tag is never moved
+    (2026-10-26, the same rule as alignments_by_id.publish)."""
+    if not push:
+        print(f"[publish_safe] dry run: would tag {repo} as {tag}", file=sys.stderr)
+        return {"tag": tag, "repo": repo, "tagged": False}
+    if not ok_:
+        print(f"[publish_safe] {repo}: verification failed, NOT tagged", file=sys.stderr)
+        return {"tag": tag, "repo": repo, "tagged": False, "verified": False}
+    from huggingface_hub import HfApi
+    api = HfApi()
+    if tag in {t.name for t in api.list_repo_refs(repo, repo_type="dataset").tags}:
+        print(f"[publish_safe] {repo}: tag {tag} already exists; tags are never moved, choose a new one", file=sys.stderr)
+        return {"tag": tag, "repo": repo, "tagged": False, "verified": False}
+    api.create_tag(repo, tag=tag, repo_type="dataset", tag_message=f"{repo.split('/')[-1]} {tag}")
+    print(f"[publish_safe] tagged {repo} {tag}", file=sys.stderr)
+    return {"tag": tag, "repo": repo, "tagged": True}
+
+
 def main() -> int:
     from lexeme_aligner.hf_bulk_publish import install_timeout
     install_timeout()                       # every HF call of this run (manifest download, preflight, verify), not only the commits
@@ -538,6 +557,7 @@ def main() -> int:
                     help="allow a schema change for this one dataset; refused unless every language on HF and local is in the publish")
     ap.add_argument("--allow-stale", action="store_true", help="also publish languages unchanged since 14 Sept")
     ap.add_argument("--push", action="store_true", help="actually publish (default is a dry run)")
+    ap.add_argument("--tag", help="after a verified push, tag each pushed dataset's repo (e.g. v1.0); an existing tag is never moved")
     ap.add_argument("--list-ready", action="store_true",
                     help="no publishing: run the preflight over EVERY language in the local manifest, print why the others are blocked and "
                          "write the ready list to --ready-out")
@@ -594,6 +614,9 @@ def main() -> int:
     results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch, schema_change=(n == args.schema_change)) for n in names]
     if "compact-alignments" in names:                          # the two optional sidecar layers live in their own repos
         results += [publish_layer(layer, ok, args.push, args.chunk_size) for layer in compact_layers.LAYERS]
+    if args.tag:
+        results += [tag_repo(DATASETS[r["dataset"]][0], args.tag, args.push, ok_=r.get("verified", True)) for r in results
+                    if r.get("dataset") in DATASETS]
     log = REPO / f"pipeline/work/logs/publish_safe_{time.strftime('%Y%m%d_%H%M%S')}.json"
     log.write_text(json.dumps({"pushed": args.push, "languages": ok, "left_out": skipped, "results": results}, indent=1), encoding="utf-8")
     print(f"[publish_safe] {'PUSHED' if args.push else 'dry run only — nothing pushed (add --push)'}; log {log.relative_to(REPO)}", file=sys.stderr)

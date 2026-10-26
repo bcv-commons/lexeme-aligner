@@ -26,15 +26,19 @@ A layer id is `<edition>+llm+<name>`, where `<edition>` is the compact-alignment
 
 | layer | text | model and method | rows |
 |---|---|---|---|
-| `ell_GreVamvas+llm+jev-v4` | Neophytos Vamvas 1850, Modern Greek (public domain; CrossWire GreVamvas via bcv-commons/bibles), 66 books | TypeSafe Jev (`jev-1.13.0`), design v4 | 605,084 |
-| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4 | 140,497 |
-| `eng_kjv+llm+jev-v4` | King James Version, 1769 text (public domain outside the UK; eBible `eng-kjv2006` via bible.helloao.org), **Old Testament**, 39 books. Its New Testament was aligned to the Textus Receptus and is in [alignments-by-id](https://huggingface.co/datasets/bcv-commons/alignments-by-id) (`tr/e/eng/eng_kjv`) | TypeSafe Jev (`jev-1.14.0`), design v4; the KJV's own Strong's tagging cleared a word's doubt where the proposal matched it, and function-word links Jev kept at least 97% of the time on Ruth, Jonah, Esther and 1 Samuel were not asked again in the other books | 467,680 |
+| `ell_GreVamvas+llm+jev-v4` | Neophytos Vamvas 1850, Modern Greek (public domain; CrossWire GreVamvas via bcv-commons/bibles), 66 books | TypeSafe Jev (`jev-1.13.0`), design v4 | 624,632 |
+| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4 | 148,342 |
+| `eng_kjv+llm+jev-v4` | King James Version, 1769 text (public domain outside the UK; eBible `eng-kjv2006` via bible.helloao.org), **Old Testament**, 39 books. Its New Testament was aligned to the Textus Receptus and is in [alignments-by-id](https://huggingface.co/datasets/bcv-commons/alignments-by-id) (`tr/e/eng/eng_kjv`) | TypeSafe Jev (`jev-1.14.0`), design v4; the KJV's own Strong's tagging cleared a word's doubt where the proposal matched it, and function-word links Jev kept at least 97% of the time on Ruth, Jonah, Esther and 1 Samuel were not asked again in the other books | 483,700 |
 
 **Design v4:** for each verse the model is asked about every target function word and every source function word, and about each
 content link the chain flagged as doubtful: which source word a target word belongs to, or which target word carries a source word.
 Each row records in its profile (`_layer.json`) whether the link was **kept** from the chain (`llm_edit_kept`, with the chain method
 that proposed it), **edited** by the model (`llm_edit_edited`) or is a function word carried **inside** another word, for example by a
-prefix or suffix (`llm_edit_inside`). A source word the model leaves unrendered is an explicit no-rendering (`!`). Verses with nothing to
+prefix or suffix (`llm_edit_inside`). A source word the model leaves unrendered is an explicit no-rendering (`!`). A **target** word the
+model says renders no source word is a `+` word with no owner (profile `llm_edit_none`; e.g. RUT 1:1 KJV `+1-3,...`: "it came to").
+A target word that is in no link and no `+` entry was **not decided**: the model was not asked about it (v4 asks about every target
+function word, but about a content word only when the chain flagged it or the link holding it as doubtful). Added 2026-10-26 (asked for by
+bsb-add-books); the links are unchanged, the answers were already given and are only recorded now. Verses with nothing to
 ask (mostly name lists) or no target text keep the chain's proposal. Model version, design and threshold are in each layer's
 `_layer.json`. The questions are built by `lexeme_aligner.eval.jev_check` and the layer by `lexeme_aligner.fullalign_build`
 (github.com/bcv-commons/lexeme-aligner).
@@ -54,6 +58,11 @@ All versions, and the measured rules, are in [alignment-conventions](https://hug
 
 `<hash>` = the first 8 hex characters of the book's text fingerprint (compact-alignments README, "The text fingerprint"), the same
 name the compact file of that text has, so a file only matches the exact text it was built on. No file holds a word of any text.
+
+## Versions
+
+Each release is a git tag of this repo (`v1.0`, …); pin a tag (`revision="v1.0"`) rather than `main`. A tag is never moved: a
+rebuild becomes a new tag. `v1.0` (2026-10-26) is the first tag; it adds the owner-less `+` words to all three layers.
 
 ## Verse mapping
 

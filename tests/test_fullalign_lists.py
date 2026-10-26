@@ -143,3 +143,17 @@ def test_an_all_supplied_row_shows_its_words_under_its_owner():
     assert "+1>f0" in meta["fn"][0].split()
     assert meta["rows"] == ["f0:!:a:s1"]
     assert _canon(dec) == _canon(rows)
+
+
+def test_target_words_said_to_render_nothing_become_an_ownerless_plus_entry():
+    # an LLM layer's `llm_none` row (fullalign_build.llm_rows): no source token, the words as supplied
+    g = group()
+    attr = {k: BASE.get(k) for k in BASE}
+    row = {"h_idx": None, "t_idx": [3, 1], "method": "llm", "score": 0.75, "prior": "llm_edit_none",
+           "extra": json.dumps({"target_only": True}), "attribution": attr}
+    c = fc.simple_crow(row, g, BASE, False)
+    assert c.src == [] and c.span == [] and c.sup == [1, 3] and fc.added_only(c)
+    rows = [fc.CRow("RUT 1:1", [("c", 0)], span=[0], prof=P), c]
+    enc, main, meta, dec = _rt({"RUT 1:1": rows}, ["RUT 1:1"], {"RUT 1:1": g}, lists=True)
+    assert "+1,3" in meta["fn"][0]
+    assert _canon(dec) == _canon(rows)

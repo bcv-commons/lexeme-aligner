@@ -114,3 +114,6 @@ config/text_strip_evidence.json
 
 # gram-struct dataset staging (pipeline/scripts/tools/stage_gram_struct.py) — regenerated from config/gram_struct
 publish/gram-struct/
+
+# alignment-conventions: rebuilt from config/llm_conventions (+ versions/, measured/) by `python -m lexeme_aligner.conventions --build`
+publish/alignment-conventions/[a-z]*/

@@ -44,7 +44,12 @@ ask (mostly name lists) or no target text keep the chain's proposal. Model versi
 <iso[0]>/<iso>/<layer id>/<BOOK>_<hash>.json        main: "srcOrd:span ..." per spine verse, as in compact-alignments
 <iso[0]>/<iso>/<layer id>/<BOOK>_<hash>.meta.json   channels (function words, profiles, rows), see full-alignments-manual
 <iso[0]>/<iso>/<layer id>/_layer.json               version, flags, spine index sha, attribution, profile table
+<iso[0]>/<iso>/<layer id>/_conventions.json         the conventions text each book was checked with, as attributed rules
 ```
+
+`_conventions.json`: `books` maps every book to the version (`<lang>/<name>/<sha8>`) of the conventions text the checker was given
+for it, and `sets` repeats those versions as rules, each marked `measured`, `by-construction` or `llm-authored` with its derivation.
+All versions, and the measured rules, are in [alignment-conventions](https://huggingface.co/datasets/bcv-commons/alignment-conventions).
 
 `<hash>` = the first 8 hex characters of the book's text fingerprint (compact-alignments README, "The text fingerprint"), the same
 name the compact file of that text has, so a file only matches the exact text it was built on. No file holds a word of any text.

@@ -1,0 +1,5821 @@
+{
+ "base_text": "BSB",
+ "books": [
+  "GEN",
+  "1SA",
+  "PSA",
+  "ISA",
+  "MAT",
+  "JHN",
+  "ROM",
+  "HEB"
+ ],
+ "gold_source": "Clear-Bible/Alignments (manual), base text BSB",
+ "gold_license": "CC-BY-4.0",
+ "method": "NT: the gold's links as given; OT: the gold's word-level links split into MACULA morphemes by lexeme_aligner.eval.gold_split (each link records how it was split)",
+ "script": {
+  "modules": "lexeme_aligner.eval.derive_conventions, lexeme_aligner.eval.gold_split",
+  "sha256_16": {
+   "derive_conventions.py": "915758b869ae2321",
+   "gold_split.py": "8d515bac9498875d"
+  }
+ },
+ "date": "2026-10-26",
+ "target": {
+  "OT": {
+   "in": {
+    "n": 2025,
+    "what": {
+     "its own source word": 1241,
+     "part of a noun's span": 414,
+     "part of a name's span": 128,
+     "part of a adj's span": 42,
+     "part of a verb's span": 187,
+     "nothing": 13
+    },
+    "lemmas": {
+     "בְּ": 1020,
+     "עַל": 48,
+     "אֶל": 30
+    }
+   },
+   "the": {
+    "n": 9119,
+    "what": {
+     "part of a noun's span": 3508,
+     "its own source word": 1992,
+     "part of a verb's span": 528,
+     "part of a name's span": 2585,
+     "part of a adj's span": 470,
+     "nothing": 33,
+     "part of a num's span": 1,
+     "part of a conj's span": 2
+    },
+    "lemmas": {
+     "הַ": 1724,
+     "לְ": 22,
+     "בְּ": 22
+    }
+   },
+   "and": {
+    "n": 5674,
+    "what": {
+     "its own source word": 4015,
+     "part of a noun's span": 606,
+     "part of a verb's span": 551,
+     "part of a name's span": 415,
+     "part of a adj's span": 68,
+     "nothing": 19
+    },
+    "lemmas": {
+     "וְ": 3717,
+     "גַּם": 23,
+     "לֹא": 20
+    }
+   },
+   "now": {
+    "n": 278,
+    "what": {
+     "its own source word": 209,
+     "part of a noun's span": 22,
+     "part of a name's span": 36,
+     "part of a verb's span": 10,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "וְ": 109,
+     "עַתָּה": 65,
+     "נָא": 17
+    }
+   },
+   "of": {
+    "n": 4160,
+    "what": {
+     "part of a noun's span": 1654,
+     "part of a name's span": 1613,
+     "part of a verb's span": 226,
+     "its own source word": 424,
+     "part of a adj's span": 191,
+     "nothing": 49,
+     "part of a adv's span": 3
+    },
+    "lemmas": {
+     "מִן": 128,
+     "לְ": 119,
+     "עַל": 25
+    }
+   },
+   "let": {
+    "n": 310,
+    "what": {
+     "part of a verb's span": 155,
+     "part of a name's span": 33,
+     "part of a noun's span": 67,
+     "nothing": 2,
+     "part of a adj's span": 17,
+     "its own source word": 36
+    },
+    "lemmas": {
+     "אַל": 21,
+     "לֹא": 3,
+     "לְ": 3
+    }
+   },
+   "there": {
+    "n": 347,
+    "what": {
+     "part of a verb's span": 62,
+     "part of a noun's span": 30,
+     "its own source word": 236,
+     "part of a adj's span": 3,
+     "nothing": 4,
+     "part of a name's span": 12
+    },
+    "lemmas": {
+     "שָׁם": 113,
+     "אַיִן": 70,
+     "הִנֵּה": 19
+    }
+   },
+   "be": {
+    "n": 982,
+    "what": {
+     "part of a verb's span": 803,
+     "part of a noun's span": 77,
+     "its own source word": 74,
+     "part of a name's span": 11,
+     "nothing": 5,
+     "part of a adj's span": 12
+    },
+    "lemmas": {
+     "אַל": 15,
+     "לְ": 10,
+     "אַיִן": 7
+    }
+   },
+   "that": {
+    "n": 950,
+    "what": {
+     "its own source word": 571,
+     "part of a noun's span": 132,
+     "part of a verb's span": 169,
+     "part of a name's span": 53,
+     "part of a adj's span": 23,
+     "nothing": 2
+    },
+    "lemmas": {
+     "כִּי": 154,
+     "אֲשֶׁר": 106,
+     "הוּא": 93
+    }
+   },
+   "he": {
+    "n": 1714,
+    "what": {
+     "part of a noun's span": 59,
+     "part of a verb's span": 1203,
+     "its own source word": 352,
+     "part of a name's span": 82,
+     "nothing": 4,
+     "part of a adj's span": 14
+    },
+    "lemmas": {
+     "הוּא": 227,
+     "לֹא": 73,
+     "כִּי": 8
+    }
+   },
+   "from": {
+    "n": 999,
+    "what": {
+     "its own source word": 749,
+     "part of a name's span": 46,
+     "part of a noun's span": 132,
+     "part of a verb's span": 54,
+     "part of a adj's span": 18
+    },
+    "lemmas": {
+     "מִן": 708,
+     "לְ": 6,
+     "עַל": 5
+    }
+   },
+   "to": {
+    "n": 3304,
+    "what": {
+     "part of a verb's span": 636,
+     "its own source word": 2044,
+     "part of a noun's span": 314,
+     "part of a name's span": 245,
+     "part of a adj's span": 42,
+     "nothing": 18,
+     "part of a det's span": 1,
+     "part of a conj's span": 2,
+     "part of a adv's span": 2
+    },
+    "lemmas": {
+     "לְ": 1218,
+     "אֶל": 589,
+     "עַד": 59
+    }
+   },
+   "it": {
+    "n": 714,
+    "what": {
+     "part of a noun's span": 75,
+     "part of a verb's span": 253,
+     "part of a adj's span": 25,
+     "its own source word": 329,
+     "part of a name's span": 20,
+     "nothing": 12
+    },
+    "lemmas": {
+     "הוּא": 218,
+     "לֹא": 35,
+     "הִיא": 9
+    }
+   },
+   "one": {
+    "n": 380,
+    "what": {
+     "its own source word": 138,
+     "part of a noun's span": 76,
+     "part of a adj's span": 47,
+     "part of a verb's span": 84,
+     "part of a name's span": 34,
+     "nothing": 1
+    },
+    "lemmas": {
+     "אֶחָד": 61,
+     "אַיִן": 32,
+     "לֹא": 12
+    }
+   },
+   "then": {
+    "n": 519,
+    "what": {
+     "part of a noun's span": 86,
+     "part of a name's span": 199,
+     "its own source word": 201,
+     "part of a verb's span": 31,
+     "part of a adj's span": 1,
+     "nothing": 1
+    },
+    "lemmas": {
+     "וְ": 146,
+     "אָז": 20,
+     "עַתָּה": 3
+    }
+   },
+   "with": {
+    "n": 1079,
+    "what": {
+     "part of a noun's span": 315,
+     "its own source word": 542,
+     "part of a verb's span": 115,
+     "part of a name's span": 62,
+     "part of a adj's span": 41,
+     "nothing": 4
+    },
+    "lemmas": {
+     "בְּ": 197,
+     "עִם": 129,
+     "אֵת": 108
+    }
+   },
+   "their": {
+    "n": 719,
+    "what": {
+     "its own source word": 552,
+     "part of a noun's span": 91,
+     "part of a verb's span": 48,
+     "nothing": 4,
+     "part of a name's span": 18,
+     "part of a adj's span": 6
+    },
+    "lemmas": {
+     "הוּא": 540,
+     "עַל": 2,
+     "אֵת": 1
+    }
+   },
+   "them": {
+    "n": 761,
+    "what": {
+     "part of a verb's span": 200,
+     "its own source word": 518,
+     "part of a noun's span": 14,
+     "part of a adj's span": 7,
+     "nothing": 13,
+     "part of a name's span": 9
+    },
+    "lemmas": {
+     "הוּא": 482,
+     "אַל": 5,
+     "אֵת": 4
+    }
+   },
+   "as": {
+    "n": 558,
+    "what": {
+     "part of a noun's span": 213,
+     "its own source word": 168,
+     "part of a verb's span": 83,
+     "part of a name's span": 75,
+     "part of a adj's span": 15,
+     "part of a adv's span": 1,
+     "nothing": 3
+    },
+    "lemmas": {
+     "אֲשֶׁר": 52,
+     "גַּם": 18,
+     "עַד": 13
+    }
+   },
+   "these": {
+    "n": 136,
+    "what": {
+     "its own source word": 9,
+     "part of a adj's span": 93,
+     "part of a name's span": 5,
+     "part of a noun's span": 19,
+     "part of a verb's span": 6,
+     "nothing": 4
+    },
+    "lemmas": {
+     "הֵנָּה": 3,
+     "אֵת": 2,
+     "לְ": 1
+    }
+   },
+   "every": {
+    "n": 136,
+    "what": {
+     "part of a noun's span": 117,
+     "its own source word": 12,
+     "part of a verb's span": 4,
+     "nothing": 1,
+     "part of a name's span": 2
+    },
+    "lemmas": {
+     "סָבִיב": 5,
+     "בְּ": 1,
+     "אֲשֶׁר": 1
+    }
+   },
+   "which": {
+    "n": 74,
+    "what": {
+     "its own source word": 42,
+     "part of a noun's span": 7,
+     "part of a name's span": 4,
+     "part of a verb's span": 19,
+     "part of a adj's span": 2
+    },
+    "lemmas": {
+     "אֲשֶׁר": 30,
+     "לֹא": 3,
+     "עַל": 2
+    }
+   },
+   "on": {
+    "n": 706,
+    "what": {
+     "its own source word": 382,
+     "part of a name's span": 38,
+     "part of a noun's span": 136,
+     "part of a verb's span": 130,
+     "part of a adj's span": 16,
+     "nothing": 4
+    },
+    "lemmas": {
+     "עַל": 180,
+     "בְּ": 98,
+     "הוּא": 28
+    }
+   },
+   "our": {
+    "n": 286,
+    "what": {
+     "its own source word": 250,
+     "part of a verb's span": 6,
+     "part of a noun's span": 23,
+     "part of a adj's span": 2,
+     "nothing": 1,
+     "part of a name's span": 4
+    },
+    "lemmas": {
+     "הוּא": 247,
+     "אֲנַחְנוּ": 1,
+     "כִּי": 1
+    }
+   },
+   "all": {
+    "n": 868,
+    "what": {
+     "part of a noun's span": 777,
+     "part of a verb's span": 35,
+     "part of a adj's span": 16,
+     "its own source word": 30,
+     "part of a name's span": 7,
+     "nothing": 3
+    },
+    "lemmas": {
+     "אֲשֶׁר": 6,
+     "יָחְדָּו": 4,
+     "עַל": 2
+    }
+   },
+   "his": {
+    "n": 1713,
+    "what": {
+     "its own source word": 1425,
+     "part of a noun's span": 137,
+     "part of a name's span": 46,
+     "part of a adj's span": 11,
+     "part of a verb's span": 90,
+     "nothing": 4
+    },
+    "lemmas": {
+     "הוּא": 1390,
+     "שְׁנַיִם": 10,
+     "עַל": 4
+    }
+   },
+   "him": {
+    "n": 884,
+    "what": {
+     "its own source word": 639,
+     "part of a name's span": 42,
+     "part of a verb's span": 133,
+     "nothing": 42,
+     "part of a noun's span": 24,
+     "part of a adj's span": 4
+    },
+    "lemmas": {
+     "הוּא": 617,
+     "אֵת": 4,
+     "לֹא": 3
+    }
+   },
+   "i": {
+    "n": 1975,
+    "what": {
+     "part of a verb's span": 1264,
+     "its own source word": 629,
+     "part of a name's span": 16,
+     "part of a noun's span": 44,
+     "nothing": 15,
+     "part of a adj's span": 6,
+     "part of a prep's span": 1
+    },
+    "lemmas": {
+     "אֲנִי": 180,
+     "הוּא": 154,
+     "לֹא": 110
+    }
+   },
+   "have": {
+    "n": 948,
+    "what": {
+     "part of a verb's span": 740,
+     "its own source word": 140,
+     "part of a noun's span": 48,
+     "part of a adj's span": 5,
+     "part of a name's span": 13,
+     "nothing": 2
+    },
+    "lemmas": {
+     "לֹא": 70,
+     "לְ": 13,
+     "אַתָּה": 6
+    }
+   },
+   "you": {
+    "n": 2534,
+    "what": {
+     "its own source word": 1393,
+     "part of a verb's span": 954,
+     "part of a noun's span": 98,
+     "part of a adj's span": 29,
+     "nothing": 25,
+     "part of a name's span": 34,
+     "part of a conj's span": 1
+    },
+    "lemmas": {
+     "הוּא": 911,
+     "אַתָּה": 212,
+     "לֹא": 90
+    }
+   },
+   "they": {
+    "n": 1110,
+    "what": {
+     "part of a verb's span": 740,
+     "its own source word": 281,
+     "part of a adj's span": 18,
+     "part of a noun's span": 53,
+     "part of a name's span": 15,
+     "nothing": 2,
+     "part of a prep's span": 1
+    },
+    "lemmas": {
+     "הוּא": 93,
+     "לֹא": 77,
+     "הֵמָּה": 38
+    }
+   },
+   "for": {
+    "n": 1492,
+    "what": {
+     "its own source word": 1108,
+     "part of a noun's span": 170,
+     "part of a name's span": 34,
+     "part of a verb's span": 155,
+     "part of a adj's span": 20,
+     "nothing": 3,
+     "part of a conj's span": 1,
+     "part of a adv's span": 1
+    },
+    "lemmas": {
+     "כִּי": 572,
+     "לְ": 320,
+     "עַל": 31
+    }
+   },
+   "by": {
+    "n": 340,
+    "what": {
+     "its own source word": 157,
+     "part of a noun's span": 107,
+     "part of a name's span": 35,
+     "part of a verb's span": 34,
+     "nothing": 3,
+     "part of a adj's span": 4
+    },
+    "lemmas": {
+     "בְּ": 79,
+     "לְ": 23,
+     "עַל": 17
+    }
+   },
+   "been": {
+    "n": 122,
+    "what": {
+     "part of a verb's span": 102,
+     "its own source word": 6,
+     "part of a noun's span": 9,
+     "part of a name's span": 2,
+     "part of a adj's span": 3
+    },
+    "lemmas": {
+     "שָׁם": 1,
+     "עִמָּד": 1,
+     "עִם": 1
+    }
+   },
+   "because": {
+    "n": 208,
+    "what": {
+     "its own source word": 173,
+     "part of a noun's span": 14,
+     "part of a name's span": 6,
+     "nothing": 3,
+     "part of a verb's span": 11,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "כִּי": 104,
+     "מִן": 17,
+     "עַל": 12
+    }
+   },
+   "this": {
+    "n": 455,
+    "what": {
+     "part of a adj's span": 243,
+     "its own source word": 92,
+     "part of a verb's span": 45,
+     "part of a noun's span": 61,
+     "part of a name's span": 10,
+     "part of a adv's span": 1,
+     "nothing": 3
+    },
+    "lemmas": {
+     "כֹּה": 43,
+     "כֵּן": 10,
+     "הוּא": 6
+    }
+   },
+   "is": {
+    "n": 1270,
+    "what": {
+     "part of a noun's span": 367,
+     "part of a verb's span": 308,
+     "part of a name's span": 81,
+     "its own source word": 367,
+     "part of a adj's span": 137,
+     "nothing": 6,
+     "part of a adv's span": 3,
+     "part of a prep's span": 1
+    },
+    "lemmas": {
+     "אַיִן": 69,
+     "לֹא": 45,
+     "כֹּה": 43
+    }
+   },
+   "no": {
+    "n": 347,
+    "what": {
+     "part of a noun's span": 20,
+     "its own source word": 293,
+     "part of a verb's span": 24,
+     "part of a name's span": 5,
+     "part of a adj's span": 1,
+     "part of a adv's span": 1,
+     "nothing": 3
+    },
+    "lemmas": {
+     "לֹא": 133,
+     "אַיִן": 123,
+     "אַל": 15
+    }
+   },
+   "any": {
+    "n": 51,
+    "what": {
+     "part of a noun's span": 33,
+     "part of a name's span": 2,
+     "part of a adj's span": 4,
+     "part of a verb's span": 7,
+     "its own source word": 5
+    },
+    "lemmas": {
+     "יֵשׁ": 2,
+     "אֲשֶׁר": 1,
+     "בְּ": 1
+    }
+   },
+   "not": {
+    "n": 967,
+    "what": {
+     "its own source word": 881,
+     "part of a verb's span": 59,
+     "part of a name's span": 7,
+     "part of a adj's span": 6,
+     "part of a noun's span": 13,
+     "nothing": 1
+    },
+    "lemmas": {
+     "לֹא": 614,
+     "אַל": 163,
+     "אַיִן": 23
+    }
+   },
+   "but": {
+    "n": 647,
+    "what": {
+     "its own source word": 424,
+     "part of a name's span": 80,
+     "part of a noun's span": 86,
+     "part of a verb's span": 50,
+     "nothing": 2,
+     "part of a adj's span": 5
+    },
+    "lemmas": {
+     "וְ": 322,
+     "כִּי": 25,
+     "לֹא": 12
+    }
+   },
+   "a": {
+    "n": 1542,
+    "what": {
+     "part of a noun's span": 892,
+     "part of a name's span": 185,
+     "part of a prep's span": 1,
+     "part of a verb's span": 189,
+     "part of a adj's span": 139,
+     "its own source word": 130,
+     "nothing": 5,
+     "part of a num's span": 1
+    },
+    "lemmas": {
+     "לְ": 48,
+     "אֶחָד": 18,
+     "אֶלֶף": 10
+    }
+   },
+   "are": {
+    "n": 703,
+    "what": {
+     "its own source word": 133,
+     "part of a noun's span": 191,
+     "part of a verb's span": 261,
+     "part of a adj's span": 59,
+     "part of a name's span": 55,
+     "part of a adv's span": 4
+    },
+    "lemmas": {
+     "אַתָּה": 23,
+     "לֹא": 14,
+     "הִנֵּה": 7
+    }
+   },
+   "also": {
+    "n": 72,
+    "what": {
+     "part of a verb's span": 32,
+     "its own source word": 33,
+     "part of a name's span": 6,
+     "part of a noun's span": 1
+    },
+    "lemmas": {
+     "גַּם": 25,
+     "אַף": 4,
+     "אַתָּה": 1
+    }
+   },
+   "my": {
+    "n": 1689,
+    "what": {
+     "its own source word": 1501,
+     "part of a verb's span": 59,
+     "part of a noun's span": 99,
+     "nothing": 2,
+     "part of a name's span": 22,
+     "part of a adj's span": 6
+    },
+    "lemmas": {
+     "הוּא": 1480,
+     "עַל": 3,
+     "כִּי": 3
+    }
+   },
+   "we": {
+    "n": 299,
+    "what": {
+     "part of a verb's span": 203,
+     "its own source word": 84,
+     "part of a noun's span": 8,
+     "nothing": 1,
+     "part of a name's span": 2,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "הוּא": 30,
+     "אֲנַחְנוּ": 24,
+     "לֹא": 12
+    }
+   },
+   "who": {
+    "n": 855,
+    "what": {
+     "its own source word": 218,
+     "part of a noun's span": 52,
+     "part of a verb's span": 505,
+     "part of a name's span": 22,
+     "part of a adj's span": 57,
+     "nothing": 1
+    },
+    "lemmas": {
+     "מִי": 96,
+     "אֲשֶׁר": 74,
+     "לֹא": 12
+    }
+   },
+   "whom": {
+    "n": 81,
+    "what": {
+     "its own source word": 60,
+     "part of a name's span": 5,
+     "part of a verb's span": 12,
+     "part of a noun's span": 4
+    },
+    "lemmas": {
+     "אֲשֶׁר": 30,
+     "מִי": 24,
+     "הֵם": 1
+    }
+   },
+   "me": {
+    "n": 1250,
+    "what": {
+     "its own source word": 1087,
+     "part of a verb's span": 128,
+     "part of a noun's span": 13,
+     "nothing": 16,
+     "part of a adj's span": 4,
+     "part of a name's span": 2
+    },
+    "lemmas": {
+     "הוּא": 1035,
+     "אֲנִי": 7,
+     "בֵּין": 6
+    }
+   },
+   "if": {
+    "n": 192,
+    "what": {
+     "its own source word": 137,
+     "part of a noun's span": 17,
+     "part of a name's span": 7,
+     "part of a verb's span": 30,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "אִם": 89,
+     "כִּי": 6,
+     "כֹּה": 5
+    }
+   },
+   "at": {
+    "n": 284,
+    "what": {
+     "its own source word": 130,
+     "part of a name's span": 58,
+     "part of a noun's span": 64,
+     "part of a adj's span": 9,
+     "part of a verb's span": 20,
+     "nothing": 3
+    },
+    "lemmas": {
+     "בְּ": 52,
+     "לְ": 24,
+     "עַל": 19
+    }
+   },
+   "against": {
+    "n": 258,
+    "what": {
+     "its own source word": 153,
+     "part of a name's span": 38,
+     "part of a noun's span": 35,
+     "part of a verb's span": 24,
+     "part of a prep's span": 1,
+     "nothing": 1,
+     "part of a adj's span": 6
+    },
+    "lemmas": {
+     "עַל": 73,
+     "בְּ": 37,
+     "אֶל": 14
+    }
+   },
+   "am": {
+    "n": 233,
+    "what": {
+     "part of a verb's span": 78,
+     "part of a noun's span": 31,
+     "its own source word": 91,
+     "part of a name's span": 22,
+     "part of a adj's span": 9,
+     "nothing": 2
+    },
+    "lemmas": {
+     "אֲנִי": 27,
+     "אָנֹכִי": 21,
+     "הִנֵּה": 21
+    }
+   },
+   "those": {
+    "n": 252,
+    "what": {
+     "part of a verb's span": 148,
+     "part of a noun's span": 26,
+     "part of a name's span": 12,
+     "its own source word": 30,
+     "part of a adj's span": 36
+    },
+    "lemmas": {
+     "אֲשֶׁר": 9,
+     "לֹא": 4,
+     "לְ": 4
+    }
+   },
+   "come": {
+    "n": 252,
+    "what": {
+     "part of a verb's span": 225,
+     "part of a noun's span": 12,
+     "part of a name's span": 3,
+     "its own source word": 10,
+     "part of a adj's span": 2
+    },
+    "lemmas": {
+     "אֶל": 3,
+     "מְהֵרָה": 1,
+     "עַד": 1
+    }
+   },
+   "before": {
+    "n": 266,
+    "what": {
+     "its own source word": 191,
+     "part of a noun's span": 45,
+     "part of a name's span": 14,
+     "part of a adj's span": 3,
+     "part of a verb's span": 13
+    },
+    "lemmas": {
+     "לְ": 120,
+     "נֶגֶד": 34,
+     "בְּ": 16
+    }
+   },
+   "even": {
+    "n": 90,
+    "what": {
+     "its own source word": 54,
+     "part of a noun's span": 13,
+     "part of a verb's span": 10,
+     "part of a name's span": 8,
+     "nothing": 3,
+     "part of a adj's span": 2
+    },
+    "lemmas": {
+     "גַּם": 26,
+     "כִּי": 5,
+     "עַד": 3
+    }
+   },
+   "things": {
+    "n": 59,
+    "what": {
+     "part of a noun's span": 16,
+     "part of a verb's span": 11,
+     "nothing": 1,
+     "its own source word": 5,
+     "part of a adj's span": 24,
+     "part of a name's span": 2
+    },
+    "lemmas": {
+     "עִם": 2,
+     "אֲשֶׁר": 1,
+     "עַל": 1
+    }
+   },
+   "unto": {
+    "n": 4,
+    "what": {
+     "its own source word": 4
+    },
+    "lemmas": {
+     "לְ": 4
+    }
+   }
+  },
+  "NT": {
+   "this": {
+    "n": 367,
+    "what": {
+     "part of a noun's span": 9,
+     "its own source word": 312,
+     "part of a verb's span": 40,
+     "part of a adj's span": 1,
+     "nothing": 5
+    },
+    "lemmas": {
+     "οὗτος": 198,
+     "ὁ": 24,
+     "οὕτω": 16
+    }
+   },
+   "is": {
+    "n": 769,
+    "what": {
+     "part of a noun's span": 45,
+     "part of a verb's span": 458,
+     "its own source word": 195,
+     "part of a adj's span": 58,
+     "part of a name's span": 6,
+     "nothing": 7
+    },
+    "lemmas": {
+     "ὁ": 42,
+     "οὐ": 21,
+     "ἐν": 13
+    }
+   },
+   "the": {
+    "n": 3561,
+    "what": {
+     "part of a noun's span": 497,
+     "part of a name's span": 53,
+     "part of a verb's span": 183,
+     "its own source word": 2651,
+     "part of a adj's span": 163,
+     "nothing": 14
+    },
+    "lemmas": {
+     "ὁ": 2410,
+     "αὐτός": 39,
+     "ὅς": 31
+    }
+   },
+   "of": {
+    "n": 1433,
+    "what": {
+     "part of a noun's span": 415,
+     "part of a name's span": 134,
+     "part of a verb's span": 91,
+     "its own source word": 705,
+     "nothing": 12,
+     "part of a adj's span": 76
+    },
+    "lemmas": {
+     "ὁ": 362,
+     "ἐκ": 95,
+     "διά": 40
+    }
+   },
+   "and": {
+    "n": 2039,
+    "what": {
+     "its own source word": 1666,
+     "part of a verb's span": 278,
+     "part of a adj's span": 23,
+     "nothing": 17,
+     "part of a noun's span": 48,
+     "part of a name's span": 7
+    },
+    "lemmas": {
+     "καί": 1396,
+     "δέ": 107,
+     "ὁ": 29
+    }
+   },
+   "his": {
+    "n": 528,
+    "what": {
+     "its own source word": 426,
+     "part of a noun's span": 45,
+     "part of a verb's span": 31,
+     "nothing": 9,
+     "part of a name's span": 5,
+     "part of a adj's span": 12
+    },
+    "lemmas": {
+     "αὐτός": 316,
+     "ὁ": 75,
+     "ἑαυτοῦ": 10
+    }
+   },
+   "by": {
+    "n": 281,
+    "what": {
+     "its own source word": 201,
+     "part of a noun's span": 47,
+     "part of a adj's span": 6,
+     "part of a name's span": 1,
+     "part of a verb's span": 25,
+     "nothing": 1
+    },
+    "lemmas": {
+     "ἐν": 50,
+     "διά": 35,
+     "ἐκ": 27
+    }
+   },
+   "at": {
+    "n": 169,
+    "what": {
+     "its own source word": 127,
+     "part of a verb's span": 21,
+     "part of a noun's span": 9,
+     "part of a adj's span": 8,
+     "nothing": 3,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "ἐν": 45,
+     "τότε": 12,
+     "ἐπί": 8
+    }
+   },
+   "to": {
+    "n": 1650,
+    "what": {
+     "part of a name's span": 39,
+     "its own source word": 891,
+     "part of a verb's span": 553,
+     "part of a noun's span": 109,
+     "part of a adj's span": 51,
+     "nothing": 7
+    },
+    "lemmas": {
+     "ὁ": 161,
+     "εἰς": 149,
+     "αὐτός": 127
+    }
+   },
+   "whom": {
+    "n": 77,
+    "what": {
+     "its own source word": 72,
+     "part of a verb's span": 4,
+     "part of a noun's span": 1
+    },
+    "lemmas": {
+     "ὅς": 51,
+     "τίς": 10,
+     "ὁ": 6
+    }
+   },
+   "who": {
+    "n": 570,
+    "what": {
+     "its own source word": 416,
+     "part of a verb's span": 125,
+     "part of a adj's span": 10,
+     "part of a noun's span": 12,
+     "part of a name's span": 5,
+     "nothing": 2
+    },
+    "lemmas": {
+     "ὁ": 288,
+     "τίς": 44,
+     "ὅς": 31
+    }
+   },
+   "in": {
+    "n": 822,
+    "what": {
+     "part of a adj's span": 28,
+     "part of a verb's span": 65,
+     "its own source word": 650,
+     "part of a name's span": 15,
+     "part of a noun's span": 60,
+     "nothing": 4
+    },
+    "lemmas": {
+     "ἐν": 384,
+     "εἰς": 61,
+     "ὁ": 39
+    }
+   },
+   "all": {
+    "n": 238,
+    "what": {
+     "part of a adj's span": 176,
+     "part of a noun's span": 9,
+     "its own source word": 41,
+     "part of a verb's span": 8,
+     "nothing": 3,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "ὁ": 9,
+     "ὅσος": 7,
+     "οὗτος": 5
+    }
+   },
+   "then": {
+    "n": 259,
+    "what": {
+     "its own source word": 243,
+     "part of a verb's span": 8,
+     "part of a noun's span": 3,
+     "part of a name's span": 1,
+     "nothing": 4
+    },
+    "lemmas": {
+     "οὖν": 72,
+     "τότε": 61,
+     "καί": 58
+    }
+   },
+   "there": {
+    "n": 142,
+    "what": {
+     "its own source word": 63,
+     "part of a verb's span": 68,
+     "part of a noun's span": 5,
+     "nothing": 2,
+     "part of a adj's span": 4
+    },
+    "lemmas": {
+     "ἐκεῖ": 36,
+     "ἐκεῖθεν": 7,
+     "κἀκεῖ": 3
+    }
+   },
+   "from": {
+    "n": 344,
+    "what": {
+     "its own source word": 301,
+     "part of a name's span": 6,
+     "part of a verb's span": 23,
+     "nothing": 1,
+     "part of a noun's span": 10,
+     "part of a adj's span": 3
+    },
+    "lemmas": {
+     "ἀπό": 118,
+     "ἐκ": 100,
+     "παρά": 24
+    }
+   },
+   "but": {
+    "n": 538,
+    "what": {
+     "its own source word": 522,
+     "part of a verb's span": 3,
+     "part of a adj's span": 7,
+     "nothing": 3,
+     "part of a name's span": 1,
+     "part of a noun's span": 2
+    },
+    "lemmas": {
+     "δέ": 273,
+     "ἀλλά": 159,
+     "καί": 43
+    }
+   },
+   "before": {
+    "n": 72,
+    "what": {
+     "its own source word": 59,
+     "part of a noun's span": 2,
+     "part of a verb's span": 8,
+     "part of a adj's span": 3
+    },
+    "lemmas": {
+     "πρό": 14,
+     "ἔμπροσθεν": 14,
+     "πρίν": 6
+    }
+   },
+   "they": {
+    "n": 543,
+    "what": {
+     "its own source word": 120,
+     "part of a verb's span": 389,
+     "part of a noun's span": 18,
+     "part of a adj's span": 13,
+     "nothing": 3
+    },
+    "lemmas": {
+     "αὐτός": 35,
+     "οὐ": 31,
+     "ὅστις": 6
+    }
+   },
+   "be": {
+    "n": 428,
+    "what": {
+     "its own source word": 62,
+     "part of a verb's span": 321,
+     "part of a noun's span": 28,
+     "nothing": 3,
+     "part of a adj's span": 13,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "μή": 17,
+     "οὐ": 10,
+     "καί": 4
+    }
+   },
+   "with": {
+    "n": 334,
+    "what": {
+     "its own source word": 240,
+     "part of a noun's span": 25,
+     "part of a verb's span": 48,
+     "part of a adj's span": 15,
+     "part of a name's span": 4,
+     "nothing": 2
+    },
+    "lemmas": {
+     "μετά": 87,
+     "ἐν": 35,
+     "ὁ": 29
+    }
+   },
+   "because": {
+    "n": 182,
+    "what": {
+     "its own source word": 169,
+     "part of a noun's span": 2,
+     "part of a verb's span": 7,
+     "part of a adj's span": 2,
+     "nothing": 2
+    },
+    "lemmas": {
+     "ὅτι": 83,
+     "διά": 39,
+     "γάρ": 19
+    }
+   },
+   "a": {
+    "n": 617,
+    "what": {
+     "part of a adj's span": 149,
+     "part of a noun's span": 328,
+     "part of a name's span": 16,
+     "part of a verb's span": 47,
+     "its own source word": 74,
+     "nothing": 3
+    },
+    "lemmas": {
+     "ὁ": 23,
+     "τὶς": 8,
+     "τοσοῦτος": 3
+    }
+   },
+   "he": {
+    "n": 909,
+    "what": {
+     "part of a verb's span": 635,
+     "its own source word": 227,
+     "part of a name's span": 13,
+     "part of a noun's span": 17,
+     "nothing": 7,
+     "part of a adj's span": 10
+    },
+    "lemmas": {
+     "ὁ": 47,
+     "αὐτός": 38,
+     "οὐ": 24
+    }
+   },
+   "these": {
+    "n": 106,
+    "what": {
+     "its own source word": 100,
+     "part of a verb's span": 3,
+     "part of a noun's span": 1,
+     "nothing": 2
+    },
+    "lemmas": {
+     "οὗτος": 86,
+     "ὁ": 3,
+     "αὐτός": 2
+    }
+   },
+   "things": {
+    "n": 107,
+    "what": {
+     "its own source word": 64,
+     "part of a adj's span": 30,
+     "part of a verb's span": 5,
+     "nothing": 4,
+     "part of a noun's span": 4
+    },
+    "lemmas": {
+     "οὗτος": 41,
+     "ὁ": 14,
+     "τοιοῦτος": 2
+    }
+   },
+   "him": {
+    "n": 655,
+    "what": {
+     "its own source word": 520,
+     "part of a noun's span": 17,
+     "part of a verb's span": 96,
+     "nothing": 15,
+     "part of a adj's span": 4,
+     "part of a name's span": 3
+    },
+    "lemmas": {
+     "αὐτός": 437,
+     "ὁ": 32,
+     "ὅς": 9
+    }
+   },
+   "not": {
+    "n": 738,
+    "what": {
+     "its own source word": 663,
+     "part of a verb's span": 47,
+     "nothing": 4,
+     "part of a adj's span": 14,
+     "part of a noun's span": 9,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "οὐ": 418,
+     "μή": 173,
+     "οὔπω": 14
+    }
+   },
+   "as": {
+    "n": 296,
+    "what": {
+     "its own source word": 229,
+     "part of a noun's span": 20,
+     "part of a verb's span": 35,
+     "part of a adj's span": 8,
+     "part of a name's span": 4
+    },
+    "lemmas": {
+     "καθώς": 47,
+     "ὡς": 43,
+     "καί": 27
+    }
+   },
+   "for": {
+    "n": 683,
+    "what": {
+     "its own source word": 571,
+     "part of a verb's span": 59,
+     "part of a noun's span": 22,
+     "part of a name's span": 9,
+     "part of a adj's span": 19,
+     "nothing": 3
+    },
+    "lemmas": {
+     "γάρ": 251,
+     "ὅτι": 43,
+     "ὁ": 38
+    }
+   },
+   "one": {
+    "n": 369,
+    "what": {
+     "its own source word": 177,
+     "part of a verb's span": 26,
+     "part of a adj's span": 153,
+     "part of a noun's span": 11,
+     "part of a name's span": 2
+    },
+    "lemmas": {
+     "ὁ": 73,
+     "ὅς": 24,
+     "ἀλλήλων": 22
+    }
+   },
+   "you": {
+    "n": 1460,
+    "what": {
+     "part of a verb's span": 543,
+     "its own source word": 854,
+     "part of a noun's span": 29,
+     "part of a adj's span": 23,
+     "nothing": 11
+    },
+    "lemmas": {
+     "σύ": 655,
+     "οὐ": 76,
+     "ὁ": 18
+    }
+   },
+   "are": {
+    "n": 372,
+    "what": {
+     "part of a verb's span": 246,
+     "part of a adj's span": 35,
+     "its own source word": 68,
+     "nothing": 2,
+     "part of a noun's span": 19,
+     "part of a name's span": 2
+    },
+    "lemmas": {
+     "ὁ": 15,
+     "σύ": 9,
+     "οὐ": 8
+    }
+   },
+   "their": {
+    "n": 170,
+    "what": {
+     "its own source word": 136,
+     "part of a verb's span": 15,
+     "part of a noun's span": 17,
+     "nothing": 1,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "αὐτός": 93,
+     "ὁ": 24,
+     "ἑαυτοῦ": 7
+    }
+   },
+   "which": {
+    "n": 63,
+    "what": {
+     "its own source word": 59,
+     "part of a verb's span": 3,
+     "part of a noun's span": 1
+    },
+    "lemmas": {
+     "ὅς": 28,
+     "τίς": 12,
+     "ὁ": 6
+    }
+   },
+   "no": {
+    "n": 168,
+    "what": {
+     "its own source word": 104,
+     "part of a verb's span": 10,
+     "nothing": 5,
+     "part of a adj's span": 47,
+     "part of a noun's span": 2
+    },
+    "lemmas": {
+     "οὐ": 57,
+     "οὐκέτι": 15,
+     "μή": 12
+    }
+   },
+   "been": {
+    "n": 119,
+    "what": {
+     "part of a verb's span": 96,
+     "its own source word": 16,
+     "part of a noun's span": 5,
+     "part of a adj's span": 2
+    },
+    "lemmas": {
+     "οὐ": 4,
+     "ἤδη": 2,
+     "ὁ": 1
+    }
+   },
+   "we": {
+    "n": 247,
+    "what": {
+     "part of a verb's span": 161,
+     "its own source word": 77,
+     "nothing": 1,
+     "part of a noun's span": 7,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "ἐγώ": 39,
+     "οὐ": 15,
+     "καί": 6
+    }
+   },
+   "have": {
+    "n": 457,
+    "what": {
+     "part of a verb's span": 340,
+     "its own source word": 95,
+     "part of a noun's span": 10,
+     "part of a adj's span": 9,
+     "nothing": 2,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "οὐ": 33,
+     "ὁ": 7,
+     "ἐγώ": 6
+    }
+   },
+   "come": {
+    "n": 159,
+    "what": {
+     "part of a verb's span": 132,
+     "its own source word": 23,
+     "nothing": 1,
+     "part of a noun's span": 2,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "οὐ": 9,
+     "καί": 3,
+     "πρός": 2
+    }
+   },
+   "them": {
+    "n": 354,
+    "what": {
+     "its own source word": 265,
+     "part of a noun's span": 7,
+     "part of a verb's span": 68,
+     "nothing": 6,
+     "part of a adj's span": 6,
+     "part of a name's span": 2
+    },
+    "lemmas": {
+     "αὐτός": 230,
+     "ὁ": 6,
+     "ἐν": 5
+    }
+   },
+   "my": {
+    "n": 286,
+    "what": {
+     "its own source word": 231,
+     "part of a noun's span": 11,
+     "part of a verb's span": 13,
+     "part of a adj's span": 28,
+     "nothing": 3
+    },
+    "lemmas": {
+     "ἐγώ": 194,
+     "ὁ": 15,
+     "ἐμαυτοῦ": 8
+    }
+   },
+   "me": {
+    "n": 382,
+    "what": {
+     "its own source word": 351,
+     "nothing": 9,
+     "part of a verb's span": 20,
+     "part of a adj's span": 2
+    },
+    "lemmas": {
+     "ἐγώ": 331,
+     "κἀγώ": 3,
+     "οὐ": 2
+    }
+   },
+   "that": {
+    "n": 701,
+    "what": {
+     "its own source word": 592,
+     "part of a verb's span": 77,
+     "nothing": 5,
+     "part of a adj's span": 7,
+     "part of a noun's span": 19,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "ὅτι": 202,
+     "ἵνα": 113,
+     "ὁ": 70
+    }
+   },
+   "i": {
+    "n": 782,
+    "what": {
+     "its own source word": 310,
+     "part of a verb's span": 455,
+     "part of a noun's span": 5,
+     "nothing": 6,
+     "part of a adj's span": 6
+    },
+    "lemmas": {
+     "ἐγώ": 183,
+     "οὐ": 50,
+     "κἀγώ": 32
+    }
+   },
+   "on": {
+    "n": 332,
+    "what": {
+     "part of a verb's span": 59,
+     "its own source word": 259,
+     "part of a name's span": 2,
+     "part of a noun's span": 10,
+     "nothing": 1,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "ἐπί": 89,
+     "ἐν": 36,
+     "ὁ": 22
+    }
+   },
+   "it": {
+    "n": 474,
+    "what": {
+     "part of a verb's span": 277,
+     "its own source word": 157,
+     "part of a adj's span": 15,
+     "nothing": 7,
+     "part of a noun's span": 17,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "αὐτός": 56,
+     "οὐ": 23,
+     "ὁ": 13
+    }
+   },
+   "those": {
+    "n": 150,
+    "what": {
+     "its own source word": 137,
+     "part of a verb's span": 8,
+     "part of a adj's span": 2,
+     "part of a noun's span": 3
+    },
+    "lemmas": {
+     "ὁ": 100,
+     "ὅς": 13,
+     "ἐκεῖνος": 12
+    }
+   },
+   "now": {
+    "n": 133,
+    "what": {
+     "part of a verb's span": 8,
+     "its own source word": 122,
+     "nothing": 2,
+     "part of a noun's span": 1
+    },
+    "lemmas": {
+     "δέ": 42,
+     "νῦν": 40,
+     "ἄρτι": 10
+    }
+   },
+   "our": {
+    "n": 82,
+    "what": {
+     "part of a noun's span": 5,
+     "its own source word": 71,
+     "part of a verb's span": 3,
+     "part of a adj's span": 3
+    },
+    "lemmas": {
+     "ἐγώ": 55,
+     "ὁ": 12,
+     "ὑπέρ": 2
+    }
+   },
+   "every": {
+    "n": 44,
+    "what": {
+     "part of a adj's span": 39,
+     "its own source word": 3,
+     "part of a verb's span": 2
+    },
+    "lemmas": {
+     "κατά": 2,
+     "ὅς": 1
+    }
+   },
+   "am": {
+    "n": 150,
+    "what": {
+     "part of a verb's span": 119,
+     "its own source word": 25,
+     "part of a noun's span": 2,
+     "nothing": 2,
+     "part of a adj's span": 2
+    },
+    "lemmas": {
+     "οὐ": 8,
+     "ἐγώ": 7,
+     "κἀγώ": 3
+    }
+   },
+   "let": {
+    "n": 79,
+    "what": {
+     "its own source word": 23,
+     "part of a verb's span": 49,
+     "part of a noun's span": 6,
+     "part of a adj's span": 1
+    },
+    "lemmas": {
+     "μή": 6,
+     "ὁ": 5,
+     "σύ": 2
+    }
+   },
+   "if": {
+    "n": 263,
+    "what": {
+     "its own source word": 249,
+     "part of a verb's span": 10,
+     "part of a adj's span": 2,
+     "part of a name's span": 1,
+     "part of a noun's span": 1
+    },
+    "lemmas": {
+     "εἰ": 118,
+     "ἐάν": 86,
+     "ὅς": 8
+    }
+   },
+   "against": {
+    "n": 47,
+    "what": {
+     "part of a verb's span": 5,
+     "its own source word": 40,
+     "part of a adj's span": 1,
+     "part of a noun's span": 1
+    },
+    "lemmas": {
+     "κατά": 16,
+     "ἐπί": 7,
+     "ὁ": 4
+    }
+   },
+   "also": {
+    "n": 99,
+    "what": {
+     "part of a verb's span": 15,
+     "its own source word": 80,
+     "part of a noun's span": 3,
+     "part of a name's span": 1
+    },
+    "lemmas": {
+     "καί": 65,
+     "ἐκ": 3,
+     "κἀκεῖνος": 2
+    }
+   },
+   "even": {
+    "n": 53,
+    "what": {
+     "its own source word": 47,
+     "part of a adj's span": 1,
+     "part of a noun's span": 1,
+     "part of a verb's span": 3,
+     "nothing": 1
+    },
+    "lemmas": {
+     "καί": 20,
+     "οὐδέ": 7,
+     "κἄν": 6
+    }
+   },
+   "unto": {
+    "n": 1,
+    "what": {
+     "its own source word": 1
+    },
+    "lemmas": {
+     "σύ": 1
+    }
+   },
+   "any": {
+    "n": 21,
+    "what": {
+     "part of a noun's span": 7,
+     "part of a adj's span": 4,
+     "its own source word": 7,
+     "part of a verb's span": 3
+    },
+    "lemmas": {
+     "τὶς": 3,
+     "ἔτι": 2,
+     "οὐκέτι": 1
+    }
+   }
+  }
+ },
+ "source": {
+  "OT": {
+   "בְּ": {
+    "n": 3619,
+    "renderings": {
+     "none": 1837,
+     "in": 1012,
+     "with": 196,
+     "on": 97,
+     "by": 79,
+     "among": 60
+    }
+   },
+   "אֵת": {
+    "n": 2166,
+    "renderings": {
+     "none": 1892,
+     "with": 80,
+     "to": 16,
+     "for": 8,
+     "in": 7,
+     "against": 6
+    }
+   },
+   "הַ": {
+    "n": 3780,
+    "renderings": {
+     "none": 2056,
+     "the": 1724
+    }
+   },
+   "וְ": {
+    "n": 11286,
+    "renderings": {
+     "none": 6481,
+     "and": 3717,
+     "but": 322,
+     "so": 226,
+     "then": 146,
+     "now": 109
+    }
+   },
+   "עַל": {
+    "n": 1117,
+    "renderings": {
+     "none": 327,
+     "on": 155,
+     "over": 74,
+     "against": 70,
+     "upon": 66,
+     "to": 39
+    }
+   },
+   "כִּי": {
+    "n": 1318,
+    "renderings": {
+     "for": 568,
+     "none": 212,
+     "that": 148,
+     "because": 98,
+     "when": 37,
+     "but": 24
+    }
+   },
+   "בֵּין": {
+    "n": 110,
+    "renderings": {
+     "none": 46,
+     "between": 33,
+     "between you": 9,
+     "from": 3,
+     "among": 3,
+     "me": 2
+    }
+   },
+   "לְ": {
+    "n": 4478,
+    "renderings": {
+     "none": 2169,
+     "to": 1181,
+     "for": 308,
+     "before": 120,
+     "of": 116,
+     "forever": 58
+    }
+   },
+   "אֶחָד": {
+    "n": 118,
+    "renderings": {
+     "one": 33,
+     "none": 12,
+     "a": 7,
+     "of one": 4,
+     "the": 3,
+     "as one": 3
+    }
+   },
+   "אֲשֶׁר": {
+    "n": 918,
+    "renderings": {
+     "none": 377,
+     "that": 87,
+     "who": 64,
+     "as": 41,
+     "what": 32,
+     "where": 25
+    }
+   },
+   "מִן": {
+    "n": 1717,
+    "renderings": {
+     "from": 696,
+     "none": 689,
+     "of": 115,
+     "than": 41,
+     "out": 34,
+     "because": 16
+    }
+   },
+   "תַּחַת": {
+    "n": 98,
+    "renderings": {
+     "under": 19,
+     "in place": 11,
+     "instead of": 10,
+     "none": 8,
+     "beneath": 7,
+     "for": 6
+    }
+   },
+   "כֵּן": {
+    "n": 185,
+    "renderings": {
+     "none": 60,
+     "therefore": 34,
+     "so": 32,
+     "that is why": 10,
+     "this": 4,
+     "that": 3
+    }
+   },
+   "שֵׁנִי": {
+    "n": 18,
+    "renderings": {
+     "a second time": 3,
+     "of second": 2,
+     "jacob a": 2,
+     "second": 2,
+     "day": 1,
+     "other": 1
+    }
+   },
+   "אֶל": {
+    "n": 1160,
+    "renderings": {
+     "to": 544,
+     "none": 320,
+     "in": 24,
+     "for": 23,
+     "on": 15,
+     "into": 14
+    }
+   },
+   "הוּא (suffix)": {
+    "n": 12843,
+    "renderings": {
+     "none": 2956,
+     "your": 1626,
+     "my": 1480,
+     "his": 1390,
+     "me": 1035,
+     "you": 911
+    }
+   },
+   "שְׁלִישִׁי": {
+    "n": 17,
+    "renderings": {
+     "on third": 4,
+     "third": 3,
+     "day": 1,
+     "of third": 1,
+     "upper decks": 1,
+     "three": 1
+    }
+   },
+   "שְׁנַיִם": {
+    "n": 103,
+    "renderings": {
+     "two": 23,
+     "none": 9,
+     "his two": 8,
+     "both": 4,
+     "and the two": 4,
+     "your two": 4
+    }
+   },
+   "רְבִיעִי": {
+    "n": 3,
+    "renderings": {
+     "day": 1,
+     "and fourth": 1,
+     "in the fourth": 1
+    }
+   },
+   "חֲמִישִׁי": {
+    "n": 2,
+    "renderings": {
+     "day": 1,
+     "a fifth": 1
+    }
+   },
+   "כְּ": {
+    "n": 765,
+    "renderings": {
+     "none": 421,
+     "like": 265,
+     "according": 26,
+     "just": 14,
+     "when": 14,
+     "as": 13
+    }
+   },
+   "הִנֵּה": {
+    "n": 315,
+    "renderings": {
+     "none": 82,
+     "behold": 52,
+     "look": 27,
+     "here am": 18,
+     "surely": 12,
+     "here": 11
+    }
+   },
+   "מְאֹד": {
+    "n": 107,
+    "renderings": {
+     "none": 28,
+     "greatly": 9,
+     "was very": 5,
+     "and greatly": 4,
+     "completely": 2,
+     "exceedingly": 2
+    }
+   },
+   "שִׁשִּׁי": {
+    "n": 2,
+    "renderings": {
+     "day": 1,
+     "a sixth": 1
+    }
+   },
+   "שְׁבִיעִי": {
+    "n": 4,
+    "renderings": {
+     "and by seventh": 1,
+     "so on that": 1,
+     "seventh": 1,
+     "of seventh": 1
+    }
+   },
+   "טֶרֶם": {
+    "n": 28,
+    "renderings": {
+     "none": 16,
+     "before": 4,
+     "she": 2,
+     "had yet": 1,
+     "and before": 1,
+     "i": 1
+    }
+   },
+   "לֹא": {
+    "n": 1188,
+    "renderings": {
+     "none": 175,
+     "no": 65,
+     "not": 55,
+     "will not": 44,
+     "i will not": 27,
+     "is not": 24
+    }
+   },
+   "אַיִן": {
+    "n": 227,
+    "renderings": {
+     "there is no": 38,
+     "none": 26,
+     "no": 16,
+     "without": 10,
+     "no one": 8,
+     "with no": 6
+    }
+   },
+   "שָׁם": {
+    "n": 207,
+    "renderings": {
+     "there": 84,
+     "none": 50,
+     "where": 6,
+     "and there": 6,
+     "there is": 4,
+     "was there": 4
+    }
+   },
+   "אַרְבַּע": {
+    "n": 42,
+    "renderings": {
+     "four": 8,
+     "none": 8,
+     "forty": 7,
+     "for forty": 5,
+     "the fourteenth": 2,
+     "forty five": 1
+    }
+   },
+   "הִיא": {
+    "n": 86,
+    "renderings": {
+     "none": 23,
+     "she": 10,
+     "that is": 8,
+     "that": 4,
+     "it": 3,
+     "at that": 3
+    }
+   },
+   "מָה": {
+    "n": 225,
+    "renderings": {
+     "what": 71,
+     "why": 59,
+     "how": 24,
+     "none": 23,
+     "have": 3,
+     "how long": 3
+    }
+   },
+   "אַף": {
+    "n": 62,
+    "renderings": {
+     "none": 17,
+     "and": 6,
+     "indeed": 5,
+     "yes": 5,
+     "surely": 3,
+     "even": 3
+    }
+   },
+   "פֶּן": {
+    "n": 39,
+    "renderings": {
+     "or": 9,
+     "lest": 5,
+     "otherwise": 5,
+     "none": 3,
+     "and not": 1,
+     "you do not take": 1
+    }
+   },
+   "נ": {
+    "n": 112,
+    "renderings": {
+     "none": 49,
+     "die": 5,
+     "found": 4,
+     "be": 3,
+     "down": 3,
+     "will": 3
+    }
+   },
+   "גַּם": {
+    "n": 222,
+    "renderings": {
+     "none": 60,
+     "even": 22,
+     "and": 19,
+     "also": 15,
+     "as well": 12,
+     "too": 6
+    }
+   },
+   "עִם": {
+    "n": 252,
+    "renderings": {
+     "with": 99,
+     "none": 45,
+     "to": 9,
+     "and": 7,
+     "is with": 7,
+     "among": 6
+    }
+   },
+   "הֵם": {
+    "n": 34,
+    "renderings": {
+     "they": 12,
+     "none": 6,
+     "in those": 2,
+     "and they": 1,
+     "all of whom": 1,
+     "were": 1
+    }
+   },
+   "אַי": {
+    "n": 11,
+    "renderings": {
+     "none": 6,
+     "where": 4,
+     "where are": 1
+    }
+   },
+   "אָנֹכִי": {
+    "n": 118,
+    "renderings": {
+     "i": 68,
+     "i am": 12,
+     "am i": 6,
+     "none": 5,
+     "i will": 2,
+     "it is i": 2
+    }
+   },
+   "מִי": {
+    "n": 154,
+    "renderings": {
+     "who": 89,
+     "whom": 19,
+     "whose": 6,
+     "none": 6,
+     "what": 4,
+     "who is": 2
+    }
+   },
+   "אַתָּה": {
+    "n": 241,
+    "renderings": {
+     "you": 165,
+     "are you": 9,
+     "none": 8,
+     "you are": 8,
+     "have you": 3,
+     "alone": 3
+    }
+   },
+   "הֲ": {
+    "n": 164,
+    "renderings": {
+     "none": 164
+    }
+   },
+   "בֵּלֶת": {
+    "n": 15,
+    "renderings": {
+     "none": 5,
+     "again unless": 2,
+     "eat": 1,
+     "and will not": 1,
+     "ground so that he would": 1,
+     "besides": 1
+    }
+   },
+   "עִמָּד": {
+    "n": 22,
+    "renderings": {
+     "none": 10,
+     "with": 5,
+     "that": 1,
+     "loyalty to": 1,
+     "to": 1,
+     "been with": 1
+    }
+   },
+   "עַד": {
+    "n": 282,
+    "renderings": {
+     "none": 100,
+     "to": 48,
+     "until": 47,
+     "as": 5,
+     "and": 4,
+     "as far as": 3
+    }
+   },
+   "הֵן": {
+    "n": 45,
+    "renderings": {
+     "behold": 13,
+     "none": 7,
+     "surely": 7,
+     "look": 6,
+     "if": 2,
+     "see": 2
+    }
+   },
+   "עַתָּה": {
+    "n": 128,
+    "renderings": {
+     "now": 46,
+     "none": 39,
+     "therefore": 11,
+     "both now": 4,
+     "then": 3,
+     "by now": 2
+    }
+   },
+   "לָמָה": {
+    "n": 70,
+    "renderings": {
+     "none": 70
+    }
+   },
+   "אִם": {
+    "n": 217,
+    "renderings": {
+     "if": 81,
+     "none": 48,
+     "but": 8,
+     "though": 6,
+     "or": 5,
+     "when": 5
+    }
+   },
+   "לָכֵן": {
+    "n": 39,
+    "renderings": {
+     "therefore": 24,
+     "none": 15
+    }
+   },
+   "שֶׁבַע": {
+    "n": 89,
+    "renderings": {
+     "seven": 23,
+     "none": 15,
+     "the seven": 8,
+     "sevenfold": 3,
+     "are seven": 3,
+     "during the seven": 3
+    }
+   },
+   "עוֹד": {
+    "n": 139,
+    "renderings": {
+     "none": 26,
+     "longer": 12,
+     "again": 10,
+     "is still": 9,
+     "more": 7,
+     "other": 6
+    }
+   },
+   "אָז": {
+    "n": 39,
+    "renderings": {
+     "then": 20,
+     "long ago": 5,
+     "none": 3,
+     "at that time": 2,
+     "and at that time": 1,
+     "the time that": 1
+    }
+   },
+   "שָׁלֹשׁ": {
+    "n": 78,
+    "renderings": {
+     "none": 23,
+     "three": 23,
+     "the three": 5,
+     "for three": 3,
+     "thirty": 2,
+     "are three": 2
+    }
+   },
+   "מֵאָה": {
+    "n": 89,
+    "renderings": {
+     "none": 52,
+     "hundred": 10,
+     "two hundred": 5,
+     "a hundred": 3,
+     "six": 2,
+     "hundredth": 1
+    }
+   },
+   "אַחַר": {
+    "n": 156,
+    "renderings": {
+     "none": 50,
+     "after": 36,
+     "and after": 17,
+     "behind": 10,
+     "to": 3,
+     "later": 2
+    }
+   },
+   "שְׁמֹנֶה": {
+    "n": 21,
+    "renderings": {
+     "none": 13,
+     "the": 1,
+     "was eighty six": 1,
+     "when he is eight": 1,
+     "was eight": 1,
+     "eight sons": 1
+    }
+   },
+   "תֵּשַׁע": {
+    "n": 20,
+    "renderings": {
+     "none": 16,
+     "ninety nine": 1,
+     "at the age of ninety": 1,
+     "was ninety nine": 1,
+     "was ninety eight": 1
+    }
+   },
+   "חָמֵשׁ": {
+    "n": 54,
+    "renderings": {
+     "none": 23,
+     "five": 10,
+     "fifty": 2,
+     "the fifty": 2,
+     "of fifteen": 1,
+     "for": 1
+    }
+   },
+   "עֶשְׂרֵה": {
+    "n": 14,
+    "renderings": {
+     "none": 14
+    }
+   },
+   "עֶשֶׂר": {
+    "n": 7,
+    "renderings": {
+     "none": 3,
+     "ten": 2,
+     "for ten": 1,
+     "the ten": 1
+    }
+   },
+   "שֵׁשׁ": {
+    "n": 27,
+    "renderings": {
+     "none": 9,
+     "six": 4,
+     "his six": 2,
+     "was": 1,
+     "the six": 1,
+     "in noah s": 1
+    }
+   },
+   "הֵנָּה": {
+    "n": 26,
+    "renderings": {
+     "none": 5,
+     "here": 4,
+     "these": 2,
+     "yet": 1,
+     "why": 1,
+     "and their": 1
+    }
+   },
+   "שֶׁ": {
+    "n": 22,
+    "renderings": {
+     "none": 19,
+     "who": 2,
+     "where": 1
+    }
+   },
+   "עֶשְׂרִים": {
+    "n": 14,
+    "renderings": {
+     "none": 7,
+     "twenty": 4,
+     "of twenty": 1,
+     "for twenty": 1,
+     "twenty shekels": 1
+    }
+   },
+   "הֵמָּה": {
+    "n": 59,
+    "renderings": {
+     "they": 29,
+     "none": 13,
+     "they are": 3,
+     "and as they": 2,
+     "children who": 1,
+     "and when": 1
+    }
+   },
+   "רַק": {
+    "n": 16,
+    "renderings": {
+     "only": 4,
+     "but": 2,
+     "surely": 2,
+     "was altogether": 1,
+     "good": 1,
+     "however": 1
+    }
+   },
+   "מַעַל": {
+    "n": 15,
+    "renderings": {
+     "above": 5,
+     "none": 3,
+     "forward": 2,
+     "the top": 1,
+     "a depth": 1,
+     "the": 1
+    }
+   },
+   "ה": {
+    "n": 432,
+    "renderings": {
+     "none": 287,
+     "to": 23,
+     "egypt": 17,
+     "ramah": 8,
+     "it": 7,
+     "ear": 6
+    }
+   },
+   "אֲנִי": {
+    "n": 209,
+    "renderings": {
+     "i": 126,
+     "i am": 19,
+     "none": 10,
+     "as for me": 6,
+     "and i": 5,
+     "i will": 3
+    }
+   },
+   "עָשָׂר": {
+    "n": 12,
+    "renderings": {
+     "none": 12
+    }
+   },
+   "בַּעַד": {
+    "n": 19,
+    "renderings": {
+     "none": 5,
+     "for": 4,
+     "from": 2,
+     "around": 2,
+     "pray for": 1,
+     "on behalf": 1
+    }
+   },
+   "אַךְ": {
+    "n": 59,
+    "renderings": {
+     "surely": 15,
+     "none": 9,
+     "but": 8,
+     "alone": 4,
+     "only": 3,
+     "noah and": 1
+    }
+   },
+   "עֲשִׂירִי": {
+    "n": 3,
+    "renderings": {
+     "tenth": 1,
+     "of the tenth month": 1,
+     "a tenth remains": 1
+    }
+   },
+   "אַתֶּם": {
+    "n": 46,
+    "renderings": {
+     "you": 26,
+     "the rest of you": 4,
+     "you will": 3,
+     "as for you": 2,
+     "may you": 2,
+     "you from we": 1
+    }
+   },
+   "אֲחֹרַנִּית": {
+    "n": 4,
+    "renderings": {
+     "backward": 2,
+     "faces were turned": 1,
+     "go back": 1
+    }
+   },
+   "נָא": {
+    "n": 142,
+    "renderings": {
+     "none": 56,
+     "please": 41,
+     "now": 14,
+     "do not": 3,
+     "if": 3,
+     "now that": 2
+    }
+   },
+   "אַתְּ": {
+    "n": 10,
+    "renderings": {
+     "you": 5,
+     "are you": 2,
+     "you are": 1,
+     "you become": 1,
+     "you be": 1
+    }
+   },
+   "לְמַעַן": {
+    "n": 69,
+    "renderings": {
+     "so that": 13,
+     "that": 10,
+     "for the sake": 9,
+     "because of": 8,
+     "for the sake of": 6,
+     "none": 4
+    }
+   },
+   "יָחְדָּו": {
+    "n": 48,
+    "renderings": {
+     "together": 27,
+     "none": 8,
+     "they have together": 2,
+     "all": 2,
+     "alike": 1,
+     "i will": 1
+    }
+   },
+   "אַל": {
+    "n": 224,
+    "renderings": {
+     "do not": 110,
+     "none": 26,
+     "be not": 9,
+     "not": 8,
+     "no": 5,
+     "let me not": 5
+    }
+   },
+   "אֲנַחְנוּ": {
+    "n": 34,
+    "renderings": {
+     "we": 17,
+     "none": 3,
+     "both": 2,
+     "are from": 1,
+     "your servants": 1,
+     "neither we": 1
+    }
+   },
+   "קֵדֶם": {
+    "n": 3,
+    "renderings": {
+     "east": 2,
+     "none": 1
+    }
+   },
+   "בִּלְעֲדֵי": {
+    "n": 10,
+    "renderings": {
+     "but": 4,
+     "will accept nothing": 1,
+     "i myself cannot do": 1,
+     "without permission": 1,
+     "besides": 1,
+     "was it apart": 1
+    }
+   },
+   "רָבָה": {
+    "n": 5,
+    "renderings": {
+     "reward": 1,
+     "in such abundance": 1,
+     "and have committed a grave": 1,
+     "in abundance": 1,
+     "plenty of fire": 1
+    }
+   },
+   "כֹּה": {
+    "n": 85,
+    "renderings": {
+     "this is what": 37,
+     "thus": 10,
+     "none": 8,
+     "if": 4,
+     "ever so": 4,
+     "punish": 3
+    }
+   },
+   "אוּלַי": {
+    "n": 18,
+    "renderings": {
+     "perhaps": 6,
+     "suppose": 5,
+     "what if": 4,
+     "and perhaps": 2,
+     "he": 1
+    }
+   },
+   "אָן": {
+    "n": 12,
+    "renderings": {
+     "where": 4,
+     "how long": 4,
+     "none": 2,
+     "are": 1,
+     "me": 1
+    }
+   },
+   "הֲלֹם": {
+    "n": 5,
+    "renderings": {
+     "here": 2,
+     "i": 1,
+     "none": 1,
+     "to this place": 1
+    }
+   },
+   "לוּ": {
+    "n": 8,
+    "renderings": {
+     "none": 2,
+     "if only": 2,
+     "o that": 1,
+     "will please": 1,
+     "what if": 1,
+     "if": 1
+    }
+   },
+   "אֲבָל": {
+    "n": 2,
+    "renderings": {
+     "will indeed": 1,
+     "surely": 1
+    }
+   },
+   "אַיֵּה": {
+    "n": 19,
+    "renderings": {
+     "where": 16,
+     "are": 1,
+     "is": 1,
+     "none": 1
+    }
+   },
+   "אֻמְנָם": {
+    "n": 2,
+    "renderings": {
+     "none": 1,
+     "do you indeed": 1
+    }
+   },
+   "כָּלָה": {
+    "n": 1,
+    "renderings": {
+     "fully": 1
+    }
+   },
+   "יֵשׁ": {
+    "n": 38,
+    "renderings": {
+     "none": 9,
+     "is there": 4,
+     "is": 4,
+     "there is": 4,
+     "if any": 2,
+     "there are": 1
+    }
+   },
+   "חָלִילָה": {
+    "n": 12,
+    "renderings": {
+     "far be": 4,
+     "forbid": 2,
+     "from you": 1,
+     "could not possibly": 1,
+     "far be from me": 1,
+     "surely": 1
+    }
+   },
+   "עֲשָׂרָה": {
+    "n": 17,
+    "renderings": {
+     "ten": 10,
+     "none": 2,
+     "of ten": 1,
+     "ten shekels": 1,
+     "and": 1,
+     "so ten": 1
+    }
+   },
+   "הָלְאָה": {
+    "n": 8,
+    "renderings": {
+     "none": 4,
+     "beyond": 1,
+     "on": 1,
+     "forward": 1,
+     "the arrow": 1
+    }
+   },
+   "פֹּה": {
+    "n": 11,
+    "renderings": {
+     "here": 3,
+     "here a son in law": 1,
+     "with": 1,
+     "none": 1,
+     "afraid": 1,
+     "doing here": 1
+    }
+   },
+   "כְּמוֹ": {
+    "n": 45,
+    "renderings": {
+     "like": 18,
+     "as": 4,
+     "is like": 3,
+     "none": 3,
+     "at": 1,
+     "every one of": 1
+    }
+   },
+   "אֶמֶשׁ": {
+    "n": 3,
+    "renderings": {
+     "last night": 1,
+     "but last night": 1,
+     "and last night": 1
+    }
+   },
+   "אׇמְנָה": {
+    "n": 1,
+    "renderings": {
+     "really": 1
+    }
+   },
+   "אֶלֶף": {
+    "n": 39,
+    "renderings": {
+     "thousand": 7,
+     "none": 6,
+     "a thousand": 4,
+     "thousands": 4,
+     "of thousands": 2,
+     "two thousand": 2
+    }
+   },
+   "נֶגֶד": {
+    "n": 57,
+    "renderings": {
+     "before": 26,
+     "none": 9,
+     "is before": 3,
+     "in the presence of": 2,
+     "in": 2,
+     "are before": 2
+    }
+   },
+   "יַעַן": {
+    "n": 13,
+    "renderings": {
+     "because": 8,
+     "none": 4,
+     "for": 1
+    }
+   },
+   "עֵקֶב": {
+    "n": 4,
+    "renderings": {
+     "because": 2,
+     "at": 1,
+     "because of": 1
+    }
+   },
+   "סָבִיב": {
+    "n": 31,
+    "renderings": {
+     "around": 8,
+     "on every side": 4,
+     "none": 2,
+     "those around": 2,
+     "all around": 2,
+     "surround": 2
+    }
+   },
+   "אוֹ": {
+    "n": 23,
+    "renderings": {
+     "or": 13,
+     "none": 5,
+     "or so": 1,
+     "of mine or": 1,
+     "without": 1,
+     "either": 1
+    }
+   },
+   "רְבָבָה": {
+    "n": 7,
+    "renderings": {
+     "tens of thousands": 3,
+     "thousands may": 1,
+     "tens of": 1,
+     "the myriads": 1,
+     "ten thousand": 1
+    }
+   },
+   "נֹכַח": {
+    "n": 2,
+    "renderings": {
+     "on behalf": 1,
+     "in front": 1
+    }
+   },
+   "אֵיךְ": {
+    "n": 14,
+    "renderings": {
+     "how": 10,
+     "why": 1,
+     "how then": 1,
+     "none": 1,
+     "for how": 1
+    }
+   },
+   "מַדּוּעַ": {
+    "n": 8,
+    "renderings": {
+     "why": 4,
+     "none": 2,
+     "would he": 1,
+     "why are you": 1
+    }
+   },
+   "אֵפוֹ": {
+    "n": 5,
+    "renderings": {
+     "then": 2,
+     "is left": 1,
+     "now": 1,
+     "you now that": 1
+    }
+   },
+   "אָכֵן": {
+    "n": 9,
+    "renderings": {
+     "surely": 3,
+     "but": 2,
+     "has surely": 1,
+     "indeed": 1,
+     "truly": 1,
+     "yet": 1
+    }
+   },
+   "אוּלָם": {
+    "n": 4,
+    "renderings": {
+     "though": 1,
+     "nevertheless": 1,
+     "as surely as": 1,
+     "otherwise": 1
+    }
+   },
+   "חִנָּם": {
+    "n": 11,
+    "renderings": {
+     "without cause": 4,
+     "for nothing": 2,
+     "without reason": 2,
+     "for no reason": 1,
+     "needless bloodshed": 1,
+     "cause those": 1
+    }
+   },
+   "מָתַי": {
+    "n": 17,
+    "renderings": {
+     "how long": 8,
+     "when": 5,
+     "long": 1,
+     "will": 1,
+     "how long will it be": 1,
+     "you": 1
+    }
+   },
+   "מָחָר": {
+    "n": 11,
+    "renderings": {
+     "tomorrow": 8,
+     "none": 1,
+     "tonight": 1,
+     "and tomorrow": 1
+    }
+   },
+   "תְּמוֹל": {
+    "n": 4,
+    "renderings": {
+     "him": 1,
+     "me has": 1,
+     "meal": 1,
+     "usual": 1
+    }
+   },
+   "שִׁלְשֹׁום": {
+    "n": 7,
+    "renderings": {
+     "none": 6,
+     "when i set": 1
+    }
+   },
+   "אַתֵּנָה": {
+    "n": 1,
+    "renderings": {
+     "you": 1
+    }
+   },
+   "בְּלִי": {
+    "n": 9,
+    "renderings": {
+     "none": 3,
+     "without": 2,
+     "by not": 1,
+     "for no": 1,
+     "for their lack": 1,
+     "will not": 1
+    }
+   },
+   "לוּלֵא": {
+    "n": 10,
+    "renderings": {
+     "had not": 5,
+     "unless": 2,
+     "if we had not": 1,
+     "if you had not": 1,
+     "still": 1
+    }
+   },
+   "רֵיקָם": {
+    "n": 5,
+    "renderings": {
+     "empty": 2,
+     "without cause": 2,
+     "empty handed": 1
+    }
+   },
+   "אַט": {
+    "n": 2,
+    "renderings": {
+     "on slowly": 1,
+     "gently flowing": 1
+    }
+   },
+   "אֵיפֹה": {
+    "n": 3,
+    "renderings": {
+     "where": 3
+    }
+   },
+   "אֵצֶל": {
+    "n": 10,
+    "renderings": {
+     "beside": 5,
+     "bed with": 1,
+     "s cloak": 1,
+     "none": 1,
+     "side the stone": 1,
+     "near": 1
+    }
+   },
+   "אַבְרֵךְ": {
+    "n": 1,
+    "renderings": {
+     "bow the knee": 1
+    }
+   },
+   "נַחְנוּ": {
+    "n": 1,
+    "renderings": {
+     "we": 1
+    }
+   },
+   "בִּי": {
+    "n": 3,
+    "renderings": {
+     "please": 2,
+     "none": 1
+    }
+   },
+   "רַב": {
+    "n": 1,
+    "renderings": {
+     "enough": 1
+    }
+   },
+   "הֵא": {
+    "n": 1,
+    "renderings": {
+     "here": 1
+    }
+   },
+   "חֲמִישִׁית": {
+    "n": 1,
+    "renderings": {
+     "fifth of": 1
+    }
+   },
+   "אָנָּא": {
+    "n": 6,
+    "renderings": {
+     "none": 3,
+     "i beg you": 1,
+     "we pray": 1,
+     "please": 1
+    }
+   },
+   "כָּכָה": {
+    "n": 3,
+    "renderings": {
+     "this is how": 1,
+     "like this": 1,
+     "of whom this is so": 1
+    }
+   },
+   "אֶבֶן הָעֵזֶר": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "אוֹי": {
+    "n": 6,
+    "renderings": {
+     "woe": 4,
+     "woe is": 1,
+     "me": 1
+    }
+   },
+   "אֶתְמוֹל": {
+    "n": 6,
+    "renderings": {
+     "before": 2,
+     "who had formerly": 1,
+     "previously": 1,
+     "a day": 1,
+     "has long": 1
+    }
+   },
+   "יַחַד": {
+    "n": 23,
+    "renderings": {
+     "together": 5,
+     "none": 4,
+     "of each": 1,
+     "whisper": 1,
+     "alike": 1,
+     "both": 1
+    }
+   },
+   "מוּל": {
+    "n": 3,
+    "renderings": {
+     "toward": 3
+    }
+   },
+   "הָלַם": {
+    "n": 1,
+    "renderings": {
+     "scattering in every": 1
+    }
+   },
+   "מַעֲדַנֹּת": {
+    "n": 1,
+    "renderings": {
+     "cheerfully": 1
+    }
+   },
+   "מְהֵרָה": {
+    "n": 6,
+    "renderings": {
+     "quickly": 2,
+     "hurry": 1,
+     "come quickly": 1,
+     "swiftly": 1,
+     "how speedily": 1
+    }
+   },
+   "אִין": {
+    "n": 1,
+    "renderings": {
+     "not": 1
+    }
+   },
+   "זוּלָה": {
+    "n": 6,
+    "renderings": {
+     "besides": 2,
+     "but": 2,
+     "this one here": 1,
+     "except": 1
+    }
+   },
+   "שָׁאַל": {
+    "n": 1,
+    "renderings": {
+     "him": 1
+    }
+   },
+   "יוֹמָם": {
+    "n": 17,
+    "renderings": {
+     "day": 6,
+     "by day": 6,
+     "each day": 1,
+     "both day": 1,
+     "you by day": 1,
+     "after day": 1
+    }
+   },
+   "אֶשֶׁר": {
+    "n": 29,
+    "renderings": {
+     "blessed": 20,
+     "blessed is he": 2,
+     "how blessed": 2,
+     "blessed are": 2,
+     "blessings": 1,
+     "blessed is": 1
+    }
+   },
+   "סֶלָה": {
+    "n": 71,
+    "renderings": {
+     "selah": 61,
+     "none": 9,
+     "not": 1
+    }
+   },
+   "זוּ": {
+    "n": 12,
+    "renderings": {
+     "none": 7,
+     "this": 2,
+     "who": 1,
+     "which": 1,
+     "against whom": 1
+    }
+   },
+   "בַּל": {
+    "n": 59,
+    "renderings": {
+     "none": 10,
+     "will not": 4,
+     "i will not": 3,
+     "no sooner": 3,
+     "among": 2,
+     "they cannot": 2
+    }
+   },
+   "נָצַח": {
+    "n": 5,
+    "renderings": {
+     "none": 5
+    }
+   },
+   "דָּוִד": {
+    "n": 30,
+    "renderings": {
+     "none": 30
+    }
+   },
+   "בְּמוֹ": {
+    "n": 5,
+    "renderings": {
+     "of it in": 2,
+     "from": 1,
+     "none": 1,
+     "through": 1
+    }
+   },
+   "מִזְמוֹר": {
+    "n": 18,
+    "renderings": {
+     "none": 18
+    }
+   },
+   "מִכְתָּם": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "תָּמִיד": {
+    "n": 31,
+    "renderings": {
+     "will always": 5,
+     "always": 4,
+     "are ever": 2,
+     "are always": 1,
+     "may they always": 1,
+     "is ever": 1
+    }
+   },
+   "תְּפִלָּה": {
+    "n": 3,
+    "renderings": {
+     "none": 3
+    }
+   },
+   "מַשְׂכִּיל": {
+    "n": 3,
+    "renderings": {
+     "none": 3
+    }
+   },
+   "הֶאָח": {
+    "n": 5,
+    "renderings": {
+     "aha": 4,
+     "ah": 1
+    }
+   },
+   "עֹוד": {
+    "n": 2,
+    "renderings": {
+     "as long as": 1,
+     "within": 1
+    }
+   },
+   "אָמֵן": {
+    "n": 7,
+    "renderings": {
+     "amen": 7
+    }
+   },
+   "פְּנִימָה": {
+    "n": 1,
+    "renderings": {
+     "in her chamber": 1
+    }
+   },
+   "אָסָף": {
+    "n": 6,
+    "renderings": {
+     "none": 6
+    }
+   },
+   "פִּתְאֹם": {
+    "n": 6,
+    "renderings": {
+     "suddenly": 4,
+     "then suddenly": 1,
+     "suddenly in an": 1
+    }
+   },
+   "שִׁיר": {
+    "n": 17,
+    "renderings": {
+     "none": 17
+    }
+   },
+   "רִבֹּוא": {
+    "n": 1,
+    "renderings": {
+     "are tens of thousands thousands of": 1
+    }
+   },
+   "שְׁלֹמֹה": {
+    "n": 2,
+    "renderings": {
+     "none": 2
+    }
+   },
+   "אֵיכָה": {
+    "n": 2,
+    "renderings": {
+     "how": 1,
+     "see how": 1
+    }
+   },
+   "בֵּן": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "קֹרַח": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "מֹשֶׁה": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "אִישׁ": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "אֱלֹהִים": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "חִישׁ": {
+    "n": 1,
+    "renderings": {
+     "fly away": 1
+    }
+   },
+   "תּוֹדָה": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "כְּמֹו": {
+    "n": 1,
+    "renderings": {
+     "like": 1
+    }
+   },
+   "אַחֲלַי": {
+    "n": 1,
+    "renderings": {
+     "oh that": 1
+    }
+   },
+   "מַעֲלָה": {
+    "n": 15,
+    "renderings": {
+     "none": 15
+    }
+   },
+   "אוֹיָה": {
+    "n": 1,
+    "renderings": {
+     "woe": 1
+    }
+   },
+   "אֲזַי": {
+    "n": 3,
+    "renderings": {
+     "then": 3
+    }
+   },
+   "תְּהִלָּה": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "הוֹי": {
+    "n": 21,
+    "renderings": {
+     "woe": 15,
+     "alas": 2,
+     "ah": 1,
+     "woe to you": 1,
+     "woe to": 1,
+     "come": 1
+    }
+   },
+   "כָּלִיל": {
+    "n": 1,
+    "renderings": {
+     "completely": 1
+    }
+   },
+   "כַּבִּיר": {
+    "n": 1,
+    "renderings": {
+     "like": 1
+    }
+   },
+   "לין": {
+    "n": 1,
+    "renderings": {
+     "at": 1
+    }
+   },
+   "בַּעְיָם": {
+    "n": 1,
+    "renderings": {
+     "with": 1
+    }
+   },
+   "מַרְבֶה": {
+    "n": 1,
+    "renderings": {
+     "an abundance": 1
+    }
+   },
+   "אׇמְנָם": {
+    "n": 1,
+    "renderings": {
+     "truly": 1
+    }
+   },
+   "מַטָּה": {
+    "n": 1,
+    "renderings": {
+     "below": 1
+    }
+   },
+   "בָּרִחַ": {
+    "n": 1,
+    "renderings": {
+     "as fugitives": 1
+    }
+   },
+   "סָגַד": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   }
+  },
+  "NT": {
+   "ὁ": {
+    "n": 6666,
+    "renderings": {
+     "none": 2982,
+     "the": 1898,
+     "of the": 201,
+     "of": 104,
+     "who": 83,
+     "his": 60
+    }
+   },
+   "δέ": {
+    "n": 916,
+    "renderings": {
+     "none": 343,
+     "but": 262,
+     "and": 103,
+     "when": 39,
+     "now": 39,
+     "however": 14
+    }
+   },
+   "καί": {
+    "n": 2523,
+    "renderings": {
+     "and": 1351,
+     "none": 574,
+     "also": 53,
+     "then": 47,
+     "but": 42,
+     "when": 27
+    }
+   },
+   "αὐτός": {
+    "n": 1961,
+    "renderings": {
+     "none": 410,
+     "him": 362,
+     "his": 300,
+     "them": 168,
+     "their": 85,
+     "it": 49
+    }
+   },
+   "ἐκ": {
+    "n": 327,
+    "renderings": {
+     "from": 95,
+     "of": 67,
+     "none": 40,
+     "by": 23,
+     "out of": 21,
+     "on": 8
+    }
+   },
+   "ἐπί": {
+    "n": 216,
+    "renderings": {
+     "on": 84,
+     "in": 21,
+     "to": 17,
+     "none": 7,
+     "over": 7,
+     "at": 6
+    }
+   },
+   "μετά": {
+    "n": 155,
+    "renderings": {
+     "with": 82,
+     "after": 21,
+     "none": 8,
+     "later": 5,
+     "along with": 2,
+     "in": 2
+    }
+   },
+   "ὅς": {
+    "n": 448,
+    "renderings": {
+     "none": 105,
+     "what": 38,
+     "whom": 37,
+     "which": 27,
+     "that": 23,
+     "who": 20
+    }
+   },
+   "οὖν": {
+    "n": 314,
+    "renderings": {
+     "none": 84,
+     "so": 82,
+     "then": 67,
+     "therefore": 29,
+     "when": 10,
+     "at this": 8
+    }
+   },
+   "ἀπό": {
+    "n": 203,
+    "renderings": {
+     "from": 112,
+     "of": 19,
+     "none": 14,
+     "on": 9,
+     "by": 5,
+     "away": 3
+    }
+   },
+   "ἕως": {
+    "n": 65,
+    "renderings": {
+     "until": 29,
+     "to": 13,
+     "while": 3,
+     "none": 3,
+     "how long": 3,
+     "before": 2
+    }
+   },
+   "οὕτω": {
+    "n": 72,
+    "renderings": {
+     "so": 29,
+     "none": 11,
+     "in the same way": 6,
+     "like this": 3,
+     "this way": 3,
+     "this is how": 2
+    }
+   },
+   "πρίν": {
+    "n": 6,
+    "renderings": {
+     "before": 6
+    }
+   },
+   "ἤ": {
+    "n": 111,
+    "renderings": {
+     "or": 74,
+     "none": 12,
+     "than": 9,
+     "and": 3,
+     "but": 1,
+     "not": 1
+    }
+   },
+   "ἐν": {
+    "n": 754,
+    "renderings": {
+     "in": 367,
+     "none": 49,
+     "by": 45,
+     "at": 44,
+     "on": 33,
+     "with": 29
+    }
+   },
+   "μή": {
+    "n": 376,
+    "renderings": {
+     "none": 117,
+     "do not": 44,
+     "not": 28,
+     "certainly not": 10,
+     "without": 9,
+     "no": 7
+    }
+   },
+   "λάθρᾳ": {
+    "n": 3,
+    "renderings": {
+     "quietly": 1,
+     "secretly": 1,
+     "aside": 1
+    }
+   },
+   "οὗτος": {
+    "n": 478,
+    "renderings": {
+     "this": 142,
+     "none": 91,
+     "these things": 39,
+     "these": 22,
+     "this man": 15,
+     "he": 12
+    }
+   },
+   "κατά": {
+    "n": 133,
+    "renderings": {
+     "in": 21,
+     "according to": 19,
+     "against": 16,
+     "by": 11,
+     "none": 9,
+     "as": 3
+    }
+   },
+   "σύ": {
+    "n": 1048,
+    "renderings": {
+     "you": 498,
+     "your": 214,
+     "none": 91,
+     "to you": 60,
+     "for you": 22,
+     "do you": 13
+    }
+   },
+   "γάρ": {
+    "n": 423,
+    "renderings": {
+     "for": 246,
+     "none": 122,
+     "because": 19,
+     "now": 5,
+     "and": 3,
+     "indeed": 3
+    }
+   },
+   "ἵνα": {
+    "n": 235,
+    "renderings": {
+     "so that": 72,
+     "to": 54,
+     "that": 26,
+     "none": 18,
+     "in order that": 7,
+     "for": 5
+    }
+   },
+   "ὑπό": {
+    "n": 53,
+    "renderings": {
+     "by": 23,
+     "under": 12,
+     "none": 9,
+     "swaying": 1,
+     "at their hands": 1,
+     "which": 1
+    }
+   },
+   "διά": {
+    "n": 264,
+    "renderings": {
+     "through": 76,
+     "by": 32,
+     "because of": 27,
+     "none": 16,
+     "for": 13,
+     "therefore": 9
+    }
+   },
+   "ἐγώ": {
+    "n": 980,
+    "renderings": {
+     "me": 293,
+     "my": 185,
+     "i": 164,
+     "us": 53,
+     "none": 53,
+     "our": 49
+    }
+   },
+   "ὡς": {
+    "n": 115,
+    "renderings": {
+     "as": 32,
+     "like": 21,
+     "when": 12,
+     "about": 6,
+     "none": 4,
+     "how": 4
+    }
+   },
+   "οὐ": {
+    "n": 670,
+    "renderings": {
+     "not": 114,
+     "none": 56,
+     "no": 37,
+     "did not": 17,
+     "do not": 13,
+     "cannot": 11
+    }
+   },
+   "εἰς": {
+    "n": 595,
+    "renderings": {
+     "to": 129,
+     "into": 103,
+     "none": 88,
+     "in": 54,
+     "for": 36,
+     "on": 17
+    }
+   },
+   "ποῦ": {
+    "n": 24,
+    "renderings": {
+     "where": 22,
+     "place": 1,
+     "accusers": 1
+    }
+   },
+   "παρά": {
+    "n": 74,
+    "renderings": {
+     "from": 23,
+     "with": 8,
+     "none": 6,
+     "than": 6,
+     "along": 3,
+     "beside": 2
+    }
+   },
+   "οὐδαμῶς": {
+    "n": 1,
+    "renderings": {
+     "by no means": 1
+    }
+   },
+   "ὅστις": {
+    "n": 53,
+    "renderings": {
+     "who": 16,
+     "whoever": 7,
+     "none": 6,
+     "they": 4,
+     "if someone": 2,
+     "which": 2
+    }
+   },
+   "τότε": {
+    "n": 104,
+    "renderings": {
+     "then": 59,
+     "none": 19,
+     "at that time": 9,
+     "and": 4,
+     "when": 2,
+     "that time on": 2
+    }
+   },
+   "ἀκριβῶς": {
+    "n": 1,
+    "renderings": {
+     "carefully": 1
+    }
+   },
+   "περί": {
+    "n": 124,
+    "renderings": {
+     "about": 54,
+     "for": 13,
+     "none": 10,
+     "concerning": 4,
+     "in regard to": 4,
+     "on behalf of": 3
+    }
+   },
+   "ἐπάν": {
+    "n": 1,
+    "renderings": {
+     "when": 1
+    }
+   },
+   "ὅπως": {
+    "n": 23,
+    "renderings": {
+     "so that": 6,
+     "that": 4,
+     "none": 4,
+     "so": 2,
+     "to": 1,
+     "to be seen": 1
+    }
+   },
+   "κἀγώ": {
+    "n": 42,
+    "renderings": {
+     "and i": 15,
+     "i": 7,
+     "none": 3,
+     "i myself": 2,
+     "me": 2,
+     "and i am": 2
+    }
+   },
+   "ἐπάνω": {
+    "n": 10,
+    "renderings": {
+     "on": 5,
+     "above": 3,
+     "over": 1,
+     "sits": 1
+    }
+   },
+   "οὗ": {
+    "n": 7,
+    "renderings": {
+     "where": 5,
+     "the place where": 1,
+     "none": 1
+    }
+   },
+   "σφόδρα": {
+    "n": 7,
+    "renderings": {
+     "none": 6,
+     "they were greatly": 1
+    }
+   },
+   "πρός": {
+    "n": 181,
+    "renderings": {
+     "to": 96,
+     "none": 21,
+     "at": 7,
+     "toward": 4,
+     "for": 4,
+     "with": 4
+    }
+   },
+   "ἐκεῖ": {
+    "n": 53,
+    "renderings": {
+     "there": 28,
+     "none": 7,
+     "where there": 6,
+     "where": 2,
+     "was": 2,
+     "down": 1
+    }
+   },
+   "ἄν": {
+    "n": 79,
+    "renderings": {
+     "none": 60,
+     "if": 3,
+     "would be saved": 1,
+     "would have asked": 1,
+     "unless": 1,
+     "you would know": 1
+    }
+   },
+   "ὅτι": {
+    "n": 484,
+    "renderings": {
+     "that": 196,
+     "none": 117,
+     "because": 77,
+     "for": 42,
+     "since": 3,
+     "you": 3
+    }
+   },
+   "λίαν": {
+    "n": 4,
+    "renderings": {
+     "none": 1,
+     "a very": 1,
+     "they were so": 1,
+     "much": 1
+    }
+   },
+   "κάτω": {
+    "n": 6,
+    "renderings": {
+     "down": 2,
+     "under": 1,
+     "bottom": 1,
+     "he bent down": 1,
+     "below": 1
+    }
+   },
+   "ἀντί": {
+    "n": 9,
+    "renderings": {
+     "for": 7,
+     "in place of": 1,
+     "upon": 1
+    }
+   },
+   "ἐκεῖνος": {
+    "n": 136,
+    "renderings": {
+     "that": 37,
+     "none": 23,
+     "he": 17,
+     "those": 7,
+     "very": 3,
+     "they": 3
+    }
+   },
+   "τίς": {
+    "n": 225,
+    "renderings": {
+     "what": 80,
+     "who": 39,
+     "why": 27,
+     "none": 24,
+     "which": 9,
+     "whom": 7
+    }
+   },
+   "ἑαυτοῦ": {
+    "n": 96,
+    "renderings": {
+     "himself": 21,
+     "none": 15,
+     "yourselves": 6,
+     "their": 6,
+     "itself": 4,
+     "one another": 4
+    }
+   },
+   "ἤδη": {
+    "n": 25,
+    "renderings": {
+     "none": 6,
+     "already": 3,
+     "has already": 2,
+     "now": 2,
+     "lies ready": 1,
+     "is already late": 1
+    }
+   },
+   "μέν": {
+    "n": 66,
+    "renderings": {
+     "none": 52,
+     "although": 2,
+     "for": 2,
+     "now": 2,
+     "say": 1,
+     "does indeed": 1
+    }
+   },
+   "ὀπίσω": {
+    "n": 13,
+    "renderings": {
+     "after": 6,
+     "none": 4,
+     "behind": 1,
+     "back": 1,
+     "around": 1
+    }
+   },
+   "ἄρτι": {
+    "n": 19,
+    "renderings": {
+     "now": 6,
+     "none": 3,
+     "now on": 3,
+     "let it be so": 1,
+     "has just died": 1,
+     "this very day": 1
+    }
+   },
+   "ὡσεί": {
+    "n": 5,
+    "renderings": {
+     "like": 3,
+     "about": 1,
+     "as those who have been": 1
+    }
+   },
+   "τεσσεράκοντα": {
+    "n": 4,
+    "renderings": {
+     "forty": 1,
+     "nights": 1,
+     "forty six": 1,
+     "for forty": 1
+    }
+   },
+   "εἰ": {
+    "n": 164,
+    "renderings": {
+     "if": 112,
+     "except": 12,
+     "none": 8,
+     "only": 5,
+     "but": 4,
+     "since": 2
+    }
+   },
+   "ἀλλά": {
+    "n": 224,
+    "renderings": {
+     "but": 144,
+     "instead": 16,
+     "none": 13,
+     "but only": 4,
+     "however": 4,
+     "indeed": 3
+    }
+   },
+   "σεαυτοῦ": {
+    "n": 19,
+    "renderings": {
+     "yourself": 11,
+     "show": 1,
+     "as": 1,
+     "do you claim to be": 1,
+     "none": 1,
+     "and": 1
+    }
+   },
+   "ποτέ": {
+    "n": 19,
+    "renderings": {
+     "none": 5,
+     "may hand you over": 1,
+     "they may trample": 1,
+     "otherwise they might": 1,
+     "you pull": 1,
+     "they may faint": 1
+    }
+   },
+   "πάλιν": {
+    "n": 77,
+    "renderings": {
+     "again": 40,
+     "none": 7,
+     "once again": 7,
+     "back": 6,
+     "once more": 3,
+     "then": 3
+    }
+   },
+   "ἐάν": {
+    "n": 147,
+    "renderings": {
+     "if": 84,
+     "none": 25,
+     "unless": 18,
+     "but": 2,
+     "so then": 1,
+     "does not fall away": 1
+    }
+   },
+   "πέραν": {
+    "n": 15,
+    "renderings": {
+     "beyond": 4,
+     "across": 3,
+     "other side": 2,
+     "on the other side": 2,
+     "the": 1,
+     "while": 1
+    }
+   },
+   "δύο": {
+    "n": 52,
+    "renderings": {
+     "two": 37,
+     "of two": 2,
+     "two talents": 2,
+     "two miles": 1,
+     "him": 1,
+     "second": 1
+    }
+   },
+   "εὐθέως": {
+    "n": 14,
+    "renderings": {
+     "immediately": 6,
+     "at once": 3,
+     "quickly": 2,
+     "none": 2,
+     "directly": 1
+    }
+   },
+   "ἐκεῖθεν": {
+    "n": 14,
+    "renderings": {
+     "from there": 7,
+     "none": 4,
+     "from that place": 2,
+     "that place": 1
+    }
+   },
+   "κακῶς": {
+    "n": 8,
+    "renderings": {
+     "sick": 3,
+     "were ill": 1,
+     "is miserably": 1,
+     "terribly": 1,
+     "to a wretched end": 1,
+     "something wrong": 1
+    }
+   },
+   "ἕνεκα": {
+    "n": 9,
+    "renderings": {
+     "because of": 2,
+     "for my sake": 2,
+     "on my account": 1,
+     "for this reason": 1,
+     "or": 1,
+     "for your sake": 1
+    }
+   },
+   "ὅταν": {
+    "n": 39,
+    "renderings": {
+     "when": 33,
+     "none": 1,
+     "their": 1,
+     "as soon as": 1,
+     "after": 1,
+     "while": 1
+    }
+   },
+   "πρό": {
+    "n": 16,
+    "renderings": {
+     "before": 12,
+     "before the": 1,
+     "ahead of you": 1,
+     "the": 1,
+     "just before": 1
+    }
+   },
+   "ἔτι": {
+    "n": 35,
+    "renderings": {
+     "still": 7,
+     "none": 4,
+     "while": 3,
+     "more": 3,
+     "only": 2,
+     "others": 1
+    }
+   },
+   "ἔξω": {
+    "n": 25,
+    "renderings": {
+     "out": 11,
+     "outside": 7,
+     "away": 3,
+     "out of": 2,
+     "none": 1,
+     "stood": 1
+    }
+   },
+   "οὐδέ": {
+    "n": 56,
+    "renderings": {
+     "or": 9,
+     "nor": 8,
+     "not even": 5,
+     "neither": 4,
+     "none": 4,
+     "and": 3
+    }
+   },
+   "ἔμπροσθεν": {
+    "n": 23,
+    "renderings": {
+     "before": 14,
+     "surpassed": 2,
+     "ahead of": 2,
+     "men": 1,
+     "in your sight": 1,
+     "none": 1
+    }
+   },
+   "ἀμήν": {
+    "n": 61,
+    "renderings": {
+     "truly": 32,
+     "truly truly": 23,
+     "amen": 3,
+     "none": 2,
+     "he truly": 1
+    }
+   },
+   "κἀκεῖ": {
+    "n": 4,
+    "renderings": {
+     "there": 2,
+     "and there": 1,
+     "at his house": 1
+    }
+   },
+   "τὶς": {
+    "n": 113,
+    "renderings": {
+     "some": 20,
+     "anyone": 19,
+     "none": 17,
+     "one": 9,
+     "something": 5,
+     "a": 5
+    }
+   },
+   "παρεκτός": {
+    "n": 1,
+    "renderings": {
+     "except": 1
+    }
+   },
+   "ὅλως": {
+    "n": 1,
+    "renderings": {
+     "at all": 1
+    }
+   },
+   "μήτε": {
+    "n": 8,
+    "renderings": {
+     "or": 3,
+     "nor": 2,
+     "either": 1,
+     "neither": 1,
+     "without": 1
+    }
+   },
+   "ναί": {
+    "n": 12,
+    "renderings": {
+     "yes": 12
+    }
+   },
+   "πλησίον": {
+    "n": 7,
+    "renderings": {
+     "neighbor": 5,
+     "none": 1,
+     "near": 1
+    }
+   },
+   "ὑπέρ": {
+    "n": 46,
+    "renderings": {
+     "for": 28,
+     "above": 2,
+     "more than": 2,
+     "on our behalf": 2,
+     "of": 1,
+     "it is for": 1
+    }
+   },
+   "οὐχί": {
+    "n": 19,
+    "renderings": {
+     "not": 3,
+     "do not": 2,
+     "no": 2,
+     "more": 1,
+     "are not": 1,
+     "will he not take hold of": 1
+    }
+   },
+   "μήγε": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "ὥσπερ": {
+    "n": 21,
+    "renderings": {
+     "just as": 8,
+     "as": 7,
+     "like": 1,
+     "as it was": 1,
+     "it is just like": 1,
+     "for just as": 1
+    }
+   },
+   "σήμερον": {
+    "n": 17,
+    "renderings": {
+     "today": 12,
+     "this day": 2,
+     "day": 1,
+     "this": 1,
+     "this very day": 1
+    }
+   },
+   "ὅπου": {
+    "n": 47,
+    "renderings": {
+     "where": 35,
+     "wherever": 3,
+     "must": 1,
+     "he was": 1,
+     "village": 1,
+     "none": 1
+    }
+   },
+   "οὔτε": {
+    "n": 25,
+    "renderings": {
+     "nor": 10,
+     "neither": 6,
+     "or": 2,
+     "do not destroy": 1,
+     "and": 1,
+     "either": 1
+    }
+   },
+   "πόσος": {
+    "n": 12,
+    "renderings": {
+     "how much": 7,
+     "how many": 4,
+     "how great is": 1
+    }
+   },
+   "μηδέ": {
+    "n": 18,
+    "renderings": {
+     "or": 8,
+     "do not": 3,
+     "about your": 1,
+     "gold": 1,
+     "silver": 1,
+     "nor": 1
+    }
+   },
+   "μᾶλλον": {
+    "n": 27,
+    "renderings": {
+     "more": 11,
+     "rather": 3,
+     "none": 2,
+     "much": 1,
+     "to": 1,
+     "instead": 1
+    }
+   },
+   "πῶς": {
+    "n": 45,
+    "renderings": {
+     "how": 34,
+     "none": 4,
+     "how to respond": 1,
+     "how did": 1,
+     "but how": 1,
+     "how is it that": 1
+    }
+   },
+   "αὔριον": {
+    "n": 3,
+    "renderings": {
+     "tomorrow": 3
+    }
+   },
+   "ὅσος": {
+    "n": 40,
+    "renderings": {
+     "none": 12,
+     "all who": 5,
+     "whatever": 5,
+     "as": 4,
+     "that": 2,
+     "who": 2
+    }
+   },
+   "ἔσωθεν": {
+    "n": 4,
+    "renderings": {
+     "on the inside": 2,
+     "but": 1,
+     "inside": 1
+    }
+   },
+   "μήτι": {
+    "n": 7,
+    "renderings": {
+     "none": 2,
+     "could this be": 1,
+     "surely not": 1,
+     "not": 1,
+     "could": 1,
+     "am": 1
+    }
+   },
+   "οὐδέποτε": {
+    "n": 8,
+    "renderings": {
+     "never": 3,
+     "i never knew": 1,
+     "nothing": 1,
+     "none": 1,
+     "have you never read": 1,
+     "never has": 1
+    }
+   },
+   "ὅτε": {
+    "n": 38,
+    "renderings": {
+     "when": 25,
+     "none": 4,
+     "after": 3,
+     "as": 1,
+     "testimony": 1,
+     "when jesus": 1
+    }
+   },
+   "δεινῶς": {
+    "n": 1,
+    "renderings": {
+     "and in terrible": 1
+    }
+   },
+   "ἐμαυτοῦ": {
+    "n": 18,
+    "renderings": {
+     "myself": 8,
+     "my own": 5,
+     "my own accord": 2,
+     "me": 1,
+     "my presence": 1,
+     "for myself": 1
+    }
+   },
+   "τοσοῦτος": {
+    "n": 12,
+    "renderings": {
+     "with such great": 1,
+     "enough": 1,
+     "such a large": 1,
+     "none": 1,
+     "so many": 1,
+     "all this": 1
+    }
+   },
+   "ὥστε": {
+    "n": 22,
+    "renderings": {
+     "so that": 5,
+     "so": 4,
+     "that": 3,
+     "to": 3,
+     "therefore": 2,
+     "and": 1
+    }
+   },
+   "ὧδε": {
+    "n": 25,
+    "renderings": {
+     "here": 18,
+     "is here": 2,
+     "none": 2,
+     "here is": 1,
+     "there he is": 1,
+     "you had been": 1
+    }
+   },
+   "τοιοῦτος": {
+    "n": 15,
+    "renderings": {
+     "such": 7,
+     "like this": 1,
+     "such as these": 1,
+     "such a woman": 1,
+     "do such": 1,
+     "the same things": 1
+    }
+   },
+   "εἰ δὲ μή": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "δώδεκα": {
+    "n": 19,
+    "renderings": {
+     "twelve": 18,
+     "for twelve": 1
+    }
+   },
+   "ὄπισθεν": {
+    "n": 2,
+    "renderings": {
+     "behind him": 1,
+     "after": 1
+    }
+   },
+   "δωρεάν": {
+    "n": 4,
+    "renderings": {
+     "freely": 3,
+     "without reason": 1
+    }
+   },
+   "ἄνευ": {
+    "n": 1,
+    "renderings": {
+     "apart from the will": 1
+    }
+   },
+   "μόνος": {
+    "n": 1,
+    "renderings": {
+     "even": 1
+    }
+   },
+   "οὐαί": {
+    "n": 13,
+    "renderings": {
+     "woe": 12,
+     "miserable": 1
+    }
+   },
+   "πάλαι": {
+    "n": 2,
+    "renderings": {
+     "long ago": 1,
+     "on many past": 1
+    }
+   },
+   "πλήν": {
+    "n": 6,
+    "renderings": {
+     "but": 4,
+     "yet": 1,
+     "none": 1
+    }
+   },
+   "μέχρι": {
+    "n": 8,
+    "renderings": {
+     "to": 2,
+     "the jews": 1,
+     "until": 1,
+     "none": 1,
+     "if we hold": 1,
+     "reform": 1
+    }
+   },
+   "καλῶς": {
+    "n": 8,
+    "renderings": {
+     "good": 1,
+     "correctly": 1,
+     "jesus": 1,
+     "right": 1,
+     "rightly": 1,
+     "i spoke correctly": 1
+    }
+   },
+   "ἄρα": {
+    "n": 15,
+    "renderings": {
+     "then": 6,
+     "so": 5,
+     "therefore": 3,
+     "consequently": 1
+    }
+   },
+   "ὅθεν": {
+    "n": 10,
+    "renderings": {
+     "where": 2,
+     "therefore": 2,
+     "i left": 1,
+     "so much that": 1,
+     "for this reason": 1,
+     "it was": 1
+    }
+   },
+   "ἑπτά": {
+    "n": 10,
+    "renderings": {
+     "seven": 8,
+     "none": 1,
+     "seventh": 1
+    }
+   },
+   "ἑκατόν": {
+    "n": 6,
+    "renderings": {
+     "sixtyfold or": 2,
+     "a hundred": 2,
+     "none": 1,
+     "of large": 1
+    }
+   },
+   "ἑξήκοντα": {
+    "n": 2,
+    "renderings": {
+     "thirtyfold": 2
+    }
+   },
+   "τριάκοντα": {
+    "n": 7,
+    "renderings": {
+     "none": 3,
+     "thirty": 3,
+     "for thirty eight": 1
+    }
+   },
+   "βαρέως": {
+    "n": 1,
+    "renderings": {
+     "they hardly": 1
+    }
+   },
+   "δή": {
+    "n": 1,
+    "renderings": {
+     "indeed": 1
+    }
+   },
+   "ἀνά": {
+    "n": 4,
+    "renderings": {
+     "each": 2,
+     "among": 1,
+     "from": 1
+    }
+   },
+   "πόθεν": {
+    "n": 18,
+    "renderings": {
+     "where": 12,
+     "field": 1,
+     "where did this man get": 1,
+     "none": 1,
+     "what was the source": 1,
+     "how": 1
+    }
+   },
+   "ἅμα": {
+    "n": 3,
+    "renderings": {
+     "them": 1,
+     "in the": 1,
+     "they have together become worthless": 1
+    }
+   },
+   "χωρίς": {
+    "n": 25,
+    "renderings": {
+     "without": 9,
+     "apart from": 6,
+     "besides": 2,
+     "without using": 1,
+     "from": 1,
+     "yet was without": 1
+    }
+   },
+   "πεζῇ": {
+    "n": 1,
+    "renderings": {
+     "from the": 1
+    }
+   },
+   "πέντε": {
+    "n": 17,
+    "renderings": {
+     "five": 14,
+     "five were": 1,
+     "with five": 1,
+     "none": 1
+    }
+   },
+   "ἀληθῶς": {
+    "n": 10,
+    "renderings": {
+     "truly": 6,
+     "surely": 1,
+     "here": 1,
+     "recognized": 1,
+     "with certainty": 1
+    }
+   },
+   "πόρρω": {
+    "n": 1,
+    "renderings": {
+     "are far": 1
+    }
+   },
+   "μάτην": {
+    "n": 1,
+    "renderings": {
+     "in vain": 1
+    }
+   },
+   "κἀκεῖνος": {
+    "n": 9,
+    "renderings": {
+     "and these things": 1,
+     "without": 1,
+     "also": 1,
+     "and he": 1,
+     "them in as well": 1,
+     "will also do": 1
+    }
+   },
+   "ὦ": {
+    "n": 6,
+    "renderings": {
+     "o": 5,
+     "none": 1
+    }
+   },
+   "πρωΐ": {
+    "n": 5,
+    "renderings": {
+     "in the morning": 2,
+     "morning to": 1,
+     "early morning": 1,
+     "early": 1
+    }
+   },
+   "οὔπω": {
+    "n": 16,
+    "renderings": {
+     "had not yet": 4,
+     "has not yet": 3,
+     "do you still not understand": 1,
+     "still to come": 1,
+     "had not yet gone out": 1,
+     "am not": 1
+    }
+   },
+   "ἕξ": {
+    "n": 4,
+    "renderings": {
+     "six": 3,
+     "none": 1
+    }
+   },
+   "πολλάκις": {
+    "n": 8,
+    "renderings": {
+     "often": 2,
+     "again and again": 2,
+     "he often falls": 1,
+     "none": 1,
+     "had often": 1,
+     "repeatedly": 1
+    }
+   },
+   "πότε": {
+    "n": 9,
+    "renderings": {
+     "when": 5,
+     "none": 3,
+     "when will": 1
+    }
+   },
+   "ἔνθεν": {
+    "n": 1,
+    "renderings": {
+     "from here": 1
+    }
+   },
+   "ἆρα": {
+    "n": 4,
+    "renderings": {
+     "then": 4
+    }
+   },
+   "ἐνενήκοντα": {
+    "n": 2,
+    "renderings": {
+     "ninety nine": 2
+    }
+   },
+   "ἐννέα": {
+    "n": 2,
+    "renderings": {
+     "none": 2
+    }
+   },
+   "μεταξύ": {
+    "n": 4,
+    "renderings": {
+     "and confront": 1,
+     "between": 1,
+     "none": 1,
+     "either": 1
+    }
+   },
+   "ποσάκις": {
+    "n": 2,
+    "renderings": {
+     "how many times": 1,
+     "how often": 1
+    }
+   },
+   "ἑπτάκις": {
+    "n": 2,
+    "renderings": {
+     "seven times": 2
+    }
+   },
+   "ἑβδομηκοντάκις": {
+    "n": 1,
+    "renderings": {
+     "seventy seven times": 1
+    }
+   },
+   "ἐπεί": {
+    "n": 17,
+    "renderings": {
+     "since": 6,
+     "because": 4,
+     "otherwise": 3,
+     "none": 2,
+     "in that case": 1,
+     "if it could": 1
+    }
+   },
+   "οὐκέτι": {
+    "n": 23,
+    "renderings": {
+     "no longer": 4,
+     "no more": 2,
+     "any further": 1,
+     "not only": 1,
+     "and": 1,
+     "longer": 1
+    }
+   },
+   "ποῖος": {
+    "n": 12,
+    "renderings": {
+     "what": 4,
+     "which": 2,
+     "the kind of": 2,
+     "which ones": 1,
+     "on which": 1,
+     "in which": 1
+    }
+   },
+   "δυσκόλως": {
+    "n": 1,
+    "renderings": {
+     "it is hard for": 1
+    }
+   },
+   "ὡσαύτως": {
+    "n": 5,
+    "renderings": {
+     "none": 1,
+     "the same thing": 1,
+     "the same": 1,
+     "likewise": 1,
+     "in the same way": 1
+    }
+   },
+   "δέκα": {
+    "n": 3,
+    "renderings": {
+     "ten": 2,
+     "virgins": 1
+    }
+   },
+   "κατέναντι": {
+    "n": 3,
+    "renderings": {
+     "ahead": 1,
+     "before": 1,
+     "he is our father in the presence of": 1
+    }
+   },
+   "εὐθύς": {
+    "n": 2,
+    "renderings": {
+     "at once": 1,
+     "immediately": 1
+    }
+   },
+   "καθώς": {
+    "n": 59,
+    "renderings": {
+     "as": 32,
+     "just as": 11,
+     "none": 2,
+     "exactly": 2,
+     "in": 1,
+     "only as": 1
+    }
+   },
+   "ὡσαννά": {
+    "n": 4,
+    "renderings": {
+     "hosanna": 4
+    }
+   },
+   "μηκέτι": {
+    "n": 6,
+    "renderings": {
+     "may you never bear": 1,
+     "stop": 1,
+     "sin": 1,
+     "should no longer": 1,
+     "let us stop judging": 1,
+     "there are no further": 1
+    }
+   },
+   "παραχρῆμα": {
+    "n": 2,
+    "renderings": {
+     "the": 1,
+     "so quickly": 1
+    }
+   },
+   "κἄν": {
+    "n": 7,
+    "renderings": {
+     "even if": 3,
+     "even though": 2,
+     "if": 1,
+     "if even": 1
+    }
+   },
+   "τέ": {
+    "n": 42,
+    "renderings": {
+     "none": 21,
+     "both": 6,
+     "and": 6,
+     "that": 1,
+     "even": 1,
+     "if you": 1
+    }
+   },
+   "ὁμοίως": {
+    "n": 8,
+    "renderings": {
+     "in the same way": 2,
+     "the same thing happened to": 1,
+     "the same thing": 1,
+     "none": 1,
+     "and": 1,
+     "fish": 1
+    }
+   },
+   "ὑποκάτω": {
+    "n": 3,
+    "renderings": {
+     "under": 3
+    }
+   },
+   "ἔξωθεν": {
+    "n": 3,
+    "renderings": {
+     "on the outside": 2,
+     "outside": 1
+    }
+   },
+   "ἐντός": {
+    "n": 1,
+    "renderings": {
+     "inside": 1
+    }
+   },
+   "ἐκτός": {
+    "n": 1,
+    "renderings": {
+     "may become": 1
+    }
+   },
+   "ἀλλήλων": {
+    "n": 33,
+    "renderings": {
+     "one another": 20,
+     "none": 5,
+     "yourselves": 1,
+     "themselves": 1,
+     "each other": 1,
+     "and their": 1
+    }
+   },
+   "οἷος": {
+    "n": 2,
+    "renderings": {
+     "unseen": 1,
+     "as though": 1
+    }
+   },
+   "νῦν": {
+    "n": 51,
+    "renderings": {
+     "now": 29,
+     "present": 3,
+     "none": 2,
+     "you now have": 1,
+     "has now": 1,
+     "now come": 1
+    }
+   },
+   "ἐγγύς": {
+    "n": 18,
+    "renderings": {
+     "near": 10,
+     "is near": 1,
+     "aenon": 1,
+     "approaching": 1,
+     "bethany": 1,
+     "nearby": 1
+    }
+   },
+   "ἄχρι": {
+    "n": 8,
+    "renderings": {
+     "until": 2,
+     "to": 2,
+     "the": 1,
+     "before": 1,
+     "none": 1,
+     "as long as": 1
+    }
+   },
+   "εὖ": {
+    "n": 2,
+    "renderings": {
+     "well done": 2
+    }
+   },
+   "σύν": {
+    "n": 11,
+    "renderings": {
+     "with": 10,
+     "along with": 1
+    }
+   },
+   "πάντοτε": {
+    "n": 11,
+    "renderings": {
+     "always": 5,
+     "you will always have": 2,
+     "at all times": 2,
+     "you always hear": 1,
+     "since he always": 1
+    }
+   },
+   "τρίς": {
+    "n": 3,
+    "renderings": {
+     "three times": 3
+    }
+   },
+   "αὐτοῦ": {
+    "n": 2,
+    "renderings": {
+     "here": 1,
+     "his": 1
+    }
+   },
+   "μακρόθεν": {
+    "n": 2,
+    "renderings": {
+     "a distance": 2
+    }
+   },
+   "ἔσω": {
+    "n": 3,
+    "renderings": {
+     "in": 1,
+     "inside": 1,
+     "inner": 1
+    }
+   },
+   "πικρῶς": {
+    "n": 1,
+    "renderings": {
+     "bitterly": 1
+    }
+   },
+   "διό": {
+    "n": 15,
+    "renderings": {
+     "therefore": 9,
+     "that is why": 2,
+     "so": 2,
+     "this is why": 1,
+     "then": 1
+    }
+   },
+   "καθά": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "περισσῶς": {
+    "n": 3,
+    "renderings": {
+     "all the louder": 1,
+     "pay closer attention": 1,
+     "i especially urge": 1
+    }
+   },
+   "λεμά": {
+    "n": 1,
+    "renderings": {
+     "lema": 1
+    }
+   },
+   "ἄνωθεν": {
+    "n": 6,
+    "renderings": {
+     "again": 2,
+     "top": 1,
+     "from above": 1,
+     "to you": 1,
+     "top to bottom": 1
+    }
+   },
+   "τὸ ὄνομα": {
+    "n": 1,
+    "renderings": {
+     "named": 1
+    }
+   },
+   "ἀπέναντι": {
+    "n": 2,
+    "renderings": {
+     "opposite": 1,
+     "before": 1
+    }
+   },
+   "ἐπαύριον": {
+    "n": 6,
+    "renderings": {
+     "next day": 6
+    }
+   },
+   "ὀψέ": {
+    "n": 1,
+    "renderings": {
+     "after": 1
+    }
+   },
+   "ἕνδεκα": {
+    "n": 1,
+    "renderings": {
+     "eleven": 1
+    }
+   },
+   "πώποτε": {
+    "n": 4,
+    "renderings": {
+     "none": 4
+    }
+   },
+   "πού": {
+    "n": 4,
+    "renderings": {
+     "somewhere": 2,
+     "where": 1,
+     "about": 1
+    }
+   },
+   "ἄνω": {
+    "n": 4,
+    "renderings": {
+     "the brim": 1,
+     "above": 1,
+     "upward": 1,
+     "up": 1
+    }
+   },
+   "ἐντεῦθεν": {
+    "n": 6,
+    "renderings": {
+     "out of here": 1,
+     "and": 1,
+     "from here": 1,
+     "of this realm": 1,
+     "one on each side": 1,
+     "none": 1
+    }
+   },
+   "καίτοιγε": {
+    "n": 1,
+    "renderings": {
+     "although it was": 1
+    }
+   },
+   "ἐνθάδε": {
+    "n": 2,
+    "renderings": {
+     "here": 1,
+     "back": 1
+    }
+   },
+   "μέντοι": {
+    "n": 5,
+    "renderings": {
+     "but": 3,
+     "yet": 1,
+     "none": 1
+    }
+   },
+   "ὁμοῦ": {
+    "n": 3,
+    "renderings": {
+     "together": 3
+    }
+   },
+   "ἐχθές": {
+    "n": 2,
+    "renderings": {
+     "yesterday": 2
+    }
+   },
+   "Ἑβραϊστί": {
+    "n": 5,
+    "renderings": {
+     "in hebrew": 5
+    }
+   },
+   "ὀκτώ": {
+    "n": 2,
+    "renderings": {
+     "years": 1,
+     "eight": 1
+    }
+   },
+   "εἴκοσι": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "φανερῶς": {
+    "n": 1,
+    "renderings": {
+     "in": 1
+    }
+   },
+   "πότερον": {
+    "n": 1,
+    "renderings": {
+     "whether": 1
+    }
+   },
+   "οὐδέπω": {
+    "n": 3,
+    "renderings": {
+     "had not yet": 1,
+     "had yet been": 1,
+     "they still did not understand": 1
+    }
+   },
+   "καθεῖς": {
+    "n": 1,
+    "renderings": {
+     "by": 1
+    }
+   },
+   "ὄντως": {
+    "n": 1,
+    "renderings": {
+     "indeed": 1
+    }
+   },
+   "πεντήκοντα": {
+    "n": 2,
+    "renderings": {
+     "fifty": 1,
+     "but": 1
+    }
+   },
+   "χαμαί": {
+    "n": 2,
+    "renderings": {
+     "on the ground": 1,
+     "to the ground": 1
+    }
+   },
+   "ἀλλαχόθεν": {
+    "n": 1,
+    "renderings": {
+     "some other way": 1
+    }
+   },
+   "ἔπειτα": {
+    "n": 3,
+    "renderings": {
+     "and then": 2,
+     "then": 1
+    }
+   },
+   "δεκαπέντε": {
+    "n": 1,
+    "renderings": {
+     "two miles": 1
+    }
+   },
+   "ταχέως": {
+    "n": 1,
+    "renderings": {
+     "how quickly": 1
+    }
+   },
+   "ὅμως": {
+    "n": 1,
+    "renderings": {
+     "nevertheless": 1
+    }
+   },
+   "ἤπερ": {
+    "n": 1,
+    "renderings": {
+     "than": 1
+    }
+   },
+   "εἶτα": {
+    "n": 4,
+    "renderings": {
+     "then": 2,
+     "after that": 1,
+     "furthermore": 1
+    }
+   },
+   "οὐκοῦν": {
+    "n": 1,
+    "renderings": {
+     "then": 1
+    }
+   },
+   "Ῥωμαϊστί": {
+    "n": 1,
+    "renderings": {
+     "latin": 1
+    }
+   },
+   "Ἑλληνιστί": {
+    "n": 1,
+    "renderings": {
+     "and greek": 1
+    }
+   },
+   "ἐνώπιον": {
+    "n": 6,
+    "renderings": {
+     "in his sight": 2,
+     "in the presence": 1,
+     "in the eyes of": 1,
+     "and": 1,
+     "from god s": 1
+    }
+   },
+   "δεύτερος": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "ἀδιαλείπτως": {
+    "n": 1,
+    "renderings": {
+     "constantly": 1
+    }
+   },
+   "δεῦρο": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "διότι": {
+    "n": 7,
+    "renderings": {
+     "for": 2,
+     "because": 2,
+     "therefore": 1,
+     "that": 1,
+     "they": 1
+    }
+   },
+   "ἀνόμως": {
+    "n": 2,
+    "renderings": {
+     "apart from the law": 2
+    }
+   },
+   "καθάπερ": {
+    "n": 7,
+    "renderings": {
+     "as": 3,
+     "just as": 2,
+     "likewise": 1,
+     "so": 1
+    }
+   },
+   "πάντως": {
+    "n": 1,
+    "renderings": {
+     "at all": 1
+    }
+   },
+   "νυνί": {
+    "n": 7,
+    "renderings": {
+     "now": 4,
+     "now that": 2,
+     "in that case": 1
+    }
+   },
+   "εἴπερ": {
+    "n": 3,
+    "renderings": {
+     "since there is only": 1,
+     "if": 1,
+     "we suffer": 1
+    }
+   },
+   "μόλις": {
+    "n": 1,
+    "renderings": {
+     "rarely": 1
+    }
+   },
+   "τάχα": {
+    "n": 1,
+    "renderings": {
+     "might possibly": 1
+    }
+   },
+   "ἐφάπαξ": {
+    "n": 4,
+    "renderings": {
+     "once for all": 4
+    }
+   },
+   "ἤτοι": {
+    "n": 1,
+    "renderings": {
+     "whether you are slaves": 1
+    }
+   },
+   "καθό": {
+    "n": 1,
+    "renderings": {
+     "we ought": 1
+    }
+   },
+   "γέ": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "μήπω": {
+    "n": 2,
+    "renderings": {
+     "before the twins": 1,
+     "had not yet": 1
+    }
+   },
+   "μενοῦνγε": {
+    "n": 2,
+    "renderings": {
+     "but": 1,
+     "indeed they did": 1
+    }
+   },
+   "εἴτε": {
+    "n": 4,
+    "renderings": {
+     "if it is": 3,
+     "if one s gift": 1
+    }
+   },
+   "εἰκῇ": {
+    "n": 1,
+    "renderings": {
+     "sword in": 1
+    }
+   },
+   "εὐσχημόνως": {
+    "n": 1,
+    "renderings": {
+     "decently": 1
+    }
+   },
+   "ὁμοθυμαδόν": {
+    "n": 1,
+    "renderings": {
+     "with one mind": 1
+    }
+   },
+   "τολμηρός": {
+    "n": 1,
+    "renderings": {
+     "a bold": 1
+    }
+   },
+   "ἀξίως": {
+    "n": 1,
+    "renderings": {
+     "in a manner worthy": 1
+    }
+   },
+   "πολυμερῶς": {
+    "n": 1,
+    "renderings": {
+     "occasions": 1
+    }
+   },
+   "πολυτρόπως": {
+    "n": 1,
+    "renderings": {
+     "in many different ways": 1
+    }
+   },
+   "τηλικοῦτος": {
+    "n": 1,
+    "renderings": {
+     "such a great": 1
+    }
+   },
+   "παραπλησίως": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "δήπου": {
+    "n": 1,
+    "renderings": {
+     "surely": 1
+    }
+   },
+   "ἐάνπερ": {
+    "n": 2,
+    "renderings": {
+     "if": 2
+    }
+   },
+   "καίτοι": {
+    "n": 1,
+    "renderings": {
+     "works": 1
+    }
+   },
+   "καίπερ": {
+    "n": 3,
+    "renderings": {
+     "although": 1,
+     "descended": 1,
+     "though": 1
+    }
+   },
+   "ἅπαξ": {
+    "n": 8,
+    "renderings": {
+     "once for all": 2,
+     "once": 2,
+     "once more": 2,
+     "have once been enlightened": 1,
+     "and then only once": 1
+    }
+   },
+   "μήν (I)": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "πάντοθεν": {
+    "n": 1,
+    "renderings": {
+     "none": 1
+    }
+   },
+   "ὑπεράνω": {
+    "n": 1,
+    "renderings": {
+     "above": 1
+    }
+   },
+   "σχεδόν": {
+    "n": 1,
+    "renderings": {
+     "nearly": 1
+    }
+   },
+   "ἑκουσίως": {
+    "n": 1,
+    "renderings": {
+     "deliberately": 1
+    }
+   },
+   "μηδέπω": {
+    "n": 1,
+    "renderings": {
+     "not yet": 1
+    }
+   },
+   "πόρρωθεν": {
+    "n": 1,
+    "renderings": {
+     "from afar": 1
+    }
+   },
+   "τοιγαροῦν": {
+    "n": 1,
+    "renderings": {
+     "therefore": 1
+    }
+   },
+   "μετέπειτα": {
+    "n": 1,
+    "renderings": {
+     "afterward": 1
+    }
+   },
+   "εὐαρέστως": {
+    "n": 1,
+    "renderings": {
+     "acceptably": 1
+    }
+   },
+   "τοίνυν": {
+    "n": 1,
+    "renderings": {
+     "therefore": 1
+    }
+   }
+  }
+ }
+}

@@ -24,6 +24,9 @@ from lexeme_aligner.refs import encode
 from lexeme_aligner.run_pilot import NT_BOOKS
 from lexeme_aligner.versification import remapper
 
+GOLD_SOURCES = {"clear": ("Clear-Bible/Alignments (manual)", "CC-BY-4.0"), "helfi": ("HELFI (University of Helsinki)", "CC-BY-4.0"),
+                "door43": ("unfoldingWord Door43 aligned GL texts", "CC-BY-SA-4.0"), "sword": ("SWORD ChiUns", "Public Domain")}
+
 HEADER = ("Target positions are the letter runs of the verse in reading order. Punctuation is dropped. Position numbers refer to that "
           "tokenization.\n\nHow this translation's function words are aligned, MEASURED on a manual gold alignment of the same "
           "language ({src}; books {books}). Each line: the word, what it renders and how often. Use these as defaults; the verse in "
@@ -100,7 +103,16 @@ def profile(iso: str, publish_iso: str, books: list[str]) -> dict:
                 js = linked_by.get(t.idx, [])
                 key = f"{t.lemma} (suffix)" if testament == "OT" and t.lemma == "הוּא" else t.lemma
                 src[testament][key][" ".join(r.toks[j].lower() for j in sorted(js)) if js else "none"] += 1
-    return {"base_text": base, "books": books,
+    import datetime, hashlib, json as _json
+    gold_kind = _json.loads(Path("config/gold_langs.json").read_text(encoding="utf-8")).get(publish_iso, {}).get("gold")
+    src_name, lic = GOLD_SOURCES.get(gold_kind, (gold_kind, None))
+    here = Path(__file__).resolve().parent
+    scripts = {f: hashlib.sha256((here / f).read_bytes()).hexdigest()[:16] for f in ("derive_conventions.py", "gold_split.py")}
+    return {"base_text": base, "books": books, "gold_source": f"{src_name}, base text {base}", "gold_license": lic,
+            "method": ("NT: the gold's links as given; OT: the gold's word-level links split into MACULA morphemes by "
+                       "lexeme_aligner.eval.gold_split (each link records how it was split)"),
+            "script": {"modules": "lexeme_aligner.eval.derive_conventions, lexeme_aligner.eval.gold_split", "sha256_16": scripts},
+            "date": datetime.date.today().isoformat(),
             "target": {T: {w: {"n": sum(c.values()), "what": dict(c), "lemmas": dict(tgt_lem[T][w].most_common(3))}
                            for w, c in d.items()} for T, d in tgt.items()},
             "source": {T: {l: {"n": sum(c.values()), "renderings": dict(c.most_common(6))} for l, c in d.items()}

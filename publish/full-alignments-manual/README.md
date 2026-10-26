@@ -155,7 +155,8 @@ English chunk, converted without guessing (`lexeme_aligner.eval.bsb_tables`):
   tokens no table row covers (`spine_only`, by slot): a difference of text, not a missed link.
 - **Two words on one token.** The spine joins some adjacent words into one token (repeated names "Ἰσαάκ, Ἰσαὰκ" in MAT 1:2, compound
   names "בֵּית אֵל"). Both table rows sit on that token: the first is its link, the second is in `rows` (match `fused`, its own
-  `R`); read both for the token's words.
+  `R`), with its supplied words too (`s<pos>`; they are not `+` words of the token); read both rows for the token's words. In
+  general a row's supplied words appear as `+` words only beside a token that shows that row.
 
 Revised 2026-10-26 (asked for by bsb-add-books): before, rows were matched by (Strong's number, k-th occurrence) and a Hebrew prefix or
 suffix was attached to a neighbouring row. That swapped repeated numbers (εἶπεν / λέγω, εἶδον / ἰδοὺ, genealogy names) and gave

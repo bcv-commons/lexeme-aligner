@@ -645,30 +645,32 @@ def encode_verse(crows: list[CRow], group: Group, profiles: Profiles, has_ids: b
         out.rows.append(fmt_row(c, profiles, has_ids, group, keyed))
         if is_vetoed(c) or c.joint:                                 # joint (BSB `vvv`) / vetoed rows: sidecar ONLY
             continue
+        shown = []                                                  # the slots that show this row
         if c.span and c.mark is None:
             for kind, n in c.src:
                 if kind == "c" and hint is None and n not in have["c"]:
                     out.main.append(link(n, enc_span(c.span), ".", "_"))
                     have["c"].add(n)
                     slot_pos[("c", n)] |= set(c.span)
+                    shown.append((kind, n))
                 elif kind == "f" and n not in have["f"]:
                     out.fn.append(link(n, enc_span(c.span), ".", "_"))
                     have["f"].add(n)
                     slot_pos[("f", n)] |= set(c.span)
-            if lists and c.sup:
-                ks = c.src[c.key] if c.src and c.key is not None else (c.src[0] if c.src else None)
-                own = owner_str(ks) if ks and ks[0] in "cf" else None
-                plus["."] += [(p, own) for p in c.sup]
+                    shown.append((kind, n))
         elif lists and c.span == []:
             for kind, n in c.src:
                 if kind in "cf" and n not in have[kind]:
                     lk = "!" if c.mark is None else c.mark[1]
                     groups_l[(kind, lk, ".", "_")].append((n, c.mark, None))
                     have[kind].add(n)
-            if c.sup and c.mark is None and not c.joint:           # 2026-10-26 (bsb-add-books B1): a row whose words are ALL
-                ks = c.src[c.key] if c.src and c.key is not None else (c.src[0] if c.src else None)   # supplied ("[wife]")
-                own = owner_str(ks) if ks and ks[0] in "cf" else None   # shows them for its source word too, not only in `rows`
-                plus["."] += [(p, own) for p in c.sup]
+                    shown.append((kind, n))
+        # Supplied words (also of a row whose words are ALL supplied, "[wife]", B1) go with a VIEW of their row, owned by the key token when it shows the row, else by the first token that
+        # does. A row no token shows (its tokens already show other rows: the second row of a joined token, πάντα πᾶσιν) keeps
+        # them in `rows` only (2026-10-26, bsb-add-books' check: "everyone I do" mixed two rows on one token).
+        if lists and c.sup and c.mark is None and shown:
+            ks = c.src[c.key] if c.src and c.key is not None else None
+            plus["."] += [(p, owner_str(ks if ks in shown else shown[0])) for p in c.sup]
     for its in plus.values():                                       # supplied words count for their owner's slot
         for p, own in its:
             if own is not None:

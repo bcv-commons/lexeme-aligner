@@ -198,6 +198,9 @@ resources/lexeme-alignments_gold_derived/ — {fra,por,hau}.tsv
 usj-hau-ohcb/ — Hausa target text (39 OT USJ books) — 2nd gold benchmark (typologically distant)
   source: eBible.org "hausa" (HAUBIB) = Hausa Contemporary Bible / OHCB, Biblica © 2009,2020
     (redistributable via eBible; experiment-only, gitignored — NOT public domain)
+    CORRECTION 2026-10-26: it is Biblica's OPEN edition ("Buɗaɗɗen" = open), licensed CC BY-SA 4.0
+    (ebible.org/Scriptures/details.php?id=hausa), like ARBNAV -> its full alignment may be published
+    (config/fullalign_publish.json text_licences HAUBIB). The text itself stays gitignored here.
   pipeline: eBible USFM zip -> usfmtc.outUsj -> USJ (OT only). gold attestations/hau base_text=OHCB (match).
   why: Chadic/Afro-Asiatic, lower-resource — tests whether the method generalizes off European/Latin
     high-resource langs toward the Indonesian-like population (French alone = flattering case).

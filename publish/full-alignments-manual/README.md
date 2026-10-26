@@ -37,6 +37,10 @@ Each layer's `_layer.json` repeats its source, licence and base text. Left out o
 licence does not allow redistribution. Door43 (CC BY-SA 4.0) layers are in the separate
 [full-alignments-manual-sa](https://huggingface.co/datasets/bcv-commons/full-alignments-manual-sa).
 
+The texts the layers index are not in this dataset and keep their own licences. **Hausa** (`h/hau/HAUBIB+manual+clear`, added
+2026-10-26): Clear's alignment of Biblica's Open Hausa Contemporary Bible (Buɗaɗɗen Littafi Mai Tsarki, © 2009, 2020 Biblica, Inc.,
+text CC BY-SA 4.0, eBible `hausa`), New Testament only, 27 books.
+
 ## File format
 
 Every layer is a folder `<iso[0]>/<iso>/<layer id>/` with per-book files that look exactly like

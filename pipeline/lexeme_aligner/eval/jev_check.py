@@ -324,8 +324,10 @@ def widen(j: int, h: int, width: dict, n: int) -> list[int]:
 
 
 def decide(p: le.Proposal, answers: dict, theta: float, width: dict | None = None,
-           design: str = "v1") -> tuple[list[le.Edit], collections.Counter]:
-    """Answers -> llm_edit Edits (applied in ascending confidence, so a surer answer wins a contested target word)."""
+           design: str = "v1", scored: bool = False) -> tuple[list, collections.Counter]:
+    """Answers -> llm_edit Edits (applied in ascending confidence, so a surer answer wins a contested target word).
+    `scored`: return ([(prob, Edit)] of the source questions, [(prob, Edit)] of the target questions, counts) unsorted instead, for a
+    caller that merges the edits of several requests (jev_clauses)."""
     c: collections.Counter = collections.Counter()
     h_ed, t_ed = [], []
     content = {t.idx for t in p.heb if t.is_content}
@@ -401,6 +403,8 @@ def decide(p: le.Proposal, answers: dict, theta: float, width: dict | None = Non
                 t_ed.append((prob, le.Edit("added", t=[n]))); c["t none"] += 1
             elif choice and choice[0] == "h":
                 t_ed.append((prob, le.Edit("add", h=int(choice[1:]), t=[n]))); c["t attach"] += 1
+    if scored:
+        return h_ed, t_ed, c
     return [e for _, e in sorted(h_ed, key=lambda x: x[0])] + [e for _, e in sorted(t_ed, key=lambda x: x[0])], c
 
 

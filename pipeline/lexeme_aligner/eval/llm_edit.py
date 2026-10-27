@@ -64,6 +64,24 @@ _CONVENTIONS_DIR = Path("config/llm_conventions")
 
 
 # --- the proposal --------------------------------------------------------------------------------------------------------
+def written_forms(text: str, toks: list[str]) -> list[str] | None:
+    """Each token as the verse writes it: tokenize() strips combining marks (Kuni tone on ø/æ, Hebrew niqqud), the written form keeps
+    them (NFC). Taken from `usj_source._token_spans`, so position j is still token j; a form whose stripped spelling is not the token
+    falls back to the token. None when the spans do not line up with the tokens."""
+    import unicodedata
+    from lexeme_aligner.usj_source import _token_spans, strip_marks
+    if not text:
+        return None
+    spans = _token_spans(text)
+    if len(spans) != len(toks):
+        return None
+    out = []
+    for (a, b), tok in zip(spans, toks):
+        w = unicodedata.normalize("NFC", text[a:b])
+        out.append(w if strip_marks(w) == tok else tok)
+    return out
+
+
 @dataclass
 class Proposal:
     ref: int
@@ -77,6 +95,7 @@ class Proposal:
     doubt_h: dict[int, set] = field(default_factory=lambda: collections.defaultdict(set))
     doubt_t: dict[int, set] = field(default_factory=lambda: collections.defaultdict(set))
     stop_t: set = field(default_factory=set)      # target positions that are stopwords
+    written: list[str] | None = None              # each target word as written (marks kept), for display; positions stay on toks
 
     def added(self) -> list[int]:
         owned = {p for ps in self.owner.values() for p in ps}
@@ -162,6 +181,7 @@ def build_proposals(tag: str, publish_iso: str, usj_dir: Path, books: list[str],
     for r in recs:
         p = Proposal(encode(r.book, r.ch, r.v), r.book, r.ch, r.v, sorted(r.heb, key=lambda t: t.idx), list(r.toks))
         p.stop_t = {j for j, w in enumerate(p.toks) if stop.is_function(w)}
+        p.written = written_forms(r.text, p.toks)
         win = merged.get(r.book, {}).get((r.ch, r.v), {})
         content = {t.idx for t in p.heb if t.is_content and t.strong}
         ntok = len(p.toks)

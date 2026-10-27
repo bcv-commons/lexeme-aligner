@@ -87,3 +87,23 @@ def test_filter_module_keeps_only_present_affixes_and_words():
     out, kept = jcl.filter_module(text, {"m:ti:verb"}, {"abali"})
     assert "ku-" not in out and "ti-" in out and "okulya" not in out and "demonstrative" in out
     assert kept == ["m:ti:verb", "article_demonstrative"]
+
+
+def test_filter_module_whole_words_keeps_affixes_by_form():
+    text = ("- **ni-** prefix poss 1.PL.POSS → FEAT [`m:ni-:poss.2` open corpus-derived]\n"
+            "- **-qav** suffix verb IMP → VERB [`m:-qav:verb` observed corpus-derived]\n"
+            "- **ndego** free pron 3.SG.M → FEAT [`m:ndego:pron` observed corpus-derived]\n"
+            "- **zapa** free clause CONJ (for, because) → FEAT [`m:zapa:conj` observed corpus-derived]\n"
+            "- **tone-fut** tone verb FUT → FEAT [`m:tone-fut:verb` observed corpus-derived]")
+    out, kept = jcl.filter_module(text, set(), {"nimbam", "noqav", "ndego"}, whole_words=True)
+    assert kept == ["m:ni-:poss.2", "m:-qav:verb", "m:ndego:pron", "m:tone-fut:verb"]
+    assert not jcl.affix_in_words("ni-", {"ni"}) and not jcl.affix_in_words("-qav", {"qav"})   # the affix alone is no host word
+
+
+def test_written_forms_keep_marks_and_positions():
+    from lexeme_aligner.usj_source import tokenize
+    s = "Yaq mø̀ndæ vø̄-ein, qá ndø̄go."
+    toks = tokenize(s)
+    assert toks == ["Yaq", "møndæ", "vø", "ein", "qá", "ndøgo"]
+    assert le.written_forms(s, toks) == ["Yaq", "mø̀ndæ", "vø̄", "ein", "qá", "ndø̄go"]
+    assert le.written_forms("", []) is None

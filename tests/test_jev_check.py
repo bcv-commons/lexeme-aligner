@@ -27,3 +27,14 @@ def test_v4_function_word_decisions():
     edits, tally = jc.decide(p, ans, 0.5, design="v4")
     assert tally["fn keep"] == 1 and tally["fn inside"] == 1 and tally["below threshold (proposal kept)"] == 1
     assert [(e.kind, e.h, e.t) for e in edits] == [("inside", 2, [0])]
+
+
+def test_jev_sees_written_forms_unless_stripped(monkeypatch):
+    from lexeme_aligner.eval import jev_check as jc
+    from lexeme_aligner.eval import llm_edit as le
+    p = le.Proposal(8001001, "RUT", 1, 1, [], ["møndæ", "qá"])
+    assert jc._words(p, [0, 1]) == "møndæ qá"
+    p.written = ["mø̀ndæ", "qá"]
+    assert jc._words(p, [0, 1]) == "mø̀ndæ qá" and jc._written(p, None) == "mø̀ndæ qá"
+    monkeypatch.setenv("JEV_STRIPPED", "1")                # rebuilding older cells from the cache
+    assert jc._words(p, [0, 1]) == "møndæ qá"

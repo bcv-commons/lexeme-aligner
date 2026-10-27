@@ -55,8 +55,15 @@ def api_key() -> str:
     raise SystemExit("no TypeSafe key (apikey_...) in .env")
 
 
+def _shown(p: le.Proposal, j: int) -> str:
+    """Target word j as Jev sees it: as written, tone and vowel marks kept (since 2026-10-27; the token strips combining marks). Every
+    lookup stays on `p.toks`. JEV_STRIPPED=1 shows the tokens as before, to rebuild older cells from the answer cache."""
+    w = p.written
+    return w[j] if w and not os.environ.get("JEV_STRIPPED") else p.toks[j]
+
+
 def _words(p: le.Proposal, ts: list[int]) -> str:
-    return " ".join(p.toks[j] for j in ts)
+    return " ".join(_shown(p, j) for j in ts)
 
 
 MAX_SPAN = 4
@@ -131,9 +138,9 @@ LEAN_NOTE = ("\n\nAn option named t<n> (or t<n>-<m>, consecutive words) is the w
 def _written(p: le.Proposal, units: list | None) -> str:
     """The verse as written: the target words, or for a parts view each written word once (its parts are units of one word)."""
     if not units:
-        return " ".join(p.toks)
+        return " ".join(_shown(p, j) for j in range(len(p.toks)))
     out, seen = [], set()
-    for w, u in zip(p.toks, units):
+    for w, u in zip((_shown(p, j) for j in range(len(p.toks))), units):
         if u["in_word"] is None:
             out.append(w)
         elif u["word_index"] not in seen:
@@ -160,9 +167,9 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
                          for t in p.heb],
         "translation_words": [{"id": f"t{j}", "word": w, "proposed_source": f"h{owner_of[j]}" if j in owner_of else None,
                                **({"in_word": units[j]["in_word"], "part": units[j]["part"]} if units and units[j]["in_word"] else {})}
-                              for j, w in enumerate(p.toks)],
+                              for j, w in enumerate(_shown(p, j) for j in range(len(p.toks)))],
     }
-    tw = {f"t{j}": w for j, w in enumerate(p.toks)}
+    tw = {f"t{j}": _shown(p, j) for j in range(len(p.toks))}
     qs = {}
     for t in p.heb:
         if t.idx not in p.doubt_h:
@@ -214,7 +221,7 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
         crit = {f"h{t.idx}": f"{t.surface}" + (f" ({t.gloss_en})" if t.gloss_en else "") for t in p.heb}
         crit["none"] = "it renders no source word: supplied by the translator for style or grammar, or part of an added explanation"
         qs[f"t{j}"] = {"type": "choice", "criteria": crit, "instructions":
-            f"Translation word t{j} ({p.toks[j]!r}) in `translation_words`: which word of `source_words` does it render, by its "
+            f"Translation word t{j} ({_shown(p, j)!r}) in `translation_words`: which word of `source_words` does it render, by its "
             f"meaning or by the grammatical function it carries? Follow `conventions`."
             + (_hint(hints, "target", testament, p.toks[j].lower()) if j in p.stop_t else "")}
     if lean:                                             # 2026-10-26: options are billed per question, the state once per request.
@@ -304,8 +311,8 @@ def width_requests(p: le.Proposal, state: dict, answers: dict) -> list[dict]:
             if k == j:
                 continue
             qs[f"w{h}_{k}"] = {"type": "noul", "instructions":
-                f"Source word h{h} ({t.surface}{gloss}) in `source_words` is rendered by translation word t{j} ({p.toks[j]!r}). "
-                f"Is translation word t{k} ({p.toks[k]!r}) also part of the rendering of h{h}, under `conventions` (for example an "
+                f"Source word h{h} ({t.surface}{gloss}) in `source_words` is rendered by translation word t{j} ({_shown(p, j)!r}). "
+                f"Is translation word t{k} ({_shown(p, k)!r}) also part of the rendering of h{h}, under `conventions` (for example an "
                 f"article, auxiliary, postposition, preposition or particle that carries h{h}'s own meaning or grammatical function), "
                 f"rather than rendering another source word or nothing?"}
     items = sorted(qs.items())

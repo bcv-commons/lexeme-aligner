@@ -47,7 +47,8 @@ from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS
 CLAUSES = Path("pipeline/vendor/greek-nt-clause-layout/v0.4/data/clauses.parquet")
 MODULES = Path("pipeline/vendor/language-analysis/7bce4665")
 SOURCE_MODULE = {"NT": MODULES / "source/grc/30f77fbf/jev.md"}
-TARGET_MODULE = {"zin": MODULES / "zin/ab3848ee/jev.md"}
+TARGET_MODULE = {"zin": MODULES / "zin/ab3848ee/jev.md",
+                 "kvg": Path("pipeline/vendor/language-analysis/ab1298c2/kvg/d8fdb53e/jev.md")}   # pinned 2026-10-27
 LOG = jc.WORK / "clauses"
 JOIN_UNDER, MAX_LINES, MAX_WORDS = 6, 3, 30
 HOME_REACH = 8          # written words a window may grow to hold a homed word; a word further out is asked nowhere (counted)
@@ -223,6 +224,8 @@ def unit_proposal(b: Book, w: dict) -> tuple[le.Proposal, list, list, list | Non
     heb, src = [], []
     first = b.props[w["hs"][0][0]]
     p = le.Proposal(first.ref, first.book, first.ch, first.v, [], [b.props[b.seq[g][0]].toks[b.seq[g][1]] for g in tgt])
+    if any(b.props[b.seq[g][0]].written for g in tgt):    # the written forms travel with the tokens (jev_check._shown)
+        p.written = [(b.props[ref].written or b.props[ref].toks)[j] for ref, j in (b.seq[g] for g in tgt)]
     for k, (ref, h) in enumerate(w["hs"]):
         vp = b.props[ref]
         t = next(t for t in vp.heb if t.idx == h)
@@ -255,15 +258,34 @@ def unit_proposal(b: Book, w: dict) -> tuple[le.Proposal, list, list, list | Non
     return p, src, tgt, units
 
 
-def filter_module(text: str, chain_ids: set[str], words: set[str]) -> tuple[str, list[str]]:
-    """A target jev.md for one request: an affix line (`m:` id) only when a part in the window carries it, a never-divided word
-    (`w:` id) only when the window has that written word; every other line kept. Returns (text, the rule ids kept)."""
+def affix_in_words(form: str, words: set[str]) -> bool:
+    """A whole-word run has no parts to carry an affix id, so an affix line counts as present when its form does: `ni-` starts a
+    word, `-qav` ends one, a free form (`ndego`) is one; a tone affix (`tone-fut`) has no spelling to look for and always counts."""
+    f = form.lower()
+    if f.startswith("tone-"):
+        return True
+    if f.endswith("-"):
+        return any(w.startswith(f[:-1]) and len(w) > len(f) - 1 for w in words)
+    if f.startswith("-"):
+        return any(w.endswith(f[1:]) and len(w) > len(f) - 1 for w in words)
+    return f in words
+
+
+def filter_module(text: str, chain_ids: set[str], words: set[str], whole_words: bool = False) -> tuple[str, list[str]]:
+    """A target jev.md for one request: an affix line (`m:` id) only when a part in the window carries it (`whole_words`, no parts
+    view: when its form is in a window word, `affix_in_words`), a never-divided word (`w:` id) only when the window has that
+    written word; every other line kept. Returns (text, the rule ids kept)."""
     out, kept = [], []
     for line in text.splitlines():
         m = re.search(r"\[`([^`]+)`", line) if line.startswith("- ") else None
         if m:
             rid = m.group(1)
-            if (rid.startswith("m:") and rid not in chain_ids) or (rid.startswith("w:") and rid[2:].lower() not in words):
+            if rid.startswith("m:"):
+                fm = re.match(r"- \*\*([^*]+)\*\*", line)
+                present = (affix_in_words(fm.group(1), words) if fm else False) if whole_words else rid in chain_ids
+                if not present:
+                    continue
+            if rid.startswith("w:") and rid[2:].lower() not in words:
                 continue
             kept.append(rid)
         out.append(line)
@@ -279,8 +301,10 @@ def body_for(b: Book, w: dict, sentences: dict, lex_pos: dict, lang: str, conv: 
     rules: list[str] = []
     if conv["mode"] == "modules":
         ids = {c for g in tgt for c in chain_ids_of(b.seq[g])}
+        shown = p.written or p.toks
         written = {(u["in_word"] if u and u.get("in_word") else tok).lower() for u, tok in zip(units or [None] * len(p.toks), p.toks)}
-        target, rules = filter_module(conv["target"], ids, written)
+        written |= {w.lower() for w in shown}               # the marked forms too (rules are written with tone marks)
+        target, rules = filter_module(conv["target"], ids, written, whole_words=units is None)
         conventions = (jc._CONV + "\n\nSource-language rules:\n" + conv["source"] + f"\n\nTarget-language rules ({lang}):\n" + target
                        + ("\n\n" + conv["note"] if conv["note"] else "") + UNIT_NOTE)
         rules = source_rule_ids(conv["source"]) + rules

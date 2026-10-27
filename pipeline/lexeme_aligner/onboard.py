@@ -459,12 +459,19 @@ def main() -> int:
             print(f"[onboard] --editions {sorted(only)}: in the pool but ingested no text — nothing to do", file=sys.stderr)
             return 0
         raise SystemExit(f"[onboard] --editions {sorted(only)}: none of them is in the pool {tags}")
+    from lexeme_aligner import nt_bridge
     for tag in tags:
         if only is not None and tag not in only:
             continue
-        _run("run_pilot", "--method", args.method, scope_flag, "--usj-dir", usj_dirs[tag], "--iso", tag,
-             "--publish-iso", args.iso,
-             *(["--lang-name", lang_name] if lang_name else []), env=env)
+        pilot = ["run_pilot", "--method", args.method, "--usj-dir", usj_dirs[tag], "--iso", tag, "--publish-iso", args.iso,
+                 *(["--lang-name", lang_name] if lang_name else [])]
+        if args.method == "eflomal" and scope_flag == "--all" and nt_bridge.applies(usj_dirs[tag]):
+            # thin OT: align the NT first, then the OT with priors from that NT alignment (nt_bridge.py)
+            print(f"[onboard] {tag}: thin OT — NT first, then OT with the NT bridge", file=sys.stderr)
+            _run(*pilot, "--nt", env=env)
+            _run(*pilot, "--ot", "--nt-bridge", env=env)
+        else:
+            _run(*pilot, scope_flag, env=env)
 
     stat_tags = [t for t in tags if stat_of.get(t, True)] or tags[:1]    # pooled exports + votes: the statistics set only
     primary, pool = stat_tags[0], stat_tags[1:]

@@ -290,6 +290,11 @@ def main() -> int:
     ap.add_argument("--method", choices=["gloss", "stat", "eflomal", "both", "all"], default="gloss")
     ap.add_argument("--eflomal-priors", action="store_true",
                     help="seed eflomal with gloss high-confidence alignments (semi-supervised)")
+    ap.add_argument("--eflomal-prior-file", type=Path, default=None,
+                    help="extra eflomal LEX priors, TSV <source strong> <target word> <weight> (experiments: pipeline/work/nt-bridge/)")
+    ap.add_argument("--nt-bridge", action="store_true",
+                    help="eflomal priors for a thin OT from this edition's own NT alignment (nt_bridge.py; the NT must be "
+                         "aligned already in --out). onboard.py sets it when nt_bridge.applies()")
     ap.add_argument("--book", action="append")
     ap.add_argument("--ot", action="store_true", help="use all 39 OT books (Hebrew spine)")
     ap.add_argument("--nt", action="store_true", help="use all 27 NT books (Greek spine) — gold benchmark")
@@ -516,6 +521,22 @@ def main() -> int:
                        if args.eflomal_priors else None)
         if prior_pairs:
             print(f"[pilot] eflomal priors: {len(prior_pairs)} gloss anchors", file=sys.stderr)
+        if args.eflomal_prior_file:
+            extra = []
+            for line in args.eflomal_prior_file.read_text(encoding="utf-8").splitlines():
+                s, w, a = line.split("\t")
+                extra.append((s, norm.forms(w)[0], float(a)))
+            prior_pairs = (prior_pairs or []) + extra
+            print(f"[pilot] eflomal priors: {len(extra)} from {args.eflomal_prior_file}", file=sys.stderr)
+        if args.nt_bridge:
+            from lexeme_aligner import nt_bridge
+            if any(r.book not in OT_BOOKS for r in recs):
+                raise SystemExit("--nt-bridge: align the OT on its own (--ot or --book), after the NT")
+            bridged = [(s, norm.forms(w)[0], a) for s, w, a in nt_bridge.build_priors(recs, args.iso, args.out)]
+            prior_pairs = (prior_pairs or []) + bridged
+            with (args.out / f"nt_bridge_priors_{args.iso}.tsv").open("w", encoding="utf-8") as fh:
+                fh.writelines(f"{s}\t{w}\t{a:.3f}\n" for s, w, a in bridged)
+            print(f"[pilot] eflomal priors: {len(bridged)} from the NT bridge (nt_bridge.py)", file=sys.stderr)
         fert_priors = None
         from lexeme_aligner import fertility_priors as fertmod
         fert_flags = fertmod.load_fertility_flags(publish_iso)

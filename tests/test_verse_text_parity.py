@@ -85,6 +85,9 @@ def test_sample_of_the_ingest_cache():
     rng = random.Random(20261012)
     dirs = sorted(d for d in CACHE.iterdir() if d.name.startswith("usj-"))
     files = [f for d in rng.sample(dirs, min(40, len(dirs))) for f in sorted(d.glob("*.json"))[:3]]
+    # USJ files only: a Sofria / plain-verses file (canonical formats, usj_source.CANONICAL_FORMATS) is read through bibles' own
+    # extract_sofria / extract_plain, so there is no second walker to compare; extract_usj cannot read those formats
+    files = [f for f in files if u.book_format(json.loads(f.read_text(encoding="utf-8"))) == "usj"]
     assert files
     bad = [f for f in files if ours(f) != theirs(f)]
     assert not bad, bad[:5]

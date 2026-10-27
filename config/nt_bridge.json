@@ -1,0 +1,9 @@
+{
+  "_doc": "NT-to-OT bridge (lexeme_aligner/nt_bridge.py): eflomal priors for an edition with a partial OT, carried from the same edition's NT alignment through prior-pack lxx_greek (Hebrew lexeme -> Greek Strong's). On for an edition with 1..max_ot_books OT books and at least min_nt_books NT books. Measured 2026-10-27 on 4 gold languages (eng spa hin arb), whole chain, link F1: RUT+JON only +6.1/+3.4/+4.3/+1.7; OT-size ladder (GEN, PSA, GEN+EXO+RUT+JON, ~8,400 and ~14,000 verses, full OT; run4.py): from ~1,500 verses small (-0.7..+2.5), never harmful beyond English's run-to-run noise, spa/hin/arb positive at every size -> every partial OT (max_ot_books 38). Weight x2..x10 equal within ~1 point; x2 chosen. Per-word LXX field (bcv-query spine greekstrong) measured, not better. Experiments: pipeline/work/nt-bridge/.",
+  "enabled": true,
+  "max_ot_books": 38,
+  "min_nt_books": 20,
+  "scale": 2.0,
+  "top_k": 5,
+  "min_share": 0.1
+}

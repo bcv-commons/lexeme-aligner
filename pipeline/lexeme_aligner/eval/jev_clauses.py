@@ -1,7 +1,7 @@
 """Jev v4 by CLAUSE, not by verse (2026-10-27; the owner's rule: never divide or send by verse).
 
 A request covers one clause, or 2-3 short clauses of one sentence. Units follow bsb-add-books' CLAUSES.md (language-analysis
-069898cf) on bcv-commons/greek-nt-clause-layout (vendored v0.3, its `words` = our spine keys):
+7bce4665) on bcv-commons/greek-nt-clause-layout (vendored v0.4, its `words` = our spine keys):
   - one layout line = one item; the rows of an interrupted clause are one item (the interrupting clause stays its own item);
   - an item is joined to the next item of the same sentence while either has < JOIN_UNDER source words, up to MAX_LINES items and
     about MAX_WORDS source words; a row with no clause id (a title) always goes with the next item of its sentence.
@@ -44,8 +44,8 @@ from lexeme_aligner.eval import jev_check as jc
 from lexeme_aligner.eval import llm_edit as le
 from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS
 
-CLAUSES = Path("pipeline/vendor/greek-nt-clause-layout/v0.3/data/clauses.parquet")
-MODULES = Path("pipeline/vendor/language-analysis/069898cf")
+CLAUSES = Path("pipeline/vendor/greek-nt-clause-layout/v0.4/data/clauses.parquet")
+MODULES = Path("pipeline/vendor/language-analysis/7bce4665")
 SOURCE_MODULE = {"NT": MODULES / "source/grc/30f77fbf/jev.md"}
 TARGET_MODULE = {"zin": MODULES / "zin/ab3848ee/jev.md"}
 LOG = jc.WORK / "clauses"

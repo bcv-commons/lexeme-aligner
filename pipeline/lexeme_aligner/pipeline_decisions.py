@@ -258,6 +258,13 @@ def build_decisions(tags: str | list[str], publish_iso: str,
     doc.update(always_on_mechanisms(tags, publish_iso, out_dir, prior_pack, method))
     doc.update(opt_in_mechanisms(publish_iso))
     doc["target_normalization"] = target_normalization_decision(publish_iso, usj_dirs)
+    tag_list = [tags] if isinstance(tags, str) else list(tags)
+    dir_list = ([usj_dirs] if isinstance(usj_dirs, (str, Path)) else list(usj_dirs or []))
+    if len(dir_list) == len(tag_list):
+        from lexeme_aligner.nt_bridge import ledger_entry
+        ntb = ledger_entry(tag_list, dir_list)
+        if ntb is not None:
+            doc["nt_bridge"] = ntb
     return doc
 
 

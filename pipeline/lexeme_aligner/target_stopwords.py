@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,7 +37,7 @@ from lexeme_aligner.config import LEX_ROOT, PRIOR_PACK
 from lexeme_aligner.run_pilot import _BOOK_FILE_NUM, OT_BOOKS, NT_BOOKS
 from lexeme_aligner.usj_source import read_verses, tokenize
 
-_CACHE_DIR = Path("publish/target-stopwords")
+_CACHE_DIR = Path(os.environ.get("ALIGNER_STOPWORDS_CACHE", "publish/target-stopwords"))  # align-text points it inside its output folder
 _DEFAULT_TOP_N = 150
 _DEFAULT_MIN_DISPERSION = 0.85     # must occur in ≥85% of books to count as a function word
 

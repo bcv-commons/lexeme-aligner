@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import sys
 import unicodedata
 from pathlib import Path
@@ -30,7 +31,7 @@ from lexeme_aligner.gloss_align import Normalizer
 from lexeme_aligner.run_pilot import _BOOK_FILE_NUM, OT_BOOKS, NT_BOOKS
 from lexeme_aligner.usj_source import read_verses, tokenize
 
-_CACHE_DIR = Path("publish/target-morphology")
+_CACHE_DIR = Path(os.environ.get("ALIGNER_MORPH_CACHE", "publish/target-morphology"))  # align-text points it inside its output folder
 _MIN_STEM = 3           # a stem must be at least this many characters
 _MIN_PREFIX = 2         # single-char prefixes are almost always orthographic noise (common first letters)
 _MAX_AFFIX = 5          # affixes longer than this are not considered

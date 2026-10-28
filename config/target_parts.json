@@ -9,11 +9,11 @@
   "min_p_split": 0.9
  },
  "kvg_wbt": {
-  "_doc": "2026-10-28: Kuni by parts, LOCAL ONLY (owner: run bsb-add-books' segmenter; option A = publish part numbers + this pin). chain: false = the production chain keeps aligning kvg_wbt by whole words; pipeline/work/kvg-parts/run.sh runs the parts route by hand. The split file holds the CC BY-NC-ND text and is never published; only `segmenter` + `numbering` go into the compact manifest (target_parts.parts_pin).",
+  "_doc": "2026-10-28: Kuni by parts, LOCAL ONLY (owner: run bsb-add-books' segmenter; option A = publish part numbers + this pin). chain: false = the production chain keeps aligning kvg_wbt by whole words; pipeline/work/kvg-parts/run.sh runs the parts route by hand. The split file holds the CC BY-NC-ND text and is never published; only `segmenter` + `numbering` go into the compact manifest (target_parts.parts_pin). 2026-10-28 bsb-add-books: split is deterministic for a bundle (checked on 24,077 word types, hash seeds, call order, Unicode 15/16); unicode_version = Python unicodedata.unidata_version the split was made with (NFD, combining classes); naming the bundle in our manifest and readers downloading it: yes, with this credit line.",
   "chain": false,
   "format": "bcv-split",
   "local": "pipeline/work/kvg-parts/split/words.parquet",
-  "sha256": "d00b6674af54370a82a5f1979b73177133166e08ca916a3cfbec10e31aeaa962",
+  "sha256": "8346e0d11baa07e14e0046df7d8ad702b4dfeff4f7588d31c888e733c91f840c",
   "min_p_split": 0.9,
   "segmenter": {
    "dataset": "bcv-commons/language-analysis",
@@ -23,8 +23,10 @@
     "bcv_segment.py": "9db4f82527cd0b1ed0ed26f7f0c553cbd9251647c37a9cb9b22538f2b2a77a45",
     "morphs.py": "8f11fcb5e49b71d3e99e5344b4cc74565c3e04f101e133062da496836c682c3f",
     "seg_facts.json": "6ec098f0e2fdda410c5c950f98afb35f86d6e8f30f28684529a10f3fe3fe3e81"
-   }
+   },
+   "unicode_version": "16.0.0"
   },
-  "numbering": "bcv_segment.load(module).S.split(word, tones=True) on the WRITTEN token (bcv-commons/bibles verse-text tokenize_written, same position as the tokenizer's token); part = index in that list (prefixes, stem, tone, suffixes). A token whose split does not rebuild the written word is linked whole."
+  "numbering": "bcv_segment.load(module).S.split(word, tones=True) on the WRITTEN token (bcv-commons/bibles verse-text tokenize_written, same position as the tokenizer's token); part = index in that list (prefixes, stem, tone, suffixes). A hyphen word (tokens joined by a single '-') is split joined and each piece takes the parts inside it, numbered from 0 within its token; when that split has a tone part or a part crosses the hyphen, each piece is split alone. A token whose split does not rebuild the written word is linked whole.",
+  "credit": "bcv-commons/language-analysis kvg/d8fdb53e (bsb-add-books)"
  }
 }

@@ -107,3 +107,19 @@ def test_written_forms_keep_marks_and_positions():
     assert toks == ["Yaq", "møndæ", "vø", "ein", "qá", "ndøgo"]
     assert le.written_forms(s, toks) == ["Yaq", "mø̀ndæ", "vø̄", "ein", "qá", "ndø̄go"]
     assert le.written_forms("", []) is None
+
+
+def test_hebrew_keys_join_by_written_words():
+    from lexeme_aligner.eval import jev_clauses as jcl
+    assert jcl.written_words(["080010010011", "080010010012", "080010010021", "080010010022"]) == 2
+
+
+def test_ot_units_come_from_the_hebrew_layout():
+    import pytest
+    from lexeme_aligner.eval import jev_clauses as jcl
+    if not (jcl.HEB_CLAUSES / "clauses-RUT.parquet").exists():
+        pytest.skip("hebrew-clause-layout v0.37 not vendored")
+    units, sentences = jcl.load_units("RUT")
+    assert units[0]["words"][0] == "080010010011" and units[0]["language"] == "hbo"
+    assert all(jcl.written_words(u["words"]) <= jcl.MAX_WORDS or u["items"] == 1 for u in units)
+    assert units[0]["sentence"] in sentences

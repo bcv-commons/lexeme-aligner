@@ -29,3 +29,14 @@ def test_parts_pin_leaves_out_a_local_file(tmp_path):
     assert tp.parts_pin("loc", cfg) == {"format": "bcv-split", "segmenter": {"revision": "r"}, "numbering": "list index"}
     assert tp.parts_pin("none", cfg) is None
     assert tp.for_edition("loc", cfg) is None              # chain: false -> the chain keeps whole words
+
+
+def test_marked_edition_inserts_the_mark_after_the_iso():
+    import pytest
+    assert ca.marked_edition("kvg_wbt", "kvg", "m") == "kvg-m_wbt"
+    assert ca.marked_edition("eng_BSB", "eng", "m") == "eng-m_BSB"
+    assert ca.marked_edition("heb", "heb", "m") == "heb-m"
+    with pytest.raises(ValueError):
+        ca.marked_edition("kvg_wbt", "kvg", "q")
+    with pytest.raises(ValueError):
+        ca.marked_edition("BSB", "eng", "m")

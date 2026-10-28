@@ -5,6 +5,8 @@ A request covers one clause, or 2-3 short clauses of one sentence. Units follow 
   - one layout line = one item; the rows of an interrupted clause are one item (the interrupting clause stays its own item);
   - an item is joined to the next item of the same sentence while either has < JOIN_UNDER source words, up to MAX_LINES items and
     about MAX_WORDS source words; a row with no clause id (a title) always goes with the next item of its sentence.
+OT (2026-10-28): the same rules on bcv-commons/hebrew-clause-layout v0.37 (CLAUSES.md's OT layout, vendored); its keys are morphemes,
+so the join thresholds count written words (`written_words`); source rules per request by the line's language (hbo / arc).
 Target words of a request (counted in WRITTEN words: a divided word is offered whole, all its parts, never half of it):
   - the chain's links of the request's source words, plus the unlinked words between them (the hull), widened by `margin` written
     words on each side (BSB 2, Zinza 3);
@@ -45,8 +47,13 @@ from lexeme_aligner.eval import llm_edit as le
 from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS
 
 CLAUSES = Path("pipeline/vendor/greek-nt-clause-layout/v0.4/data/clauses.parquet")
+# OT (2026-10-28): bcv-query's bcv-commons/hebrew-clause-layout v0.37 (tag 514a8832, CC BY-SA 4.0, from MACULA Hebrew), the layout
+# CLAUSES.md names for the OT; one parquet per book, its `words` = our spine's OT keys (BBCCCVVVWWWM, all 469,476 checked 10-27).
+HEB_CLAUSES = Path("pipeline/vendor/hebrew-clause-layout/v0.37/data")
 MODULES = Path("pipeline/vendor/language-analysis/7bce4665")
-SOURCE_MODULE = {"NT": MODULES / "source/grc/30f77fbf/jev.md"}
+SOURCE_MODULE = {"grc": MODULES / "source/grc/30f77fbf/jev.md",           # per unit language (the Hebrew layout's `language`)
+                 "hbo": Path("pipeline/vendor/language-analysis/ab1298c2/source/hbo/0ccf857a/jev.md"),
+                 "arc": Path("pipeline/vendor/language-analysis/ab1298c2/source/arc/634f9d1f/jev.md")}
 TARGET_MODULE = {"zin": MODULES / "zin/ab3848ee/jev.md",
                  "kvg": Path("pipeline/vendor/language-analysis/ab1298c2/kvg/d8fdb53e/jev.md")}   # pinned 2026-10-27
 LOG = jc.WORK / "clauses"
@@ -70,35 +77,55 @@ def clause_items(rows: list[dict]) -> list[dict]:
             continue
         if k is not None:
             at[k] = len(items)
-        items.append({"sentence": r["sentence"], "clause": r["clause"], "words": list(r["words"]), "text": r["text"]})
+        items.append({"sentence": r["sentence"], "clause": r["clause"], "words": list(r["words"]), "text": r["text"],
+                      "language": r.get("language") or "grc"})
     return items
 
 
-def join_units(items: list[dict], join_under: int = JOIN_UNDER, max_lines: int = MAX_LINES, max_words: int = MAX_WORDS) -> list[dict]:
+def written_words(keys: list[str]) -> int:
+    """Hebrew keys are morphemes (BBCCCVVVWWWM: וַ, the article, a suffix each have one): the join thresholds count written words,
+    the keys without their last digit. (Our reading of CLAUSES.md's "source words" for Hebrew, asked of bsb-add-books 10-27.)"""
+    return len({k[:-1] for k in keys})
+
+
+def join_units(items: list[dict], join_under: int = JOIN_UNDER, max_lines: int = MAX_LINES, max_words: int = MAX_WORDS,
+               count=len) -> list[dict]:
     units: list[dict] = []
     for it in items:
         u = units[-1] if units else None
         if (u is not None and u["sentence"] == it["sentence"] and u["items"] < max_lines
-                and len(u["words"]) + len(it["words"]) <= max_words
-                and (u["open"] or len(u["last"]) < join_under or len(it["words"]) < join_under)):
+                and u.get("language", "grc") == it.get("language", "grc")
+                and count(u["words"]) + count(it["words"]) <= max_words
+                and (u["open"] or count(u["last"]) < join_under or count(it["words"]) < join_under)):
             u["words"] += it["words"]; u["items"] += 1; u["last"] = it["words"]; u["texts"].append(it["text"])
             u["open"] = it["clause"] is None
         else:
             units.append({"sentence": it["sentence"], "words": list(it["words"]), "items": 1, "last": it["words"],
-                          "texts": [it["text"]], "open": it["clause"] is None})
+                          "texts": [it["text"]], "open": it["clause"] is None, "language": it.get("language", "grc")})
     return units
 
 
-def load_units(book: str, clauses: Path = CLAUSES) -> tuple[list[dict], dict[str, str]]:
-    """(units of one book in text order, sentence id -> its Greek text)."""
+def load_units(book: str, clauses: Path = CLAUSES, heb_clauses: Path = HEB_CLAUSES) -> tuple[list[dict], dict[str, str]]:
+    """(units of one book in text order, sentence id -> its source text). NT: the Greek layout; OT: the Hebrew layout's book file,
+    read into the same row shape (clause = `clause_key`, ids as strings, `language` hbo / arc)."""
     import pyarrow.parquet as pq
     import pyarrow.compute as pc
-    t = pq.read_table(clauses)
-    rows = t.filter(pc.equal(t["book"], book)).to_pylist()
+    from lexeme_aligner.run_pilot import OT_BOOKS
+    if book in OT_BOOKS:
+        fp = Path(heb_clauses) / f"clauses-{book}.parquet"
+        if not fp.exists():
+            raise SystemExit(f"[jev-clauses] no Hebrew clause layout for {book}: {fp}")
+        rows = sorted(pq.read_table(fp).to_pylist(), key=lambda r: (r["chapter"], r["verse"], r["seg"]))
+        rows = [dict(r, sentence=str(r["sentence"]), clause=r["clause_key"]) for r in rows]
+        count = written_words
+    else:
+        t = pq.read_table(clauses)
+        rows = t.filter(pc.equal(t["book"], book)).to_pylist()
+        count = len
     sent: dict[str, list[str]] = collections.defaultdict(list)
     for r in rows:
         sent[r["sentence"]].append(r["text"])
-    return join_units(clause_items(rows)), {k: " ".join(v) for k, v in sent.items()}
+    return join_units(clause_items(rows), count=count), {k: " ".join(v) for k, v in sent.items()}
 
 
 # --- target windows -----------------------------------------------------------------------------------------------------------
@@ -305,9 +332,10 @@ def body_for(b: Book, w: dict, sentences: dict, lex_pos: dict, lang: str, conv: 
         written = {(u["in_word"] if u and u.get("in_word") else tok).lower() for u, tok in zip(units or [None] * len(p.toks), p.toks)}
         written |= {w.lower() for w in shown}               # the marked forms too (rules are written with tone marks)
         target, rules = filter_module(conv["target"], ids, written, whole_words=units is None)
-        conventions = (jc._CONV + "\n\nSource-language rules:\n" + conv["source"] + f"\n\nTarget-language rules ({lang}):\n" + target
+        source = conv["sources"][w["unit"].get("language", "grc")]
+        conventions = (jc._CONV + "\n\nSource-language rules:\n" + source + f"\n\nTarget-language rules ({lang}):\n" + target
                        + ("\n\n" + conv["note"] if conv["note"] else "") + UNIT_NOTE)
-        rules = source_rule_ids(conv["source"]) + rules
+        rules = source_rule_ids(source) + rules
     else:
         conventions = conv["text"] + UNIT_NOTE
     body = jc.build_request(p, lex_pos, lang, conventions, "v4", skip_pairs, hints, units)
@@ -393,9 +421,6 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="build the requests and report their size; no call, no cell")
     a = ap.parse_args()
     from lexeme_aligner.gapfill import load_priors
-    from lexeme_aligner.run_pilot import NT_BOOKS
-    if a.book not in NT_BOOKS:
-        raise SystemExit("[jev-clauses] OT books need the Hebrew clause layout (not wired yet)")
     usj = a.usj_dir or Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
     tags = json.loads(a.tags.read_text(encoding="utf-8")) if a.tags else None
     props, _ = le.build_proposals(a.iso, a.publish_iso, usj, [a.book], signals=le.SIGNALS + ("uncovered-fn",), strong_tags=tags)
@@ -417,7 +442,7 @@ def main() -> int:
         ws = [w for w in ws if b.props[w["hs"][0][0]].ch in set(a.chapter)]
     lang = jc.LANG.get(a.publish_iso, a.publish_iso)
     if a.conventions == "modules":
-        conv = {"mode": "modules", "source": SOURCE_MODULE["NT"].read_text(encoding="utf-8"),
+        conv = {"mode": "modules", "sources": {k: v.read_text(encoding="utf-8") for k, v in SOURCE_MODULE.items()},
                 "target": TARGET_MODULE[a.publish_iso].read_text(encoding="utf-8"),
                 "note": (le._CONVENTIONS_DIR / f"{a.publish_iso}.note.md").read_text(encoding="utf-8")
                 if (le._CONVENTIONS_DIR / f"{a.publish_iso}.note.md").exists() else ""}

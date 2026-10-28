@@ -58,7 +58,7 @@ def for_edition(tag: str, config: Path = CONFIG, vendor: Path = VENDOR) -> tuple
     return local, entry
 
 
-PIN_KEYS = ("dataset", "revision", "file", "sha256", "format", "segmenter", "numbering")
+PIN_KEYS = ("dataset", "revision", "file", "sha256", "format", "segmenter", "numbering", "credit")
 
 
 def parts_pin(tag: str, config: Path = CONFIG) -> dict | None:

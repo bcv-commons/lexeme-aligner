@@ -642,7 +642,22 @@ pipeline/vendor/language-analysis/ab1298c2/ — bsb-add-books' Kuni (kvg) target
     05599eed, 72043f29 unchanged there). Files: jev.md (sha256 38892c83…, 17.7 KB), conventions.md, rules.json, terms.tsv, VERSION.json,
     store/{observations,decisions}.json, bundle/{seg_facts.json, morphs.py, bcv_segment.py}; all 10 checked against the manifest sha256
     (OK). Licence CC0 1.0 (their analysis), scripts MIT; the Kuni text is not in it (NC-ND). Used: jev_clauses TARGET_MODULE["kvg"]
-    (--conventions modules). The bundle's scripts are stored, never run. Gitignored.
+    (--conventions modules). The bundle's scripts were stored, never run, until 2026-10-28: the owner OK'd running the Segmenter class
+    (bcv_segment.py + morphs.py, read first, MIT) locally under write_guard, `-I`, writing only into pipeline/work/kvg-parts (export_split.py);
+    bsb-add-books agreed (2026-10-28) to readers downloading the bundle to read our part links, credit "bcv-commons/language-analysis
+    kvg/d8fdb53e (bsb-add-books)". config/target_parts.json kvg_wbt pins its three files by sha256. Gitignored.
+  added 2026-10-28 from the same commit ab1298c2: source/hbo/0ccf857a/{jev.md (sha256 8427d08a…), module.md (0077c54c…)} and
+    source/arc/634f9d1f/{jev.md (2eb08e41…), module.md (de716099…)}, matching the manifest's source_modules entries. Licence CC0 1.0
+    (written by an LLM in a bsb-add-books session from MACULA's analysis, CC BY 4.0). Used: jev_clauses SOURCE_MODULE["hbo"/"arc"] for OT
+    clause requests.
+
+pipeline/vendor/hebrew-clause-layout/v0.37/ — Hebrew OT clause layout (bcv-commons/hebrew-clause-layout, HF tag v0.37, commit 514a8832, 2026-10-28)
+  source: huggingface.co/datasets/bcv-commons/hebrew-clause-layout @ 514a88320ab6556e0f7fd2e686c9637fcf39bd62: data/clauses-<BOOK>.parquet
+    (39 books), README.md, RELEASE_NOTES.md, SHA256SUMS (sha256 92ace0e3c636f62f…; every data file checked OK), build.json,
+    _clauses_source.json, clause_layout.toml. Built by bcv-query from MACULA Hebrew (WLC). `words` = MACULA morpheme keys BBCCCVVVWWWM =
+    our spine's OT keys (all 469,476 checked 2026-10-27). The layout CLAUSES.md (language-analysis) names for the OT. Licence CC BY-SA 4.0
+    (data only; nothing derived from it is published: it only cuts Jev requests). Used by lexeme_aligner.eval.jev_clauses (OT requests by
+    clause). Gitignored.
 
 pipeline/vendor/bsb-add-books/zin-split-2026-10-26c/split/ — Zinza (zin_wbt) split file, third version (bcv-commons/language-analysis zin/9d710dc8 = ab3848ee)
   source: huggingface.co/datasets/bcv-commons/language-analysis @ d38a81f3, zin/9d710dc8/split/{_split.json, words.parquet};

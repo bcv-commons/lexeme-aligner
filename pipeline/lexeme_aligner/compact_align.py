@@ -236,7 +236,8 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "a token linked whole is written bare. The parts are not published as text: the edition's manifest entry `parts` pins how "
           "to reproduce them (the part analysis or segmenter, its version and sha256, and the numbering rule, e.g. the segmenter's "
           "split of the WRITTEN token, bcv-commons/bibles tokenize_written, part = its list index). An entry not listed is linked by "
-          "whole tokens.",
+          "whole tokens. MARKED EDITIONS: a special alignment of an edition is published as its own edition with a mark after the "
+          "iso, beside the edition's own: `<iso>-m_<rest>` = morphed (aligned by word parts), e.g. kvg_wbt and kvg-m_wbt.",
           "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in "
           "the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS "
           "edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned "
@@ -755,6 +756,20 @@ def move_superseded(edition_dir: Path, book: str, digest: str, out_root: Path, s
 SAFE_EDITION = re.compile(r"[A-Za-z0-9_.\-]+")    # 2026-10-09: "HAUBIB (Hausa Contemporary Bible / OHCB)" split a compact folder in two
 
 
+EDITION_MARKS = {"m": "morphed: aligned by word parts (prefixes, stem, tone, suffixes); the meta `parts` channel + manifest `parts` pin"}
+
+
+def marked_edition(edition: str, iso: str, mark: str) -> str:
+    """Owner convention 2026-10-28: a special alignment of an edition is published as its own edition with a mark after the iso,
+    `kvg_wbt` -> `kvg-m_wbt` (m = morphed: aligned by word parts). The original edition keeps its id, so both sit side by side under `<iso[0]>/<iso>/`
+    and every reader that lists editions sees two. Marks in EDITION_MARKS."""
+    if mark not in EDITION_MARKS:
+        raise ValueError(f"unknown edition mark {mark!r} (known: {sorted(EDITION_MARKS)})")
+    if not edition.lower().startswith(iso.lower()):
+        raise ValueError(f"edition {edition!r} does not start with its iso {iso!r}")
+    return f"{edition[:len(iso)]}-{mark}{edition[len(iso):]}"
+
+
 def edition_id(iso: str, tag: str, sources: dict) -> str:
     """The path's `<edition>` segment: iso-prefixed so it's self-describing even out of context, but
     without DOUBLE-prefixing an edition string that already carries the iso (helloAO-sourced tags like
@@ -946,6 +961,8 @@ def main() -> int:
                     help="use the whole-bible single-array dev/debug mode (--out) instead of --publish")
     ap.add_argument("--edition", default=None,
                     help="edition path segment for --publish (default: derived from data/sources.json)")
+    ap.add_argument("--morphed", action="store_true",
+                    help="publish the alignment by word parts as its own edition, marked m: kvg_wbt -> kvg-m_wbt (beside the edition's own)")
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--index-root", type=Path, default=Path("publish/compact-alignments/_index"),
                     help="root for the shared per-book verse-ref indices (--publish mode)")
@@ -978,6 +995,8 @@ def main() -> int:
         publish_iso = args.publish_iso or args.iso
         sources = json.loads(args.sources.read_text(encoding="utf-8")) if args.sources.exists() else {}
         resolved_edition = args.edition or edition_id(publish_iso, args.iso, sources)
+        if args.morphed:
+            resolved_edition = marked_edition(resolved_edition, publish_iso, "m")
         written = publish_compact(args.iso, publish_iso, usj_dir, heb, args.publish,
                                   methods=methods, out_dir=args.out_dir,
                                   with_layer=not args.no_layer, contest=contest,

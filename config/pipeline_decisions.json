@@ -3072,6 +3072,16 @@
   }
  },
  "crx": {
+  "nt_bridge": {
+   "editions": [
+    "crx_wbt",
+    "crxpkf"
+   ],
+   "max_ot_books": 38,
+   "scale": 2.0,
+   "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=11.86)",
    "value": "stem"
@@ -3142,6 +3152,15 @@
   }
  },
  "ctu": {
+  "nt_bridge": {
+   "editions": [
+    "ctu_cti"
+   ],
+   "max_ot_books": 38,
+   "scale": 2.0,
+   "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=26.89)",
    "value": "surface"

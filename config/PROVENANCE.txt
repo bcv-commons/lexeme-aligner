@@ -649,3 +649,20 @@ pipeline/vendor/bsb-add-books/zin-split-2026-10-26c/split/ — Zinza (zin_wbt) s
     words.parquet sha256 6b6f2683d2dd3af0... (= manifest), text_fp_version 1. 173,368 tokens, 236,091 rows, 28,525 divided
     (22 protected words: o-ku- infinitives, a-ba-/o-mu- nouns, -baanza); `split_format check --usj` ALL PASS; 566 tokens differ from b.
   Licence CC BY-SA 4.0 (holds the edition's text cut into parts: Bibilia Endagaano Ensya, Wycliffe Bible Translators). Gitignored.
+
+## bcv-commons/bibles tools/verse-text 2.0.0 — vendored 2026-10-28 (tokenizer v3 + written tokens; supersedes 1.0.0 for the files below)
+- What: pipeline/vendor/bibles/{VERSION, CHANGELOG.md, bcv_tokenize.py, bcv_written.py, js/tokenize.js, js/tokenize_written.js} copied unchanged from
+  github.com/bcv-commons/bibles tools/verse-text at commit 996565918f48 (2026-10-28, "verse-text 2.0.0 (tokenizer v3, written tokens)"); verse-text
+  unchanged up to a0aca2b0. CC0 1.0. The other vendored files (verse_text.py, plain_text.py, usx_to_usj.py, helloao_to_usj.py, content_fingerprint.py,
+  js/text_fingerprint.mjs) are byte-identical in 2.0.0. Never edit the copies. 1.0.0 copies backed up in pipeline/work/backup-vendor-bibles-1.0.0/.
+- Change: TOKENIZER_VERSION 3 — Myanmar-script syllables only (logical-order U+1031, consonant before asat closes the syllable, S'gaw Karen asat = tone
+  mark). No other script changes. bcv_written.py / tokenize_written.js = tokens with combining marks kept (same count, same positions).
+- sha256 (first 16):
+    c28fcca53637bc88  VERSION
+    ca6104fbf231c440  CHANGELOG.md
+    81fb9775b489d710  bcv_tokenize.py
+    45cd55290042e50e  bcv_written.py
+    ab333dee83cac25e  js/tokenize.js
+    e537ebd13591efb4  js/tokenize_written.js
+- Our Myanmar-script editions (14, 11 languages): dnv_twf khtwbt mnwpdv mya_jvb mya_ojv myabjb myagbi pll_twf rbbwbt rki_twf rmzwbt san_bur shnshn tvn_twf.
+  Their compact files must be regenerated (chain re-run, tokens change) before the compact manifest says tokenizer_version 3.

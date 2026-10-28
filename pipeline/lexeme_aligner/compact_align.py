@@ -90,7 +90,10 @@ def _merge_tier(mode: str, p: dict) -> str:
 #   x   = spanext (opt-in layer, like residual — see LAYER_METHODS/build_layer's docstring for why)
 _METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l",
                "spanext": "x"}
-SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus", "rule", "rend")
+SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus", "rule", "rend", "parts")
+# "parts" (2026-10-28) — sparse, srcOrd:tok.part[,tok.part ...], for an edition aligned by PARTS (target_parts.py): which part of
+# each linked token the source word went to, numbered as the edition's pinned part analysis numbers them (manifest `parts`). A
+# token linked whole is written bare (`tok`). Only entries where at least one token is linked through a part are listed.
 # "rule" (2026-09-28) — sparse, srcOrd:label[+label], the SPECIFIC named mechanism (span_extension's own
 # `prior` tag, e.g. "possessor_after"/"name_after"/"struct_before", or gapfill's own bare prior label
 # like "strong"/"name"/"phrase") that produced/widened a position whose `method` char is 'x' or 'f' —
@@ -227,6 +230,13 @@ _SCHEMA = ["_index/<BOOK>.json = [\"BOOK C:V\", ...] — shared verse-ref index,
           "SIDECAR REPOS (since 2026-10-02): the optional <BOOK>_<hash>.meta.json and <BOOK>_<hash>.extra.json files are published in "
           "their own repos, bcv-commons/compact-alignments-meta and bcv-commons/compact-alignments-extra, under the IDENTICAL relative "
           "path <iso[0]>/<iso>/<edition>/ (with the optional _fingerprints.txt map in the meta repo). The alignment arrays, _index/, manifest.json, tokenize.js and text_fingerprint.mjs stay in this repo.",
+          "parts (meta sidecar, since 2026-10-28) is SPARSE and present only for editions aligned by word PARTS (prefixes, stem, "
+          "tone, suffixes): 'srcOrd:tok.part[,tok.part ...]' for an entry whose source word was linked to part(s) of target tokens, "
+          "space-separated; tok is the raw target token position (as in the main span), part the part's number within that token, "
+          "a token linked whole is written bare. The parts are not published as text: the edition's manifest entry `parts` pins how "
+          "to reproduce them (the part analysis or segmenter, its version and sha256, and the numbering rule, e.g. the segmenter's "
+          "split of the WRITTEN token, bcv-commons/bibles tokenize_written, part = its list index). An entry not listed is linked by "
+          "whole tokens.",
           "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in "
           "the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS "
           "edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned "
@@ -436,6 +446,18 @@ def _encode_span(t_idx: list[int]) -> str:
     return ",".join(str(i) for i in sorted(t_idx))
 
 
+def _encode_parts(t_parts, raw_idx_of: list[int]) -> str | None:
+    """`parts` channel entry for one aligned position: "tok.part" per token linked through a part, bare "tok" for a token linked
+    whole, in raw-text token coordinates, sorted. None when no token is linked through a part (or nothing maps to raw text)."""
+    if not t_parts or all(pt is None for _t, pt in t_parts):
+        return None
+    out = sorted({(raw_idx_of[t], pt) for t, pt in t_parts if t < len(raw_idx_of) and raw_idx_of[t] >= 0},
+                 key=lambda x: (x[0], -1 if x[1] is None else x[1]))
+    if not any(pt is not None for _t, pt in out):
+        return None
+    return ",".join(str(t) if pt is None else f"{t}.{pt}" for t, pt in out)
+
+
 def confidence_sidecar(compact: list[str], agree: dict, verse_refs: list[str],
                        ordinals: list[list[int]]) -> list[str]:
     """Position-parallel confidence channel for one book — a SIDECAR, never inlined.
@@ -606,7 +628,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 annot_spans = annotation_spans(raw_text) if raw_text else []
                 raw_toks = tokenize(raw_text) if raw_text else []
                 raw_spans = _token_spans(raw_text) if raw_text else []
-                parts, meth, conf, contested, bonus, rule, rend = [], [], [], [], [], [], []
+                parts, meth, conf, contested, bonus, rule, rend, tparts = [], [], [], [], [], [], [], []
                 gap_ordinals: list[tuple[int, object]] = []
                 for ordinal, tok in enumerate(anchor_content):
                     rec = pairs.get(tok.idx)
@@ -627,6 +649,8 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                         gap_ordinals.append((ordinal, tok))
                         continue
                     parts.append(f"{ordinal}:{_encode_span(mapped)}")
+                    if (tp := _encode_parts(rec.get("t_parts"), raw_idx_of)) is not None:
+                        tparts.append(f"{ordinal}:{tp}")
                     r_entry = rend_entry(rend_scope, rec["char"], rend_ids, tok.lexeme or tok.strong, raw_toks, mapped, rend_stop)
                     if r_entry is not None:
                         rend.append(r_entry)
@@ -672,6 +696,7 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 side["bonus"][ref] = " ".join(bonus)
                 side["rule"][ref] = " ".join(rule)
                 side["rend"][ref] = " ".join(rend)
+                side["parts"][ref] = " ".join(tparts)
                 for orig_v, _tok in members:
                     if orig_v != anchor_v:
                         by_ref.setdefault(f"{book} {ch}:{orig_v}", "")   # pooled non-anchor member
@@ -704,6 +729,14 @@ def book_content_hash(usj_path: Path) -> str:
 # Where publish_compact moves the files of an OLDER version of a book when it writes a new one (the text changed): every edition folder holds
 # exactly one version per book (publish_safe checks it); the older version stays published on Hugging Face under its own name.
 SUPERSEDED = Path("pipeline/work/compact-superseded")
+
+
+def _has_parts_channel(written: dict[str, Path]) -> bool:
+    for fp in written.values():
+        meta = fp.with_name(fp.name.removesuffix(".json") + ".meta.json")
+        if meta.exists() and any(json.loads(meta.read_text(encoding="utf-8")).get("parts") or ()):
+            return True
+    return False
 
 
 def move_superseded(edition_dir: Path, book: str, digest: str, out_root: Path, superseded_root: Path = SUPERSEDED) -> list[Path]:
@@ -829,7 +862,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         if with_sidecars:
             meta = {name: [side[name].get(ref, "") for ref in book_index]
                     for name in SIDECAR_CHANNELS
-                    if not (name == "rend" and takedown.rend_scope(tag) == "none")}
+                    if not (name == "rend" and takedown.rend_scope(tag) == "none")
+                    and not (name == "parts" and not any(side[name].get(ref) for ref in book_index))}   # only parts editions carry it
             if any(any(a) for a in meta.values()):
                 (out_fp.parent / f"{book}_{digest}.meta.json").write_text(
                     json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -965,7 +999,10 @@ def main() -> int:
         if takedown.rend_scope(args.iso) != "all":
             manifest_entry["rend_scope"] = takedown.rend_scope(args.iso)      # absent = every aligned entry carries an id
         if args.not_in_statistics_pool:
-            manifest_entry["statistics_pool"] = False         # absent = counted (every edition published before 2026-10-07)
+            manifest_entry["statistics_pool"] = False
+        from lexeme_aligner.target_parts import parts_pin
+        if (pin := parts_pin(args.iso)) and _has_parts_channel(written):
+            manifest_entry["parts"] = pin                     # what the meta `parts` channel's part numbers refer to         # absent = counted (every edition published before 2026-10-07)
         update_manifest(args.publish / "manifest.json", publish_iso, resolved_edition, manifest_entry)
         print(f"[compact_align] {publish_iso}/{resolved_edition}: {len(written)} book file(s) written "
               f"under {args.publish}, manifest updated", file=sys.stderr)

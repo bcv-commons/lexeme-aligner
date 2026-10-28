@@ -158,7 +158,7 @@ def main() -> int:
     # Gloss there reads part-level priors from the view's own eflomal links, content words on content parts only
     # (target_parts.content_priors: a small hand-check win, nothing else moves; whole-word priors forced e.g. μή onto the preposition אל,
     # unfiltered part priors lost the hand check).
-    from lexeme_aligner import target_parts
+    from lexeme_aligner import nt_bridge, target_parts
     from lexeme_aligner.config import OUT
     part_tags = {tag: pinned for tag in run_tags if (pinned := target_parts.for_edition(tag))}
     for tag, (analysis, entry) in list(part_tags.items()):
@@ -167,7 +167,13 @@ def main() -> int:
         venv = dict(env, ALIGNER_OUT=str(vout.resolve()))
         common = ("--iso", tag, "--publish-iso", args.iso, "--usj-dir", view, "--out", vout)
         lex_root = target_parts.VIEW_ROOT / tag / "priors"
-        ok = _run("run_pilot", "--method", "eflomal", scope_flag, *common, env=venv, soft=True)
+        if scope_flag == "--all" and nt_bridge.applies(usj_dirs[tag]):
+            # thin OT (kvg_wbt: Ruth + Jonah): as onboard.py's eflomal step, the NT first, then the OT with priors from that NT alignment
+            print(f"[full_chain] {tag}: thin OT — parts view NT first, then OT with the NT bridge", file=sys.stderr)
+            ok = (_run("run_pilot", "--method", "eflomal", "--nt", *common, env=venv, soft=True)
+                  and _run("run_pilot", "--method", "eflomal", "--ot", "--nt-bridge", *common, env=venv, soft=True))
+        else:
+            ok = _run("run_pilot", "--method", "eflomal", scope_flag, *common, env=venv, soft=True)
         if ok:
             print(f"[full_chain] {tag}: part-level gloss priors {dict(target_parts.content_priors(tag, args.iso, vout, view, analysis, lex_root))}",
                   file=sys.stderr)

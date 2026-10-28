@@ -42,7 +42,7 @@ def for_edition(tag: str, config: Path = CONFIG, vendor: Path = VENDOR) -> tuple
     None when the edition has no entry."""
     import hashlib
     entry = json.loads(Path(config).read_text(encoding="utf-8")).get(tag) if Path(config).exists() else None
-    if not entry:
+    if not entry or entry.get("chain") is False:          # chain: false = pinned for parts_pin / hand runs, not used by the chain
         return None
     local = Path(vendor) / entry["revision"] / entry["file"] if "local" not in entry else Path(__file__).resolve().parents[2] / entry["local"]
     if not local.exists() and "local" in entry:
@@ -56,6 +56,19 @@ def for_edition(tag: str, config: Path = CONFIG, vendor: Path = VENDOR) -> tuple
     if sha != entry["sha256"]:
         raise SystemExit(f"[target_parts] {local}: sha256 {sha[:12]}… is not the pinned {entry['sha256'][:12]}… ({config})")
     return local, entry
+
+
+PIN_KEYS = ("dataset", "revision", "file", "sha256", "format", "segmenter", "numbering")
+
+
+def parts_pin(tag: str, config: Path = CONFIG) -> dict | None:
+    """What a published `parts` channel's part numbers refer to (compact manifest entry `parts`): the pinned analysis (dataset,
+    revision, file, sha256) or segmenter (+ numbering rule). A local-only file's path and sha are left out (`local`): its sha names
+    a file no reader can get. None when the edition has no entry."""
+    entry = json.loads(Path(config).read_text(encoding="utf-8")).get(tag) if Path(config).exists() else None
+    if not entry:
+        return None
+    return {k: entry[k] for k in PIN_KEYS if k in entry and not (k == "sha256" and "local" in entry)}
 
 
 def _plain(s: str) -> str:

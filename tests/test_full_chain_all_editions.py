@@ -114,3 +114,27 @@ def test_full_align_build_runs_once_per_edition_right_after_compact(monkeypatch,
     last_compact = max(i for i, m in enumerate(mods) if m == "compact_align")
     first_fa = mods.index("fullalign_build")
     assert last_compact < first_fa < mods.index("pipeline_decisions")
+
+
+def _parts_chain(monkeypatch, tmp_path, bridge: bool):
+    from lexeme_aligner import nt_bridge, target_parts
+    monkeypatch.setattr(target_parts, "for_edition", lambda tag: ("analysis", {}))
+    for name in ("write_view", "load_parts"):
+        monkeypatch.setattr(target_parts, name, lambda *a, **k: None)
+    monkeypatch.setattr(target_parts, "content_priors", lambda *a, **k: {})
+    monkeypatch.setattr(target_parts, "fold", lambda *a, **k: {})
+    monkeypatch.setattr(nt_bridge, "applies", lambda usj_dir, cfg=None: bridge)
+    calls, _ = _run_chain(monkeypatch, tmp_path, ["AAA"])
+    return [a for m, a in calls if m == "run_pilot" and _arg(a, "--method") == "eflomal"]
+
+
+def test_parts_route_uses_the_nt_bridge_for_a_thin_ot(monkeypatch, tmp_path):
+    """kvg_wbt (NT + Ruth + Jonah): the parts view is aligned NT first, then the OT with --nt-bridge, as onboard.py does for words."""
+    ef = _parts_chain(monkeypatch, tmp_path, bridge=True)
+    assert [[f for f in ("--all", "--nt", "--ot", "--nt-bridge") if f in a] for a in ef] == [["--nt"], ["--ot", "--nt-bridge"]]
+    assert all("parts-view" in _arg(a, "--usj-dir") for a in ef)
+
+
+def test_parts_route_without_a_thin_ot_runs_eflomal_once(monkeypatch, tmp_path):
+    ef = _parts_chain(monkeypatch, tmp_path, bridge=False)
+    assert len(ef) == 1 and "--all" in ef[0] and "--nt-bridge" not in ef[0]

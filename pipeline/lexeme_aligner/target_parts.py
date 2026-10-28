@@ -262,6 +262,12 @@ def fold(tag: str, view_out: Path, out: Path, view_dir: Path, usj_dir: Path, met
                                 p["prior"] = p["prior"][:mm.start()] + f":{umap[u][0]}"
                         pairs.append(p)
                         stats[m] += 1
+                    if r.get("llm_none") and umap is not None:      # an LLM cell's target units that render nothing (jev_check):
+                        nones = {u for u in r["llm_none"] if u < len(umap)}  # a token only when every unit of it was said to
+                        units_of_tok = collections.defaultdict(set)
+                        for u, (t, _pt) in enumerate(umap):
+                            units_of_tok[t].add(u)
+                        r = dict(r, llm_none=sorted(t for t, us in units_of_tok.items() if us <= nones))
                     w.write(json.dumps(dict(r, pairs=pairs), ensure_ascii=False) + "\n")
     return stats
 

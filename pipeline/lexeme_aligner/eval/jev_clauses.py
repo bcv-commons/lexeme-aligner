@@ -141,6 +141,27 @@ class Book:
     units_of: dict[int, list | None]
 
 
+def spine_trefs(tag: str, usj: Path, books: list[str]) -> dict[tuple, tuple]:
+    """(book, ch, v) spine verse -> (ch, v) of the edition verse it was aligned against (as target_parts.fold reads it)."""
+    from lexeme_aligner.hebrew_source import HebrewSource
+    from lexeme_aligner.run_pilot import build_corpus
+    from lexeme_aligner.versification import remapper
+    return {(r.book, r.ch, r.v): tuple(r.tref) for r in build_corpus(books, usj, HebrewSource(), remapper(tag, usj)) if r.tref}
+
+
+def parts_by_spine(props: list, unit_words: dict, vmap: dict, trefs: dict) -> tuple[dict, dict]:
+    """The parts view's units (`unit_words`, keyed by EDITION verse) and unit map (`vmap`, "C:V" of the book) keyed by each
+    proposal's spine ref instead: where the numbering differs (Hebrew JON 2:1 = English 1:17) the same numbers are another verse."""
+    units_of, part_at = {}, {}
+    for p in props:
+        tc, tv = trefs.get((p.book, p.ch, p.v), (p.ch, p.v))
+        if (us := unit_words.get((p.book, tc, tv))) is not None:
+            units_of[p.ref] = us
+        if (um := vmap.get(f"{tc}:{tv}")) is not None:
+            part_at[p.ref] = um
+    return units_of, part_at
+
+
 def lay_out(props: list[le.Proposal], units_of: dict[int, list | None]) -> Book:
     seq, word, wid = [], [], -1
     key_to_h = {}
@@ -428,11 +449,12 @@ def main() -> int:
     if a.parts:
         from lexeme_aligner import target_parts as tp
         from lexeme_aligner.refs import encode
-        units_of = {encode(*k): v for k, v in tp.unit_words(usj, tp.load_parts(a.parts)).items()}
-        vmap = json.loads((usj / tp.VIEW_MAP).read_text(encoding="utf-8"))[a.book]
+        trefs = spine_trefs(a.iso, usj, [a.book])
+        units_of, part_at = parts_by_spine(props, tp.unit_words(usj, tp.load_parts(a.parts)),
+                                           json.loads((usj / tp.VIEW_MAP).read_text(encoding="utf-8")).get(a.book, {}), trefs)
+        eref = {p.ref: encode(p.book, *trefs.get((p.book, p.ch, p.v), (p.ch, p.v))) for p in props}   # the split's ids are keyed by edition verse
         cid = _chain_ids(a.parts)
-        part_at = {encode(a.book, *map(int, cv.split(":"))): um for cv, um in vmap.items()}
-        chain_ids_of = lambda x: (cid.get((x[0], *part_at[x[0]][x[1]]), None),) if x[0] in part_at else ()   # noqa: E731
+        chain_ids_of = lambda x: (cid.get((eref[x[0]], *part_at[x[0]][x[1]]), None),) if x[0] in part_at else ()   # noqa: E731
     else:
         chain_ids_of = lambda x: ()                                                                          # noqa: E731
     b = lay_out(props, units_of)

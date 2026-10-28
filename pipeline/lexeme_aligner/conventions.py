@@ -202,6 +202,24 @@ def pin_layer(layer_dir: Path, by_book: dict[str, str], out: Path = OUT) -> Path
     return fp
 
 
+def pin_layer_modules(layer_dir: Path, by_book: dict[str, dict[str, Path]], vendor: Path = REPO / "pipeline/vendor/language-analysis") -> Path:
+    """Write <layer>/_conventions.json for a layer aligned with bsb-add-books' language modules (jev_clauses --conventions modules)
+    instead of our conventions: for each book the module files the aligner was given ({"source": path, "target": path}, vendored
+    under pipeline/vendor/language-analysis/<commit>/...), named `<commit>/<path in the dataset>` with their sha256."""
+    files: dict[str, dict] = {}
+    books: dict[str, dict[str, str]] = {}
+    for book, mods in sorted(by_book.items()):
+        books[book] = {}
+        for role, fp in sorted(mods.items()):
+            name = str(Path(fp).resolve().relative_to(vendor.resolve()))
+            books[book][role] = name
+            files.setdefault(name, {"sha256": hashlib.sha256(Path(fp).read_bytes()).hexdigest(), "license": "CC0-1.0"})
+    payload = {"dataset": "bcv-commons/language-analysis", "mode": "modules", "credit": "bsb-add-books", "books": books, "files": files}
+    fp = layer_dir / "_conventions.json"
+    fp.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return fp
+
+
 def set_path(name: str, text: str) -> str:
     return f"{_lang_of(name)}/{name}/{sha256(text)[:8]}"
 

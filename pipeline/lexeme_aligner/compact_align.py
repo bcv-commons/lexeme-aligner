@@ -770,6 +770,12 @@ def marked_edition(edition: str, iso: str, mark: str) -> str:
     return f"{edition[:len(iso)]}-{mark}{edition[len(iso):]}"
 
 
+def unmarked_edition(edition: str) -> str:
+    """The edition a marked edition was made from (`kvg-m_wbt` -> `kvg_wbt`): same text, so same licence. Unmarked ids come back as they are."""
+    m = re.match(r"^([A-Za-z0-9]+)-([a-z])(_.*)?$", edition)
+    return f"{m.group(1)}{m.group(3) or ''}" if m and m.group(2) in EDITION_MARKS else edition
+
+
 def edition_id(iso: str, tag: str, sources: dict) -> str:
     """The path's `<edition>` segment: iso-prefixed so it's self-describing even out of context, but
     without DOUBLE-prefixing an edition string that already carries the iso (helloAO-sourced tags like

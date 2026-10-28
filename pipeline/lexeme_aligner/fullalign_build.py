@@ -617,7 +617,8 @@ def llm_rows(cell: str, book: str, out_dir: Path, cell_label: str | None = None)
                 attr = {"source": f"{meta.get('provider') or 'llm'}/{model or 'none'}", "kind": "model", "license": None,
                         "cell": cell_label or cell, "model": model, "strategy": meta.get("design"),
                         "prompt_version": None if meta.get("theta") is None else f"theta={meta['theta']:g}"}
-                for p in rec["pairs"]:
+                for p in rec["pairs"]:                           # `t_parts` (a cell folded from a parts view) goes to the meta
+                    p = {k: v for k, v in p.items() if k != "t_parts"}      # `parts` channel (llm_parts), not into each row's profile
                     rows.append(make_row(rec["ref"], rec["book"], p, attr))
                 for sk in rec.get("llm_skipped", []):
                     p = dict(sk, t_idx=[], target=None, method="llm", content=None)
@@ -629,9 +630,34 @@ def llm_rows(cell: str, book: str, out_dir: Path, cell_label: str | None = None)
     return rows
 
 
+def llm_parts(cell: str, book: str, out_dir: Path, groups: dict) -> dict[str, str]:
+    """{"BOOK C:V": "slot:tok.part[,tok.part] ..."} for a cell folded from a parts view (target_parts.fold: pairs carry `t_parts`):
+    which part of each linked target token a source token went to, keyed by the layer's own slot names (c<n> content, f<n>
+    function, p<n> pooled). Same entry syntax as compact's meta `parts` channel. Empty when no pair carries a part."""
+    from lexeme_aligner.align_files import tag_files
+    from lexeme_aligner.compact_align import _encode_parts
+    out: dict[str, list[str]] = collections.defaultdict(list)
+    for fp in tag_files(out_dir, "llm", cell):
+        if not fp.name.endswith(f"_{book}.jsonl"):
+            continue
+        for line in open(fp, encoding="utf-8"):
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            g = groups.get(f"{rec['book']} {rec['chapter']}:{rec['verse']}")
+            if g is None:
+                continue
+            for p in rec["pairs"]:
+                slot = g.slot_of.get(p.get("h_idx"))
+                enc = _encode_parts(p.get("t_parts"), list(range(len(g.toks)))) if slot else None
+                if enc:
+                    out[g.ref].append(f"{fc.slot_str(slot)}:{enc}")
+    return {k: " ".join(v) for k, v in out.items()}
+
+
 def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: str, *, books: list[str] | None = None,
                     out_dir: Path | None = None, out_root: Path = LLM_ROOT, compact_root: Path = COMPACT_ROOT, heb=None,
-                    sources_path: Path = Path("config/sources.json")) -> dict:
+                    sources_path: Path = Path("config/sources.json"), edition: str | None = None, parts_pin: dict | None = None) -> dict:
     """One LLM layer `<compact edition>+llm+<name>` from llm_edit-shaped records (`cell` may hold `{BOOK}` for per-book cells), encoded
     as a decision-list (v3) layer and verified like a manual layer (checks 1, 2, 5). Written under `out_root` only, never publish/."""
     from lexeme_aligner.compact_align import ALL_BOOKS, edition_id
@@ -642,7 +668,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
     from lexeme_aligner.versification import remapper
     out_dir = Path(out_dir or OUT)
     sources = json.loads(sources_path.read_text(encoding="utf-8")) if sources_path.exists() else {}
-    ced = edition_id(publish_iso, tag, sources)
+    ced = edition or edition_id(publish_iso, tag, sources)       # edition: e.g. a morphed edition kvg-m_wbt (compact_align.marked_edition)
     lid = f"{ced}+llm+{name}"
     ldir = out_root / publish_iso[0] / publish_iso / lid
     report: dict = {"tag": tag, "iso": publish_iso, "edition": ced, "layers": {}, "skipped": []}
@@ -652,7 +678,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
     books = books or [b for b in ALL_BOOKS if (index_root / f"{b}_lexemes.json").exists()]
     t: collections.Counter = collections.Counter()
     encoders: dict = {}
-    written, groups_of, refs_of = {}, {}, {}
+    written, groups_of, refs_of, parts_of = {}, {}, {}, {}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         rows = llm_rows(cell.format(BOOK=book), book, out_dir, cell) if usj_path.exists() else []
@@ -674,8 +700,16 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
                 r["target"] = " ".join(g.toks[i] for i in r["t_idx"] if i < len(g.toks))
         written[book] = encode_verify("manual", lid, rows, groups, refs, ldir, book, tf.book_file_hash(usj_path), t, encoders,
                                       has_ids=False)
+        if parts := llm_parts(cell.format(BOOK=book), book, out_dir, groups):
+            parts_of[book] = (parts, tf.book_file_hash(usj_path))
     if written:
         final_check(lid, ldir, written, groups_of, refs_of, t)
+    for book, (parts, digest) in parts_of.items():               # after the decode checks: an added channel, never read by decode
+        mfp = ldir / f"{book}_{digest}.meta.json"
+        meta = json.loads(mfp.read_text(encoding="utf-8")) if mfp.exists() else {}
+        meta["parts"] = [parts.get(ref, "") for ref in refs_of[book]]
+        mfp.write_text(json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
+        t["parts entries"] += sum(len(v.split()) for v in parts.values())
     report["layers"][lid] = dict(t)
     report["layers"][lid]["problems"] = problems(t)
     if written and not report["layers"][lid]["problems"]:
@@ -686,7 +720,7 @@ def build_llm_layer(tag: str, publish_iso: str, usj_dir: Path, cell: str, name: 
         def mutate(doc):
             doc.setdefault("languages", {}).setdefault(publish_iso, {"layers": {}}).setdefault("layers", {})[lid] = {
                 "edition": ced, "source": "llm", "name": name, "cell": cell, "rows": t.get("rows", 0), "books": files,
-                "license": "CC0-1.0"}
+                "license": "CC0-1.0", **({"parts": parts_pin} if parts_pin and parts_of else {})}
             doc["layout"] = "<iso[0]>/<iso>/<edition>+llm+<name>/<BOOK>_<hash>.json (+ .meta.json, _layer.json)"
         update_json(out_root / "manifest.json", mutate)
     return report

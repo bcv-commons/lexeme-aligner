@@ -197,6 +197,8 @@ def hf_manifest(repo: str, dest: Path) -> dict:
 def text_licence(edition: str, cfg: dict, tag_of: dict, repo: Path = REPO) -> str:
     """The licence line of a full-aligned edition's TEXT: config `text_licences`, else the pin's `license`, else eBible's licence line
     (edition_struct) — "" when none is recorded. A pin's `copyright` is never used (it names no licence)."""
+    from lexeme_aligner.compact_align import unmarked_edition
+    edition = unmarked_edition(edition)                  # a marked edition (kvg-m_wbt) is the same text as its edition
     if edition in cfg.get("text_licences", {}):
         return cfg["text_licences"][edition]["licence"]
     tag = tag_of.get(edition, edition)

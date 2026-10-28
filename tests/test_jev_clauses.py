@@ -123,3 +123,26 @@ def test_ot_units_come_from_the_hebrew_layout():
     assert units[0]["words"][0] == "080010010011" and units[0]["language"] == "hbo"
     assert all(jcl.written_words(u["words"]) <= jcl.MAX_WORDS or u["items"] == 1 for u in units)
     assert units[0]["sentence"] in sentences
+
+
+def test_jev_check_refuses_to_send_by_verse(monkeypatch):
+    import sys
+    import pytest
+    from lexeme_aligner.eval import jev_check as jc
+    monkeypatch.delenv("JEV_CACHE_ONLY", raising=False)
+    monkeypatch.setattr(jc.le, "build_proposals", lambda *a, **k: ([], {}))
+    monkeypatch.setattr(sys, "argv", ["jev_check", "--iso", "x_y", "--publish-iso", "x", "--book", "MRK"])
+    with pytest.raises(SystemExit, match="clauses"):
+        jc.main()
+    monkeypatch.setattr(jc, "api_key", lambda: pytest.fail("no API key may be read"))
+
+
+def test_parts_units_follow_the_edition_verse_not_the_spine_number():
+    from types import SimpleNamespace as NS
+    from lexeme_aligner.eval.jev_clauses import parts_by_spine
+    props = [NS(ref=1, book="JON", ch=2, v=1), NS(ref=2, book="JON", ch=1, v=1)]
+    uw = {("JON", 1, 17): ["u17"], ("JON", 2, 1): ["u21"], ("JON", 1, 1): ["u11"]}
+    vmap = {"1:17": [[0, None]], "2:1": [[9, None]], "1:1": [[1, None]]}
+    units_of, part_at = parts_by_spine(props, uw, vmap, {("JON", 2, 1): (1, 17)})
+    assert units_of == {1: ["u17"], 2: ["u11"]}
+    assert part_at == {1: [[0, None]], 2: [[1, None]]}

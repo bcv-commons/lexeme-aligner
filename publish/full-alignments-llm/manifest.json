@@ -176,6 +176,61 @@
     },
     "kvg": {
       "layers": {
+        "kvg-m_wbt+llm+jev-v4": {
+          "books": {
+            "1CO": "1CO_dbe2427b.json",
+            "1JN": "1JN_394bf297.json",
+            "1PE": "1PE_fead9b9f.json",
+            "1TH": "1TH_077cd0fd.json",
+            "1TI": "1TI_2b6fd0dc.json",
+            "2CO": "2CO_bc29e357.json",
+            "2JN": "2JN_f1b8a059.json",
+            "2PE": "2PE_8b102281.json",
+            "2TH": "2TH_70df28b0.json",
+            "2TI": "2TI_b15852af.json",
+            "3JN": "3JN_750bd20b.json",
+            "ACT": "ACT_c0311f35.json",
+            "COL": "COL_f4f7c6cc.json",
+            "EPH": "EPH_9e0fc513.json",
+            "GAL": "GAL_53b541bb.json",
+            "HEB": "HEB_5e080e60.json",
+            "JAS": "JAS_6d6786a9.json",
+            "JHN": "JHN_eb0d7d24.json",
+            "JON": "JON_8829f4c6.json",
+            "JUD": "JUD_7f5c77e1.json",
+            "LUK": "LUK_719c4e64.json",
+            "MAT": "MAT_6cd3b64f.json",
+            "MRK": "MRK_84531f61.json",
+            "PHM": "PHM_bbe00fb9.json",
+            "PHP": "PHP_8850b59a.json",
+            "REV": "REV_7cf317a5.json",
+            "ROM": "ROM_5eabf1a7.json",
+            "RUT": "RUT_e9d22404.json",
+            "TIT": "TIT_8eb17e92.json"
+          },
+          "cell": "jevC.kvg_wbt.{BOOK}.v4.M2.jev-0",
+          "edition": "kvg-m_wbt",
+          "license": "CC0-1.0",
+          "name": "jev-v4",
+          "parts": {
+            "credit": "bcv-commons/language-analysis kvg/d8fdb53e (bsb-add-books)",
+            "format": "bcv-split",
+            "numbering": "bcv_segment.load(module).S.split(word, tones=True) on the WRITTEN token (bcv-commons/bibles verse-text tokenize_written, same position as the tokenizer's token); part = index in that list (prefixes, stem, tone, suffixes). A hyphen word (tokens joined by a single '-') is split joined and each piece takes the parts inside it, numbered from 0 within its token; when that split has a tone part or a part crosses the hyphen, each piece is split alone. A token whose split does not rebuild the written word is linked whole.",
+            "segmenter": {
+              "dataset": "bcv-commons/language-analysis",
+              "files": {
+                "bcv_segment.py": "9db4f82527cd0b1ed0ed26f7f0c553cbd9251647c37a9cb9b22538f2b2a77a45",
+                "morphs.py": "8f11fcb5e49b71d3e99e5344b4cc74565c3e04f101e133062da496836c682c3f",
+                "seg_facts.json": "6ec098f0e2fdda410c5c950f98afb35f86d6e8f30f28684529a10f3fe3fe3e81"
+              },
+              "module": "kvg/d8fdb53e/bundle",
+              "revision": "ab1298c2",
+              "unicode_version": "16.0.0"
+            }
+          },
+          "rows": 148398,
+          "source": "llm"
+        },
         "kvg_wbt+llm+jev-v4": {
           "books": {
             "1CO": "1CO_dbe2427b.json",
@@ -208,11 +263,11 @@
             "RUT": "RUT_e9d22404.json",
             "TIT": "TIT_8eb17e92.json"
           },
-          "cell": "jevA.kvg_wbt.{BOOK}.v4.jev-0",
+          "cell": "jevC.kvg_wbt.{BOOK}.v4.K2.jev-0",
           "edition": "kvg_wbt",
           "license": "CC0-1.0",
           "name": "jev-v4",
-          "rows": 148342,
+          "rows": 148352,
           "source": "llm"
         }
       }

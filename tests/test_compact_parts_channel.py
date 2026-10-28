@@ -40,3 +40,11 @@ def test_marked_edition_inserts_the_mark_after_the_iso():
         ca.marked_edition("kvg_wbt", "kvg", "q")
     with pytest.raises(ValueError):
         ca.marked_edition("BSB", "eng", "m")
+
+
+def test_unmarked_edition_strips_only_a_known_mark():
+    from lexeme_aligner.compact_align import unmarked_edition
+    assert unmarked_edition("kvg-m_wbt") == "kvg_wbt"
+    assert unmarked_edition("kvg_wbt") == "kvg_wbt"
+    assert unmarked_edition("kvg-x_wbt") == "kvg-x_wbt"
+    assert unmarked_edition("HEBM95") == "HEBM95"

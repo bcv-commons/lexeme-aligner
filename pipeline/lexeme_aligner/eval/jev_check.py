@@ -455,7 +455,12 @@ def main() -> int:
     conv_fp = (Path(a.conventions) if a.conventions and a.conventions.endswith(".md")          # a file path (experiments)
                else le._CONVENTIONS_DIR / f"{a.conventions or a.publish_iso}.md")
     conventions = _CONV + f"\n\nLanguage conventions ({lang}):\n" + (conv_fp.read_text(encoding="utf-8") if conv_fp.exists() else _GENERIC_CONVENTIONS)
-    key = "" if os.environ.get("JEV_CACHE_ONLY") else api_key()
+    if not os.environ.get("JEV_CACHE_ONLY"):
+        # owner rule 2026-10-28: Jev units are clauses, never verses. This command builds one request per verse, so it only rebuilds
+        # cells from answers already in the cache (JEV_CACHE_ONLY=1, never billed); new requests go through eval/jev_clauses.py.
+        raise SystemExit("[jev] jev_check sends one request per VERSE, which is not allowed (Jev units are clauses). Use "
+                         "`python -m lexeme_aligner.eval.jev_clauses ...`; to rebuild existing cells from the answer cache set JEV_CACHE_ONLY=1.")
+    key = ""
     hints = json.loads(a.hints.read_text(encoding="utf-8")) if a.hints else None
     units = {}
     if a.parts:

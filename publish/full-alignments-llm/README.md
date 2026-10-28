@@ -27,7 +27,8 @@ A layer id is `<edition>+llm+<name>`, where `<edition>` is the compact-alignment
 | layer | text | model and method | rows |
 |---|---|---|---|
 | `ell_GreVamvas+llm+jev-v4` | Neophytos Vamvas 1850, Modern Greek (public domain; CrossWire GreVamvas via bcv-commons/bibles), 66 books | TypeSafe Jev (`jev-1.13.0`), design v4 | 624,632 |
-| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4 | 148,342 |
+| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4, asked by clause with bsb-add-books' language modules (since v1.1; v1.0 was asked by verse) | 148,352 |
+| `kvg-m_wbt+llm+jev-v4` | the same Kuni-Boazi text, **morphed** (aligned by word parts, see below), 29 books | as above, on the text split into parts with bsb-add-books' Kuni segmenter | 148,398 |
 | `eng_kjv+llm+jev-v4` | King James Version, 1769 text (public domain outside the UK; eBible `eng-kjv2006` via bible.helloao.org), **Old Testament**, 39 books. Its New Testament was aligned to the Textus Receptus and is in [alignments-by-id](https://huggingface.co/datasets/bcv-commons/alignments-by-id) (`tr/e/eng/eng_kjv`) | TypeSafe Jev (`jev-1.14.0`), design v4; the KJV's own Strong's tagging cleared a word's doubt where the proposal matched it, and function-word links Jev kept at least 97% of the time on Ruth, Jonah, Esther and 1 Samuel were not asked again in the other books | 483,700 |
 
 **Design v4:** for each verse the model is asked about every target function word and every source function word, and about each
@@ -43,6 +44,20 @@ ask (mostly name lists) or no target text keep the chain's proposal. Model versi
 `_layer.json`. The questions are built by `lexeme_aligner.eval.jev_check` and the layer by `lexeme_aligner.fullalign_build`
 (github.com/bcv-commons/lexeme-aligner).
 
+**By clause (Kuni, v1.1):** one request covers one clause, or 2-3 short clauses of one sentence, as bsb-add-books' CLAUSES.md lays
+them out (NT: greek-nt-clause-layout; Ruth and Jonah: bcv-commons/hebrew-clause-layout v0.37). The checker is given bsb-add-books'
+language modules (bcv-commons/language-analysis: the Greek / Hebrew source module and the Kuni module `kvg/d8fdb53e`) instead of our
+conventions text; `_conventions.json` names them (below). Built by `lexeme_aligner.eval.jev_clauses`.
+
+**Morphed editions:** `<iso>-m_<rest>` (e.g. `kvg-m_wbt`) is an edition aligned by word PARTS: each word split into prefixes, stem,
+tone and suffixes with a pinned segmenter, aligned part by part and folded back to the words. Its main file and channels read like any
+other layer (links to whole tokens); the meta file adds a `parts` channel, one string per spine verse, `srcSlot:tok.part[,tok.part ...]`
+for each source word linked to a part (`c<n>` content word, `f<n>` function word, `p<n>` pooled; a token linked whole is written
+bare). It holds part NUMBERS only, no text. The manifest entry's `parts` says how to rebuild the parts: segmenter (dataset, revision,
+module, sha256 of its files, unicode version), numbering rule and credit. Kuni: bcv-commons/language-analysis kvg/d8fdb53e
+(bsb-add-books). A Greek negative (οὐ, μή ...) is linked to a Kuni negation suffix (-eav, -ak, -av) in 23% of its occurrences in the
+morphed layer against 3% in the whole-word one.
+
 ## File format
 
 ```
@@ -55,6 +70,8 @@ ask (mostly name lists) or no target text keep the chain's proposal. Model versi
 `_conventions.json`: `books` maps every book to the version (`<lang>/<name>/<sha8>`) of the conventions text the checker was given
 for it, and `sets` repeats those versions as rules, each marked `measured`, `by-construction` or `llm-authored` with its derivation.
 All versions, and the measured rules, are in [alignment-conventions](https://huggingface.co/datasets/bcv-commons/alignment-conventions).
+A layer checked with bsb-add-books' modules has `"mode": "modules"`, `dataset` bcv-commons/language-analysis, `books` mapping each book
+to `{"source": ..., "target": ...}` (`<commit>/<path in that dataset>`) and `files` with each module's sha256.
 
 `<hash>` = the first 8 hex characters of the book's text fingerprint (compact-alignments README, "The text fingerprint"), the same
 name the compact file of that text has, so a file only matches the exact text it was built on. No file holds a word of any text.
@@ -62,7 +79,8 @@ name the compact file of that text has, so a file only matches the exact text it
 ## Versions
 
 Each release is a git tag of this repo (`v1.0`, …); pin a tag (`revision="v1.0"`) rather than `main`. A tag is never moved: a
-rebuild becomes a new tag. `v1.0` (2026-10-26) is the first tag; it adds the owner-less `+` words to all three layers.
+rebuild becomes a new tag. `v1.0` (2026-10-26) is the first tag; it adds the owner-less `+` words to all three layers. `v1.1`
+(2026-10-28): Kuni-Boazi asked again by clause, and the morphed Kuni layer `kvg-m_wbt+llm+jev-v4`.
 
 ## Verse mapping
 

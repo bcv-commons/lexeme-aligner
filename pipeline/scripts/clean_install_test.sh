@@ -7,6 +7,7 @@
 #   pipeline/scripts/clean_install_test.sh --worktree       copy this checkout's tracked + new (not ignored) files instead: test before committing
 #   PY=python3.12 KEEP=1 pipeline/scripts/clean_install_test.sh ...   another interpreter; keep the test folder afterwards
 #   WORK=/some/dir ...                                       where to make the test folder (default: the system temp folder)
+#   REPO_URL=https://github.com/bcv-commons/lexeme-aligner.git ...   clone this instead of origin (an outsider's anonymous clone)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
 PY=${PY:-python3}
@@ -26,7 +27,7 @@ for f in sys.stdin.buffer.read().decode().split("\0"):
         shutil.copy2(f, os.path.join(dst, f))' "$W/src")
   git -C "$W/src" init -q && git -C "$W/src" add -A && git -C "$W/src" -c user.name=t -c user.email=t@t commit -qm snapshot
 else
-  git clone -q "$(git -C "$HERE" remote get-url origin)" "$W/src"
+  git clone -q "${REPO_URL:-$(git -C "$HERE" remote get-url origin)}" "$W/src"
 fi
 
 t0=$(date +%s)

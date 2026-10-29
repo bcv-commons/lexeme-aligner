@@ -40,6 +40,7 @@ import argparse
 import collections
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -48,7 +49,7 @@ from lexeme_aligner.analyze_language import RISK_RULES
 from lexeme_aligner.grambank_fetch import FEATURES as GRAMBANK_FEATURES
 from lexeme_aligner.span_extension import _TYPOLOGY_SLOT, direction_for, possession_direction_for
 
-OUT_DIR = Path("config/gram_struct")
+OUT_DIR = Path(os.environ.get("ALIGNER_GRAM_STRUCT") or "config/gram_struct")   # align-text: the fetched copy in the data folder
 PARTITIONS = ("external", "imputed", "derived", "measured", "kin")
 
 _FEATURES_FILE = Path("config/grambank/features.json")

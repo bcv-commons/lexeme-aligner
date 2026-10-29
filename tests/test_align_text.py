@@ -56,3 +56,11 @@ def test_output_inside_checkout_refused(tmp_path):
 def test_cli_dispatch():
     cmd = cli.plan(["align-text", "--usj", "u", "--edition", "e", "--iso", "eng", "--out", "o"])[0]
     assert cmd[1:4] == ["-m", "lexeme_aligner.align_text", "--usj"]
+
+
+def test_jev_plan_asks_book_by_book_with_modules_and_the_fixed_variant(tmp_path):
+    plan = align_text.jev_plan("engweb_sample", "eng", tmp_path, ["RUT", "PHM"], 4)
+    assert [b for b, _ in plan] == ["RUT", "PHM"]
+    cmd = plan[0][1]
+    assert cmd[0] == "lexeme_aligner.eval.jev_clauses" and "--dry-run" not in cmd and "--max-usd" not in cmd
+    assert cmd[cmd.index("--conventions") + 1] == "modules" and cmd[cmd.index("--variant") + 1] == align_text.JEV_VARIANT

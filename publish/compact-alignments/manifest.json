@@ -21634,7 +21634,6 @@
             "MRK",
             "PHM",
             "PHP",
-            "PRO",
             "PSA",
             "REV",
             "ROM",
@@ -65614,6 +65613,7 @@
             "license_url": "http://dbs.org",
             "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
           },
+          "statistics_pool": false,
           "tag": "mpxpng",
           "verse_map": "_versification_eng+JHN7-52.json",
           "versification": "eng",
@@ -101791,7 +101791,6 @@
             "ACT",
             "COL",
             "EPH",
-            "EST",
             "EXO",
             "GAL",
             "GEN",
@@ -115051,6 +115050,7 @@
     "FULL ALIGNMENTS (since 2026-10): for editions that also have a hand-made layer, the .meta.json carries the statistical full alignment in extra keys fn / wp / fp / wx / rows / off (every row of every method, function words included), decoded with <edition>/_layer.json in the meta repo; every existing key and the main array keep their meaning. Hand-made layers are in bcv-commons/full-alignments-manual and -manual-sa (layer id <edition>+manual+<source>, same paths and _index/). Format: the full-alignments-manual card, 'File format'.",
     "tokenizer_version = the tokenization these target positions are indexed against. Target words are addressed by POSITION in the verse's own tokenized text, so a consumer MUST reproduce that exact tokenization — the file-name fingerprint is computed WITH the tokenizer, so a different tokenizer finds no file rather than a wrong one, but check the version anyway. Use the published tokenize.js (bcv-commons/bibles verse-text, the same code the producer runs) or match it exactly; if your implementation declares a different version, REFUSE TO DECODE rather than silently resolve positions to the wrong words.",
     "SIDECAR REPOS (since 2026-10-02): the optional <BOOK>_<hash>.meta.json and <BOOK>_<hash>.extra.json files are published in their own repos, bcv-commons/compact-alignments-meta and bcv-commons/compact-alignments-extra, under the IDENTICAL relative path <iso[0]>/<iso>/<edition>/ (with the optional _fingerprints.txt map in the meta repo). The alignment arrays, _index/, manifest.json, tokenize.js and text_fingerprint.mjs stay in this repo.",
+    "parts (meta sidecar, since 2026-10-28) is SPARSE and present only for editions aligned by word PARTS (prefixes, stem, tone, suffixes): 'srcOrd:tok.part[,tok.part ...]' for an entry whose source word was linked to part(s) of target tokens, space-separated; tok is the raw target token position (as in the main span), part the part's number within that token, a token linked whole is written bare. The parts are not published as text: the edition's manifest entry `parts` pins how to reproduce them (the part analysis or segmenter, its version and sha256, and the numbering rule, e.g. the segmenter's split of the WRITTEN token, bcv-commons/bibles tokenize_written, part = its list index). An entry not listed is linked by whole tokens. MARKED EDITIONS: a special alignment of an edition is published as its own edition with a mark after the iso, beside the edition's own: `<iso>-m_<rest>` = morphed (aligned by word parts), e.g. kvg_wbt and kvg-m_wbt.",
     "rend (meta sidecar, since 2026-10) is DENSE like method/conf but space-separated: one integer per aligned entry, in the same order as that verse's 'srcOrd:span' parts. It is the n-th DISTINCT rendering of that entry's lexeme in THIS edition, numbered by first appearance in canonical order (books, verses, entries in order); a rendering = the aligned raw target words, case-folded, with the language's target-stopwords removed (exact match against the published target-stopwords list; if every word is a stopword the original rendering is kept), joined by one space. The edition's manifest entry records `rend_stopwords` = sha256 of the list used (null = none, nothing dropped). Ids are comparable only within one edition and one lexeme (e.g. to split a lexeme's occurrences by how this translation renders them) and carry no text.",
     "VERSIFICATION (since 2026-10): arrays are keyed by SPINE verse (_index refs; Hebrew/WLC numbering in the OT). Each edition's manifest entry carries `versification` (a bcv-commons/bibles scheme code: eng, org, orgw, catm, lxx, vul, rso), and _index/_versification_<scheme>.json maps every spine verse whose target verse differs to the target ref (identity elsewhere; 'C:title' = a verse that scheme leaves unnumbered, e.g. a Psalm superscription, which then has no target words). Read a span's target words from the MAPPED target verse: spine 'PSA 3:2' -> English 'PSA 3:1'. Mapping authority: TVTMS (STEPBible Data, CC BY 4.0).",
     "NT VERSIFICATION (since 2026-10-12): New Testament numbering differs per edition in a few chapters. Each edition's manifest entry carries `versification_nt` (bcv-commons/bibles nt-variants.json names, e.g. [\"3JN1-14\", \"REV12-17\"]; [] = eng.vrs NT numbering) and `verse_map`, the _index file to use for THAT edition: _versification_<scheme>.json, or _versification_<scheme>+<variant>....json when it has variants. The spine's NT (Nestle 1904) numbers 2CO 13 with 13 verses and ACT 19 with 40, so the plain scheme files now also carry NT rows (spine 2CO 13:13 -> English 13:14). Where one spine verse covers two target verses (spine 2CO 13:12 = English 13:12-13) the span is read from the FIRST.",
@@ -115061,5 +115061,5 @@
     "TEXT FINGERPRINT (text_fp_version 1, since 2026-10): <hash> in <BOOK>_<hash>.json is the first 8 hex characters of the book's text fingerprint, computed from the edition's own text in its own verse numbering: tokenize each verse (tokenize.js); a verse line is '<verse>:<tokens joined by one space>' (verses with no tokens are left out, a bridged verse counts under its first number); a chapter fingerprint is SHA-256 of its verse lines joined by '\\n'; the book fingerprint is SHA-256 of the lines '<chapter>:<chapter fingerprint>' joined by '\\n'. Reference implementation: text_fingerprint.mjs (with tokenize.js; bcv-commons/bibles verse-text). Have text, want its alignment: compute the fingerprint and fetch <BOOK>_<hash>.json; no file = no alignment for exactly that text. Older versions of a book stay published under their own fingerprints. OPTIONAL map in the meta repo: <iso[0]>/<iso>/<edition>/_fingerprints.txt, one line per book for the LATEST version: book, hash, the date that version was built, then the first 5 hex characters of each chapter fingerprint in chapter order ('n:xxxxx' where the chapter sequence breaks) — compare your own chapter fingerprints with it to find where your text differs."
   ],
   "text_fp_version": 1,
-  "tokenizer_version": 2
+  "tokenizer_version": 3
 }

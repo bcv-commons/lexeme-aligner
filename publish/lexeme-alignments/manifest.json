@@ -5287,27 +5287,27 @@
       ],
       "books": 35,
       "by_base_text": {
-        "BDVDPI": 26969,
-        "BPL": 40178,
-        "bdv_twf": 20229
+        "BDVDPI": 27039,
+        "BPL": 40618,
+        "bdv_twf": 20103
       },
       "by_method": {
-        "eflomal": 76295,
-        "gapfill": 3346,
-        "gloss": 7735
+        "eflomal": 77069,
+        "gapfill": 3036,
+        "gloss": 7655
       },
-      "content_sha256": "2be420d46963e9e94474398fb45a132819aa7e2ca6f8025237260d7eff564f18",
+      "content_sha256": "9ca85434a0cc19efc236143076e30d2f96ccf9cc499dead813d5b1cfe9760567",
       "file": "iso=bdv/data.parquet",
-      "hi_conf_ge_0.9": 29425,
+      "hi_conf_ge_0.9": 29813,
       "language": "Bodo Parja",
-      "lexemes": 9907,
+      "lexemes": 9929,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 87376,
+      "rows": 87760,
       "sources": {
         "BDVDPI": {
           "edition": "BDVDPI",
@@ -5325,8 +5325,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 9620,
-      "surfaces": 29641,
+      "strongs": 9632,
+      "surfaces": 29745,
       "testament": "NT+OT"
     },
     "bea": {
@@ -8779,18 +8779,18 @@
       ],
       "books": 66,
       "by_base_text": {
-        "BULB40": 106927,
-        "BULBOB": 109359,
-        "BULCBV": 115511
+        "BULB40": 106791,
+        "BULBOB": 109309,
+        "BULCBV": 115571
       },
       "by_method": {
-        "eflomal": 208740,
-        "gapfill": 2826,
-        "gloss": 120231
+        "eflomal": 208666,
+        "gapfill": 2921,
+        "gloss": 120084
       },
-      "content_sha256": "0907947705ae242dc09c7e70e3ebd99b887f944873442a8047cbdee43f414770",
+      "content_sha256": "dbb5deaf59d09e75adcf74d614f4d9d99759775c1064116ba55e26829413909b",
       "file": "iso=bul/data.parquet",
-      "hi_conf_ge_0.9": 115802,
+      "hi_conf_ge_0.9": 115693,
       "language": "Bulgarian",
       "lexemes": 14025,
       "methods": [
@@ -8799,7 +8799,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 331797,
+      "rows": 331671,
       "sources": {
         "BULB40": {
           "edition": "BULB40",
@@ -8818,7 +8818,7 @@
         }
       },
       "strongs": 13144,
-      "surfaces": 65525,
+      "surfaces": 65408,
       "testament": "NT+OT"
     },
     "bus": {
@@ -14606,25 +14606,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "dnv_twf": 22061
+        "dnv_twf": 19982
       },
       "by_method": {
-        "eflomal": 20952,
-        "gapfill": 510,
-        "gloss": 599
+        "eflomal": 18253,
+        "gapfill": 1334,
+        "gloss": 395
       },
-      "content_sha256": "209ab269ac27d4948ccbdf27f7de618a75ea2f8f11eb0f1935fc23fc632edb54",
+      "content_sha256": "5f8b5ec3ce008c636edfdb7b72e1da42ddc34c9e95fc08764a81a2e7a49119e4",
       "file": "iso=dnv/data.parquet",
-      "hi_conf_ge_0.9": 9189,
+      "hi_conf_ge_0.9": 7753,
       "language": "Danu",
-      "lexemes": 4693,
+      "lexemes": 4720,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 22061,
+      "rows": 19982,
       "sources": {
         "dnv_twf": {
           "edition": "dnv_twf",
@@ -14632,8 +14632,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 4692,
-      "surfaces": 11247,
+      "strongs": 4719,
+      "surfaces": 9597,
       "testament": "NT"
     },
     "dnw": {
@@ -15772,22 +15772,28 @@
       ],
       "books": 31,
       "by_base_text": {
-        "eko_wbt": 19074,
-        "ekopkf": 29043
+        "eko_wbt": 32020,
+        "ekopkf": 46680
       },
       "by_method": {
-        "eflomal": 48117
+        "eflomal": 48117,
+        "gapfill": 975,
+        "gloss": 28696,
+        "spanext": 912
       },
-      "content_sha256": "bc9ee57923f810e63161f8527ff48f2e60c5e6740da65dbe25f53a6bd320bd0f",
+      "content_sha256": "e061f657bb72998cb1807731bf2171f543125527d669ac44740cd5f2933821b5",
       "file": "iso=eko/data.parquet",
-      "hi_conf_ge_0.9": 20281,
+      "hi_conf_ge_0.9": 33872,
       "language": "Ekoti",
-      "lexemes": 7000,
+      "lexemes": 7005,
       "methods": [
-        "eflomal"
+        "spanext",
+        "eflomal",
+        "gloss",
+        "gapfill"
       ],
       "min_count": 1,
-      "rows": 48117,
+      "rows": 78700,
       "sources": {
         "eko_wbt": {
           "edition": "eko_wbt",
@@ -15795,8 +15801,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6943,
-      "surfaces": 19727,
+      "strongs": 6948,
+      "surfaces": 21291,
       "testament": "NT+OT"
     },
     "ell": {
@@ -15887,26 +15893,26 @@
       ],
       "books": 44,
       "by_base_text": {
-        "EMPWYI": 60690,
-        "emppkf": 60536
+        "EMPWYI": 61531,
+        "emppkf": 61400
       },
       "by_method": {
-        "eflomal": 75193,
-        "gapfill": 2704,
-        "gloss": 43329
+        "eflomal": 76845,
+        "gapfill": 2502,
+        "gloss": 43584
       },
-      "content_sha256": "3d224c678f02909c66939b1aea2d8ee35191d3405e1992cd1447d06112b59f21",
+      "content_sha256": "846665631332401fe3e5716facdef6a1e55ef798389393159e2d0aef10e399b7",
       "file": "iso=emp/data.parquet",
-      "hi_conf_ge_0.9": 41367,
+      "hi_conf_ge_0.9": 42599,
       "language": "Embera Northern",
-      "lexemes": 8320,
+      "lexemes": 8400,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 121226,
+      "rows": 122931,
       "sources": {
         "EMPWYI": {
           "edition": "EMPWYI",
@@ -15914,8 +15920,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 8187,
-      "surfaces": 36763,
+      "strongs": 8263,
+      "surfaces": 37559,
       "testament": "NT+OT"
     },
     "ena": {
@@ -15925,26 +15931,26 @@
       ],
       "books": 29,
       "by_base_text": {
-        "APALGENT": 46650,
-        "ena_pbt": 44860
+        "APALGENT": 47162,
+        "ena_pbt": 45693
       },
       "by_method": {
-        "eflomal": 57391,
-        "gapfill": 1695,
-        "gloss": 32424
+        "eflomal": 59201,
+        "gapfill": 1493,
+        "gloss": 32161
       },
-      "content_sha256": "c758a672d6f632c100f754548efe0e34e77a95acad84f08bbf176ca1bae95f3a",
+      "content_sha256": "85c38ac8e03958ea52a317f223a06c8aaf809a7b3786167a1020fa489d3ae798",
       "file": "iso=ena/data.parquet",
-      "hi_conf_ge_0.9": 27277,
+      "hi_conf_ge_0.9": 29107,
       "language": "Apali",
-      "lexemes": 7150,
+      "lexemes": 7146,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 91510,
+      "rows": 92855,
       "sources": {
         "APALGENT": {
           "edition": "APALGENT",
@@ -15958,7 +15964,7 @@
         }
       },
       "strongs": 7090,
-      "surfaces": 19643,
+      "surfaces": 20082,
       "testament": "NT+OT"
     },
     "enb": {
@@ -16031,45 +16037,45 @@
       ],
       "books": 66,
       "by_base_text": {
-        "BSB": 90249,
-        "EN1ESV": 82072,
-        "ENGEVD": 100107,
-        "ENGNAS": 81499,
-        "ENGNLH": 109095,
-        "ENGNLV": 25610,
-        "ENGWEB": 78065,
-        "ENGWMV": 88397,
-        "GHT": 16367,
-        "eng_asv": 74675,
-        "eng_bbe": 80961,
-        "eng_cpb": 78525,
-        "eng_dby": 76044,
-        "eng_dra": 88651,
-        "eng_f35": 25405,
-        "eng_fbv": 103462,
-        "eng_gnv": 86651,
-        "eng_jps": 49738,
-        "eng_lee": 57292,
-        "eng_net": 96337,
-        "eng_ojb": 96407,
-        "eng_rv5": 75243,
-        "eng_t4t": 122298,
-        "eng_ulb": 89936,
-        "eng_wyc2017": 85325,
-        "eng_ylt": 63269,
-        "enge2t": 533,
-        "engoebcw": 53887,
-        "engoebus": 53885
+        "BSB": 90398,
+        "EN1ESV": 82579,
+        "ENGEVD": 99632,
+        "ENGNAS": 81820,
+        "ENGNLH": 109241,
+        "ENGNLV": 25544,
+        "ENGWEB": 73744,
+        "ENGWMV": 88495,
+        "GHT": 15529,
+        "eng_asv": 74311,
+        "eng_bbe": 80968,
+        "eng_cpb": 78390,
+        "eng_dby": 75800,
+        "eng_dra": 89120,
+        "eng_f35": 24861,
+        "eng_fbv": 103290,
+        "eng_gnv": 86395,
+        "eng_jps": 53472,
+        "eng_lee": 57105,
+        "eng_net": 96770,
+        "eng_ojb": 96204,
+        "eng_rv5": 75311,
+        "eng_t4t": 122405,
+        "eng_ulb": 89652,
+        "eng_wyc2017": 85538,
+        "eng_ylt": 63424,
+        "enge2t": 502,
+        "engoebcw": 53481,
+        "engoebus": 53626
       },
       "by_method": {
-        "eflomal": 1181750,
-        "gapfill": 61963,
-        "gloss": 588433,
-        "spanext": 297839
+        "eflomal": 1181548,
+        "gapfill": 60741,
+        "gloss": 588059,
+        "spanext": 297259
       },
-      "content_sha256": "ab626fde0d82595263320646148c6a2b64292cdf8a9f744d7746ce61e39bcaea",
+      "content_sha256": "fff62f11b0dca113537fa20562f93c50e864ff223163719fd85e7b8e1725f6f4",
       "file": "iso=eng/data.parquet",
-      "hi_conf_ge_0.9": 669412,
+      "hi_conf_ge_0.9": 667717,
       "language": "English",
       "lexemes": 14041,
       "methods": [
@@ -16079,7 +16085,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 2129985,
+      "rows": 2127607,
       "sources": {
         "BSB": {
           "edition": "BSB",
@@ -16228,7 +16234,7 @@
         }
       },
       "strongs": 13159,
-      "surfaces": 225673,
+      "surfaces": 225361,
       "testament": "NT+OT"
     },
     "enq": {
@@ -17269,26 +17275,26 @@
       ],
       "books": 32,
       "by_base_text": {
-        "FUHWBT": 56530,
-        "fuh_sim": 34204
+        "FUHWBT": 56680,
+        "fuh_sim": 33908
       },
       "by_method": {
-        "eflomal": 56935,
-        "gapfill": 879,
-        "gloss": 32920
+        "eflomal": 56559,
+        "gapfill": 858,
+        "gloss": 33171
       },
-      "content_sha256": "7bdaf1207392ed872b49ad0573810e98894bf3fc2d91269f940e8fb12aa86816",
+      "content_sha256": "3884b2cd31402523e4761a5c06ab55e6dda77c95d304460808d1965d976fac32",
       "file": "iso=fuh/data.parquet",
-      "hi_conf_ge_0.9": 34133,
+      "hi_conf_ge_0.9": 34525,
       "language": "Western Niger Fulfulde",
-      "lexemes": 8220,
+      "lexemes": 8273,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 90734,
+      "rows": 90588,
       "sources": {
         "FUHWBT": {
           "edition": "FUHWBT",
@@ -17301,8 +17307,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 8082,
-      "surfaces": 26611,
+      "strongs": 8127,
+      "surfaces": 26593,
       "testament": "NT+OT"
     },
     "fuq": {
@@ -17422,20 +17428,20 @@
       ],
       "books": 28,
       "by_base_text": {
-        "GAGIB1": 46340,
-        "GAGIBT": 37480
+        "GAGIB1": 46639,
+        "GAGIBT": 37285
       },
       "by_method": {
-        "eflomal": 51890,
-        "gapfill": 968,
-        "gloss": 30251,
-        "spanext": 711
+        "eflomal": 51962,
+        "gapfill": 1009,
+        "gloss": 30143,
+        "spanext": 810
       },
-      "content_sha256": "c6034ee7d8709b8d4bdab4d57efc29139ed255a1d6f9535fc612533e140e5192",
+      "content_sha256": "1d6b00fa6af0dfb7d20ec7142bbab4f984d0810dd19ed4e9df01554f97e95f9d",
       "file": "iso=gag/data.parquet",
-      "hi_conf_ge_0.9": 42059,
+      "hi_conf_ge_0.9": 42391,
       "language": "Gagauz",
-      "lexemes": 6480,
+      "lexemes": 6526,
       "methods": [
         "spanext",
         "eflomal",
@@ -17443,7 +17449,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 83820,
+      "rows": 83924,
       "sources": {
         "GAGIB1": {
           "edition": "GAGIB1",
@@ -17456,8 +17462,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 6451,
-      "surfaces": 35292,
+      "strongs": 6491,
+      "surfaces": 35431,
       "testament": "NT+OT"
     },
     "gah": {
@@ -18338,27 +18344,27 @@
       ],
       "books": 28,
       "by_base_text": {
-        "gfk_hwb": 24491,
-        "gfk_swb": 25438,
-        "gfk_tbl": 35733
+        "gfk_hwb": 24518,
+        "gfk_swb": 25490,
+        "gfk_tbl": 35909
       },
       "by_method": {
-        "eflomal": 55623,
-        "gapfill": 900,
-        "gloss": 29139
+        "eflomal": 55837,
+        "gapfill": 995,
+        "gloss": 29085
       },
-      "content_sha256": "8b8d8e718815371fab70a67d46871f9466cdb003411042fb9bee81f8e62e72c1",
+      "content_sha256": "23d805f8ec7ed9849fdf28221d28e0f2b9e378bc1c046be42a350280a1d17ffb",
       "file": "iso=gfk/data.parquet",
-      "hi_conf_ge_0.9": 19788,
+      "hi_conf_ge_0.9": 20115,
       "language": "Patpatar",
-      "lexemes": 6927,
+      "lexemes": 6937,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 85662,
+      "rows": 85917,
       "sources": {
         "gfk_hwb": {
           "edition": "gfk_hwb",
@@ -18376,8 +18382,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6837,
-      "surfaces": 15487,
+      "strongs": 6848,
+      "surfaces": 15870,
       "testament": "NT+OT"
     },
     "gge": {
@@ -18867,26 +18873,26 @@
       ],
       "books": 48,
       "by_base_text": {
-        "gnw_wbt": 27882,
-        "gnwpkf": 40704
+        "gnw_wbt": 27990,
+        "gnwpkf": 40995
       },
       "by_method": {
-        "eflomal": 43620,
-        "gapfill": 988,
-        "gloss": 23978
+        "eflomal": 44161,
+        "gapfill": 900,
+        "gloss": 23924
       },
-      "content_sha256": "8c86fe851b40e556753ea71b5ee0bfa5f05b0fa3dabd175efdd5512462fe7465",
+      "content_sha256": "a15e96105c8bfab80f0876450111e2eaaeea93f862eb4b65cb7294ad37b71097",
       "file": "iso=gnw/data.parquet",
-      "hi_conf_ge_0.9": 17418,
+      "hi_conf_ge_0.9": 17623,
       "language": "Guarani Western Bolivian",
-      "lexemes": 6733,
+      "lexemes": 6788,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 68586,
+      "rows": 68985,
       "sources": {
         "gnw_wbt": {
           "edition": "gnw_wbt",
@@ -18894,8 +18900,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6685,
-      "surfaces": 16027,
+      "strongs": 6742,
+      "surfaces": 16222,
       "testament": "NT+OT"
     },
     "god": {
@@ -19576,26 +19582,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "GUMTBL": 43203,
-        "gumpkf": 52736
+        "GUMTBL": 43436,
+        "gumpkf": 53150
       },
       "by_method": {
-        "eflomal": 59205,
-        "gapfill": 903,
-        "gloss": 35831
+        "eflomal": 59554,
+        "gapfill": 1121,
+        "gloss": 35911
       },
-      "content_sha256": "fa3a0b845f729afe8e4fa7f9664f1174ca4991e3a51456c921fed980d03f282e",
+      "content_sha256": "7fe48c3548d835bece24e1a99da1847d9da6868a3558833f33fb9c1461ad318b",
       "file": "iso=gum/data.parquet",
-      "hi_conf_ge_0.9": 48970,
+      "hi_conf_ge_0.9": 50036,
       "language": "Guambiano",
-      "lexemes": 6465,
+      "lexemes": 6494,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 95939,
+      "rows": 96586,
       "sources": {
         "GUMTBL": {
           "edition": "GUMTBL",
@@ -19603,8 +19609,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 6435,
-      "surfaces": 30156,
+      "strongs": 6463,
+      "surfaces": 30628,
       "testament": "NT+OT"
     },
     "gun": {
@@ -19873,26 +19879,26 @@
       ],
       "books": 47,
       "by_base_text": {
-        "GVCTBL": 38553,
-        "gvcpkf": 50974
+        "GVCTBL": 38880,
+        "gvcpkf": 52727
       },
       "by_method": {
-        "eflomal": 54838,
-        "gapfill": 2358,
-        "gloss": 32331
+        "eflomal": 56082,
+        "gapfill": 2542,
+        "gloss": 32983
       },
-      "content_sha256": "7c10e595c6f4605f1b7e2cb259f958ed4cc167919d946fd97934535f5d2b972f",
+      "content_sha256": "1dc58814d7b04c8a2ba2ecce955550a8e8570f63ff3690b54969fab9c0938dbf",
       "file": "iso=gvc/data.parquet",
-      "hi_conf_ge_0.9": 32413,
+      "hi_conf_ge_0.9": 33397,
       "language": "Guanano",
-      "lexemes": 6685,
+      "lexemes": 6776,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 89527,
+      "rows": 91607,
       "sources": {
         "GVCTBL": {
           "edition": "GVCTBL",
@@ -19900,8 +19906,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 6635,
-      "surfaces": 25808,
+      "strongs": 6727,
+      "surfaces": 26492,
       "testament": "NT+OT"
     },
     "gvf": {
@@ -20472,22 +20478,22 @@
       ],
       "books": 66,
       "by_base_text": {
-        "HATBIV": 29296,
-        "HATSBH": 23765,
-        "hat_bsa": 73008,
-        "hat_pds": 78593
+        "HATBIV": 28820,
+        "HATSBH": 23598,
+        "hat_bsa": 72793,
+        "hat_pds": 78241
       },
       "by_method": {
-        "eflomal": 126346,
-        "gapfill": 2387,
-        "gloss": 64684,
-        "spanext": 11245
+        "eflomal": 126028,
+        "gapfill": 2309,
+        "gloss": 64521,
+        "spanext": 10594
       },
-      "content_sha256": "749e0b40b57fb0ecf280d31e2833d48e78ac13c5a7db06e523045d3dc5d76023",
+      "content_sha256": "7404d015c3a4b5d8cc0a50ba18cd08244fc89895a67a642c6b09517eec89a96f",
       "file": "iso=hat/data.parquet",
-      "hi_conf_ge_0.9": 46215,
+      "hi_conf_ge_0.9": 45957,
       "language": "Haitian Creole",
-      "lexemes": 14028,
+      "lexemes": 14020,
       "methods": [
         "spanext",
         "eflomal",
@@ -20495,7 +20501,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 204662,
+      "rows": 203452,
       "sources": {
         "HATBIV": {
           "edition": "HATBIV",
@@ -20518,8 +20524,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 13148,
-      "surfaces": 35468,
+      "strongs": 13140,
+      "surfaces": 35128,
       "testament": "NT+OT"
     },
     "hau": {
@@ -21066,27 +21072,27 @@
       ],
       "books": 33,
       "by_base_text": {
-        "HLBDPI": 16642,
-        "HLBMSS": 28377,
-        "hlb_twf": 20172
+        "HLBDPI": 16732,
+        "HLBMSS": 28421,
+        "hlb_twf": 19994
       },
       "by_method": {
-        "eflomal": 58215,
-        "gapfill": 2029,
-        "gloss": 4947
+        "eflomal": 58221,
+        "gapfill": 1981,
+        "gloss": 4945
       },
-      "content_sha256": "e6480ac563ff91e85b4af362e6c51c371c823c0d7815eebb2352d06c0f19ac10",
+      "content_sha256": "e68989d0f5f619a10aca3df3c15e565039fe25fccf91eeae711276c5409b957b",
       "file": "iso=hlb/data.parquet",
-      "hi_conf_ge_0.9": 20560,
+      "hi_conf_ge_0.9": 20463,
       "language": "Halbi",
-      "lexemes": 7682,
+      "lexemes": 7680,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 65191,
+      "rows": 65147,
       "sources": {
         "HLBDPI": {
           "edition": "HLBDPI",
@@ -21104,8 +21110,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 7558,
-      "surfaces": 24730,
+      "strongs": 7560,
+      "surfaces": 24682,
       "testament": "NT+OT"
     },
     "hlt": {
@@ -21117,28 +21123,28 @@
       ],
       "books": 66,
       "by_base_text": {
-        "HLTBIV": 22047,
-        "HLTEBT": 24568,
-        "hlt_mcs": 45830,
-        "hlt_thb": 36163
+        "HLTBIV": 21944,
+        "HLTEBT": 24533,
+        "hlt_mcs": 45786,
+        "hlt_thb": 36074
       },
       "by_method": {
-        "eflomal": 80356,
-        "gapfill": 1952,
-        "gloss": 46300
+        "eflomal": 80265,
+        "gapfill": 1755,
+        "gloss": 46317
       },
-      "content_sha256": "b8e92ee1ce09fb52c11a18d547e0295ca9564b51d8cb20e137550c91786fbc14",
+      "content_sha256": "64ce90bdf8bbcd006cdb39862be01713da4da4551d1f53d1e5cf0f7976adc72e",
       "file": "iso=hlt/data.parquet",
-      "hi_conf_ge_0.9": 32956,
+      "hi_conf_ge_0.9": 32836,
       "language": "Matu Chin",
-      "lexemes": 13886,
+      "lexemes": 13863,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 128608,
+      "rows": 128337,
       "sources": {
         "HLTBIV": {
           "edition": "HLTBIV",
@@ -21161,8 +21167,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 13012,
-      "surfaces": 27709,
+      "strongs": 12992,
+      "surfaces": 27505,
       "testament": "NT+OT"
     },
     "hmo": {
@@ -21601,26 +21607,26 @@
       ],
       "books": 65,
       "by_base_text": {
-        "hrv_bib": 38797,
-        "hrv_iva": 129592
+        "hrv_bib": 38880,
+        "hrv_iva": 129784
       },
       "by_method": {
-        "eflomal": 106172,
-        "gapfill": 1276,
-        "gloss": 60941
+        "eflomal": 106289,
+        "gapfill": 1316,
+        "gloss": 61059
       },
-      "content_sha256": "7caef22376e7d039489b85f974ec26dc0cf498365efd4d558b9e98ee2a01b2d3",
+      "content_sha256": "ab2a7ad688e5b1caac5f39ac346d1a838261380a826ac1c2164aabe9ce7d42b5",
       "file": "iso=hrv/data.parquet",
-      "hi_conf_ge_0.9": 70578,
+      "hi_conf_ge_0.9": 70665,
       "language": "Croatian",
-      "lexemes": 13762,
+      "lexemes": 13765,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 168389,
+      "rows": 168664,
       "sources": {
         "hrv_bib": {
           "edition": "hrv_bib",
@@ -21633,8 +21639,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12905,
-      "surfaces": 50716,
+      "strongs": 12903,
+      "surfaces": 50670,
       "testament": "NT+OT"
     },
     "hrw": {
@@ -23058,20 +23064,20 @@
       ],
       "books": 28,
       "by_base_text": {
-        "isl316": 4889,
-        "isl_bib": 53777
+        "isl316": 4774,
+        "isl_bib": 54107
       },
       "by_method": {
-        "eflomal": 34888,
-        "gapfill": 255,
-        "gloss": 20456,
-        "spanext": 3067
+        "eflomal": 35210,
+        "gapfill": 274,
+        "gloss": 20654,
+        "spanext": 2743
       },
-      "content_sha256": "baa8588ae5534b85182be55f0db13bd8f823f7346b1f8077188ad4660ceafd32",
+      "content_sha256": "f920215c2b9303bfe0de1961ab096627296d6e4c9d38fd8a16c903ecc21f3dde",
       "file": "iso=isl/data.parquet",
-      "hi_conf_ge_0.9": 21965,
+      "hi_conf_ge_0.9": 21879,
       "language": "Icelandic",
-      "lexemes": 6613,
+      "lexemes": 6684,
       "methods": [
         "spanext",
         "eflomal",
@@ -23079,7 +23085,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 58666,
+      "rows": 58881,
       "sources": {
         "isl316": {
           "edition": "isl316",
@@ -23092,8 +23098,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6531,
-      "surfaces": 18645,
+      "strongs": 6599,
+      "surfaces": 18449,
       "testament": "NT+OT"
     },
     "isn": {
@@ -23489,26 +23495,26 @@
       ],
       "books": 29,
       "by_base_text": {
-        "JAAJAR": 39761,
-        "jaapkf": 31398
+        "JAAJAR": 40601,
+        "jaapkf": 31235
       },
       "by_method": {
-        "eflomal": 45865,
-        "gapfill": 1468,
-        "gloss": 23826
+        "eflomal": 46671,
+        "gapfill": 1140,
+        "gloss": 24025
       },
-      "content_sha256": "949ae2e105a504cfdc5f048fcb1563839cdf6e1a63810558b2968f2c2ada88f9",
+      "content_sha256": "940661742e8729284ad0f41ecc17c37ce4852c4657b1e1c5aed78eb4ab4f16f4",
       "file": "iso=jaa/data.parquet",
-      "hi_conf_ge_0.9": 24560,
+      "hi_conf_ge_0.9": 24934,
       "language": "Jamamadi",
-      "lexemes": 6959,
+      "lexemes": 7079,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 71159,
+      "rows": 71836,
       "sources": {
         "JAAJAR": {
           "edition": "JAAJAR",
@@ -23516,8 +23522,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 6913,
-      "surfaces": 22771,
+      "strongs": 7028,
+      "surfaces": 22800,
       "testament": "NT+OT"
     },
     "jab": {
@@ -23983,26 +23989,26 @@
       ],
       "books": 61,
       "by_base_text": {
-        "jiv_aie": 46269,
-        "jivpkf": 125914
+        "jiv_aie": 46256,
+        "jivpkf": 128687
       },
       "by_method": {
-        "eflomal": 104199,
-        "gapfill": 2124,
-        "gloss": 65860
+        "eflomal": 106611,
+        "gapfill": 1986,
+        "gloss": 66346
       },
-      "content_sha256": "ddbe49232ed277afc49eb74c1ad967087a0c6540e9bac81fa4b272e962470f95",
+      "content_sha256": "d8ec61b2702013dd5ead087c902250dec344800d820e4daf594a6482b4e4b35c",
       "file": "iso=jiv/data.parquet",
-      "hi_conf_ge_0.9": 82925,
+      "hi_conf_ge_0.9": 83556,
       "language": "Shuar",
-      "lexemes": 11656,
+      "lexemes": 11766,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 172183,
+      "rows": 174943,
       "sources": {
         "jiv_aie": {
           "edition": "jiv_aie",
@@ -24010,8 +24016,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 11120,
-      "surfaces": 60989,
+      "strongs": 11203,
+      "surfaces": 60963,
       "testament": "NT+OT"
     },
     "jmd": {
@@ -25184,26 +25190,26 @@
       ],
       "books": 39,
       "by_base_text": {
-        "kdc_014": 36247,
-        "kdc_pbt": 79992
+        "kdc_014": 36238,
+        "kdc_pbt": 80514
       },
       "by_method": {
-        "eflomal": 76760,
-        "gapfill": 1255,
-        "gloss": 38224
+        "eflomal": 77055,
+        "gapfill": 1238,
+        "gloss": 38459
       },
-      "content_sha256": "5122b36bedc593ccaa3677c895d6a6df4035adca81388631cf35e1f04e92186e",
+      "content_sha256": "deb7e200cb25d3d3920aa6a08c72aacd0763d3d13e559460ba46884ed1a77c32",
       "file": "iso=kdc/data.parquet",
-      "hi_conf_ge_0.9": 46113,
+      "hi_conf_ge_0.9": 47227,
       "language": "Kutu",
-      "lexemes": 10102,
+      "lexemes": 10166,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 116239,
+      "rows": 116752,
       "sources": {
         "kdc_014": {
           "edition": "kdc_014",
@@ -25216,8 +25222,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 9746,
-      "surfaces": 32555,
+      "strongs": 9807,
+      "surfaces": 33059,
       "testament": "NT+OT"
     },
     "kde": {
@@ -26360,25 +26366,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "KHTWBT": 20411
+        "KHTWBT": 20073
       },
       "by_method": {
-        "eflomal": 19266,
-        "gapfill": 682,
-        "gloss": 463
+        "eflomal": 17514,
+        "gapfill": 2472,
+        "gloss": 87
       },
-      "content_sha256": "bd7571639a0e5a50014fd8069f462a84db1a23235e67f2eb38f4e136a8a41d10",
+      "content_sha256": "ed29538722036659e25935aa48747b43d66a5a3307317fbde580b542b3885bd2",
       "file": "iso=kht/data.parquet",
-      "hi_conf_ge_0.9": 6877,
+      "hi_conf_ge_0.9": 6681,
       "language": "Tai Khamti",
-      "lexemes": 4641,
+      "lexemes": 4617,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 20411,
+      "rows": 20073,
       "sources": {
         "KHTWBT": {
           "edition": "KHTWBT",
@@ -26386,8 +26392,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 4640,
-      "surfaces": 8687,
+      "strongs": 4616,
+      "surfaces": 8531,
       "testament": "NT"
     },
     "khz": {
@@ -27328,26 +27334,26 @@
       ],
       "books": 27,
       "by_base_text": {
-        "kmh_kal": 26249,
-        "kmh_min": 28488
+        "kmh_kal": 26092,
+        "kmh_min": 28218
       },
       "by_method": {
-        "eflomal": 38308,
-        "gapfill": 1882,
-        "gloss": 14547
+        "eflomal": 38177,
+        "gapfill": 1701,
+        "gloss": 14432
       },
-      "content_sha256": "95f71f26f64985e9f32f51ecc4f0dbdf6d660101a1ea80b25849a7b6ac884e08",
+      "content_sha256": "6be714bad0e0cdd5f9ead8cc1bbda3184b8ace85e9c7acc25ad55b870fd4f76b",
       "file": "iso=kmh/data.parquet",
-      "hi_conf_ge_0.9": 17579,
+      "hi_conf_ge_0.9": 17259,
       "language": "Kalam",
-      "lexemes": 4865,
+      "lexemes": 4869,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 54737,
+      "rows": 54310,
       "sources": {
         "kmh_kal": {
           "edition": "kmh_kal",
@@ -27360,8 +27366,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 4864,
-      "surfaces": 17577,
+      "strongs": 4868,
+      "surfaces": 17368,
       "testament": "NT"
     },
     "kmk": {
@@ -27466,27 +27472,27 @@
       ],
       "books": 37,
       "by_base_text": {
-        "KMRKKN": 60789,
-        "KMRKLA": 27552,
-        "KMRMBN": 59356
+        "KMRKKN": 61149,
+        "KMRKLA": 27564,
+        "KMRMBN": 60084
       },
       "by_method": {
-        "eflomal": 98268,
-        "gapfill": 3452,
-        "gloss": 45977
+        "eflomal": 99046,
+        "gapfill": 3829,
+        "gloss": 45922
       },
-      "content_sha256": "684fe012215bd406a387cedb5656ca5a7ed213a70a7f89f5e28d17fb6fae0f39",
+      "content_sha256": "096ce26b8e286caea83d586c730f313c7638ad368f9b5783da578669138dd89b",
       "file": "iso=kmr/data.parquet",
-      "hi_conf_ge_0.9": 53252,
+      "hi_conf_ge_0.9": 55032,
       "language": "Kurdish Kurmanji",
-      "lexemes": 9463,
+      "lexemes": 9464,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 147697,
+      "rows": 148797,
       "sources": {
         "KMRKKN": {
           "edition": "KMRKKN",
@@ -27504,8 +27510,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 9181,
-      "surfaces": 49976,
+      "strongs": 9187,
+      "surfaces": 51312,
       "testament": "NT+OT"
     },
     "kms": {
@@ -28175,26 +28181,26 @@
       ],
       "books": 30,
       "by_base_text": {
-        "kpr_tbl": 44499,
-        "kprpkf": 36136
+        "kpr_tbl": 44997,
+        "kprpkf": 36076
       },
       "by_method": {
-        "eflomal": 50572,
-        "gapfill": 1250,
-        "gloss": 28813
+        "eflomal": 51428,
+        "gapfill": 1291,
+        "gloss": 28354
       },
-      "content_sha256": "7f56f8a9325441ad002638ab11da450e08cbf0d751f0c5f51894b72d3ec4b1f6",
+      "content_sha256": "d5c2bd2178d17f90fd63e23c31b0647690f8cfd83a164f886fbee543e038e65c",
       "file": "iso=kpr/data.parquet",
-      "hi_conf_ge_0.9": 26504,
+      "hi_conf_ge_0.9": 27168,
       "language": "Korafe",
-      "lexemes": 6925,
+      "lexemes": 6972,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 80635,
+      "rows": 81073,
       "sources": {
         "kpr_tbl": {
           "edition": "kpr_tbl",
@@ -28202,8 +28208,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6845,
-      "surfaces": 18632,
+      "strongs": 6892,
+      "surfaces": 18832,
       "testament": "NT+OT"
     },
     "kps": {
@@ -29322,26 +29328,26 @@
       ],
       "books": 35,
       "by_base_text": {
-        "KUBTBL": 25821,
-        "kubpkf": 37712
+        "KUBTBL": 25649,
+        "kubpkf": 38102
       },
       "by_method": {
-        "eflomal": 42286,
-        "gapfill": 908,
-        "gloss": 20339
+        "eflomal": 42583,
+        "gapfill": 889,
+        "gloss": 20279
       },
-      "content_sha256": "f994549317764d5d892adfa66b533b629f79cc3439e2be204779b8bad0834a74",
+      "content_sha256": "6b7601648434f504221fc94ae382772cc992d82601c0306b9270c7dd915281ba",
       "file": "iso=kub/data.parquet",
-      "hi_conf_ge_0.9": 12654,
+      "hi_conf_ge_0.9": 13127,
       "language": "Kutep",
-      "lexemes": 8541,
+      "lexemes": 8611,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 63533,
+      "rows": 63751,
       "sources": {
         "KUBTBL": {
           "edition": "KUBTBL",
@@ -29349,8 +29355,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 8424,
-      "surfaces": 12199,
+      "strongs": 8487,
+      "surfaces": 12556,
       "testament": "NT+OT"
     },
     "kud": {
@@ -31995,26 +32001,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "LLGUBB": 31868,
-        "llg_ubb": 39394
+        "LLGUBB": 31787,
+        "llg_ubb": 40017
       },
       "by_method": {
-        "eflomal": 46397,
-        "gapfill": 895,
-        "gloss": 23970
+        "eflomal": 47030,
+        "gapfill": 938,
+        "gloss": 23836
       },
-      "content_sha256": "9ba0d917261413901f6b8cd2f14217b95df3fbc208da2448f8c07b0537a8f0ba",
+      "content_sha256": "099cc7a703da4dbd1fc2ed8ccb52e61eced1953bcc376dff3a1ed7df7f19665a",
       "file": "iso=llg/data.parquet",
-      "hi_conf_ge_0.9": 20871,
+      "hi_conf_ge_0.9": 20943,
       "language": "Lole",
-      "lexemes": 6260,
+      "lexemes": 6348,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 71262,
+      "rows": 71804,
       "sources": {
         "LLGUBB": {
           "edition": "LLGUBB",
@@ -32027,8 +32033,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6228,
-      "surfaces": 16727,
+      "strongs": 6318,
+      "surfaces": 16700,
       "testament": "NT+OT"
     },
     "lmk": {
@@ -33662,27 +33668,27 @@
       ],
       "books": 66,
       "by_base_text": {
-        "MBTSUM": 70910,
-        "MBTWBT": 31255,
-        "mbtpkf": 39963
+        "MBTSUM": 71022,
+        "MBTWBT": 31123,
+        "mbtpkf": 40262
       },
       "by_method": {
-        "eflomal": 91610,
-        "gapfill": 901,
-        "gloss": 49617
+        "eflomal": 92051,
+        "gapfill": 933,
+        "gloss": 49423
       },
-      "content_sha256": "a267b90c37b32774e7aa94519eaab5f6f469bc349d1b36a1f67e16c6502eefdd",
+      "content_sha256": "ecb91c3eb1ce06cfeb57591d992ea146537cd67c194a9b19fed4a8fb9cbfcc53",
       "file": "iso=mbt/data.parquet",
-      "hi_conf_ge_0.9": 35231,
+      "hi_conf_ge_0.9": 35693,
       "language": "Matigsalug",
-      "lexemes": 13586,
+      "lexemes": 13613,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 142128,
+      "rows": 142407,
       "sources": {
         "MBTSUM": {
           "edition": "MBTSUM",
@@ -33695,8 +33701,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 12754,
-      "surfaces": 22682,
+      "strongs": 12777,
+      "surfaces": 22968,
       "testament": "NT+OT"
     },
     "mbu": {
@@ -33706,26 +33712,26 @@
       ],
       "books": 37,
       "by_base_text": {
-        "MBUNBT": 29892,
-        "mbu_tsc": 58027
+        "MBUNBT": 29877,
+        "mbu_tsc": 58461
       },
       "by_method": {
-        "eflomal": 55728,
-        "gapfill": 609,
-        "gloss": 31582
+        "eflomal": 56277,
+        "gapfill": 663,
+        "gloss": 31398
       },
-      "content_sha256": "2cc21fcca347e472f04c9767951f8db7642ccb81551c0a6d8d1f42531cf5eca4",
+      "content_sha256": "8f17dce042fde858f41ca183d69e53ff9e2b2bf747d3bf6adcb9b4925e369571",
       "file": "iso=mbu/data.parquet",
-      "hi_conf_ge_0.9": 22134,
+      "hi_conf_ge_0.9": 22970,
       "language": "Mbula-Bwazza",
-      "lexemes": 9375,
+      "lexemes": 9394,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 87919,
+      "rows": 88338,
       "sources": {
         "MBUNBT": {
           "edition": "MBUNBT",
@@ -33738,8 +33744,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 9142,
-      "surfaces": 16908,
+      "strongs": 9158,
+      "surfaces": 17396,
       "testament": "NT+OT"
     },
     "mbz": {
@@ -33874,26 +33880,26 @@
       ],
       "books": 31,
       "by_base_text": {
-        "mcf_wbt": 42954,
-        "mcfpkf": 51453
+        "mcf_wbt": 42752,
+        "mcfpkf": 53423
       },
       "by_method": {
-        "eflomal": 56466,
-        "gapfill": 2285,
-        "gloss": 35656
+        "eflomal": 58114,
+        "gapfill": 1843,
+        "gloss": 36218
       },
-      "content_sha256": "ea5f33db30e292fcb4c6a92adff46d88f60304a34858d5d15f17e44fa93cc950",
+      "content_sha256": "037822215e06450c6bd76c16695cf1c6d659e84765f337ddbcd381c55bf81942",
       "file": "iso=mcf/data.parquet",
-      "hi_conf_ge_0.9": 40890,
+      "hi_conf_ge_0.9": 41538,
       "language": "Matses",
-      "lexemes": 6579,
+      "lexemes": 6716,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 94407,
+      "rows": 96175,
       "sources": {
         "mcf_wbt": {
           "edition": "mcf_wbt",
@@ -33901,8 +33907,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6540,
-      "surfaces": 33223,
+      "strongs": 6675,
+      "surfaces": 33555,
       "testament": "NT+OT"
     },
     "mco": {
@@ -36826,25 +36832,25 @@
       ],
       "books": 66,
       "by_base_text": {
-        "MNWPDV": 63625
+        "MNWPDV": 63325
       },
       "by_method": {
-        "eflomal": 61071,
-        "gapfill": 1206,
-        "gloss": 1348
+        "eflomal": 58876,
+        "gapfill": 3772,
+        "gloss": 677
       },
-      "content_sha256": "8e10f879e48d2822efe56a9efc42ac62d4bf66c65c1d7d8f233bfd71287c6f30",
+      "content_sha256": "7d19a536fa6947c9fe7872cd14dc588dab9b245bd329e132ee2333ef62eb5389",
       "file": "iso=mnw/data.parquet",
-      "hi_conf_ge_0.9": 17188,
+      "hi_conf_ge_0.9": 18584,
       "language": "Mon",
-      "lexemes": 12963,
+      "lexemes": 13065,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 63625,
+      "rows": 63325,
       "sources": {
         "MNWPDV": {
           "edition": "MNWPDV",
@@ -36852,8 +36858,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 12189,
-      "surfaces": 21781,
+      "strongs": 12295,
+      "surfaces": 23551,
       "testament": "NT+OT"
     },
     "mnx": {
@@ -37288,26 +37294,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "mpp_wbt": 36591,
-        "mpppkf": 36143
+        "mpp_wbt": 36671,
+        "mpppkf": 36239
       },
       "by_method": {
-        "eflomal": 43685,
-        "gapfill": 787,
-        "gloss": 28262
+        "eflomal": 43813,
+        "gapfill": 773,
+        "gloss": 28324
       },
-      "content_sha256": "ce84fdc1a061465a50a754237c8be9ff047253dc6e8f943515fcbcfea544202e",
+      "content_sha256": "b4832a8c424ab6320eca3d01385395d89e7cefc506b6b8403c3f17691b148282",
       "file": "iso=mpp/data.parquet",
-      "hi_conf_ge_0.9": 30850,
+      "hi_conf_ge_0.9": 31127,
       "language": "Migabac",
-      "lexemes": 5100,
+      "lexemes": 5146,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 72734,
+      "rows": 72910,
       "sources": {
         "mpp_wbt": {
           "edition": "mpp_wbt",
@@ -37315,8 +37321,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 5098,
-      "surfaces": 18008,
+      "strongs": 5144,
+      "surfaces": 18152,
       "testament": "NT+OT"
     },
     "mps": {
@@ -37386,40 +37392,31 @@
     },
     "mpx": {
       "base_texts": [
-        "MPXPNG",
         "mpxpkf"
       ],
-      "books": 35,
+      "books": 34,
       "by_base_text": {
-        "MPXPNG": 41379,
-        "mpxpkf": 40516
+        "mpxpkf": 40128
       },
       "by_method": {
-        "eflomal": 48825,
-        "gapfill": 623,
-        "gloss": 32447
+        "eflomal": 24651,
+        "gapfill": 144,
+        "gloss": 15333
       },
-      "content_sha256": "b6656a0b552399d7281d12ca55e2c00e34a463da54277430cb4d17664526cdb9",
+      "content_sha256": "4bea9b0bae5639d6b5145eb17080f7fc6f234821d53e7b9c1c40ba4e36f51d27",
       "file": "iso=mpx/data.parquet",
-      "hi_conf_ge_0.9": 15201,
+      "hi_conf_ge_0.9": 8171,
       "language": "Misima-Panaeyati",
-      "lexemes": 7851,
+      "lexemes": 7548,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 81895,
-      "sources": {
-        "MPXPNG": {
-          "edition": "MPXPNG",
-          "license_url": "http://dbs.org",
-          "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
-        }
-      },
-      "strongs": 7764,
-      "surfaces": 9944,
+      "rows": 40128,
+      "strongs": 7471,
+      "surfaces": 8262,
       "testament": "NT+OT"
     },
     "mqb": {
@@ -38892,27 +38889,27 @@
       ],
       "books": 66,
       "by_base_text": {
-        "MYAGBI": 16850,
-        "mya_jvb": 69350,
-        "mya_ojv": 70462
+        "MYAGBI": 16231,
+        "mya_jvb": 66392,
+        "mya_ojv": 81544
       },
       "by_method": {
-        "eflomal": 146451,
-        "gapfill": 5740,
-        "gloss": 4471
+        "eflomal": 140497,
+        "gapfill": 21584,
+        "gloss": 2086
       },
-      "content_sha256": "4113879dd871e1297dcd23cc0e7a58e736138c5ace3dd85b59ed5e6e239a8c44",
+      "content_sha256": "f24058d2a45445a652041066f4c0e9f1eed59cd91c66e66e945858e395facb8d",
       "file": "iso=mya/data.parquet",
-      "hi_conf_ge_0.9": 43665,
+      "hi_conf_ge_0.9": 49050,
       "language": "Burmese",
-      "lexemes": 13591,
+      "lexemes": 13805,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 156662,
+      "rows": 164167,
       "sources": {
         "MYAGBI": {
           "edition": "MYAGBI",
@@ -38930,8 +38927,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12754,
-      "surfaces": 44535,
+      "strongs": 12950,
+      "surfaces": 47628,
       "testament": "NT+OT"
     },
     "myk": {
@@ -40663,26 +40660,26 @@
       ],
       "books": 56,
       "by_base_text": {
-        "ngu_tbl": 35814,
-        "ngupkf": 116735
+        "ngu_tbl": 35745,
+        "ngupkf": 117186
       },
       "by_method": {
-        "eflomal": 104642,
-        "gapfill": 1475,
-        "gloss": 46432
+        "eflomal": 105074,
+        "gapfill": 1533,
+        "gloss": 46324
       },
-      "content_sha256": "1e36a515ff38dfc84220c3b2b4e3a6fc27c2a1f3987a7f557d8afb9af22dfb90",
+      "content_sha256": "f470462b8f7e79f2d47fc223492672cf2f5be574d1f22de6f0cdf1e40fcab25c",
       "file": "iso=ngu/data.parquet",
-      "hi_conf_ge_0.9": 54539,
+      "hi_conf_ge_0.9": 55048,
       "language": "Guerrero Nahuatl",
-      "lexemes": 13349,
+      "lexemes": 13374,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 152549,
+      "rows": 152931,
       "sources": {
         "ngu_tbl": {
           "edition": "ngu_tbl",
@@ -40690,8 +40687,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12570,
-      "surfaces": 50840,
+      "strongs": 12583,
+      "surfaces": 51062,
       "testament": "NT+OT"
     },
     "nhe": {
@@ -40773,26 +40770,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "nhi_nhi": 37626,
-        "nhipkf": 39584
+        "nhi_nhi": 37672,
+        "nhipkf": 39832
       },
       "by_method": {
-        "eflomal": 48534,
-        "gapfill": 630,
-        "gloss": 28046
+        "eflomal": 48762,
+        "gapfill": 649,
+        "gloss": 28093
       },
-      "content_sha256": "414ed477ca7bd0342f456ef5d4b862a0d610cd96ff81e7cc4d4bccabffae611e",
+      "content_sha256": "4582285cc175f469760d050325c237ce416543f68d9e3651a1d648211cae03e3",
       "file": "iso=nhi/data.parquet",
-      "hi_conf_ge_0.9": 34380,
+      "hi_conf_ge_0.9": 34596,
       "language": "Nahuatl Tenango",
-      "lexemes": 5594,
+      "lexemes": 5625,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 77210,
+      "rows": 77504,
       "sources": {
         "nhi_nhi": {
           "edition": "nhi_nhi",
@@ -40800,8 +40797,8 @@
           "provider": "cdn.bibel.wiki"
         }
       },
-      "strongs": 5580,
-      "surfaces": 17630,
+      "strongs": 5610,
+      "surfaces": 17848,
       "testament": "NT+OT"
     },
     "nhm": {
@@ -41451,23 +41448,23 @@
       ],
       "books": 66,
       "by_base_text": {
-        "NLDHSV": 87435,
-        "nld_": 83767,
-        "nld_1939": 104716,
-        "nld_gbv": 30179,
-        "nld_nbg": 97209
+        "NLDHSV": 84375,
+        "nld_": 81743,
+        "nld_1939": 105249,
+        "nld_gbv": 29787,
+        "nld_nbg": 95944
       },
       "by_method": {
-        "eflomal": 217931,
-        "gapfill": 4823,
-        "gloss": 126551,
-        "spanext": 54001
+        "eflomal": 218127,
+        "gapfill": 4736,
+        "gloss": 126502,
+        "spanext": 47733
       },
-      "content_sha256": "b24d8b72f82ad54bef24387165ca81b457af5b9f91e2ea1db0b1f871ca69cfac",
+      "content_sha256": "17d6bb797aecb705d7da26fe4fa7aecdfc99c299cef9d2770fa6a4e8ef96daa6",
       "file": "iso=nld/data.parquet",
-      "hi_conf_ge_0.9": 139543,
+      "hi_conf_ge_0.9": 136273,
       "language": "Dutch",
-      "lexemes": 14036,
+      "lexemes": 14032,
       "methods": [
         "spanext",
         "eflomal",
@@ -41475,7 +41472,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 403306,
+      "rows": 397098,
       "sources": {
         "NLDHSV": {
           "edition": "NLDHSV",
@@ -41503,8 +41500,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 13154,
-      "surfaces": 78475,
+      "strongs": 13151,
+      "surfaces": 76929,
       "testament": "NT+OT"
     },
     "nlg": {
@@ -45832,25 +45829,25 @@
       ],
       "books": 1,
       "by_base_text": {
-        "pll_twf": 3047
+        "pll_twf": 2565
       },
       "by_method": {
-        "eflomal": 2922,
-        "gapfill": 26,
-        "gloss": 99
+        "eflomal": 2400,
+        "gapfill": 104,
+        "gloss": 61
       },
-      "content_sha256": "9f8ff8ef3e57b7f3116d953f194a866f0ffe6aebeefb9e3e4fd6beb5adab1ef1",
+      "content_sha256": "a0a9c1f7376c542e283a1083cd6d39c98d5a70ce7dcf79158bc30d13c98e1266",
       "file": "iso=pll/data.parquet",
-      "hi_conf_ge_0.9": 1832,
+      "hi_conf_ge_0.9": 1396,
       "language": "Shwe Palaung",
-      "lexemes": 1128,
+      "lexemes": 1116,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 3047,
+      "rows": 2565,
       "sources": {
         "pll_twf": {
           "edition": "pll_twf",
@@ -45858,8 +45855,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 1128,
-      "surfaces": 2200,
+      "strongs": 1116,
+      "surfaces": 1735,
       "testament": "NT"
     },
     "pls": {
@@ -45912,26 +45909,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "plu_wbt": 38886,
-        "plupkf": 51698
+        "plu_wbt": 38928,
+        "plupkf": 52328
       },
       "by_method": {
-        "eflomal": 57310,
-        "gapfill": 1092,
-        "gloss": 32182
+        "eflomal": 58058,
+        "gapfill": 976,
+        "gloss": 32222
       },
-      "content_sha256": "503c1319541b3a441ec19b85edcc1b710e944c032f0859abe597457a1c49cb29",
+      "content_sha256": "5be97131a06c7f75fc7c358b066d4b1f43d4f3b3af5e0f4efc4a8207601828fe",
       "file": "iso=plu/data.parquet",
-      "hi_conf_ge_0.9": 35817,
+      "hi_conf_ge_0.9": 35674,
       "language": "Palikur",
-      "lexemes": 6896,
+      "lexemes": 6968,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 90584,
+      "rows": 91256,
       "sources": {
         "plu_wbt": {
           "edition": "plu_wbt",
@@ -45939,8 +45936,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6810,
-      "surfaces": 27982,
+      "strongs": 6878,
+      "surfaces": 27727,
       "testament": "NT+OT"
     },
     "plv": {
@@ -46116,26 +46113,26 @@
       ],
       "books": 29,
       "by_base_text": {
-        "poe_poe": 48248,
-        "poe_tbl": 34896
+        "poe_poe": 48321,
+        "poe_tbl": 34760
       },
       "by_method": {
-        "eflomal": 51726,
-        "gapfill": 476,
-        "gloss": 30942
+        "eflomal": 51897,
+        "gapfill": 503,
+        "gloss": 30681
       },
-      "content_sha256": "609446b1012de65b81a4e5eb9fc5166a5f49a53c3dddec54510243553fbe88c2",
+      "content_sha256": "1d39b901f4ac0e58b1fad8f1b18b5a86606a5bbfd0444435dbeffea1f748b0cd",
       "file": "iso=poe/data.parquet",
-      "hi_conf_ge_0.9": 22234,
+      "hi_conf_ge_0.9": 22640,
       "language": "Ngiva, San Juan Atzingo",
-      "lexemes": 7324,
+      "lexemes": 7341,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 83144,
+      "rows": 83081,
       "sources": {
         "poe_poe": {
           "edition": "poe_poe",
@@ -46148,8 +46145,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 7198,
-      "surfaces": 19224,
+      "strongs": 7219,
+      "surfaces": 19461,
       "testament": "NT+OT"
     },
     "poh": {
@@ -46290,26 +46287,26 @@
       ],
       "books": 66,
       "by_base_text": {
-        "pon_psa": 32749,
-        "pon_ssp": 101669
+        "pon_psa": 32718,
+        "pon_ssp": 101686
       },
       "by_method": {
-        "eflomal": 88743,
-        "gapfill": 1550,
-        "gloss": 44125
+        "eflomal": 88566,
+        "gapfill": 1581,
+        "gloss": 44257
       },
-      "content_sha256": "ba050a17e620070f2c3d7b5ecf8110f8022f7506a0a4daa152cee3282b5fc3c1",
+      "content_sha256": "1cf72d8df6806a129347927b070d055436dfe580eba49819ed7fe9969c25b02d",
       "file": "iso=pon/data.parquet",
-      "hi_conf_ge_0.9": 30392,
+      "hi_conf_ge_0.9": 30845,
       "language": "Pohnpeian",
-      "lexemes": 13270,
+      "lexemes": 13277,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 134418,
+      "rows": 134404,
       "sources": {
         "pon_psa": {
           "edition": "pon_psa",
@@ -46322,8 +46319,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12472,
-      "surfaces": 29869,
+      "strongs": 12479,
+      "surfaces": 30065,
       "testament": "NT+OT"
     },
     "por": {
@@ -47305,26 +47302,26 @@
       ],
       "books": 40,
       "by_base_text": {
-        "QUFLLB": 49126,
-        "qufpkf": 96286
+        "QUFLLB": 49068,
+        "qufpkf": 96227
       },
       "by_method": {
-        "eflomal": 86561,
-        "gapfill": 1245,
-        "gloss": 57606
+        "eflomal": 86752,
+        "gapfill": 1114,
+        "gloss": 57429
       },
-      "content_sha256": "4ec50badb0d440122f1082632d6a3c13acb5cb6cc59f155ea929f7e057d0c184",
+      "content_sha256": "819e01776fa93a54c44e2d771d7d445b71fb6a0455715ea803704bacbb8dc250",
       "file": "iso=quf/data.parquet",
-      "hi_conf_ge_0.9": 73747,
+      "hi_conf_ge_0.9": 73625,
       "language": "Lambayeque Quechua",
-      "lexemes": 9778,
+      "lexemes": 9774,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 145412,
+      "rows": 145295,
       "sources": {
         "QUFLLB": {
           "edition": "QUFLLB",
@@ -47332,8 +47329,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 9490,
-      "surfaces": 48031,
+      "strongs": 9480,
+      "surfaces": 47863,
       "testament": "NT+OT"
     },
     "quh": {
@@ -47944,26 +47941,26 @@
       ],
       "books": 31,
       "by_base_text": {
-        "QXHWBT": 44843,
-        "qxhpkf": 51280
+        "QXHWBT": 44983,
+        "qxhpkf": 52763
       },
       "by_method": {
-        "eflomal": 56030,
-        "gapfill": 1482,
-        "gloss": 38611
+        "eflomal": 57139,
+        "gapfill": 1405,
+        "gloss": 39202
       },
-      "content_sha256": "ef1c3161118b1f74dbc4ba24a3bf9282b57c2dc9bf5a34ce2d795928b78e1c25",
+      "content_sha256": "f29cc6cf1b5e5d21f5fbb7ee5663c2cb1db71e4c8f62774f682f9f504d0a0400",
       "file": "iso=qxh/data.parquet",
-      "hi_conf_ge_0.9": 50455,
+      "hi_conf_ge_0.9": 51399,
       "language": "Panao Huánuco Quechua",
-      "lexemes": 6132,
+      "lexemes": 6171,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 96123,
+      "rows": 97746,
       "sources": {
         "QXHWBT": {
           "edition": "QXHWBT",
@@ -47971,8 +47968,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 6112,
-      "surfaces": 30347,
+      "strongs": 6151,
+      "surfaces": 30731,
       "testament": "NT+OT"
     },
     "qxl": {
@@ -48315,25 +48312,25 @@
       ],
       "books": 1,
       "by_base_text": {
-        "RBBWBT": 2881
+        "RBBWBT": 2617
       },
       "by_method": {
-        "eflomal": 2733,
-        "gapfill": 37,
-        "gloss": 111
+        "eflomal": 2430,
+        "gapfill": 130,
+        "gloss": 57
       },
-      "content_sha256": "28067468ed92a3f4320fec18e30c09e90b4e9db5ab884d05346c2ff3b3268523",
+      "content_sha256": "2d39dcd582d16cb91f4625a5db163055bb6ae2f010a36b3129108fbf0503cdf8",
       "file": "iso=rbb/data.parquet",
-      "hi_conf_ge_0.9": 1548,
+      "hi_conf_ge_0.9": 1292,
       "language": "Palaung, Rumai",
-      "lexemes": 1117,
+      "lexemes": 1119,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 2881,
+      "rows": 2617,
       "sources": {
         "RBBWBT": {
           "edition": "RBBWBT",
@@ -48341,8 +48338,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 1117,
-      "surfaces": 1902,
+      "strongs": 1119,
+      "surfaces": 1638,
       "testament": "NT"
     },
     "reg": {
@@ -48496,26 +48493,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "RGUUBB": 29522,
-        "rgu_ubb": 37153
+        "RGUUBB": 29704,
+        "rgu_ubb": 37152
       },
       "by_method": {
-        "eflomal": 43816,
-        "gapfill": 879,
-        "gloss": 21980
+        "eflomal": 43870,
+        "gapfill": 934,
+        "gloss": 22052
       },
-      "content_sha256": "fd51585cd3c38461e2f7c1d3750029bb71c3c2db95af58eba0c760641fe164c9",
+      "content_sha256": "4d2932eb022b7a5e6ac8b55b465572ad1ccd2bf9f4e297ff8cc788abe2e87894",
       "file": "iso=rgu/data.parquet",
-      "hi_conf_ge_0.9": 19570,
+      "hi_conf_ge_0.9": 19568,
       "language": "Ringgou",
-      "lexemes": 6276,
+      "lexemes": 6340,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 66675,
+      "rows": 66856,
       "sources": {
         "RGUUBB": {
           "edition": "RGUUBB",
@@ -48528,8 +48525,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6246,
-      "surfaces": 16432,
+      "strongs": 6307,
+      "surfaces": 16300,
       "testament": "NT+OT"
     },
     "rhg": {
@@ -48578,21 +48575,21 @@
       ],
       "books": 66,
       "by_base_text": {
-        "RIFNVL": 30869,
-        "RIFNVS": 27762,
-        "rif_ati": 79534,
-        "rif_lti": 98154,
-        "rif_tti": 76545
+        "RIFNVL": 31108,
+        "RIFNVS": 27826,
+        "rif_ati": 79490,
+        "rif_lti": 98266,
+        "rif_tti": 76418
       },
       "by_method": {
-        "eflomal": 214979,
-        "gapfill": 7508,
-        "gloss": 70532,
-        "spanext": 19845
+        "eflomal": 214921,
+        "gapfill": 7384,
+        "gloss": 70580,
+        "spanext": 20223
       },
-      "content_sha256": "06b16901db99df6fc5b09c92638e5c9db6bb2ea5c9ac33d043fcd67e5013384f",
+      "content_sha256": "a2bd51e4a39e1ff96aa480d22e48fe4cb86d542a0e715a15fd01a4fbaf8677a4",
       "file": "iso=rif/data.parquet",
-      "hi_conf_ge_0.9": 108702,
+      "hi_conf_ge_0.9": 108514,
       "language": "Riffian",
       "lexemes": 14017,
       "methods": [
@@ -48602,7 +48599,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 312864,
+      "rows": 313108,
       "sources": {
         "RIFNVL": {
           "edition": "RIFNVL",
@@ -48630,8 +48627,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 13139,
-      "surfaces": 109475,
+      "strongs": 13136,
+      "surfaces": 109415,
       "testament": "NT+OT"
     },
     "ril": {
@@ -48748,25 +48745,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "rki_twf": 22951
+        "rki_twf": 21107
       },
       "by_method": {
-        "eflomal": 21135,
-        "gapfill": 577,
-        "gloss": 1239
+        "eflomal": 18834,
+        "gapfill": 1655,
+        "gloss": 618
       },
-      "content_sha256": "a7bfccb2a63e863b72ad0ab90daa1d143ba7ae76645d4db4483daa182e7ed536",
+      "content_sha256": "37388219236957760c55bdb7c2ccbe28103bf7f41e1ffbb5160649c344188e28",
       "file": "iso=rki/data.parquet",
-      "hi_conf_ge_0.9": 8820,
+      "hi_conf_ge_0.9": 7773,
       "language": "Rakhine",
-      "lexemes": 4719,
+      "lexemes": 4714,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 22951,
+      "rows": 21107,
       "sources": {
         "rki_twf": {
           "edition": "rki_twf",
@@ -48774,8 +48771,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 4719,
-      "surfaces": 10965,
+      "strongs": 4714,
+      "surfaces": 9738,
       "testament": "NT"
     },
     "rkt": {
@@ -49055,25 +49052,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "RMZWBT": 20853
+        "RMZWBT": 18919
       },
       "by_method": {
-        "eflomal": 19970,
-        "gapfill": 533,
-        "gloss": 350
+        "eflomal": 17397,
+        "gapfill": 1333,
+        "gloss": 189
       },
-      "content_sha256": "137ea7b3e91d6c44ff89e297131b9e6d385a4c87ac027f0d154f739496031fea",
+      "content_sha256": "9ddc8caa6f20961db4aef30a688d023e657ff2424f241caad2714ebae20bc13d",
       "file": "iso=rmz/data.parquet",
-      "hi_conf_ge_0.9": 7400,
+      "hi_conf_ge_0.9": 6011,
       "language": "Marma",
-      "lexemes": 4638,
+      "lexemes": 4621,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 20853,
+      "rows": 18919,
       "sources": {
         "RMZWBT": {
           "edition": "RMZWBT",
@@ -49081,8 +49078,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 4637,
-      "surfaces": 9293,
+      "strongs": 4620,
+      "surfaces": 7740,
       "testament": "NT"
     },
     "rnl": {
@@ -49835,45 +49832,45 @@
       ],
       "books": 27,
       "by_base_text": {
-        "san_asm": 34317,
-        "san_ben": 34179,
-        "san_bur": 26736,
-        "san_col": 38366,
-        "san_dev": 34197,
-        "san_guj": 34320,
-        "san_hks": 38492,
-        "san_ias": 37957,
-        "san_itr": 37751,
-        "san_kan": 34078,
-        "san_khm": 34313,
-        "san_mal": 34050,
-        "san_ori": 34110,
-        "san_pun": 34036,
-        "san_sin": 31904,
-        "san_tam": 30268,
-        "san_tel": 34057,
-        "san_tha": 33917,
-        "san_tib": 32046,
-        "san_urd": 34876,
-        "san_vel": 34152
+        "san_asm": 34209,
+        "san_ben": 34258,
+        "san_bur": 27292,
+        "san_col": 38576,
+        "san_dev": 34248,
+        "san_guj": 34228,
+        "san_hks": 38568,
+        "san_ias": 38020,
+        "san_itr": 37862,
+        "san_kan": 34160,
+        "san_khm": 34119,
+        "san_mal": 34061,
+        "san_ori": 34167,
+        "san_pun": 33934,
+        "san_sin": 32096,
+        "san_tam": 30643,
+        "san_tel": 34084,
+        "san_tha": 34188,
+        "san_tib": 32115,
+        "san_urd": 34696,
+        "san_vel": 34320
       },
       "by_method": {
-        "eflomal": 660145,
-        "gapfill": 37100,
-        "gloss": 20877
+        "eflomal": 661327,
+        "gapfill": 37793,
+        "gloss": 20724
       },
-      "content_sha256": "e88dbbb8ad027f7b75902d860179c4affc15ce4ef324afeecad95fcc29aa4488",
+      "content_sha256": "ebdad14f4fdc169e161d0073ef3a04cb0279f325729dedad6eadbbbf8d6d8090",
       "file": "iso=san/data.parquet",
-      "hi_conf_ge_0.9": 476262,
+      "hi_conf_ge_0.9": 478277,
       "language": "Sanskrit",
-      "lexemes": 4968,
+      "lexemes": 4966,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 718122,
+      "rows": 719844,
       "sources": {
         "san_asm": {
           "edition": "san_asm",
@@ -49981,8 +49978,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 4967,
-      "surfaces": 490054,
+      "strongs": 4965,
+      "surfaces": 492102,
       "testament": "NT"
     },
     "saq": {
@@ -51145,25 +51142,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "SHNSHN": 19435
+        "SHNSHN": 20822
       },
       "by_method": {
-        "eflomal": 18944,
-        "gapfill": 346,
-        "gloss": 145
+        "eflomal": 18905,
+        "gapfill": 1876,
+        "gloss": 41
       },
-      "content_sha256": "a282c246780dc78274114c3c6d4c483d5b712ad0ad2a6a5e2f2b4943b546c9fa",
+      "content_sha256": "b4977ebda075a8e798b068f06052aaed0c774c78c02a00ab11f87d8ec2bad783",
       "file": "iso=shn/data.parquet",
-      "hi_conf_ge_0.9": 6135,
+      "hi_conf_ge_0.9": 7929,
       "language": "Shan",
-      "lexemes": 4826,
+      "lexemes": 4811,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 19435,
+      "rows": 20822,
       "sources": {
         "SHNSHN": {
           "edition": "SHNSHN",
@@ -51171,8 +51168,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 4825,
-      "surfaces": 7641,
+      "strongs": 4810,
+      "surfaces": 10153,
       "testament": "NT"
     },
     "sho": {
@@ -52473,26 +52470,26 @@
       ],
       "books": 35,
       "by_base_text": {
-        "SPPAPL": 20206,
-        "spp_wbt": 35817
+        "SPPAPL": 20385,
+        "spp_wbt": 36013
       },
       "by_method": {
-        "eflomal": 35915,
-        "gapfill": 251,
-        "gloss": 19857
+        "eflomal": 36213,
+        "gapfill": 269,
+        "gloss": 19916
       },
-      "content_sha256": "aea74fdab6affd379532589fbd19b5605111ca9b8710fdd259bf82a39f5cd7ae",
+      "content_sha256": "ef98a4b29d0220a2fd76cfa059eacaafcd155269741ed6d178cddd11d9c83792",
       "file": "iso=spp/data.parquet",
-      "hi_conf_ge_0.9": 17275,
+      "hi_conf_ge_0.9": 17677,
       "language": "Supyire Senoufo",
-      "lexemes": 8886,
+      "lexemes": 8935,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 56023,
+      "rows": 56398,
       "sources": {
         "SPPAPL": {
           "edition": "SPPAPL",
@@ -52505,8 +52502,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 8650,
-      "surfaces": 13814,
+      "strongs": 8691,
+      "surfaces": 14053,
       "testament": "NT+OT"
     },
     "sps": {
@@ -52545,26 +52542,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "SPYWBT": 47931,
-        "spy_wbt": 39049
+        "SPYWBT": 48415,
+        "spy_wbt": 38875
       },
       "by_method": {
-        "eflomal": 55833,
-        "gapfill": 934,
-        "gloss": 30213
+        "eflomal": 55959,
+        "gapfill": 1009,
+        "gloss": 30322
       },
-      "content_sha256": "d7068a24e04027a1ceb9ee2c599e50708e417dd6d6d58cd70ab37c22dfd27fa0",
+      "content_sha256": "7de276f814b4960ea50a55c7a70daf97ab1a914c2a54b8f089fdd8894980fae8",
       "file": "iso=spy/data.parquet",
-      "hi_conf_ge_0.9": 38292,
+      "hi_conf_ge_0.9": 38326,
       "language": "Kalenjin",
-      "lexemes": 6445,
+      "lexemes": 6514,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 86980,
+      "rows": 87290,
       "sources": {
         "SPYWBT": {
           "edition": "SPYWBT",
@@ -52577,8 +52574,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6411,
-      "surfaces": 24683,
+      "strongs": 6479,
+      "surfaces": 24582,
       "testament": "NT+OT"
     },
     "sri": {
@@ -55853,26 +55850,26 @@
       ],
       "books": 29,
       "by_base_text": {
-        "tke_wbt": 7951,
-        "tkepkf": 51558
+        "tke_wbt": 8089,
+        "tkepkf": 52352
       },
       "by_method": {
-        "eflomal": 38032,
-        "gapfill": 521,
-        "gloss": 20956
+        "eflomal": 38465,
+        "gapfill": 555,
+        "gloss": 21421
       },
-      "content_sha256": "2170ba968607648deb973e152da05faac94c82ffcec518d291ae5ded7ea22026",
+      "content_sha256": "e395a6809c3ba7eaf6c5a92af78c4fb7880b9225b292b0384a5f86b5fb49f95b",
       "file": "iso=tke/data.parquet",
-      "hi_conf_ge_0.9": 30396,
+      "hi_conf_ge_0.9": 30833,
       "language": "Takwane",
-      "lexemes": 7038,
+      "lexemes": 7123,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 59509,
+      "rows": 60441,
       "sources": {
         "tke_wbt": {
           "edition": "tke_wbt",
@@ -55880,8 +55877,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6982,
-      "surfaces": 22917,
+      "strongs": 7062,
+      "surfaces": 23124,
       "testament": "NT+OT"
     },
     "tku": {
@@ -57112,26 +57109,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "trc_tbl": 27930,
-        "trc_trc": 28139
+        "trc_tbl": 27840,
+        "trc_trc": 28049
       },
       "by_method": {
-        "eflomal": 39149,
-        "gapfill": 408,
-        "gloss": 16512
+        "eflomal": 39094,
+        "gapfill": 399,
+        "gloss": 16396
       },
-      "content_sha256": "0783e358bb89bdcbcdb7b353491dbfbdfaf3b735e28790f2d20d61ca2e5a9bd9",
+      "content_sha256": "4d43068633acf2736192ee175580d1c6f9618def0a90f3c8f16d7d95dfc56689",
       "file": "iso=trc/data.parquet",
-      "hi_conf_ge_0.9": 15284,
+      "hi_conf_ge_0.9": 15233,
       "language": "Copala Triqui",
-      "lexemes": 5104,
+      "lexemes": 5161,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 56069,
+      "rows": 55889,
       "sources": {
         "trc_tbl": {
           "edition": "trc_tbl",
@@ -57144,8 +57141,8 @@
           "provider": "cdn.bibel.wiki"
         }
       },
-      "strongs": 5103,
-      "surfaces": 11824,
+      "strongs": 5158,
+      "surfaces": 11741,
       "testament": "NT+OT"
     },
     "trn": {
@@ -57438,26 +57435,26 @@
       ],
       "books": 32,
       "by_base_text": {
-        "tuc_oov": 46509,
-        "tuc_tua": 48297
+        "tuc_oov": 46835,
+        "tuc_tua": 48633
       },
       "by_method": {
-        "eflomal": 60280,
-        "gapfill": 1326,
-        "gloss": 33200
+        "eflomal": 60997,
+        "gapfill": 1397,
+        "gloss": 33074
       },
-      "content_sha256": "db88bf3fcfa0828e69f65ab48ec6e1df735386ae58b1146f91ac0a1711149f23",
+      "content_sha256": "84ad228eddf8b3158020a87cb9fd4e43f86613aa323dba7c1151dc34dc8eb990",
       "file": "iso=tuc/data.parquet",
-      "hi_conf_ge_0.9": 19748,
+      "hi_conf_ge_0.9": 20603,
       "language": "Mutu",
-      "lexemes": 7963,
+      "lexemes": 7970,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 94806,
+      "rows": 95468,
       "sources": {
         "tuc_oov": {
           "edition": "tuc_oov",
@@ -57470,8 +57467,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 7802,
-      "surfaces": 18317,
+      "strongs": 7811,
+      "surfaces": 19004,
       "testament": "NT+OT"
     },
     "tue": {
@@ -57481,26 +57478,26 @@
       ],
       "books": 28,
       "by_base_text": {
-        "TUEWBT": 40055,
-        "tuepkf": 49393
+        "TUEWBT": 40251,
+        "tuepkf": 50389
       },
       "by_method": {
-        "eflomal": 54531,
-        "gapfill": 1362,
-        "gloss": 33555
+        "eflomal": 54863,
+        "gapfill": 1421,
+        "gloss": 34356
       },
-      "content_sha256": "d71f40302e93cc34fe1df82077804ebf1ff5066a3186358f05ab6af2b2fa3e87",
+      "content_sha256": "45f3cd03380953670aafa8687fa35a09fe561347969f03af2a9c174aa40344ca",
       "file": "iso=tue/data.parquet",
-      "hi_conf_ge_0.9": 42744,
+      "hi_conf_ge_0.9": 43446,
       "language": "Tuyuca",
-      "lexemes": 6374,
+      "lexemes": 6472,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 89448,
+      "rows": 90640,
       "sources": {
         "TUEWBT": {
           "edition": "TUEWBT",
@@ -57508,8 +57505,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 6342,
-      "surfaces": 30879,
+      "strongs": 6437,
+      "surfaces": 31089,
       "testament": "NT+OT"
     },
     "tuf": {
@@ -57629,26 +57626,26 @@
       ],
       "books": 34,
       "by_base_text": {
-        "TUOWBT": 36768,
-        "tuo_wbt": 53521
+        "TUOWBT": 36894,
+        "tuo_wbt": 55287
       },
       "by_method": {
-        "eflomal": 58938,
-        "gapfill": 2055,
-        "gloss": 29296
+        "eflomal": 59874,
+        "gapfill": 2190,
+        "gloss": 30117
       },
-      "content_sha256": "212814331a36c674af796f0b4cc307fda4e63e965f0f4a9032f9ec4a4ef36ace",
+      "content_sha256": "03191815b2bb267563c9e9f40654b2e0a0d69f0400ab38e2e2c3af3b027563f3",
       "file": "iso=tuo/data.parquet",
-      "hi_conf_ge_0.9": 40378,
+      "hi_conf_ge_0.9": 41345,
       "language": "Tucano",
-      "lexemes": 7167,
+      "lexemes": 7243,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 90289,
+      "rows": 92181,
       "sources": {
         "TUOWBT": {
           "edition": "TUOWBT",
@@ -57661,8 +57658,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 7090,
-      "surfaces": 37276,
+      "strongs": 7163,
+      "surfaces": 37883,
       "testament": "NT+OT"
     },
     "tur": {
@@ -57791,25 +57788,25 @@
       ],
       "books": 27,
       "by_base_text": {
-        "tvn_twf": 21734
+        "tvn_twf": 19011
       },
       "by_method": {
-        "eflomal": 20518,
-        "gapfill": 754,
-        "gloss": 462
+        "eflomal": 17220,
+        "gapfill": 1628,
+        "gloss": 163
       },
-      "content_sha256": "c9ae1252c6239c2eb4e8c257d15b56c352b9b3168ca2a259ca84b7f3f4296600",
+      "content_sha256": "6e0daefcfbaf39ebba9287c45e990b0813f8aa989d62d10139768acae7eb3fe7",
       "file": "iso=tvn/data.parquet",
-      "hi_conf_ge_0.9": 8875,
+      "hi_conf_ge_0.9": 6880,
       "language": "Tavoyan",
-      "lexemes": 4700,
+      "lexemes": 4726,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 21734,
+      "rows": 19011,
       "sources": {
         "tvn_twf": {
           "edition": "tvn_twf",
@@ -57817,8 +57814,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 4699,
-      "surfaces": 10883,
+      "strongs": 4725,
+      "surfaces": 8667,
       "testament": "NT"
     },
     "tvt": {
@@ -58802,20 +58799,20 @@
       ],
       "books": 66,
       "by_base_text": {
-        "UIGUMK": 91187,
-        "uig_ara": 116399,
-        "uig_cyr": 116802,
-        "uig_lat": 122206,
-        "uig_pin": 121522
+        "UIGUMK": 90865,
+        "uig_ara": 116290,
+        "uig_cyr": 116355,
+        "uig_lat": 122661,
+        "uig_pin": 121202
       },
       "by_method": {
-        "eflomal": 421055,
-        "gapfill": 26546,
-        "gloss": 120515
+        "eflomal": 420446,
+        "gapfill": 26428,
+        "gloss": 120499
       },
-      "content_sha256": "53521c2bc117546a8ffb25409433f54fb62082c8b019ab2b18b3010801a9bb66",
+      "content_sha256": "e46ba8f9ffca9a2fceedf9641e1435dd1d301e06b70959975c86ffe1f7f2d7bd",
       "file": "iso=uig/data.parquet",
-      "hi_conf_ge_0.9": 295266,
+      "hi_conf_ge_0.9": 296754,
       "language": "Uyghur",
       "lexemes": 13979,
       "methods": [
@@ -58824,7 +58821,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 568116,
+      "rows": 567373,
       "sources": {
         "UIGUMK": {
           "edition": "UIGUMK",
@@ -58852,8 +58849,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 13102,
-      "surfaces": 264499,
+      "strongs": 13104,
+      "surfaces": 265361,
       "testament": "NT+OT"
     },
     "ukk": {
@@ -58900,21 +58897,21 @@
       ],
       "books": 66,
       "by_base_text": {
-        "UKRO30": 126000,
-        "ukr_1996": 144687,
-        "ukr_npu": 48073
+        "UKRO30": 125751,
+        "ukr_1996": 144390,
+        "ukr_npu": 47779
       },
       "by_method": {
-        "eflomal": 196743,
-        "gapfill": 2115,
-        "gloss": 106068,
-        "spanext": 13834
+        "eflomal": 196617,
+        "gapfill": 2019,
+        "gloss": 105947,
+        "spanext": 13337
       },
-      "content_sha256": "3643cb796b85177ffbe7c1164e6d0e2372064bcb9d0068d6482c710ff2020e3f",
+      "content_sha256": "0c6313b76c6a724a47941fdc0118a3409b1da35a717f32c86a1657b522630ae0",
       "file": "iso=ukr/data.parquet",
-      "hi_conf_ge_0.9": 147264,
+      "hi_conf_ge_0.9": 146953,
       "language": "Ukrainian",
-      "lexemes": 14026,
+      "lexemes": 14027,
       "methods": [
         "spanext",
         "eflomal",
@@ -58922,7 +58919,7 @@
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 318760,
+      "rows": 317920,
       "sources": {
         "UKRO30": {
           "edition": "UKRO30",
@@ -58940,8 +58937,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 13145,
-      "surfaces": 101863,
+      "strongs": 13147,
+      "surfaces": 101439,
       "testament": "NT+OT"
     },
     "ukw": {
@@ -59176,26 +59173,26 @@
       ],
       "books": 29,
       "by_base_text": {
-        "ura_tbl": 41527,
-        "urapkf": 55584
+        "ura_tbl": 41969,
+        "urapkf": 57003
       },
       "by_method": {
-        "eflomal": 58569,
-        "gapfill": 1479,
-        "gloss": 37063
+        "eflomal": 59583,
+        "gapfill": 1591,
+        "gloss": 37798
       },
-      "content_sha256": "2a3832849d7a207b4030613f44c199727f186a5894ffb58d32e717d2234e6251",
+      "content_sha256": "c039ddf3a7b730faffe098fe5be8b148bb62b92d6f544833664e57fe4e1d1546",
       "file": "iso=ura/data.parquet",
-      "hi_conf_ge_0.9": 40210,
+      "hi_conf_ge_0.9": 41276,
       "language": "Urarina",
-      "lexemes": 7006,
+      "lexemes": 7070,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 97111,
+      "rows": 98972,
       "sources": {
         "ura_tbl": {
           "edition": "ura_tbl",
@@ -59203,8 +59200,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6954,
-      "surfaces": 27264,
+      "strongs": 7017,
+      "surfaces": 27462,
       "testament": "NT+OT"
     },
     "urb": {
@@ -59956,26 +59953,26 @@
       ],
       "books": 62,
       "by_base_text": {
-        "VIDUNDA": 105214,
-        "vid_pbt": 89654
+        "VIDUNDA": 105934,
+        "vid_pbt": 90025
       },
       "by_method": {
-        "eflomal": 130791,
-        "gapfill": 3506,
-        "gloss": 60571
+        "eflomal": 131502,
+        "gapfill": 3454,
+        "gloss": 61003
       },
-      "content_sha256": "00514c583f7ba058b1ccf52b56905f0c4eee54a31a81b6cf8e708ee405cad1f6",
+      "content_sha256": "24b443689c22dc40fbef88fa1ad66751fe45435f24a5ed46e3024f3be468f87e",
       "file": "iso=vid/data.parquet",
-      "hi_conf_ge_0.9": 74620,
+      "hi_conf_ge_0.9": 75954,
       "language": "Vidunda",
-      "lexemes": 13009,
+      "lexemes": 13020,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 194868,
+      "rows": 195959,
       "sources": {
         "VIDUNDA": {
           "edition": "VIDUNDA",
@@ -59988,8 +59985,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 12235,
-      "surfaces": 48879,
+      "strongs": 12254,
+      "surfaces": 49322,
       "testament": "NT+OT"
     },
     "vie": {
@@ -61331,26 +61328,26 @@
       ],
       "books": 30,
       "by_base_text": {
-        "wrs_png": 54226,
-        "wrspkf": 56767
+        "wrs_png": 55284,
+        "wrspkf": 57636
       },
       "by_method": {
-        "eflomal": 68551,
-        "gapfill": 1141,
-        "gloss": 41301
+        "eflomal": 69965,
+        "gapfill": 1107,
+        "gloss": 41848
       },
-      "content_sha256": "b7d0051a8f784ec68135615a1ce80553dedab52c492ddf278d0258dcfea2b4fb",
+      "content_sha256": "908890206fb4e2e52ab0268197dc03528a6efd29086c76083b52820058a2768a",
       "file": "iso=wrs/data.parquet",
-      "hi_conf_ge_0.9": 48099,
+      "hi_conf_ge_0.9": 48734,
       "language": "Waris",
-      "lexemes": 6640,
+      "lexemes": 6674,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 110993,
+      "rows": 112920,
       "sources": {
         "wrs_png": {
           "edition": "wrs_png",
@@ -61358,8 +61355,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 6599,
-      "surfaces": 27969,
+      "strongs": 6632,
+      "surfaces": 28367,
       "testament": "NT+OT"
     },
     "wsg": {
@@ -61544,26 +61541,26 @@
       ],
       "books": 43,
       "by_base_text": {
-        "xav_tbl": 31407,
-        "xavpkf": 64661
+        "xav_tbl": 31593,
+        "xavpkf": 66010
       },
       "by_method": {
-        "eflomal": 66954,
-        "gapfill": 988,
-        "gloss": 28126
+        "eflomal": 68336,
+        "gapfill": 1037,
+        "gloss": 28230
       },
-      "content_sha256": "c3901f30eab461c49fb064eaa70e8a640f3038ac01a07f03b8dfd0a32f9b1151",
+      "content_sha256": "23131d1abf9068e3bca894f8424119d25c8c43bb17fa5a0448206052c834c983",
       "file": "iso=xav/data.parquet",
-      "hi_conf_ge_0.9": 28251,
+      "hi_conf_ge_0.9": 29621,
       "language": "Xavante",
-      "lexemes": 9835,
+      "lexemes": 9971,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 96068,
+      "rows": 97603,
       "sources": {
         "xav_tbl": {
           "edition": "xav_tbl",
@@ -61571,8 +61568,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 9571,
-      "surfaces": 25967,
+      "strongs": 9699,
+      "surfaces": 26815,
       "testament": "NT+OT"
     },
     "xbi": {
@@ -63026,26 +63023,26 @@
       ],
       "books": 46,
       "by_base_text": {
-        "ycn_wbt": 36572,
-        "ycnpkf": 58635
+        "ycn_wbt": 36619,
+        "ycnpkf": 61022
       },
       "by_method": {
-        "eflomal": 62855,
-        "gapfill": 2781,
-        "gloss": 29571
+        "eflomal": 64728,
+        "gapfill": 2918,
+        "gloss": 29995
       },
-      "content_sha256": "24f112b0e065ed1eecab65586e11e799cbd61b9b2815d08853514b09aeb3e25e",
+      "content_sha256": "5554228a5e51789a62d82a759a05349f74bec67fccf1cc727875c81e6995e60a",
       "file": "iso=ycn/data.parquet",
-      "hi_conf_ge_0.9": 33046,
+      "hi_conf_ge_0.9": 34182,
       "language": "Yucuna",
-      "lexemes": 8091,
+      "lexemes": 8254,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 95207,
+      "rows": 97641,
       "sources": {
         "ycn_wbt": {
           "edition": "ycn_wbt",
@@ -63053,8 +63050,8 @@
           "provider": "bible.helloao.org"
         }
       },
-      "strongs": 7961,
-      "surfaces": 31798,
+      "strongs": 8121,
+      "surfaces": 32671,
       "testament": "NT+OT"
     },
     "ydd": {
@@ -64302,26 +64299,26 @@
       ],
       "books": 30,
       "by_base_text": {
-        "ZAQWYI": 42463,
-        "zaqpkf": 39359
+        "ZAQWYI": 42171,
+        "zaqpkf": 38853
       },
       "by_method": {
-        "eflomal": 54013,
-        "gapfill": 1054,
-        "gloss": 26755
+        "eflomal": 53428,
+        "gapfill": 900,
+        "gloss": 26696
       },
-      "content_sha256": "72fda0fcb678777667ba6c5637b697880d2f0da3155dce222ddf1251641dd44a",
+      "content_sha256": "28eafec8df4d4f5ace6d13f31655f7ba3841bd90c9adab16c86ad2cff887182e",
       "file": "iso=zaq/data.parquet",
-      "hi_conf_ge_0.9": 36131,
+      "hi_conf_ge_0.9": 35667,
       "language": "Aloápam Zapotec",
-      "lexemes": 5591,
+      "lexemes": 5604,
       "methods": [
         "eflomal",
         "gloss",
         "gapfill"
       ],
       "min_count": 1,
-      "rows": 81822,
+      "rows": 81024,
       "sources": {
         "ZAQWYI": {
           "edition": "ZAQWYI",
@@ -64329,8 +64326,8 @@
           "provider": "4.dbt.io (Digital Bible Platform / Bible Brain)"
         }
       },
-      "strongs": 5582,
-      "surfaces": 22933,
+      "strongs": 5596,
+      "surfaces": 22740,
       "testament": "NT+OT"
     },
     "zar": {

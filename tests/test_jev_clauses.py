@@ -1,4 +1,6 @@
 """jev_clauses: clause units, target windows in written words, edits back to verses (no API)."""
+import unicodedata
+
 from lexeme_aligner.eval import jev_clauses as jcl
 from lexeme_aligner.eval import llm_edit as le
 from lexeme_aligner.hebrew_source import HebToken
@@ -146,3 +148,28 @@ def test_parts_units_follow_the_edition_verse_not_the_spine_number():
     units_of, part_at = parts_by_spine(props, uw, vmap, {("JON", 2, 1): (1, 17)})
     assert units_of == {1: ["u17"], 2: ["u11"]}
     assert part_at == {1: [[0, None]], 2: [[1, None]]}
+
+
+def test_filter_module_keeps_a_words_line_only_where_one_of_its_words_is():
+    text = ("- vø̄-ein {words: vø̄ ein} [`formula:and_he_said_seq.team` decided team-decision]\n"
+            "- nige becomes nigi {words: nige nigi} [`claim:nige-nigi.team` decided team-decision]\n"
+            "- the prohibitive is a tone [`tone.team` decided team-decision]")
+    out, kept = jcl.filter_module(text, set(), {"Vø̄-ein", "gate"})      # a joined hyphen word counts by its pieces, any case
+    assert kept == ["formula:and_he_said_seq.team", "tone.team"] and "nige" not in out
+    nfd = unicodedata.normalize("NFD", "vø̄")
+    assert jcl.filter_module(text, set(), {nfd})[1] == ["formula:and_he_said_seq.team", "tone.team"]
+
+
+def test_the_pinned_kuni_module_marks_rule_words():
+    text = jcl.TARGET_MODULE["kvg"].read_text(encoding="utf-8")
+    marked = [l for l in text.splitlines() if l.startswith("- ") and jcl.WORDS_MARK.search(l)]
+    assert marked and all("[`m:" not in l for l in marked)              # affix rules never carry words
+    full, _ = jcl.filter_module(text, set(), set(), whole_words=True)
+    assert not any(l.startswith("- ") and jcl.WORDS_MARK.search(l) for l in full.splitlines())   # the head explains the marker
+
+
+def test_estimate_counts_only_requests_not_in_the_cache():
+    bodies = [b"x" * 1000, b"y" * 2000]
+    est = jcl.estimate(bodies, lambda raw: raw.startswith(b"x"))
+    assert est["requests to send"] == 1 and est["requests cached"] == 1 and est["bytes to send"] == 2000
+    assert est["input tokens (est., high side)"] == int(2000 * jcl.TOKENS_PER_BYTE)

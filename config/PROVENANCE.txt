@@ -681,3 +681,18 @@ pipeline/vendor/bsb-add-books/zin-split-2026-10-26c/split/ — Zinza (zin_wbt) s
     e537ebd13591efb4  js/tokenize_written.js
 - Our Myanmar-script editions (14, 11 languages): dnv_twf khtwbt mnwpdv mya_jvb mya_ojv myabjb myagbi pll_twf rbbwbt rki_twf rmzwbt san_bur shnshn tvn_twf.
   Their compact files must be regenerated (chain re-run, tokens change) before the compact manifest says tokenizer_version 3.
+
+pipeline/vendor/greek-nt-clause-layout/v0.5/ — Greek NT clause layout (bcv-commons/greek-nt-clause-layout, HF tag v0.5, commit 22143094, 2026-10-28)
+  source: huggingface.co/datasets/bcv-commons/greek-nt-clause-layout @ 22143094001c176a868e55f6f10dc2da1866b2f8 (whole snapshot; SHA256SUMS check OK).
+  data/clauses.parquet sha256 f70a0cb287a0cb4f...: 29,682 lines, as v0.4. v0.5 vs v0.4: new columns speaker_id, speaker_name, speaker_name_ref; every
+    v0.4 column identical (checked), so clause units do not change. Pinned by language-analysis CLAUSES.md at 8fec0cf0. Licence CC BY 4.0.
+    Used by lexeme_aligner.eval.jev_clauses (CLAUSES) from 2026-10-28. v0.4 kept beside it (the kvg v1.1 layers were built on v0.4). Gitignored.
+
+pipeline/vendor/language-analysis/8fec0cf0/ — bsb-add-books' Kuni module with rule words (bcv-commons/language-analysis, HF commit 8fec0cf0, 2026-10-28)
+  source: huggingface.co/datasets/bcv-commons/language-analysis @ 8fec0cf0: manifest.json, README.md, CLAUSES.md (pins greek-nt-clause-layout
+    v0.5 + hebrew-speaker-layer v0.14; Hebrew joins count written words) and kvg/2cd8a4bc/ (all 10 files checked against the manifest sha256, OK;
+    jev.md sha256 ccda85c9…). vs d8fdb53e: team decisions and linking facts that concern particular words end in `{words: …}` (jev.md, and a
+    `words` list in rules.json); bcv_segment.py, morphs.py, observations.json, terms.tsv identical; seg_facts.json differs only in its date, so
+    the split (and kvg-m_wbt's part numbers, pinned to d8fdb53e in config/target_parts.json) is unchanged. Source modules grc/hbo/arc unchanged
+    (still read from 7bce4665 / ab1298c2). Licence CC0 1.0, scripts MIT. Used: jev_clauses TARGET_MODULE["kvg"] from 2026-10-28; a marked line
+    is kept only when one of its words is a target word of the request (filter_module). Data only, none of their code run. Gitignored.

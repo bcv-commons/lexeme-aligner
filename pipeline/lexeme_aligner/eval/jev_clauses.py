@@ -1,7 +1,7 @@
 """Jev v4 by CLAUSE, not by verse (2026-10-27; the owner's rule: never divide or send by verse).
 
 A request covers one clause, or 2-3 short clauses of one sentence. Units follow bsb-add-books' CLAUSES.md (language-analysis
-7bce4665) on bcv-commons/greek-nt-clause-layout (vendored v0.4, its `words` = our spine keys):
+7bce4665) on bcv-commons/greek-nt-clause-layout (vendored v0.5, its `words` = our spine keys):
   - one layout line = one item; the rows of an interrupted clause are one item (the interrupting clause stays its own item);
   - an item is joined to the next item of the same sentence while either has < JOIN_UNDER source words, up to MAX_LINES items and
     about MAX_WORDS source words; a row with no clause id (a title) always goes with the next item of its sentence.
@@ -37,7 +37,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -46,7 +48,7 @@ from lexeme_aligner.eval import jev_check as jc
 from lexeme_aligner.eval import llm_edit as le
 from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS
 
-CLAUSES = Path("pipeline/vendor/greek-nt-clause-layout/v0.4/data/clauses.parquet")
+CLAUSES = Path("pipeline/vendor/greek-nt-clause-layout/v0.5/data/clauses.parquet")   # v0.5 (10-28): v0.4 + speaker_id/name columns, clauses identical
 # OT (2026-10-28): bcv-query's bcv-commons/hebrew-clause-layout v0.37 (tag 514a8832, CC BY-SA 4.0, from MACULA Hebrew), the layout
 # CLAUSES.md names for the OT; one parquet per book, its `words` = our spine's OT keys (BBCCCVVVWWWM, all 469,476 checked 10-27).
 HEB_CLAUSES = Path("pipeline/vendor/hebrew-clause-layout/v0.37/data")
@@ -55,8 +57,32 @@ SOURCE_MODULE = {"grc": MODULES / "source/grc/30f77fbf/jev.md",           # per 
                  "hbo": Path("pipeline/vendor/language-analysis/ab1298c2/source/hbo/0ccf857a/jev.md"),
                  "arc": Path("pipeline/vendor/language-analysis/ab1298c2/source/arc/634f9d1f/jev.md")}
 TARGET_MODULE = {"zin": MODULES / "zin/ab3848ee/jev.md",
-                 "kvg": Path("pipeline/vendor/language-analysis/ab1298c2/kvg/d8fdb53e/jev.md")}   # pinned 2026-10-27
+                 "kvg": Path("pipeline/vendor/language-analysis/8fec0cf0/kvg/2cd8a4bc/jev.md")}   # 2026-10-28: rule words
+# align-text (2026-10-29): ALIGNER_JEV_INPUTS = the data folder `fetch-inputs --jev` filled; layouts and modules are read from there
+# (a language without a target module gets the generic conventions text).
+_JEV_INPUTS = os.environ.get("ALIGNER_JEV_INPUTS")
+if _JEV_INPUTS:
+    _d = Path(_JEV_INPUTS)
+    CLAUSES = _d / "greek-nt-clause-layout" / "clauses.parquet"
+    HEB_CLAUSES = _d / "hebrew-clause-layout"
+    SOURCE_MODULE = {k: _d / "language-analysis" / "source" / k / "jev.md" for k in ("grc", "hbo", "arc")}
+    TARGET_MODULE = {fp.parent.name: fp for fp in (_d / "language-analysis").glob("*/jev.md") if fp.parent.name != "source"}
 LOG = jc.WORK / "clauses"
+PRICE_PER_M_INPUT = float(os.environ.get("JEV_PRICE_PER_M_INPUT", "0.042"))   # USD per million input tokens (output is not billed), 2026-10
+TOKENS_PER_BYTE = 0.6      # input tokens per request-body byte, rounded UP: Kuni by clause 2026-10-28 measured 0.43-0.59 over 58 book runs
+
+
+def estimate(bodies: list[bytes], cached) -> dict:
+    """What a run would send and cost: requests not yet in the answer cache, their bytes, an upper-side token and USD estimate."""
+    new = [b for b in bodies if not cached(b)]
+    nbytes = sum(len(b) for b in new)
+    tokens = int(nbytes * TOKENS_PER_BYTE)
+    return {"requests to send": len(new), "requests cached": len(bodies) - len(new), "bytes to send": nbytes,
+            "input tokens (est., high side)": tokens, "usd (est., high side)": round(tokens / 1e6 * PRICE_PER_M_INPUT, 2)}
+
+
+def _in_cache(raw: bytes) -> bool:
+    return (jc.WORK / "responses" / (hashlib.sha256(raw).hexdigest()[:24] + ".json")).exists()
 JOIN_UNDER, MAX_LINES, MAX_WORDS = 6, 3, 30
 HOME_REACH = 8          # written words a window may grow to hold a homed word; a word further out is asked nowhere (counted)
 GAP_MAX = 24            # a unit the chain linked to nothing gets the gap between its neighbours' links, at most this many tokens
@@ -84,7 +110,8 @@ def clause_items(rows: list[dict]) -> list[dict]:
 
 def written_words(keys: list[str]) -> int:
     """Hebrew keys are morphemes (BBCCCVVVWWWM: וַ, the article, a suffix each have one): the join thresholds count written words,
-    the keys without their last digit. (Our reading of CLAUSES.md's "source words" for Hebrew, asked of bsb-add-books 10-27.)"""
+    the keys without their last digit. Confirmed by bsb-add-books 2026-10-28 (a Hebrew word with its prefixes is closer to one Greek
+    word than to several; counting morphemes would leave too many short lines unjoined); CLAUSES.md will say so."""
     return len({k[:-1] for k in keys})
 
 
@@ -319,12 +346,26 @@ def affix_in_words(form: str, words: set[str]) -> bool:
     return f in words
 
 
+WORDS_MARK = re.compile(r"\{words: ([^}]*)\}")
+
+
+def request_words(forms) -> set[str]:
+    """The request's target words as a module's `{words: …}` marker writes them: lowercase, marks kept, NFC, a hyphen divides
+    (tokenizer v2: `vø̄-ein` is `vø̄` + `ein`)."""
+    return {w for f in forms if f for w in unicodedata.normalize("NFC", f.lower()).split("-") if w}
+
+
 def filter_module(text: str, chain_ids: set[str], words: set[str], whole_words: bool = False) -> tuple[str, list[str]]:
     """A target jev.md for one request: an affix line (`m:` id) only when a part in the window carries it (`whole_words`, no parts
     view: when its form is in a window word, `affix_in_words`), a never-divided word (`w:` id) only when the window has that
-    written word; every other line kept. Returns (text, the rule ids kept)."""
+    written word, a line marked `{words: …}` (kvg/2cd8a4bc on) only when one of those words is in the window; every other line
+    kept. Returns (text, the rule ids kept)."""
+    words = request_words(words)
     out, kept = [], []
     for line in text.splitlines():
+        wm = WORDS_MARK.search(line) if line.startswith("- ") else None
+        if wm and not request_words(wm.group(1).split()) & words:
+            continue
         m = re.search(r"\[`([^`]+)`", line) if line.startswith("- ") else None
         if m:
             rid = m.group(1)
@@ -439,7 +480,10 @@ def main() -> int:
     ap.add_argument("--usj-dir", type=Path); ap.add_argument("--parts", type=Path)
     ap.add_argument("--tags", type=Path); ap.add_argument("--skip-pairs", type=Path); ap.add_argument("--hints", type=Path)
     ap.add_argument("--variant", required=True); ap.add_argument("--workers", type=int, default=8)
-    ap.add_argument("--dry-run", action="store_true", help="build the requests and report their size; no call, no cell")
+    ap.add_argument("--dry-run", action="store_true", help="build the requests, report their size and estimated cost; no call, no cell")
+    ap.add_argument("--max-usd", type=float, default=None,
+                    help="required for a run that calls the API: refuse to start when the estimate is above it, stop sending once billed "
+                         "input reaches it")
     a = ap.parse_args()
     from lexeme_aligner.gapfill import load_priors
     usj = a.usj_dir or Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
@@ -465,7 +509,8 @@ def main() -> int:
     lang = jc.LANG.get(a.publish_iso, a.publish_iso)
     if a.conventions == "modules":
         conv = {"mode": "modules", "sources": {k: v.read_text(encoding="utf-8") for k, v in SOURCE_MODULE.items()},
-                "target": TARGET_MODULE[a.publish_iso].read_text(encoding="utf-8"),
+                "target": (TARGET_MODULE[a.publish_iso].read_text(encoding="utf-8") if a.publish_iso in TARGET_MODULE
+                           else _GENERIC_CONVENTIONS),
                 "note": (le._CONVENTIONS_DIR / f"{a.publish_iso}.note.md").read_text(encoding="utf-8")
                 if (le._CONVENTIONS_DIR / f"{a.publish_iso}.note.md").exists() else ""}
     else:
@@ -494,13 +539,35 @@ def main() -> int:
         size["target words asked nowhere (too far)"] += len(w.get("unasked", ()))
     verses = {r for w in ws for r, _ in w["hs"]}
     size["verses"] = len(verses)
+    est = estimate([json.dumps(j[4], ensure_ascii=False, sort_keys=True).encode() for j in jobs], _in_cache)
     if a.dry_run:
-        print(json.dumps({"tag": tag, "dry_run": dict(size)}, ensure_ascii=False))
+        print(json.dumps({"tag": tag, "dry_run": dict(size), "estimate": est}, ensure_ascii=False))
         return 0
-    key = "" if os.environ.get("JEV_CACHE_ONLY") else jc.api_key()
+    cache_only = bool(os.environ.get("JEV_CACHE_ONLY"))
+    if not cache_only and est["requests to send"]:
+        if a.max_usd is None:
+            raise SystemExit(f"jev_clauses: this run would send {est['requests to send']} requests, about ${est['usd (est., high side)']} "
+                             "(high side); pass --max-usd to allow it (or --dry-run to see the estimate)")
+        if est["usd (est., high side)"] > a.max_usd:
+            raise SystemExit(f"jev_clauses: estimate ${est['usd (est., high side)']} is above --max-usd {a.max_usd}; nothing sent")
+    key = "" if cache_only else jc.api_key()
     t0 = time.monotonic()
+    spent = {"tokens": 0}
+    lock = threading.Lock()
+
+    def ask(job):
+        with lock:
+            over = a.max_usd is not None and spent["tokens"] / 1e6 * PRICE_PER_M_INPUT >= a.max_usd
+        if over:
+            return {"_error": "not sent: --max-usd reached"}
+        res = jc.ask_split(job[4], key)
+        if not res.get("_cached"):
+            with lock:
+                spent["tokens"] += res.get("usage", {}).get("input_tokens", 0)
+        return res
+
     with ThreadPoolExecutor(a.workers) as ex:
-        results = list(ex.map(lambda j: jc.ask_split(j[4], key), jobs))
+        results = list(ex.map(ask, jobs))
     usage = collections.Counter()
     log = []
     answered = []
@@ -520,7 +587,7 @@ def main() -> int:
             usage["input_tokens"] += u.get("input_tokens", 0); usage["output_tokens"] += u.get("output_tokens", 0)
             usage["requests billed"] += 1
     (LOG / f"{tag}.units.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in log), encoding="utf-8")
-    summary = {"tag": tag, "model": jc.MODEL, "margin": a.margin, "conventions": a.conventions, "size": dict(size),
+    summary = {"tag": tag, "model": jc.MODEL, "margin": a.margin, "conventions": a.conventions, "size": dict(size), "estimate": est,
                "seconds": round(time.monotonic() - t0, 1), "usage": dict(usage), "cells": {}}
     vprops = sorted(b.props.values(), key=lambda p: p.ref)
     answered_by = {}

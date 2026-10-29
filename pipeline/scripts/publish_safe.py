@@ -172,7 +172,7 @@ def preflight(iso: str, ledger: dict, busy: set[str], lex: dict, comp: dict, all
         if set(info["books"]) - got:
             why.append(f"compact edition {ed} is missing book files {sorted(set(info['books']) - got)[:3]}")
     if eds and not why:
-        cache_fp = REPO / "pipeline/work/fp-cache.json"                   # 'path|size|mtime' -> file hash; a re-run reads no unchanged book
+        cache_fp = REPO / "pipeline/work/fp-cache.json"                   # 'path|size|mtime|versions' -> file hash; a re-run reads no unchanged book
         cache = json.loads(cache_fp.read_text()) if cache_fp.exists() else {}
         n = len(cache)
         why += fingerprint_problems(iso, eds, cache)
@@ -326,7 +326,7 @@ def sync_js(root: Path = REPO / "publish" / "compact-alignments", src: Path = JS
 def fingerprint_problems(iso: str, eds: dict, cache: dict) -> list[str]:
     """Every compact book file must be named with the fingerprint of the edition's CURRENT ingested text, and there must be exactly one per
     book: a stale name would publish an alignment no client text can reach (2026-10-21, text fingerprint v1). `cache` maps
-    'path|size|mtime' -> file hash so a re-run does not re-read unchanged books."""
+    'path|size|mtime|tokenizer.fingerprint versions' -> file hash so a re-run does not re-read unchanged books."""
     from lexeme_aligner import text_fingerprint as tf
     why = []
     for ed, info in eds.items():
@@ -343,7 +343,7 @@ def fingerprint_problems(iso: str, eds: dict, cache: dict) -> list[str]:
                 bad.append(f"{book} (no ingested text)")
                 continue
             st = src.stat()
-            key = f"{src}|{st.st_size}|{st.st_mtime_ns}"
+            key = f"{src}|{st.st_size}|{st.st_mtime_ns}|t{tf.TOKENIZER_VERSION}.f{tf.TEXT_FP_VERSION}"   # same file, new tokenizer = new hash
             if key not in cache:
                 cache[key] = tf.book_file_hash(src)
             if cache[key] not in hs:

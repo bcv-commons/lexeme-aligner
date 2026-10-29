@@ -32,7 +32,7 @@ def _usj(path: Path, verses: dict[tuple[int, int], str]) -> Path:
 
 def test_tokenizer_is_the_vendored_bibles_copy():
     assert us.tokenize is us._BCV.tokenize and us.strip_marks is us._BCV.strip_marks
-    assert us.TOKENIZER_VERSION == 2 and tf.TEXT_FP_VERSION == 1 and tf.NAME_HEX == 8
+    assert us.TOKENIZER_VERSION == 3 and tf.TEXT_FP_VERSION == 1 and tf.NAME_HEX == 8
     assert tf.fingerprints is us._BCV.fingerprints
 
 
@@ -208,3 +208,14 @@ def test_manual_manifest_update_writes_the_layer_map(tmp_path):
     assert list(tf.read_map(ldir)) == ["RUT"]
     entry = json.loads((tmp_path / "root/manifest.json").read_text())["languages"]["eng"]["layers"]["eng_X+manual+clear"]
     assert entry["books"] == {"RUT": f"RUT_{tf.book_file_hash(usj)}.json"}
+
+
+def test_fingerprint_cache_from_an_older_tokenizer_is_not_used(tmp_path, monkeypatch):
+    monkeypatch.setattr(ps, "REPO", tmp_path)
+    usj = _usj(tmp_path / "pipeline/work/ingest-cache/usj-engx/08-RUT.json", {(1, 1): "In the days"})
+    d = tmp_path / "publish/compact-alignments/e/eng/eng_X"
+    d.mkdir(parents=True)
+    (d / f"RUT_{tf.book_file_hash(usj)}.json").write_text("[]")
+    st = usj.stat()
+    old = {f"{usj}|{st.st_size}|{st.st_mtime_ns}": "0bad0bad"}                  # 2026-10-28: key without versions, hash of tokenizer v2
+    assert ps.fingerprint_problems("eng", {"eng_X": {"tag": "engx", "books": ["RUT"]}}, old) == []

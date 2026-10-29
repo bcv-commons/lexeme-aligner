@@ -1,0 +1,553 @@
+{
+ "_doc": "Data inputs for `lexeme-aligner align-text`, fetched by `lexeme-aligner fetch-inputs` into one data folder (see fetch_inputs.py). A pinned sha256 is checked on every download; moving a pin is a deliberate edit here (and a PROVENANCE line). Licences are those of the data, not of this code (GPL-3.0-or-later).",
+ "files": [
+  {
+   "name": "spine",
+   "dest": "lexeme-spine-macula.db",
+   "url": "https://files.qombi.com/files/lexeme-spine-macula.db",
+   "sha256": "f1003a2b19036788bfc063427cb5da1e883181d39c5c87e7ccb79eb5f7bf956d",
+   "bytes": 110432256,
+   "licence": "CC BY 4.0 (MACULA Hebrew and Greek, Clear Bible; built by bcv-query)",
+   "_note": "sha256/bytes = the spine our published data was built with (f1003a2b..., 2026-10-12). Since 2026-10-28 this URL serves 86da6520... (117,444,608 bytes) = the same plus two LXX columns (greek, greekstrong); it is accepted by `content` (every column of the pinned spine_words + spine_assimilated_articles, checked equal). A build that changes a row of these is refused until the pin is moved. The URL is not versioned: to be replaced by a release asset (request to bcv-query 2026-10-29).",
+   "content": {
+    "rule": "tables-v1",
+    "tables": [
+     {
+      "name": "spine_words",
+      "columns": [
+       "book",
+       "chapter",
+       "verse",
+       "idx",
+       "key",
+       "surface",
+       "lexeme",
+       "strong",
+       "lemma",
+       "is_content",
+       "morph",
+       "gloss",
+       "role",
+       "stem",
+       "person",
+       "number",
+       "gender",
+       "case_",
+       "tense",
+       "voice",
+       "mood",
+       "degree",
+       "state",
+       "is_superscription",
+       "head_idx",
+       "phrase_role",
+       "construct_group",
+       "construct_role"
+      ],
+      "order": [
+       "key"
+      ]
+     },
+     {
+      "name": "spine_assimilated_articles",
+      "columns": [
+       "book",
+       "chapter",
+       "verse",
+       "after_idx",
+       "lemma",
+       "gloss",
+       "strong"
+      ],
+      "order": [
+       "book",
+       "chapter",
+       "verse",
+       "after_idx",
+       "lemma",
+       "gloss",
+       "strong"
+      ]
+     }
+    ],
+    "sha256": "080d93e6d80dd16ebfc8bfb194333940a4751a1f5d8cf08f1c2d5186ee818567",
+    "_doc": "tables-v1: sha256 over these tables/columns, rows in `order`, one compact JSON row per line (fetch_inputs.content_sha256). Columns = all of spine_words in our pinned f1003a2b... (the chain reads whatever columns exist; this pins every one it can read)."
+   }
+  },
+  {
+   "name": "prior_pack",
+   "dest": "prior_pack.parquet",
+   "repo": "bcv-commons/prior-pack",
+   "revision": "f1a0ef211269",
+   "path": "prior_pack.parquet",
+   "sha256": "f41f6d4c1ad5a12ce55d0ff7b8230e487f29abb2e35dc18499ca501fdd535e0a",
+   "bytes": 553828,
+   "licence": "CC BY-SA 4.0 (bcv-commons/prior-pack; keyness from wordfreq)"
+  },
+  {
+   "name": "article_bound",
+   "dest": "gram_struct/article_bound.json",
+   "repo": "bcv-commons/gram-struct",
+   "revision": "8a71437bbf1e2e6a0b0a68aef396d7a275a0e9a4",
+   "path": "article_bound.json",
+   "sha256": null,
+   "licence": "CC0 1.0 (bcv-commons/gram-struct article_bound.json)"
+  },
+  {
+   "name": "greek_nt_clause_layout",
+   "group": "jev",
+   "dest": "greek-nt-clause-layout/clauses.parquet",
+   "repo": "bcv-commons/greek-nt-clause-layout",
+   "revision": "22143094001c176a868e55f6f10dc2da1866b2f8",
+   "path": "data/clauses.parquet",
+   "sha256": "f70a0cb287a0cb4f15bfc06f73253b0b2b9face8221c97ef1dbdc35ad3ad208f",
+   "bytes": 1535298,
+   "licence": "CC BY 4.0 (bcv-commons/greek-nt-clause-layout v0.5, from MACULA Greek)"
+  },
+  {
+   "name": "source_module_grc",
+   "group": "jev",
+   "dest": "language-analysis/source/grc/jev.md",
+   "repo": "bcv-commons/language-analysis",
+   "revision": "8fec0cf07a2d5b4743e4ed9070e0c72c7930240f",
+   "path": "source/grc/30f77fbf/jev.md",
+   "sha256": "3ed25311b719541501ab5b5f32a842d4aec6d74352b07cd5f97985960c68dde6",
+   "licence": "CC0 1.0 (bsb-add-books; written by an LLM from MACULA's analysis, CC BY 4.0)"
+  },
+  {
+   "name": "source_module_hbo",
+   "group": "jev",
+   "dest": "language-analysis/source/hbo/jev.md",
+   "repo": "bcv-commons/language-analysis",
+   "revision": "8fec0cf07a2d5b4743e4ed9070e0c72c7930240f",
+   "path": "source/hbo/0ccf857a/jev.md",
+   "sha256": "8427d08ae216078f942c5b358001227e313ab7b4a18afb1bd67e15828133c0f9",
+   "licence": "CC0 1.0 (bsb-add-books; written by an LLM from MACULA's analysis, CC BY 4.0)"
+  },
+  {
+   "name": "source_module_arc",
+   "group": "jev",
+   "dest": "language-analysis/source/arc/jev.md",
+   "repo": "bcv-commons/language-analysis",
+   "revision": "8fec0cf07a2d5b4743e4ed9070e0c72c7930240f",
+   "path": "source/arc/634f9d1f/jev.md",
+   "sha256": "2eb08e4120dd940cb7d810963e73e75b1632fe5efd5c0c19979aec47683a7ba1",
+   "licence": "CC0 1.0 (bsb-add-books; written by an LLM from MACULA's analysis, CC BY 4.0)"
+  },
+  {
+   "name": "hebrew_clause_layout_1CH",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-1CH.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-1CH.parquet",
+   "sha256": "3a3c8716c4893b72f88e2189c83d90dd39704ad49bf86094010d77abc88081f7",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_1KI",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-1KI.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-1KI.parquet",
+   "sha256": "9ca2ff59ebbd9ecfd0c9bf89890b6e133709d849255f0e13817f5e344590b8ac",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_1SA",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-1SA.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-1SA.parquet",
+   "sha256": "1986c665d5994f3921c45a08da1173867ada3f2d4870385a5ab22c25c9cc269d",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_2CH",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-2CH.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-2CH.parquet",
+   "sha256": "6af61722e3a922c1cde7752468e2f508b083180ef24a09d21d4878def2b98150",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_2KI",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-2KI.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-2KI.parquet",
+   "sha256": "14a81ddc6048811baf2666252b00a2f2a7c584880de76c5eb580d08dd00d3572",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_2SA",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-2SA.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-2SA.parquet",
+   "sha256": "d5bc7e127bee2123a0684f0e2b6b2a41d6269076820efb2ff2ef2d78e1c6ebcc",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_AMO",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-AMO.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-AMO.parquet",
+   "sha256": "91ec4a30ac85dfdfe43428f977d486dab0340f7b99ba0ec7253def26ad579473",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_DAN",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-DAN.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-DAN.parquet",
+   "sha256": "4ae7f5919ad227245979f2ef6a5888e5291418fa3244f454163183ecc6c8e2dc",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_DEU",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-DEU.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-DEU.parquet",
+   "sha256": "03cabb7bd0d4a1009ec124bc2094c65c6f77be5a094aa5ce74f36867435b7470",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_ECC",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-ECC.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-ECC.parquet",
+   "sha256": "78d42a71b4d580100b8063d840e67512dac528cf42465aea7a5e06c431178966",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_EST",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-EST.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-EST.parquet",
+   "sha256": "63a994f91c42ea9687f1e077e405aa2d05c1332cc601e52bee8c56f444cc432d",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_EXO",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-EXO.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-EXO.parquet",
+   "sha256": "3e0537c8f0693537b3e19bf0bc0e59eaf72b620581780917453fb701088b3e9f",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_EZK",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-EZK.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-EZK.parquet",
+   "sha256": "ba77b60fa8a9106fa103e7239ca1513f8df7ba6686c87c5cf682d61bc86a739f",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_EZR",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-EZR.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-EZR.parquet",
+   "sha256": "bb524af0035047f70cfdbab2a485ab9fcb48ff387d240d7c776215770ba1d24f",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_GEN",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-GEN.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-GEN.parquet",
+   "sha256": "d3d1b226a1abb6ccc0dd3519367fb1e23b84ef6f2c3e1c3f3bc4cb5150601625",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_HAB",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-HAB.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-HAB.parquet",
+   "sha256": "f6ab1fd36730ec900789af9d38477d1d9bfa66b781d9db2d1aa0137b6792074c",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_HAG",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-HAG.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-HAG.parquet",
+   "sha256": "901602a4ccdfea92bc76e1acfafa3c077cc20d08c11b6fd0077eda8cee4708da",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_HOS",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-HOS.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-HOS.parquet",
+   "sha256": "96ddd88293b573fd7dd16ace1cf11af6d7e9c40cd4e6b9f3a41451b13854a2dd",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_ISA",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-ISA.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-ISA.parquet",
+   "sha256": "80807ca30c968610dc0586d12d92d0c5319789443334c0fd89f4b8e635cdecd7",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_JDG",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-JDG.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-JDG.parquet",
+   "sha256": "caf20c2a8ea68c109fff305cae8de073a413dbec46830ea52eb79092782f7589",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_JER",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-JER.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-JER.parquet",
+   "sha256": "872c8a8302a11e6d042a15090da4e12f2a40b494521640de0950d199e4d2474e",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_JOB",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-JOB.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-JOB.parquet",
+   "sha256": "44d495c8af8c8e2daf0d7d6fc31f912c95ad99a88d7ffc25fc5e12ff60e85ec0",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_JOL",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-JOL.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-JOL.parquet",
+   "sha256": "bc318ece4cdee5c78b412528a40d7be763ace646a4703441c0a1e63404734c37",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_JON",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-JON.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-JON.parquet",
+   "sha256": "1cae21ed29c2c0920746a30e15822237d571ad72eab6cedcbee97bc4969a15c4",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_JOS",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-JOS.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-JOS.parquet",
+   "sha256": "905800dbe2707f04a147ad7fb41538aaa91aa4ca4cd9a3ec5bf6172528ed4862",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_LAM",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-LAM.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-LAM.parquet",
+   "sha256": "70af8bfb8bc0a27c67e0e4df5478678754bc342a690e2cd71824d16f3bd78c00",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_LEV",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-LEV.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-LEV.parquet",
+   "sha256": "ba0bce5b8ade6ca419654f05951afdb39b86a7c49607efff0df701f0e13c8706",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_MAL",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-MAL.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-MAL.parquet",
+   "sha256": "2d3f96e8dda78cb9a5df06abce476e353bb24a603b7c69c694f0e54c6d4506fd",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_MIC",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-MIC.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-MIC.parquet",
+   "sha256": "b4ffd37b5d5b664459806c4cfcc1e9a7cab3c826457125b35306217c930a2d56",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_NAM",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-NAM.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-NAM.parquet",
+   "sha256": "d97ae03a65978c718611a93fdca326ba0a3cb1dd158649010cd0d922e4fcf81d",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_NEH",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-NEH.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-NEH.parquet",
+   "sha256": "33a4972e530c0ac75b6c2b6d7724d7419f42fec9d95a318c959be5a7992b72f4",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_NUM",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-NUM.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-NUM.parquet",
+   "sha256": "6a2c012d2ec03e02f7d8b37571cc66cbc7a6bd1f29d83075a5ce723b4e2c1d41",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_OBA",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-OBA.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-OBA.parquet",
+   "sha256": "a98b38ef422ceac6551b405ae2b687a47cdb8659d1c0f172f88bd75d4d2f250c",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_PRO",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-PRO.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-PRO.parquet",
+   "sha256": "07b9342ae7bf6807faf1e57afae38bd985a2545ecb5e1a0591cb11edeb5f2b99",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_PSA",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-PSA.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-PSA.parquet",
+   "sha256": "5147454b14344f97e9a7c98457893b753e66761047d620f489d973ac2e4f50a7",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_RUT",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-RUT.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-RUT.parquet",
+   "sha256": "5b23ea320d41c2ab54bd977387b6ad6b268ccb2d39c3f45083d4a3c3f82facb3",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_SNG",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-SNG.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-SNG.parquet",
+   "sha256": "969b120d67921818074e5a6a5aa3c5156ea50d54e0a2d03a2004be53261fd0f4",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_ZEC",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-ZEC.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-ZEC.parquet",
+   "sha256": "3da6fc737b09428319136662888d79bcf0f5b14b013fbc498b6db9994077e94a",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  },
+  {
+   "name": "hebrew_clause_layout_ZEP",
+   "group": "jev",
+   "dest": "hebrew-clause-layout/clauses-ZEP.parquet",
+   "repo": "bcv-commons/hebrew-clause-layout",
+   "revision": "514a88320ab6556e0f7fd2e686c9637fcf39bd62",
+   "path": "data/clauses-ZEP.parquet",
+   "sha256": "daec141318148b411148d47297f8d1645ebc198bc948ca5b24c7203af350f9a4",
+   "licence": "CC BY-SA 4.0 (bcv-commons/hebrew-clause-layout v0.37, from MACULA Hebrew)"
+  }
+ ],
+ "gram_struct": {
+  "repo": "bcv-commons/gram-struct",
+  "revision": "8a71437bbf1e2e6a0b0a68aef396d7a275a0e9a4",
+  "partitions": [
+   "external",
+   "imputed",
+   "derived",
+   "measured",
+   "kin"
+  ],
+  "licences": {
+   "default": "see bcv-commons/gram-struct README",
+   "external": "CC BY 4.0 (Grambank v1.0; Glottolog)",
+   "imputed": "CC BY-SA 4.0 (lang2vec / URIEL, URIEL+)",
+   "derived": "CC0 1.0 (bcv-commons alignment statistics)",
+   "measured": "CC0 1.0 (bcv-commons gold-scored verdicts)",
+   "kin": "CC BY 4.0 (Glottolog relatedness)"
+  }
+ },
+ "target_modules": {
+  "_doc": "With --jev: the language's latest target module in this pinned language-analysis manifest (bsb-add-books' rules for an LLM aligner), when it has one; else the generic conventions text is used.",
+  "repo": "bcv-commons/language-analysis",
+  "revision": "8fec0cf07a2d5b4743e4ed9070e0c72c7930240f",
+  "licence": "CC0 1.0 (bsb-add-books, generated from their language store)"
+ }
+}

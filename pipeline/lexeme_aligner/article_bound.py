@@ -42,6 +42,7 @@ import argparse
 import collections
 import gzip
 import json
+import os
 import sys
 import unicodedata
 from pathlib import Path
@@ -49,7 +50,7 @@ from pathlib import Path
 from lexeme_aligner.align_files import tag_files
 from lexeme_aligner.config import OUT, PRIOR_PACK
 
-OUT_FILE = Path("config/gram_struct/article_bound.json")
+OUT_FILE = Path(os.environ.get("ALIGNER_GRAM_STRUCT") or "config/gram_struct") / "article_bound.json"
 ARTICLE_LEXEMES = frozenset({"grc:3588", "hbo:1886a"})       # ὁ / Hebrew הַ (as span_extension's own constants)
 AFFIX_LENGTHS = (1, 2, 3, 4)
 MIN_NOUNS_EACH = 300          # nouns WITH and WITHOUT a preceding article, each

@@ -32,7 +32,8 @@ from lexeme_aligner.config import OUT, PRIOR_PACK
 from lexeme_aligner.eval import llm_edit as le
 from lexeme_aligner.eval.llm_prompt import _GENERIC_CONVENTIONS, _gram_tag
 
-WORK = Path("pipeline/work/jev-testA")                # answer cache (responses/<sha>.json) + per-book summaries; kept at its test-A path
+WORK = Path(os.environ.get("ALIGNER_JEV_WORK") or "pipeline/work/jev-testA")   # answer cache (responses/<sha>.json) + per-book summaries;
+                                                                                # align-text points it into its output folder
 URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = os.environ.get("JEV_MODEL", "jev-latest")
 THRESHOLDS = (0.0, 0.5, 0.7, 0.9)
@@ -48,11 +49,12 @@ _CONV = le._CONTRACT_V3[le._CONTRACT_V3.index("This dataset's convention"):].rep
 def api_key() -> str:
     if os.environ.get("TYPESAFE_API_KEY", "").startswith("apikey_"):
         return os.environ["TYPESAFE_API_KEY"]
-    for line in Path(".env").read_text(encoding="utf-8").splitlines():
+    env_file = Path(".env")
+    for line in (env_file.read_text(encoding="utf-8").splitlines() if env_file.exists() else []):
         k, _, v = line.partition("=")
         if k.strip() in ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY") and v.strip().lstrip("=").startswith("apikey_"):
             return v.strip().lstrip("=").strip()
-    raise SystemExit("no TypeSafe key (apikey_...) in .env")
+    raise SystemExit("no TypeSafe key: set TYPESAFE_API_KEY=apikey_... (get one at typesafe.ai)")
 
 
 def _shown(p: le.Proposal, j: int) -> str:

@@ -1,6 +1,6 @@
 """`lexeme-aligner align-text` (2026-10-28): align one edition's text with our chain, on someone else's machine, writing only into one folder.
 
-For bsb-add-books first (Kuni drafts), meant for any team. The input is a folder of USJ book files (our ingest layout, `NN-BOOK.json`)
+For bsb-add-books first (Kuni drafts), meant for any team. The input is the edition's text (USJ, USFM or plain text, below)
 plus an edition id and the language's ISO 639-3 code. The output folder gets the same files our chain makes for that edition:
 
     OUT/align_<method>_<edition>_<BOOK>.jsonl      per-method links (eflomal, gloss, spanext, gapfill, residual)
@@ -16,7 +16,10 @@ eflomal-only export -> gloss -> span extension -> gapfill -> residual -> compact
 export, aligned_mwe, senses), the ledger, publishing. Every step runs under lexeme_aligner.write_guard with only OUT (and the system temp
 folder) writable; every chain setting that has a folder is pointed inside OUT.
 
-    lexeme-aligner align-text --usj DIR --edition kvg_draft --iso kvg --out OUT [--lang-name Kuni] [--data DIR]
+    lexeme-aligner align-text --text PATH --edition kvg_draft --iso kvg --out OUT [--lang-name Kuni] [--data DIR]
+
+`--text` reads USJ, USFM, the eBible corpus layout (vref.txt) or plain text with one verse per line (lexeme_aligner.text_input);
+anything but USJ is converted into OUT/text-usj first. `--usj DIR` still works for a USJ folder.
 
 LLM checking (2026-10-29), after the chain: `--jev` asks TypeSafe's Jev about every clause (bsb-add-books' CLAUSES.md units; their source
 modules, and their target module for the language when one is published, else a generic text). Paid, with YOUR key (TYPESAFE_API_KEY).
@@ -222,7 +225,10 @@ def main(argv: list[str] | None = None) -> int:
     if "--layer" in argv:
         return layer_main(argv)
     ap = argparse.ArgumentParser(prog="lexeme-aligner align-text", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--usj", type=Path, required=True, help="folder of USJ book files (NN-BOOK.json)")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--text", type=Path, help="the text: a folder (or one file) of USJ (NN-BOOK.json), USFM (.usfm/.sfm), "
+                     "vref.txt + one text file (eBible corpus), or .txt with one verse per line (`BOOK C:V text`)")
+    src.add_argument("--usj", type=Path, help="folder of USJ book files (NN-BOOK.json); the same as --text with such a folder")
     ap.add_argument("--edition", required=True, help="edition id; names the align files and the compact edition folder")
     ap.add_argument("--iso", required=True, help="ISO 639-3 code of the language (selects its grammar facts and settings)")
     ap.add_argument("--out", type=Path, required=True, help="output folder; the only place this run writes to")
@@ -238,16 +244,19 @@ def main(argv: list[str] | None = None) -> int:
                     "aligns every book of the text")
     args = ap.parse_args(argv)
 
-    usj, out = args.usj.resolve(), args.out.resolve()
+    given, out = (args.text or args.usj).resolve(), args.out.resolve()
     data = args.data or (Path(os.environ["ALIGNER_DATA"]).expanduser() if os.environ.get("ALIGNER_DATA") else None)
     data = data.resolve() if data else None
-    if not usj.is_dir():
-        raise SystemExit(f"align-text: no text folder {usj}")
+    if not given.exists():
+        raise SystemExit(f"align-text: no text at {given}")
     if out == REPO or REPO.is_relative_to(out) or (out.is_relative_to(REPO) and not out.is_relative_to(REPO / "pipeline" / "work")):
         raise SystemExit(f"align-text: choose an output folder outside the checkout (or under pipeline/work): {out}")
     if (out / RECORD).exists() and not args.force:
         raise SystemExit(f"align-text: {out} already holds a run ({RECORD}); use another folder or --force")
     out.mkdir(parents=True, exist_ok=True)
+    sys.path.insert(0, str(REPO / "pipeline"))
+    from lexeme_aligner import text_input
+    usj, text_format = text_input.prepare(given, out / "text-usj")
     from lexeme_aligner import write_guard
     write_guard.install([out])                         # this process too: it imports chain modules (config, nt_bridge, run_pilot)
     env = step_env(out, data)
@@ -262,7 +271,6 @@ def main(argv: list[str] | None = None) -> int:
                              + (f" --data {data}" if args.data else ""))
 
     os.chdir(REPO)
-    sys.path.insert(0, str(REPO / "pipeline"))
     from lexeme_aligner import nt_bridge
     digest, books = text_digest(usj)
     scope = scope_of(set(books))
@@ -273,7 +281,8 @@ def main(argv: list[str] | None = None) -> int:
         "tool": "lexeme-aligner align-text", "version": package_version(),
         "started": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "edition": args.edition, "iso": args.iso, "lang_name": args.lang_name,
-        "text": {"path": str(usj), "sha256": digest, "books": books},
+        "text": {"path": str(usj), "sha256": digest, "books": books, "format": text_format,
+                 **({"source": str(given), "source_sha256": text_input.source_digest(given)} if usj != given else {})},
         "scope": scope.lstrip("-"), "nt_bridge": bridge,
         "data": {k: _file_entry(fp) for k, fp in inputs.items()},
         "settings": {p.replace("<iso>", args.iso): _file_entry(settings_path(p, args.iso, data)) for p in SETTINGS},

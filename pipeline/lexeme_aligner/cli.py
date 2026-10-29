@@ -13,7 +13,7 @@ remaining argument through unchanged. Nothing here re-implements a step, so the 
     lexeme-aligner status                                             coverage report                          (= scripts/status.py)
     lexeme-aligner eval ...                                           positional gold scoring                   (= pos_score)
     lexeme-aligner text-strip ...                                     bracket/paren evidence report            (= scripts/text_strip_candidates.py)
-    lexeme-aligner align-text --usj DIR --edition ID --iso ISO --out OUT   align one edition's text, writing only into OUT (= align_text)
+    lexeme-aligner align-text --text PATH --edition ID --iso ISO --out OUT align one edition's text, writing only into OUT (= align_text)
     lexeme-aligner fetch-inputs --iso ISO [--data DIR] [--jev]               download the pinned data align-text needs (= fetch_inputs)
 
 `python -m lexeme_aligner ...` is the same thing. Run `lexeme-aligner <subcommand> --help` for that entry point's own options.

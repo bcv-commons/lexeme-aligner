@@ -62,6 +62,13 @@ running text of any translation, so no copyrightable expression is reproduced. E
 README has the exact terms; `publish/lexeme-alignments/manifest.json` links each language's source-text
 license (we never copy source text, only point to where its terms live).
 
+## Aligning your own text
+
+Have a translation (or a draft) of your own? `lexeme-aligner fetch-inputs --iso xyz` and then
+`lexeme-aligner align-text --text my-draft/ --edition xyz_draft --iso xyz --out ~/xyz-out` align it on your own machine, in the
+compact format. The text can be plain text (`RUT 1:1 ...` per line), the eBible corpus layout, USFM or USJ.
+See [**advanced-docs/align-your-own-text.md**](advanced-docs/align-your-own-text.md).
+
 ## Building or extending this yourself
 
 The above is everything most people need. If you want to run the alignment pipeline yourself in a

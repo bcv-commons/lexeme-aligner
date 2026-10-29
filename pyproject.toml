@@ -15,6 +15,7 @@ classifiers = [
 dependencies = [
     "eflomal>=1.0.0b2",   # statistical aligner (HMM); C build — see README for the Apple-clang note
     "numpy",              # pulled by eflomal
+    "zstandard; python_version < '3.14'",   # fetch-inputs: the spine is a .db.zst release asset (3.14 has compression.zstd)
 ]
 
 [project.optional-dependencies]

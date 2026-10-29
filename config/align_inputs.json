@@ -4,11 +4,11 @@
   {
    "name": "spine",
    "dest": "lexeme-spine-macula.db",
-   "url": "https://files.qombi.com/files/lexeme-spine-macula.db",
+   "url": "https://github.com/bcv-commons/spine-releases/releases/download/lexeme-spine-macula-2026-10-12/lexeme-spine-macula.db.zst",
    "sha256": "f1003a2b19036788bfc063427cb5da1e883181d39c5c87e7ccb79eb5f7bf956d",
    "bytes": 110432256,
    "licence": "CC BY 4.0 (MACULA Hebrew and Greek, Clear Bible; built by bcv-query)",
-   "_note": "sha256/bytes = the spine our published data was built with (f1003a2b..., 2026-10-12). Since 2026-10-28 this URL serves 86da6520... (117,444,608 bytes) = the same plus two LXX columns (greek, greekstrong); it is accepted by `content` (every column of the pinned spine_words + spine_assimilated_articles, checked equal). A build that changes a row of these is refused until the pin is moved. The URL is not versioned: to be replaced by a release asset (request to bcv-query 2026-10-29).",
+   "_note": "bcv-query's immutable release lexeme-spine-macula-2026-10-12 (bcv-commons/spine-releases; built by bcv-query 79b79ad): the spine our published data was built with (f1003a2b..., spine_content_sha256 471a3ac7...). Newer releases (2026-10-27: + greek/greekstrong columns) are accepted by `content` when this pin is moved to them; a build that changes a row of these columns is refused.",
    "content": {
     "rule": "tables-v1",
     "tables": [
@@ -72,7 +72,10 @@
     ],
     "sha256": "080d93e6d80dd16ebfc8bfb194333940a4751a1f5d8cf08f1c2d5186ee818567",
     "_doc": "tables-v1: sha256 over these tables/columns, rows in `order`, one compact JSON row per line (fetch_inputs.content_sha256). Columns = all of spine_words in our pinned f1003a2b... (the chain reads whatever columns exist; this pins every one it can read)."
-   }
+   },
+   "compression": "zstd",
+   "archive_sha256": "0de1bd173a3b36a29777231ebb653d9ac558b6fe65bb09a0202d6ff06648d2fe",
+   "archive_bytes": 17710733
   },
   {
    "name": "prior_pack",

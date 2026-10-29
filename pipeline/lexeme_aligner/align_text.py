@@ -234,6 +234,8 @@ def main(argv: list[str] | None = None) -> int:
                     "without --max-usd only the cost estimate is made; needs `fetch-inputs --jev` in the data folder")
     ap.add_argument("--max-usd", type=float, default=None, help="with --jev: the most this run may spend; refused when the estimate is above")
     ap.add_argument("--jev-workers", type=int, default=4, help="with --jev: requests in parallel")
+    ap.add_argument("--books", default=None, help="with --jev: only these books (comma-separated codes, e.g. PHM,RUT); the chain still "
+                    "aligns every book of the text")
     args = ap.parse_args(argv)
 
     usj, out = args.usj.resolve(), args.out.resolve()
@@ -301,7 +303,14 @@ def main(argv: list[str] | None = None) -> int:
 
     ok = all(run(name, cmd)[0] == 0 for name, cmd in steps)          # all() stops at the first failed step
     if ok and args.jev:
-        ok = jev_stage(args, usj, out, data, env, books, record, run, save)
+        jbooks = books
+        if args.books:
+            want = [b.strip().upper() for b in args.books.split(",") if b.strip()]
+            missing = [b for b in want if b not in books]
+            if missing:
+                raise SystemExit(f"align-text: --books {','.join(missing)} not in the text ({','.join(books)})")
+            jbooks = want
+        ok = jev_stage(args, usj, out, data, env, jbooks, record, run, save)
     log.close()
     record["finished"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     record["ok"] = ok

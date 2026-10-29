@@ -696,3 +696,10 @@ pipeline/vendor/language-analysis/8fec0cf0/ — bsb-add-books' Kuni module with 
     the split (and kvg-m_wbt's part numbers, pinned to d8fdb53e in config/target_parts.json) is unchanged. Source modules grc/hbo/arc unchanged
     (still read from 7bce4665 / ab1298c2). Licence CC0 1.0, scripts MIT. Used: jev_clauses TARGET_MODULE["kvg"] from 2026-10-28; a marked line
     is kept only when one of its words is a target word of the request (filter_module). Data only, none of their code run. Gitignored.
+
+2026-10-29 — spine for OTHER users (fetch-inputs, config/align_inputs.json): bcv-query's immutable GitHub releases,
+  github.com/bcv-commons/spine-releases (public, immutable releases on), one tag per build; asset <name>.db.zst; notes give the .zst sha256,
+  the decompressed sha256 and spine_content_sha256. Pinned: lexeme-spine-macula-2026-10-12 (zst 0de1bd17…, 17,710,733 bytes -> .db
+  f1003a2b…, 110,432,256 bytes = our active spine; verified by a live fetch). Also released: lexeme-spine-macula-2026-10-27 (86da6520…, adds
+  greek/greekstrong; accepted by fetch-inputs' content pin), rp2018-spine-2026-10-12 (2913b954…), tr-textus-receptus-spine-2026-10-12
+  (94b994ce…). files.qombi.com stays bcv-query's "latest" (not versioned; no longer used by fetch-inputs).

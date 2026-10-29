@@ -73,7 +73,8 @@ def wanted(lst: dict, isos: list[str], jev: bool) -> list[dict]:
             continue
         url = f["url"] if "url" in f else hf_url(f["repo"], f["revision"], f["path"])
         out.append({"name": f["name"], "url": url, "dest": f["dest"], "sha256": f.get("sha256"), "bytes": f.get("bytes"),
-                    "licence": f["licence"], "optional": False, "content": f.get("content")})
+                    "licence": f["licence"], "optional": False, "content": f.get("content"),
+                    "compression": f.get("compression"), "archive_sha256": f.get("archive_sha256")})
     g = lst["gram_struct"]
     for iso in isos:
         for part in g["partitions"]:
@@ -117,8 +118,29 @@ def acceptable(fp: Path, w: dict) -> tuple[bool, str | None]:
     return False, None
 
 
+def _zstd_reader(f):
+    """A decompressing reader over a zstd stream: Python 3.14's compression.zstd, else the `zstandard` package."""
+    try:
+        from compression import zstd
+        return zstd.ZstdFile(f)
+    except ImportError:
+        import zstandard
+        return zstandard.ZstdDecompressor().stream_reader(f)
+
+
+def _decompress(src: Path, dest: Path) -> tuple[str, int]:
+    h, n = hashlib.sha256(), 0
+    with open(src, "rb") as fi, _zstd_reader(fi) as r, open(dest, "wb") as fo:
+        for block in iter(lambda: r.read(1 << 20), b""):
+            h.update(block)
+            fo.write(block)
+            n += len(block)
+    return h.hexdigest(), n
+
+
 def download(url: str, dest: Path, want_sha: str | None, w: dict | None = None) -> tuple[str, int, str | None] | None:
-    """Stream into DEST.part, check sha256, rename. None when the server has no such file (404: an optional file)."""
+    """Stream into DEST.part, check sha256, rename. None when the server has no such file (404: an optional file). A `compression: zstd`
+    entry is downloaded whole, checked against `archive_sha256`, then decompressed; `sha256` is that of the decompressed file."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     h, n = hashlib.sha256(), 0
@@ -137,6 +159,18 @@ def download(url: str, dest: Path, want_sha: str | None, w: dict | None = None) 
         tmp.unlink(missing_ok=True)
         raise
     got, how = h.hexdigest(), ("sha256" if want_sha else None)
+    if w and w.get("compression") == "zstd":
+        arc = dest.with_name(dest.name + ".zst.part")
+        os.replace(tmp, arc)
+        try:
+            if w.get("archive_sha256") and got != w["archive_sha256"]:
+                raise SystemExit(f"fetch-inputs: {url} has sha256 {got}, the pin says {w['archive_sha256']}: not used")
+            got, n = _decompress(arc, tmp)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        finally:
+            arc.unlink(missing_ok=True)
     if want_sha and got != want_sha:
         if w and w.get("content") and content_sha256(tmp, w["content"]) == w["content"]["sha256"]:
             how = "content"

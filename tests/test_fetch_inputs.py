@@ -122,3 +122,23 @@ def test_an_upstream_build_with_an_added_column_is_accepted_by_content(tmp_path,
 def test_the_shipped_spine_pin_has_a_content_pin():
     spine = next(f for f in fi.load_list()["files"] if f["name"] == "spine")
     assert spine["content"]["sha256"] and spine["content"]["tables"][0]["order"] == ["key"]
+
+
+def test_a_zstd_asset_is_checked_then_decompressed(tmp_path, server):
+    root, base = server
+    try:
+        from compression import zstd
+        packed = zstd.compress(b"hello")
+    except ImportError:
+        import zstandard
+        packed = zstandard.ZstdCompressor().compress(b"hello")
+    (root / "a.bin").write_bytes(packed)
+    lst = _list(base, hashlib.sha256(b"hello").hexdigest())
+    lst["files"][0].update(compression="zstd", archive_sha256=hashlib.sha256(packed).hexdigest())
+    rec = fi.fetch(tmp_path / "data", [], False, lst=lst)
+    assert (tmp_path / "data" / "a.bin").read_bytes() == b"hello" and rec["files"]["a.bin"]["sha256"] == hashlib.sha256(b"hello").hexdigest()
+    assert sorted(x.name for x in (tmp_path / "data").iterdir()) == ["a.bin", "inputs.json"]
+    lst["files"][0]["archive_sha256"] = "0" * 64
+    (tmp_path / "data" / "a.bin").unlink()
+    with pytest.raises(SystemExit, match="not used"):
+        fi.fetch(tmp_path / "data", [], False, lst=lst)

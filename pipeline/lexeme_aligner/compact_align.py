@@ -969,6 +969,8 @@ def main() -> int:
                     help="edition path segment for --publish (default: derived from data/sources.json)")
     ap.add_argument("--morphed", action="store_true",
                     help="publish the alignment by word parts as its own edition, marked m: kvg_wbt -> kvg-m_wbt (beside the edition's own)")
+    ap.add_argument("--parts-pin", type=Path, default=None,
+                    help="JSON file: the manifest `parts` pin for a split not in config/target_parts.json (align-text --split)")
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--index-root", type=Path, default=Path("publish/compact-alignments/_index"),
                     help="root for the shared per-book verse-ref indices (--publish mode)")
@@ -1026,7 +1028,8 @@ def main() -> int:
         if args.not_in_statistics_pool:
             manifest_entry["statistics_pool"] = False
         from lexeme_aligner.target_parts import parts_pin
-        if (pin := parts_pin(args.iso)) and _has_parts_channel(written):
+        pin = json.loads(args.parts_pin.read_text(encoding="utf-8")) if args.parts_pin else parts_pin(args.iso)
+        if pin and _has_parts_channel(written):
             manifest_entry["parts"] = pin                     # what the meta `parts` channel's part numbers refer to         # absent = counted (every edition published before 2026-10-07)
         update_manifest(args.publish / "manifest.json", publish_iso, resolved_edition, manifest_entry)
         print(f"[compact_align] {publish_iso}/{resolved_edition}: {len(written)} book file(s) written "

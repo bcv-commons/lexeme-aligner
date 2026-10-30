@@ -271,6 +271,55 @@
           "source": "llm"
         }
       }
+    },
+    "zin": {
+      "layers": {
+        "zin-m_wbt+llm+jev-v4": {
+          "books": {
+            "1CO": "1CO_b8e89829.json",
+            "1JN": "1JN_4ba2ab08.json",
+            "1PE": "1PE_33aebe79.json",
+            "1TH": "1TH_4142cca5.json",
+            "1TI": "1TI_f9c8b428.json",
+            "2CO": "2CO_92562c90.json",
+            "2JN": "2JN_9f211cbf.json",
+            "2PE": "2PE_c851de3c.json",
+            "2TH": "2TH_ceba570f.json",
+            "2TI": "2TI_930c4334.json",
+            "3JN": "3JN_d9f2c22e.json",
+            "ACT": "ACT_31f17be6.json",
+            "COL": "COL_f6c52aa5.json",
+            "EPH": "EPH_ac727ac6.json",
+            "GAL": "GAL_661701e3.json",
+            "HEB": "HEB_81347817.json",
+            "JAS": "JAS_006c845b.json",
+            "JHN": "JHN_07da3597.json",
+            "JUD": "JUD_4a9daed1.json",
+            "LUK": "LUK_f39b9667.json",
+            "MAT": "MAT_d9f36912.json",
+            "MRK": "MRK_ad5726eb.json",
+            "PHM": "PHM_9a4dedbe.json",
+            "PHP": "PHP_c501bf51.json",
+            "REV": "REV_6164d8ef.json",
+            "ROM": "ROM_9d888c39.json",
+            "TIT": "TIT_c5944d04.json"
+          },
+          "cell": "jevC.zin_wbt.{BOOK}.v4.A.jev-0",
+          "edition": "zin-m_wbt",
+          "license": "CC0-1.0",
+          "name": "jev-v4",
+          "parts": {
+            "dataset": "bcv-commons/language-analysis",
+            "file": "zin/aa440920/split/words.parquet",
+            "format": "bcv-split",
+            "licence": "CC BY-SA 4.0: it holds the edition's text, cut into parts. Credit: Bibilia Endagaano Ensya (Zinza New Testament), Wycliffe Bible Translators, CC BY-SA 4.0",
+            "revision": "fe645bf60989af9d378f9a3046b2a99a8e6cca41",
+            "sha256": "0f6fef9e6b33847f7e501e71dbdef7dee3635148a92eea130e97297f6285c6b6"
+          },
+          "rows": 144514,
+          "source": "llm"
+        }
+      }
     }
   },
   "layout": "<iso[0]>/<iso>/<edition>+llm+<name>/<BOOK>_<hash>.json (+ .meta.json, _layer.json)"

@@ -28,6 +28,7 @@ import collections
 import json
 import re
 import unicodedata as ud
+import sys
 from pathlib import Path
 
 from lexeme_aligner.usj_source import strip_marks
@@ -328,3 +329,47 @@ def content_priors(tag: str, publish_iso: str, view_out: Path, view_dir: Path, a
                    part / "data.parquet")
     stats["rows"] = len(rows)
     return stats
+
+
+def split_mismatch(split: Path, usj_dir: Path) -> dict[str, tuple[str | None, str]]:
+    """{BOOK: (the split's text fingerprint, the text's)} for every book of `usj_dir` the split covers whose text is not the one the split
+    was made from (`_split.json` beside it, `text_fp`). Books the split does not cover are not listed (they stay whole words). Empty when
+    they agree, or when the split has no `_split.json` (then nothing can be checked)."""
+    from lexeme_aligner.text_fingerprint import book_file_hash
+    meta = Path(split).with_name("_split.json")
+    if not meta.exists():
+        return {}
+    fps = json.loads(meta.read_text(encoding="utf-8")).get("text_fp") or {}
+    out = {}
+    for fp in sorted(Path(usj_dir).glob("*.json")):
+        num, _, rest = fp.stem.partition("-")
+        if num.isdigit() and rest[:3] in fps and (h := book_file_hash(fp)) != fps[rest[:3]]:
+            out[rest[:3]] = (fps.get(rest[:3]), h)
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    """The parts route's own steps, for align-text to run under the write guard:
+        view   --usj REAL --split FILE --view DIR           write the parts view of the text
+        priors --tag T --iso ISO --view-out D --view DIR --split FILE --lex-root DIR    gloss priors from the view's eflomal links
+        fold   --tag T --view-out D --out OUT --view DIR --usj REAL [--methods a,b]      map the view's links back to the real tokens"""
+    import argparse
+    ap = argparse.ArgumentParser(prog="python -m lexeme_aligner.target_parts")
+    ap.add_argument("cmd", choices=["view", "priors", "fold"])
+    for f in ("--usj", "--split", "--view", "--view-out", "--out", "--lex-root"):
+        ap.add_argument(f, type=Path)
+    ap.add_argument("--tag"); ap.add_argument("--iso"); ap.add_argument("--methods", default="eflomal,gloss,spanext,gapfill,residual")
+    ap.add_argument("--min-p-split", type=float, default=0.9)
+    a = ap.parse_args(argv)
+    if a.cmd == "view":
+        maps = write_view(a.usj, a.view, load_parts(a.split, a.min_p_split))
+        print(f"[target_parts] view: {sum(len(v) for v in maps.values())} verses -> {a.view}", file=sys.stderr)
+    elif a.cmd == "priors":
+        print(f"[target_parts] priors: {dict(content_priors(a.tag, a.iso, a.view_out, a.view, a.split, a.lex_root))}", file=sys.stderr)
+    else:
+        print(f"[target_parts] fold: {dict(fold(a.tag, a.view_out, a.out, a.view, a.usj, tuple(a.methods.split(','))))}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

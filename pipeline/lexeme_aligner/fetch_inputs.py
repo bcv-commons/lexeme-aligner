@@ -12,6 +12,7 @@ the checkout:
     DATA/hebrew-clause-layout/clauses-<BOOK>.parquet   --jev: OT clause units
     DATA/language-analysis/source/<grc|hbo|arc>/jev.md   --jev: source-language rules (bsb-add-books)
     DATA/language-analysis/<iso>/jev.md            --jev: the language's target rules, if bsb-add-books published a module for it
+    DATA/language-analysis/<iso>/split/words.parquet   --split: the language's published word split (bcv-split), for align-text --split
     DATA/inputs.json                               what was fetched: source, sha256, licence, when
 
 A file already present with the right sha256 is not fetched again. A pinned file whose download has another sha256 is refused (the
@@ -201,6 +202,28 @@ def target_module_entries(manifest: dict, tm: dict, isos: list[str]) -> tuple[li
     return out, versions
 
 
+def split_entries(manifest: dict, tm: dict, isos: list[str]) -> tuple[list[dict], dict]:
+    """The published word split (split/words.parquet + split/_split.json) of each language's latest version that has one: (wanted entries,
+    {iso: pin or None}). The pin is what a compact manifest's `parts` entry names. Pure, the tests call it."""
+    out, pins = [], {}
+    for iso in isos:
+        vers = manifest.get("languages", {}).get(iso, {}).get("versions", {})
+        order = [manifest["languages"][iso].get("latest")] + sorted(vers, key=lambda v: vers[v].get("date", ""), reverse=True) if vers else []
+        ver = next((v for v in order if v and vers.get(v, {}).get("files", {}).get("split/words.parquet")), None)
+        if not ver:
+            pins[iso] = None
+            continue
+        files, lic = vers[ver]["files"], vers[ver].get("licence", {})
+        pins[iso] = {"dataset": tm["repo"], "revision": tm["revision"], "file": f"{iso}/{ver}/split/words.parquet",
+                     "sha256": files["split/words.parquet"], "format": "bcv-split", "licence": lic.get("split/", tm["licence"])}
+        for f in ("split/words.parquet", "split/_split.json"):
+            if f in files:
+                out.append({"name": f"split_{iso}", "url": hf_url(tm["repo"], tm["revision"], f"{iso}/{ver}/{f}"),
+                            "dest": f"language-analysis/{iso}/{f}", "sha256": files[f], "bytes": None,
+                            "licence": pins[iso]["licence"], "optional": False, "content": None})
+    return out, pins
+
+
 def _get(w: dict, data: Path, record: dict, log) -> None:
     dest = data / w["dest"]
     prev = record["files"].get(w["dest"])
@@ -224,19 +247,27 @@ def _get(w: dict, data: Path, record: dict, log) -> None:
                                   **({"accepted_by": got[2]} if got[2] else {})}
 
 
-def fetch(data: Path, isos: list[str], jev: bool, lst: dict | None = None, log=sys.stderr) -> dict:
+def fetch(data: Path, isos: list[str], jev: bool, lst: dict | None = None, log=sys.stderr, split: bool = False) -> dict:
     lst = lst or load_list()
     data.mkdir(parents=True, exist_ok=True)
     rec_fp = data / RECORD
     record = json.loads(rec_fp.read_text(encoding="utf-8")) if rec_fp.exists() else {"files": {}, "isos": []}
     for w in wanted(lst, isos, jev):
         _get(w, data, record, log)
-    if jev and lst.get("target_modules") and isos:
+    if (jev or split) and lst.get("target_modules") and isos:
         tm = lst["target_modules"]
         _get({"name": "language_analysis_manifest", "url": hf_url(tm["repo"], tm["revision"], "manifest.json"),
               "dest": "language-analysis/manifest.json", "sha256": None, "bytes": None, "licence": tm["licence"], "optional": False,
               "content": None}, data, record, log)
         manifest = json.loads((data / "language-analysis/manifest.json").read_text(encoding="utf-8"))
+    if split and lst.get("target_modules") and isos:
+        entries, pins = split_entries(manifest, tm, isos)
+        for w in entries:
+            _get(w, data, record, log)
+        record.setdefault("splits", {}).update(pins)
+        for iso, pin in pins.items():
+            print(f"[fetch-inputs] split {iso}: " + (pin["file"] if pin else "none published"), file=log)
+    if jev and lst.get("target_modules") and isos:
         entries, versions = target_module_entries(manifest, tm, isos)
         for w in entries:
             _get(w, data, record, log)
@@ -259,11 +290,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--iso", action="append", default=[], help="language(s) whose grammar facts to fetch (ISO 639-3); repeatable")
     ap.add_argument("--jev", action="store_true", help="also what LLM (Jev) checking needs: clause layouts, source modules, the "
                     "language's target module when bsb-add-books has published one")
+    ap.add_argument("--split", action="store_true", help="also the language's published word split (language-analysis), for "
+                    "align-text --split (alignment by word parts)")
     args = ap.parse_args(argv)
     data = (args.data or default_data()).expanduser().resolve()
     if data == REPO or data.is_relative_to(REPO) and not data.is_relative_to(REPO / "pipeline" / "work"):
         raise SystemExit(f"fetch-inputs: choose a data folder outside the checkout (or under pipeline/work): {data}")
-    fetch(data, args.iso, args.jev)
+    fetch(data, args.iso, args.jev, split=args.split)
     print(f"[fetch-inputs] done: {data}", file=sys.stderr)
     return 0
 

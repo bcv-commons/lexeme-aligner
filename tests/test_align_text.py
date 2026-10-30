@@ -64,3 +64,32 @@ def test_jev_plan_asks_book_by_book_with_modules_and_the_fixed_variant(tmp_path)
     cmd = plan[0][1]
     assert cmd[0] == "lexeme_aligner.eval.jev_clauses" and "--dry-run" not in cmd and "--max-usd" not in cmd
     assert cmd[cmd.index("--conventions") + 1] == "modules" and cmd[cmd.index("--variant") + 1] == align_text.JEV_VARIANT
+
+
+def test_plan_parts_runs_the_view_route_then_folds_and_compacts_morphed(tmp_path):
+    steps = align_text.plan_parts(tmp_path / "usj", "zin_wbt", "zin", tmp_path, "--nt", False, None, tmp_path / "words.parquet")
+    names = [s[0] for s in steps]
+    assert names == ["parts-view", "eflomal", "part-priors", "gloss", "spanext", "gapfill", "residual", "fold", "compact"]
+    env = dict((s[0], s[2]) for s in steps)
+    assert env["eflomal"]["ALIGNER_OUT"] == str(tmp_path / "parts" / "out")
+    assert env["gloss"]["ALIGNER_LEX_ROOT"] == str(tmp_path / "parts" / "priors")
+    compact = steps[-1][1]
+    assert "--morphed" in compact and compact[compact.index("--usj-dir") + 1] == str(tmp_path / "usj")
+    assert "--parts" in align_text.jev_plan("zin_wbt", "zin", tmp_path, ["PHM"], 2, tmp_path / "w.parquet")[0][1]
+
+
+def test_resolve_split_refuses_a_split_made_from_another_text(tmp_path):
+    import json
+    usj = tmp_path / "usj"
+    usj.mkdir()
+    (usj / "57-PHM.json").write_text(json.dumps({"type": "USJ", "content": [{"type": "book", "code": "PHM"}, {"type": "chapter", "number": "1"},
+                                                  {"type": "para", "content": [{"type": "verse", "number": "1"}, "Paulo"]}]}))
+    split = tmp_path / "words.parquet"
+    split.write_bytes(b"x")
+    (tmp_path / "_split.json").write_text(json.dumps({"text_fp": {"PHM": "00000000", "MAT": "11111111"}}))
+    with pytest.raises(SystemExit, match="another text for PHM"):
+        align_text.resolve_split(str(split), "zin", None, usj)
+    from lexeme_aligner.text_fingerprint import book_file_hash
+    (tmp_path / "_split.json").write_text(json.dumps({"text_fp": {"PHM": book_file_hash(usj / "57-PHM.json")}}))
+    fp, pin = align_text.resolve_split(str(split), "zin", None, usj)
+    assert fp == split and pin["format"] == "bcv-split" and pin["file"] == "words.parquet"

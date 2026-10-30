@@ -26,6 +26,16 @@ modules, and their target module for the language when one is published, else a 
 `--jev` alone only estimates the cost (nothing sent); `--jev --max-usd X` runs when the estimate is at most X and stops sending at X.
 Answers are cached in OUT/jev/responses (a re-run never pays twice); the layer goes to OUT/full-alignments-llm/<i>/<iso>/<edition>+llm+jev-v4.
 
+By word parts (2026-10-30): `--split FILE` (a bcv-split words.parquet made for THIS text; its _split.json text fingerprints are checked)
+or `--split auto` (the language's published split, `fetch-inputs --split`) aligns the text by parts as full_chain's parts route does:
+the parts view in OUT/parts/usj, eflomal (+ NT bridge) / part-level gloss priors / gloss / span extension / gapfill / residual on it in
+OUT/parts/out, folded back to the real tokens in OUT, then compact as the MORPHED edition (`<iso>-m_<rest>`, meta `parts` channel,
+manifest `parts` pin). With --jev, Jev is asked on the parts view and its layer is the morphed edition's too.
+
+Repeated runs (2026-10-30): `--runs N` runs the chain N times (run 1 in OUT, the others in OUT/runs/run<k>) and adds to run 1's compact
+`.meta.json` a `runs` channel: per aligned entry, how many of the N runs made exactly that link (lexeme_aligner.run_agreement). Links all
+runs agree on are far more precise than the rest (make-tanakh, Kuni Ruth: 0.706 vs 0.232). Jev, when asked, works on run 1.
+
 `--data DIR` (or `$ALIGNER_DATA`) takes the spine, prior-pack and the language's grammar facts from the folder `lexeme-aligner fetch-inputs
 --iso ISO` filled, instead of their places in this checkout. The checkout is the working directory of every step (settings are read
 relative to it).
@@ -98,6 +108,63 @@ def scope_of(books: set[str]) -> str:
     return "--all" if ot and nt else "--ot" if ot else "--nt"
 
 
+PARTS = "parts"                              # OUT/parts/{usj,out,priors}: the parts view and the steps' raw output on it
+
+
+def plan_parts(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None,
+               split: Path) -> list[tuple[str, list[str], dict]]:
+    """[(step name, [module, args...], extra env)] for alignment by word parts — pure, the tests call it."""
+    view, vout, priors = out / PARTS / "usj", out / PARTS / "out", out / PARTS / "priors"
+    venv = {"ALIGNER_OUT": str(vout)}
+    common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(view), "--out", str(vout)]
+    name = ["--lang-name", lang_name] if lang_name else []
+    pilot = ["lexeme_aligner.run_pilot", *common, *name]
+    steps: list[tuple[str, list[str], dict]] = [
+        ("parts-view", ["lexeme_aligner.target_parts", "view", "--usj", str(usj), "--split", str(split), "--view", str(view)], {})]
+    if bridge:
+        steps += [("eflomal-nt", [*pilot, "--method", "eflomal", "--nt"], venv),
+                  ("eflomal-ot", [*pilot, "--method", "eflomal", "--ot", "--nt-bridge"], venv)]
+    else:
+        steps += [("eflomal", [*pilot, "--method", "eflomal", scope], venv)]
+    steps += [
+        ("part-priors", ["lexeme_aligner.target_parts", "priors", "--tag", edition, "--iso", iso, "--view-out", str(vout), "--view", str(view),
+                         "--split", str(split), "--lex-root", str(priors)], venv),
+        ("gloss", [*pilot, "--method", "gloss", scope], dict(venv, ALIGNER_LEX_ROOT=str(priors))),
+        ("spanext", ["lexeme_aligner.span_extension", *common, scope, "--methods", "eflomal,gloss"], venv),
+        ("gapfill", ["lexeme_aligner.gapfill", *common, scope, "--methods", "eflomal,gloss,spanext"], venv),
+        ("residual", ["lexeme_aligner.residual_align", *common, scope, "--methods", "eflomal,gloss,spanext"], venv),
+        ("fold", ["lexeme_aligner.target_parts", "fold", "--tag", edition, "--view-out", str(vout), "--out", str(out), "--view", str(view),
+                  "--usj", str(usj)], {}),
+        ("compact", ["lexeme_aligner.compact_align", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj), "--methods", _METHODS,
+                     "--out-dir", str(out), "--publish", str(out / "compact"), "--morphed", "--parts-pin", str(out / "parts-pin.json")], {}),
+    ]
+    return steps
+
+
+def resolve_split(arg: str, iso: str, data: Path | None, usj: Path) -> tuple[Path, dict]:
+    """(the split file, its manifest `parts` pin). `auto` = the language's published split in the data folder (fetch-inputs --split)."""
+    from lexeme_aligner import target_parts
+    if arg == "auto":
+        if data is None:
+            raise SystemExit("align-text: --split auto reads the data folder: pass --data (or set ALIGNER_DATA)")
+        rec = json.loads((data / "inputs.json").read_text(encoding="utf-8")) if (data / "inputs.json").exists() else {}
+        pin = (rec.get("splits") or {}).get(iso)
+        fp = data / "language-analysis" / iso / "split" / "words.parquet"
+        if not pin or not fp.is_file():
+            raise SystemExit(f"align-text: no published split for {iso} in {data} (run lexeme-aligner fetch-inputs --split --iso {iso})")
+    else:
+        fp = Path(arg).expanduser().resolve()
+        if not fp.is_file():
+            raise SystemExit(f"align-text: no split file {fp}")
+        pin = {"format": "bcv-split", "file": fp.name, "sha256": sha256(fp)}
+    if sha256(fp) != pin.get("sha256"):
+        raise SystemExit(f"align-text: {fp} is not the file its pin names (sha256 {pin.get('sha256')})")
+    if bad := target_parts.split_mismatch(fp, usj):
+        raise SystemExit("align-text: the split was made from another text for " + ", ".join(sorted(bad))
+                         + " (its _split.json text fingerprints differ from this text's); use the split made for this text")
+    return fp, pin
+
+
 def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None) -> list[tuple[str, list[str]]]:
     """[(step name, [module, args...])] — pure, the tests call it."""
     common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj)]
@@ -154,13 +221,15 @@ def _file_entry(fp: Path) -> dict:
 JEV_VARIANT, JEV_MARGIN = "A", 3          # cells jevC.<edition>.<BOOK>.v4.A.jev-<θ>; margin = the fleet's (Kuni 2026-10-28)
 
 
-def jev_plan(edition: str, iso: str, usj: Path, books: list[str], workers: int) -> list[tuple[str, list[str]]]:
-    """[(book, jev_clauses args without --dry-run / --max-usd)] — pure, the tests call it."""
+def jev_plan(edition: str, iso: str, usj: Path, books: list[str], workers: int, split: Path | None = None) -> list[tuple[str, list[str]]]:
+    """[(book, jev_clauses args without --dry-run / --max-usd)] — pure, the tests call it. With `split`, `usj` is the parts view."""
     return [(b, ["lexeme_aligner.eval.jev_clauses", "--iso", edition, "--publish-iso", iso, "--book", b, "--margin", str(JEV_MARGIN),
-                 "--conventions", "modules", "--usj-dir", str(usj), "--variant", JEV_VARIANT, "--workers", str(workers)]) for b in books]
+                 "--conventions", "modules", "--usj-dir", str(usj), "--variant", JEV_VARIANT, "--workers", str(workers),
+                 *(["--parts", str(split)] if split else [])]) for b in books]
 
 
-def jev_stage(args, usj: Path, out: Path, data: Path | None, env: dict, books: list[str], record: dict, run, save) -> bool:
+def jev_stage(args, usj: Path, out: Path, data: Path | None, env: dict, books: list[str], record: dict, run, save,
+              split: Path | None = None) -> bool:
     """Estimate every book (no call); stop there without --max-usd or when the estimate is above it; else ask Jev book by book, each
     book capped at what is left of --max-usd, then build the LLM layer into OUT/full-alignments-llm."""
     if data is not None:
@@ -169,7 +238,9 @@ def jev_stage(args, usj: Path, out: Path, data: Path | None, env: dict, books: l
             raise SystemExit(f"align-text: run lexeme-aligner fetch-inputs --jev --iso {args.iso} first")
         record["jev_target_module"] = (fetched.get("target_modules") or {}).get(args.iso)
     jenv = dict(env, ALIGNER_JEV_WORK=str(out / "jev"), **({"ALIGNER_JEV_INPUTS": str(data)} if data is not None else {}))
-    plan_ = jev_plan(args.edition, args.iso, usj, books, args.jev_workers)
+    if split:                                       # asked on the parts view; cells land beside the view's other raw output
+        jenv["ALIGNER_OUT"] = str(out / PARTS / "out")
+    plan_ = jev_plan(args.edition, args.iso, out / PARTS / "usj" if split else usj, books, args.jev_workers, split)
     est: dict = {}
     for b, cmd in plan_:
         code, stdout = run(f"jev-estimate-{b}", [*cmd, "--dry-run"], jenv, capture=True)
@@ -202,8 +273,36 @@ def jev_stage(args, usj: Path, out: Path, data: Path | None, env: dict, books: l
         record["jev"]["spent_usd"] = round(spent, 4)
         save()
     code, _ = run("jev-layer", ["lexeme_aligner.align_text", "--layer", "--usj", str(usj), "--edition", args.edition, "--iso", args.iso,
-                                "--out", str(out), "--books", ",".join(books)], jenv)
+                                "--out", str(out), "--books", ",".join(books), *(["--parts"] if split else [])], env)
+    if code == 0 and data is not None and (conv := modules_record(data, args.iso, books)):
+        for layer_dir in (out / "full-alignments-llm").glob(f"?/{args.iso}/*+llm+jev-v4"):
+            (layer_dir / "_conventions.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return code == 0
+
+
+def modules_record(data: Path, iso: str, books: list[str]) -> dict | None:
+    """The `_conventions.json` of a layer asked with the language modules fetch-inputs --jev put in the data folder: per book the source
+    module (grc for the NT, hbo for the OT; arc beside it in `files`) and the language's target module, each named `<commit8>/<path in
+    the dataset>` from its download URL, with sha256 and licence. None without a data folder or without the files."""
+    from lexeme_aligner.run_pilot import NT_BOOKS
+    rec = json.loads((data / "inputs.json").read_text(encoding="utf-8")) if (data / "inputs.json").exists() else {}
+    def name(dest: str) -> tuple[str, dict] | None:
+        f = rec.get("files", {}).get(dest)
+        if not f or "/resolve/" not in f.get("url", ""):
+            return None
+        rev, path = f["url"].split("/resolve/", 1)[1].split("/", 1)
+        return f"{rev[:8]}/{path}", {"sha256": f["sha256"], "license": f.get("licence")}
+    mods = {k: name(f"language-analysis/{d}/jev.md") for k, d in
+            (("grc", "source/grc"), ("hbo", "source/hbo"), ("arc", "source/arc"), ("target", iso))}
+    if not mods["grc"] and not mods["hbo"]:
+        return None
+    nt = set(NT_BOOKS)
+    out = {"dataset": "bcv-commons/language-analysis", "mode": "modules", "credit": "make-tanakh (formerly bsb-add-books)", "books": {},
+           "files": {n: meta for n, meta in filter(None, mods.values())}}
+    for b in books:
+        src = mods["grc"] if b in nt else mods["hbo"]
+        out["books"][b] = {**({"source": src[0]} if src else {}), **({"target": mods["target"][0]} if mods["target"] else {})}
+    return out
 
 
 def layer_main(argv: list[str]) -> int:
@@ -212,10 +311,23 @@ def layer_main(argv: list[str]) -> int:
     ap.add_argument("--layer", action="store_true"); ap.add_argument("--usj", type=Path, required=True)
     ap.add_argument("--edition", required=True); ap.add_argument("--iso", required=True); ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--books", required=True)
+    ap.add_argument("--parts", action="store_true", help="the cells were asked on the parts view (OUT/parts): fold them, morphed edition")
     a = ap.parse_args(argv)
     from lexeme_aligner.fullalign_build import build_llm_layer
-    rep = build_llm_layer(a.edition, a.iso, a.usj, f"jevC.{a.edition}.{{BOOK}}.v4.{JEV_VARIANT}.jev-0", "jev-v4", books=a.books.split(","),
-                          out_dir=a.out, out_root=a.out / "full-alignments-llm", compact_root=REPO / "publish" / "compact-alignments")
+    cell = f"jevC.{a.edition}.{{BOOK}}.v4.{JEV_VARIANT}.jev-0"
+    books = a.books.split(",")
+    extra: dict = {}
+    cells = a.out
+    if a.parts:
+        from lexeme_aligner import target_parts
+        from lexeme_aligner.compact_align import marked_edition
+        cells = a.out / PARTS / "llm-folded"
+        for b in books:
+            target_parts.fold(cell.format(BOOK=b), a.out / PARTS / "out", cells, a.out / PARTS / "usj", a.usj, methods=("llm",))
+        extra = {"edition": marked_edition(a.edition, a.iso, "m"),
+                 "parts_pin": json.loads((a.out / "parts-pin.json").read_text(encoding="utf-8"))}
+    rep = build_llm_layer(a.edition, a.iso, a.usj, cell, "jev-v4", books=books, out_dir=cells, out_root=a.out / "full-alignments-llm",
+                          compact_root=REPO / "publish" / "compact-alignments", **extra)
     print(json.dumps(rep["layers"], ensure_ascii=False))
     return 0
 
@@ -240,6 +352,9 @@ def main(argv: list[str] | None = None) -> int:
                     "without --max-usd only the cost estimate is made; needs `fetch-inputs --jev` in the data folder")
     ap.add_argument("--max-usd", type=float, default=None, help="with --jev: the most this run may spend; refused when the estimate is above")
     ap.add_argument("--jev-workers", type=int, default=4, help="with --jev: requests in parallel")
+    ap.add_argument("--split", default=None, help="align by word parts: a bcv-split words.parquet made for this text, or `auto` = the "
+                    "language's published split (fetch-inputs --split); output is the morphed edition <iso>-m_<rest>")
+    ap.add_argument("--runs", type=int, default=1, help="run the chain N times; run 1's compact gets a `runs` agreement channel")
     ap.add_argument("--books", default=None, help="with --jev: only these books (comma-separated codes, e.g. PHM,RUT); the chain still "
                     "aligns every book of the text")
     args = ap.parse_args(argv)
@@ -275,7 +390,24 @@ def main(argv: list[str] | None = None) -> int:
     digest, books = text_digest(usj)
     scope = scope_of(set(books))
     bridge = scope == "--all" and nt_bridge.applies(usj)
-    steps = plan(usj, args.edition, args.iso, out, scope, bridge, args.lang_name)
+    split, split_pin = (None, None)
+    if args.split:
+        if not args.edition.lower().startswith(args.iso.lower()):
+            raise SystemExit(f"align-text: with --split the edition id must start with the iso ({args.iso}_...): it is marked {args.iso}-m_...")
+        split, split_pin = resolve_split(args.split, args.iso, data, usj)
+    if args.runs < 1:
+        raise SystemExit("align-text: --runs must be at least 1")
+    run_dirs = [out] + [out / "runs" / f"run{k}" for k in range(2, args.runs + 1)]
+    runs_plan = []                                   # (run dir, its env, its steps)
+    for rd in run_dirs:
+        rd.mkdir(parents=True, exist_ok=True)
+        if split:
+            (rd / "parts-pin.json").write_text(json.dumps(split_pin, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            rsteps = plan_parts(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, split)
+        else:
+            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name)
+        runs_plan.append((rd, step_env(rd, data), rsteps))
+    steps = runs_plan[0][2]
 
     record = {
         "tool": "lexeme-aligner align-text", "version": package_version(),
@@ -284,6 +416,8 @@ def main(argv: list[str] | None = None) -> int:
         "text": {"path": str(usj), "sha256": digest, "books": books, "format": text_format,
                  **({"source": str(given), "source_sha256": text_input.source_digest(given)} if usj != given else {})},
         "scope": scope.lstrip("-"), "nt_bridge": bridge,
+        **({"split": {"path": str(split), "pin": split_pin}} if split else {}),
+        **({"runs": args.runs} if args.runs > 1 else {}),
         "data": {k: _file_entry(fp) for k, fp in inputs.items()},
         "settings": {p.replace("<iso>", args.iso): _file_entry(settings_path(p, args.iso, data)) for p in SETTINGS},
         "steps": [],
@@ -310,7 +444,13 @@ def main(argv: list[str] | None = None) -> int:
                   + (f" and {out / 'guard.log'}" if (out / "guard.log").exists() else ""), file=sys.stderr)
         return r.returncode, r.stdout if capture else ""
 
-    ok = all(run(name, cmd)[0] == 0 for name, cmd in steps)          # all() stops at the first failed step
+    ok = True
+    for k, (rd, renv, rsteps) in enumerate(runs_plan, 1):
+        sfx = f"-run{k}" if k > 1 else ""
+        ok = ok and all(run(name + sfx, cmd, dict(renv, **(more[0] if more else {})))[0] == 0 for name, cmd, *more in rsteps)
+    if ok and len(runs_plan) > 1:
+        ok = run("agreement", ["lexeme_aligner.run_agreement", "--main", str(out / "compact"),
+                               "--runs", *[str(rd / "compact") for rd, _e, _s in runs_plan[1:]]])[0] == 0
     if ok and args.jev:
         jbooks = books
         if args.books:
@@ -319,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
             if missing:
                 raise SystemExit(f"align-text: --books {','.join(missing)} not in the text ({','.join(books)})")
             jbooks = want
-        ok = jev_stage(args, usj, out, data, env, jbooks, record, run, save)
+        ok = jev_stage(args, usj, out, data, env, jbooks, record, run, save, split)
     log.close()
     record["finished"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     record["ok"] = ok

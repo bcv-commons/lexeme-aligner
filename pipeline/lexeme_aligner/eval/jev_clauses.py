@@ -56,8 +56,8 @@ MODULES = Path("pipeline/vendor/language-analysis/7bce4665")
 SOURCE_MODULE = {"grc": MODULES / "source/grc/30f77fbf/jev.md",           # per unit language (the Hebrew layout's `language`)
                  "hbo": Path("pipeline/vendor/language-analysis/ab1298c2/source/hbo/0ccf857a/jev.md"),
                  "arc": Path("pipeline/vendor/language-analysis/ab1298c2/source/arc/634f9d1f/jev.md")}
-TARGET_MODULE = {"zin": Path("pipeline/vendor/language-analysis/fe645bf6/zin/aa440920/jev.md"),   # 2026-10-30: format 3
-                 "kvg": Path("pipeline/vendor/language-analysis/fe645bf6/kvg/3d2dd099/jev.md")}
+TARGET_MODULE = {"zin": Path("pipeline/vendor/language-analysis/b7b758a0/zin/d33c99ab/jev.md"),   # 2026-10-30: format 4
+                 "kvg": Path("pipeline/vendor/language-analysis/b7b758a0/kvg/b54d7f20/jev.md")}
 # align-text (2026-10-29): ALIGNER_JEV_INPUTS = the data folder `fetch-inputs --jev` filled; layouts and modules are read from there
 # (a language without a target module gets the generic conventions text).
 _JEV_INPUTS = os.environ.get("ALIGNER_JEV_INPUTS")

@@ -47,6 +47,22 @@ def lxx_bridge(prior_pack: Path = PRIOR_PACK) -> dict[str, list[str]]:
             if lx.startswith("hbo:") and gs}
 
 
+def table_bridge(path: Path, tiers: set[str] | None = None) -> dict[str, list[str]]:
+    """Hebrew Strong's (the spine's number, `H0001`) -> padded Greek Strong's, from a tiered bridge table (TSV hebrew, greek, tier,
+    count, score; make-tanakh's strong_bridge_bq.tsv = bcv-query's macula + glaux LXX tiers + a Jev tier). `tiers` limits the rows.
+    Experimental (ALIGNER_NT_BRIDGE_TABLE), A/B against lxx_greek in pipeline/work/nt-bridge/run5.py."""
+    import csv
+    out: dict[str, list[str]] = collections.defaultdict(list)
+    with open(path, encoding="utf-8", newline="") as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            if tiers and r["tier"] not in tiers:
+                continue
+            g = f"G{int(r['greek'][1:]):04d}"
+            if g not in out[r["hebrew"]]:
+                out[r["hebrew"]].append(g)
+    return dict(out)
+
+
 def nt_renderings(tag: str, out_dir: Path) -> dict[str, collections.Counter]:
     """Greek Strong's -> Counter of target words, from this edition's NT eflomal files (content pairs on one target token)."""
     from lexeme_aligner.run_pilot import NT_BOOKS
@@ -70,14 +86,19 @@ def build_priors(recs, tag: str, out_dir: Path, cfg: dict | None = None) -> list
     rend = nt_renderings(tag, out_dir)
     if not rend:
         raise SystemExit(f"[nt_bridge] {tag}: no NT eflomal alignment in {out_dir} — run `run_pilot --nt` first")
-    br = lxx_bridge()
+    import os
+    table = os.environ.get("ALIGNER_NT_BRIDGE_TABLE")
+    tiers = set(filter(None, os.environ.get("ALIGNER_NT_BRIDGE_TIERS", "").split(","))) or None
+    by_strong = table_bridge(Path(table), tiers) if table else None
+    br = {} if table else lxx_bridge()
     top_k, min_share, scale = cfg.get("top_k", 5), cfg.get("min_share", 0.1), cfg.get("scale", 2.0)
     best: dict[tuple[str, str], float] = {}
     for r in recs:
         for t in r.heb:
-            if not (t.is_content and t.strong and t.lexeme in br):
+            greek = (by_strong.get(t.strong) if by_strong is not None else br.get(t.lexeme)) if t.is_content and t.strong else None
+            if not greek:
                 continue
-            for g in br[t.lexeme]:
+            for g in greek:
                 c = rend.get(g)
                 if not c:
                     continue

@@ -29,6 +29,7 @@ A layer id is `<edition>+llm+<name>`, where `<edition>` is the compact-alignment
 | `ell_GreVamvas+llm+jev-v4` | Neophytos Vamvas 1850, Modern Greek (public domain; CrossWire GreVamvas via bcv-commons/bibles), 66 books | TypeSafe Jev (`jev-1.13.0`), design v4 | 624,632 |
 | `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4, asked by clause with bsb-add-books' language modules (since v1.1; v1.0 was asked by verse) | 148,352 |
 | `kvg-m_wbt+llm+jev-v4` | the same Kuni-Boazi text, **morphed** (aligned by word parts, see below), 29 books | as above, on the text split into parts with bsb-add-books' Kuni segmenter | 148,398 |
+| `zin-m_wbt+llm+jev-v4` | Endagano Eénsha omu Chiziinza, Zinza (© 2024 Wycliffe Bible Translators, CC BY-SA 4.0; eBible `zin` via bible.helloao.org), **morphed**, New Testament, 27 books | TypeSafe Jev, design v4, by clause with make-tanakh's modules (`zin/aa440920`), on the text split into parts with their published Zinza split | 144,514 |
 | `eng_kjv+llm+jev-v4` | King James Version, 1769 text (public domain outside the UK; eBible `eng-kjv2006` via bible.helloao.org), **Old Testament**, 39 books. Its New Testament was aligned to the Textus Receptus and is in [alignments-by-id](https://huggingface.co/datasets/bcv-commons/alignments-by-id) (`tr/e/eng/eng_kjv`) | TypeSafe Jev (`jev-1.14.0`), design v4; the KJV's own Strong's tagging cleared a word's doubt where the proposal matched it, and function-word links Jev kept at least 97% of the time on Ruth, Jonah, Esther and 1 Samuel were not asked again in the other books | 483,700 |
 
 **Design v4:** for each verse the model is asked about every target function word and every source function word, and about each
@@ -55,7 +56,8 @@ other layer (links to whole tokens); the meta file adds a `parts` channel, one s
 for each source word linked to a part (`c<n>` content word, `f<n>` function word, `p<n>` pooled; a token linked whole is written
 bare). It holds part NUMBERS only, no text. The manifest entry's `parts` says how to rebuild the parts: segmenter (dataset, revision,
 module, sha256 of its files, unicode version), numbering rule and credit. Kuni: bcv-commons/language-analysis kvg/d8fdb53e
-(bsb-add-books). A Greek negative (οὐ, μή ...) is linked to a Kuni negation suffix (-eav, -ak, -av) in 23% of its occurrences in the
+(bsb-add-books). Zinza: the published split itself (bcv-commons/language-analysis `zin/aa440920/split/words.parquet`, sha256 in the
+entry; make-tanakh), whose part numbers the `parts` channel uses. A Greek negative (οὐ, μή ...) is linked to a Kuni negation suffix (-eav, -ak, -av) in 23% of its occurrences in the
 morphed layer against 3% in the whole-word one.
 
 ## File format
@@ -80,7 +82,8 @@ name the compact file of that text has, so a file only matches the exact text it
 
 Each release is a git tag of this repo (`v1.0`, …); pin a tag (`revision="v1.0"`) rather than `main`. A tag is never moved: a
 rebuild becomes a new tag. `v1.0` (2026-10-26) is the first tag; it adds the owner-less `+` words to all three layers. `v1.1`
-(2026-10-28): Kuni-Boazi asked again by clause, and the morphed Kuni layer `kvg-m_wbt+llm+jev-v4`.
+(2026-10-28): Kuni-Boazi asked again by clause, and the morphed Kuni layer `kvg-m_wbt+llm+jev-v4`. `v1.2` (2026-10-30): the morphed
+Zinza New Testament `zin-m_wbt+llm+jev-v4`, made with `lexeme-aligner align-text --split auto --jev`.
 
 ## Verse mapping
 
@@ -90,4 +93,4 @@ Spans are keyed by the source verse (Hebrew WLC numbering in the OT); read the t
 
 ## License
 
-The alignments are CC0 1.0. They hold no text; the edition named by each layer keeps its own licence (Vamvas: public domain; Kuni-Boazi `kvg_wbt`: CC BY-NC-ND 4.0, Wycliffe Switzerland).
+The alignments are CC0 1.0. They hold no text; the edition named by each layer keeps its own licence (Vamvas: public domain; Kuni-Boazi `kvg_wbt`: CC BY-NC-ND 4.0, Wycliffe Switzerland; Zinza `zin_wbt`: CC BY-SA 4.0, Wycliffe Bible Translators).

@@ -76,7 +76,28 @@ What you get in `OUT`:
 The quality depends on how much text there is. The statistical aligner learns from your text alone, so a whole New Testament
 aligns much better than one book.
 
-## 5. Optional: check the links with an LLM (paid, your key)
+## 5. Options
+
+**Confidence from repeated runs.** The statistical aligner samples, so two runs on the same text differ a little. `--runs 3` runs the
+chain three times (the extra runs go in `OUT/runs/`) and adds a `runs` channel to each book's `.meta.json`: one digit per aligned entry,
+in the same order as the entries, saying how many of the runs made exactly that link. Links that every run makes are much more often
+right than the rest: on Kuni Ruth, make-tanakh measured precision 0.71 for links two runs share against 0.23 for the others. On the
+WEB sample, 85% of links are made by all three runs.
+
+**Alignment by word parts.** For a language whose words carry prefixes and suffixes, `--split` aligns the parts (prefixes, stem,
+suffixes) instead of whole words. Give it a word split in the bcv-split format (see [docs/split-format.md](../docs/split-format.md))
+made for exactly this text, or `--split auto` for the language's published split:
+
+```bash
+.venv/bin/lexeme-aligner fetch-inputs --iso zin --split                # the published split, if there is one (Zinza has one)
+.venv/bin/lexeme-aligner align-text --text zin-nt/ --edition zin_wbt --iso zin --out ~/zin-out --split auto
+```
+
+The split's text fingerprints are checked against your text, so a split made for another text is refused. The output is the
+**morphed** edition `<iso>-m_<rest>` (here `zin-m_wbt`). Its `.meta.json` has a `parts` channel saying which part of each word a link
+goes to, and the manifest names the split it was made with. The edition id must start with the ISO code.
+
+## 6. Optional: check the links with an LLM (paid, your key)
 
 `--jev` sends every clause, with the chain's proposal, to TypeSafe's Jev model and builds a second layer from its answers. You
 need your own `TYPESAFE_API_KEY`, and you pay TypeSafe directly.
@@ -92,11 +113,11 @@ TYPESAFE_API_KEY=apikey_... .venv/bin/lexeme-aligner align-text ... --force --je
   estimated at about $0.66. Philemon alone cost $0.014.
 - **Fewer books:** `--books PHM,RUT` limits the check to those books.
 - **Cache:** answers are cached in `OUT/jev/responses`, so running again never pays twice.
-- **Output:** the layer goes to `OUT/full-alignments-llm/`.
+- **Output:** the layer goes to `OUT/full-alignments-llm/`. With `--split`, Jev is asked about the parts, and the layer belongs to the morphed edition.
 - **Language notes:** for most languages Jev gets a generic description of the task. Languages that a team has written notes
   for (currently Kuni, `kvg`) get those notes.
 
-## 6. Licences
+## 7. Licences
 
 - **The code** is GPL-3.0 (because eflomal is GPL).
 - **Your text and your output are yours.** Nothing is uploaded.
@@ -107,7 +128,7 @@ TYPESAFE_API_KEY=apikey_... .venv/bin/lexeme-aligner align-text ... --force --je
 
   If you publish output, credit MACULA. If you publish anything that includes the CC BY-SA inputs, use the same licence for it.
 
-## 7. Check your setup
+## 8. Check your setup
 
 `pipeline/scripts/clean_install_test.sh` does all of the above in a temporary folder with a fresh clone, a new venv and the
 WEB sample, then checks the result. Use `PY=python3.12` to test with another interpreter, and `--worktree` to test your local

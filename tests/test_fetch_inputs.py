@@ -142,3 +142,13 @@ def test_a_zstd_asset_is_checked_then_decompressed(tmp_path, server):
     (tmp_path / "data" / "a.bin").unlink()
     with pytest.raises(SystemExit, match="not used"):
         fi.fetch(tmp_path / "data", [], False, lst=lst)
+
+
+def test_split_entries_take_the_latest_version_with_a_split():
+    m = {"languages": {"zin": {"latest": "b", "versions": {
+        "a": {"date": "2026-10-27", "files": {"split/words.parquet": "s1", "split/_split.json": "j1"}, "licence": {"split/": "CC BY-SA"}},
+        "b": {"date": "2026-10-30", "files": {"jev.md": "x"}}}}, "kvg": {"latest": "c", "versions": {"c": {"files": {"jev.md": "y"}}}}}}
+    tm = {"repo": "r/la", "revision": "rev", "licence": "CC0"}
+    entries, pins = fi.split_entries(m, tm, ["zin", "kvg"])
+    assert pins["kvg"] is None and pins["zin"]["file"] == "zin/a/split/words.parquet" and pins["zin"]["licence"] == "CC BY-SA"
+    assert [e["dest"] for e in entries] == ["language-analysis/zin/split/words.parquet", "language-analysis/zin/split/_split.json"]

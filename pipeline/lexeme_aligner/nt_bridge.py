@@ -63,6 +63,32 @@ def table_bridge(path: Path, tiers: set[str] | None = None) -> dict[str, list[st
     return dict(out)
 
 
+def table_weights(path: Path, glaux_min: float | None = None, exclude: set[str] = frozenset()) -> tuple[dict, dict]:
+    """From a tiered bridge table: ({Hebrew Strong's: {Greek: share of the Hebrew word's LXX renderings}} from the `macula` tier's score,
+    {Hebrew Strong's: {Greek: Dice}} from the `lxx` (GLAUx) tier with score >= glaux_min, Greek words in `exclude` left out). Experiment
+    (make-tanakh's weighted bridge, 2026-10-30): ALIGNER_NT_BRIDGE_WEIGHTED."""
+    import csv
+    share: dict = collections.defaultdict(dict)
+    extra: dict = collections.defaultdict(dict)
+    with open(path, encoding="utf-8", newline="") as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            g = f"G{int(r['greek'][1:]):04d}"
+            if r["tier"] == "macula":
+                share[r["hebrew"]][g] = float(r["score"])
+            elif r["tier"] == "lxx" and glaux_min is not None and float(r["score"]) >= glaux_min and g not in exclude:
+                extra[r["hebrew"]][g] = float(r["score"])
+    return dict(share), dict(extra)
+
+
+def frequent_nt_greek(n: int = 50) -> set[str]:
+    """The n most frequent Greek Strong's in the spine's NT (`G0846` form)."""
+    import sqlite3
+    from lexeme_aligner.config import SPINE_DB
+    con = sqlite3.connect(f"file:{SPINE_DB}?mode=ro", uri=True)
+    rows = con.execute("select strong, count(*) n from spine_words where lexeme like 'grc:%' group by strong order by n desc limit ?", (n,))
+    return {f"G{int(s):04d}" for s, _n in rows}
+
+
 def nt_renderings(tag: str, out_dir: Path) -> dict[str, collections.Counter]:
     """Greek Strong's -> Counter of target words, from this edition's NT eflomal files (content pairs on one target token)."""
     from lexeme_aligner.run_pilot import NT_BOOKS
@@ -90,8 +116,47 @@ def build_priors(recs, tag: str, out_dir: Path, cfg: dict | None = None) -> list
     table = os.environ.get("ALIGNER_NT_BRIDGE_TABLE")
     tiers = set(filter(None, os.environ.get("ALIGNER_NT_BRIDGE_TIERS", "").split(","))) or None
     by_strong = table_bridge(Path(table), tiers) if table else None
-    br = {} if table else lxx_bridge()
+    weighted = os.environ.get("ALIGNER_NT_BRIDGE_WEIGHTED") or ""      # "1": weighted sum, kept >= min_share; "rank": see below
+    br = {} if table and not weighted else lxx_bridge()
     top_k, min_share, scale = cfg.get("top_k", 5), cfg.get("min_share", 0.1), cfg.get("scale", 2.0)
+    if weighted:
+        # prior(H, w) = sum over Greek g of weight(g | H) x share(w | g), weights normalised to 1 over the g that have renderings: weight = the
+        # LXX share of g among H's renderings (table `macula` score), plus GLAUx pairs (Dice >= ALIGNER_NT_BRIDGE_GLAUX) weighted by Dice.
+        gmin = os.environ.get("ALIGNER_NT_BRIDGE_GLAUX")
+        share, extra = table_weights(Path(os.environ["ALIGNER_NT_BRIDGE_TABLE"]), float(gmin) if gmin else None,
+                                     frequent_nt_greek() if gmin else set())
+        floor = 1e-4
+        best: dict[tuple[str, str], float] = {}
+        seen: set[str] = set()
+        for r in recs:
+            for t in r.heb:
+                if not (t.is_content and t.strong) or t.strong in seen:
+                    continue
+                seen.add(t.strong)
+                ws = {g: share.get(t.strong, {}).get(g, floor) for g in br.get(t.lexeme, [])}
+                for g, d in extra.get(t.strong, {}).items():
+                    ws[g] = max(ws.get(g, 0.0), d)
+                ws = {g: w for g, w in ws.items() if rend.get(g)}
+                tot_w = sum(ws.values())
+                if not tot_w:
+                    continue
+                score: dict[str, float] = collections.Counter()
+                for g, w in ws.items():
+                    c = rend[g]
+                    tot = sum(c.values())
+                    for word, k in c.most_common(top_k):
+                        if k / tot >= min_share:
+                            score[word] += w / tot_w * k / tot
+                ranked = sorted(score.items(), key=lambda x: -x[1])
+                if weighted == "rank":       # today's candidates and strength; the weighting only ranks them (top = full strength)
+                    top = ranked[0][1] if ranked else 1.0
+                    for word, v in ranked:
+                        best[(t.strong, word)] = v / top
+                    continue
+                for word, v in ranked[:top_k]:
+                    if v >= min_share:
+                        best[(t.strong, word)] = v
+        return [(s, w, v * scale) for (s, w), v in best.items()]
     best: dict[tuple[str, str], float] = {}
     for r in recs:
         for t in r.heb:

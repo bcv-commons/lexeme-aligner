@@ -703,3 +703,11 @@ pipeline/vendor/language-analysis/8fec0cf0/ — bsb-add-books' Kuni module with 
   f1003a2b…, 110,432,256 bytes = our active spine; verified by a live fetch). Also released: lexeme-spine-macula-2026-10-27 (86da6520…, adds
   greek/greekstrong; accepted by fetch-inputs' content pin), rp2018-spine-2026-10-12 (2913b954…), tr-textus-receptus-spine-2026-10-12
   (94b994ce…). files.qombi.com stays bcv-query's "latest" (not versioned; no longer used by fetch-inputs).
+
+pipeline/vendor/language-analysis/fe645bf6/ — make-tanakh's (formerly bsb-add-books) language modules, format 3 (HF bcv-commons/language-analysis
+  commit fe645bf60989af9d378f9a3046b2a99a8e6cca41, 2026-10-30). Fetched: manifest.json, README.md, CLAUSES.md (identical to 8fec0cf0) and the
+  new versions zin aa440920, kvg 3d2dd099, dan 66a48910, jam 6bd85daf, ch-de-be 0bb43871 — every file sha256-checked against the manifest
+  (0 mismatches). All 122 files of 8fec0cf0 kept upstream; source modules unchanged (latest = the pinned grc 30f77fbf, hbo 0ccf857a,
+  arc 634f9d1f). jev_clauses TARGET_MODULE kvg -> 3d2dd099, zin -> aa440920; config/align_inputs.json revision -> fe645bf6 (fetch-inputs
+  then picks each language's latest jev.md). Rule-word marking unchanged ({words: …}). zin/aa440920/split/ holds the Zinza text (CC BY-SA 4.0,
+  credit Bibilia Endagaano Ensya, Wycliffe). Licence of the modules CC0 1.0; bundle code MIT.

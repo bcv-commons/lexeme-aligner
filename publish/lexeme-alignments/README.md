@@ -63,7 +63,7 @@ def strong_of(lexeme: str) -> str:
 | `surface` | string | target rendering, lowercased (content tokens; may be multi-word) |
 | `lexeme` | string | **the anchor** — MACULA lexical id (`lang:augmented-strong`) |
 | `method` | string | **which method attested this pair** — `eflomal` / `gloss` / `gapfill` |
-| `base_text` | string | **which edition** the surface is from (e.g. `BSB`, `eng_ylt`) |
+| `base_text` | string | **which edition** the surface is from (e.g. `BSB`, `eng_ylt`). compact-alignments names the same edition `<iso>_<base_text>` when `base_text` does not already start with the ISO code (`BSB` → `eng_BSB`; `eng_ylt` stays) |
 | `count` | int32 | times this (surface → lexeme) was aligned **in that method + edition** |
 | `hi_conf` | float32 | fraction of this pair's alignments that were intersection-backed (score ≥ 0.9) |
 
@@ -143,17 +143,31 @@ pre-filtering, so precision / coverage / provenance are sliders **you** control:
    It picks one base method (default `eflomal`) so per-method counts don't double-count, derives `strong`
    from `lexeme` (checking `hebrew_lexeme_strong.json` first — see below), then aggregates per
    (strong, surface) with `share = P(surface | strong)`.
-2. **Merged best-pick** (optional, lossy, NOT reproducible from this dataset alone) — a single-answer-
-   per-token convenience our own pipeline builds from the *per-occurrence* jsonl (not published — only
-   the aggregated rows here are), using `contest_rule.json`'s disagreement-resolution rule:
-   ```bash
-   python3 -m lexeme_aligner.merge_align --iso swe --methods eflomal,gloss,gapfill \
-     --contest-rule contest_rule.json      # → align_merged_swe_*.jsonl, then export --methods merged
-   ```
-   Labelled **lossy** on purpose — it drops valid alternatives; use it only when you want exactly one row.
-   `contest_rule.json` is published here for transparency (see below) but its keys need per-occurrence
-   data (eflomal's raw score, gloss's match-type) that this dataset's aggregated rows don't carry — you
-   can't run this rule yourself on the Parquet alone, only approximate its spirit via `hi_conf`/`count`.
+2. **One answer per occurrence** — no longer a recipe: it is published as `iso=<iso>/top.json` (next section).
+
+## Commonest renderings per lexeme — `iso=<iso>/top.json` (since 2026-11)
+
+A small JSON file beside each language's `data.parquet`, for apps that show a gloss in the reader's language under each source word:
+
+```json
+{"format": "lexeme-glosses/1", "language": "dan", "revision": "<lexeme-aligner commit>", "built": "2026-11-04",
+ "sources": ["dan_det"], "function": ["hbo:0853", ...],
+ "lexemes": {"hbo:0430": [["gud", 1705], ["guds", 532], ["guder", 166]], "hbo:0871a": [["i", 5254], ["på", 1528], ...]}}
+```
+
+- **Counted once per occurrence.** Unlike the rows above (one per method, so adding them counts an occurrence two or three times), each
+  source word counts once, with the chain's final decision for it: the same one the compact-alignments main array publishes (span
+  extension first, then the eflomal/gloss disagreement rule, then gap fill).
+- **Function words included**: prefixes, the article, אֵת and the Greek article and particles, which the rows above leave out. They are
+  listed in `function`; their forms are less reliable, because a word with no counterpart in the translation (אֵת) is linked to a
+  neighbouring word.
+- **Multi-word renderings** stay one form (`"guds hus"`), lowercased, words in text order.
+- **Every edition of the language** in compact-alignments is pooled; `sources` lists them by their compact-alignments edition id
+  (`eng_BSB`, not this dataset's `base_text` `BSB`; see the `base_text` row above).
+- **Trimmed**: most frequent first, at most 8 forms per lexeme; forms seen once or under 5% of the lexeme's count are dropped, but the
+  commonest form is always kept.
+- Keys are the spine lexemes with their `hbo:` / `grc:` prefix, as in `lexeme`. Counts only: no positions, no verse text.
+- Pin a dataset revision when you fetch it; `revision` names the lexeme-aligner commit that built it.
 
 ## Companion reference resources (root of this dataset, small + committed)
 Four small JSON files sit alongside `manifest.json` — each is knowledge our own pipeline uses internally

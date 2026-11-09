@@ -780,8 +780,8 @@ def edition_id(iso: str, tag: str, sources: dict) -> str:
     """The path's `<edition>` segment: iso-prefixed so it's self-describing even out of context, but
     without DOUBLE-prefixing an edition string that already carries the iso (helloAO-sourced tags like
     `arb_vdv`/`swe_fol` already do; CDN/PKF-sourced ones like `BSB` don't). Derived from `data/sources.json`
-    (`source.edition` — the SAME string already published as `base_text` in `lexeme-alignments`, so this
-    reuses an existing identifier rather than inventing a new one) with a same-tag fallback if the tag
+    (`source.edition` — the string published as `base_text` in `lexeme-alignments`; the id adds the iso prefix when that string
+    lacks it, so a join must add it too: see the compact card) with a same-tag fallback if the tag
     isn't in `sources` at all. e.g. iso=eng tag=bsb source.edition='BSB' -> 'eng_BSB';
     iso=arb tag=arb_vdv source.edition='arb_vdv' -> 'arb_vdv' (no double prefix)."""
     ed = (sources.get(tag) or {}).get("edition") or tag
@@ -789,6 +789,19 @@ def edition_id(iso: str, tag: str, sources: dict) -> str:
         raise ValueError(f"edition name {ed!r} (config/sources.json, tag {tag!r}) is not path-safe: use letters, digits, '_', '.', '-' only "
                          "(it becomes a folder name in every compact repo and a base_text value)")
     return ed if ed.lower().startswith(iso.lower()) else f"{iso}_{ed}"
+
+
+COMPACT_MANIFEST = Path(__file__).resolve().parents[2] / "publish/compact-alignments/manifest.json"
+
+
+def edition_tags(iso: str, manifest: Path | dict = COMPACT_MANIFEST) -> dict[str, str]:
+    """{published edition id: chain tag} for one language, from the compact-alignments manifest: the inverse of edition_id().
+    The two names differ on purpose: the tag names our work files, caches and pins (`bsb`, `arbasv`), the edition id is what is
+    published (`eng_BSB`, `ARBASV`). Every manifest entry records the tag it was built from, so read it from there; never guess it
+    from the id (case-folding gets `ARBASV` right and `eng_BSB` wrong)."""
+    doc = manifest if isinstance(manifest, dict) else json.loads(Path(manifest).read_text(encoding="utf-8"))
+    eds = (doc.get("languages", {}).get(iso) or {}).get("editions", {})
+    return {ed: e.get("tag") or ed for ed, e in eds.items()}
 
 
 def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_root: Path,

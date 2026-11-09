@@ -80,6 +80,21 @@ def table_weights(path: Path, glaux_min: float | None = None, exclude: set[str] 
     return dict(share), dict(extra)
 
 
+def pool_renderings(partition: Path, exclude: set[str], lexemes: set[str]) -> dict[str, collections.Counter]:
+    """{lexeme: Counter(target word)} from a published lexeme-alignments partition: eflomal rows of every edition but `exclude`
+    (base_text, case-insensitive), single-word surfaces, only `lexemes`. Experiment (make-tanakh request 1, 2026-10-30):
+    ALIGNER_NT_BRIDGE_POOL."""
+    import pyarrow.parquet as pq
+    t = pq.read_table(partition, columns=["surface", "lexeme", "method", "base_text", "count"],
+                      filters=[("method", "=", "eflomal")]).to_pylist()
+    ex = {e.lower() for e in exclude}
+    out: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for r in t:
+        if r["lexeme"] in lexemes and r["base_text"].lower() not in ex and " " not in r["surface"]:
+            out[r["lexeme"]][r["surface"].lower()] += r["count"]
+    return dict(out)
+
+
 def frequent_nt_greek(n: int = 50) -> set[str]:
     """The n most frequent Greek Strong's in the spine's NT (`G0846` form)."""
     import sqlite3
@@ -158,6 +173,26 @@ def build_priors(recs, tag: str, out_dir: Path, cfg: dict | None = None) -> list
                         best[(t.strong, word)] = v
         return [(s, w, v * scale) for (s, w), v in best.items()]
     best: dict[tuple[str, str], float] = {}
+    pool = os.environ.get("ALIGNER_NT_BRIDGE_POOL")
+    if pool:
+        # make-tanakh request 1: renderings of the same Hebrew lexeme in the language's OTHER editions (published partition), as priors
+        # beside the bridge's (max per pair), times ALIGNER_NT_BRIDGE_POOL_WEIGHT; ALIGNER_NT_BRIDGE_POOL_ONLY=1 drops the bridge's
+        lex = {t.lexeme for r in recs for t in r.heb if t.is_content and t.strong}
+        pr = pool_renderings(Path(pool), set(os.environ.get("ALIGNER_NT_BRIDGE_POOL_EXCLUDE", "").split(",")), lex)
+        pw = float(os.environ.get("ALIGNER_NT_BRIDGE_POOL_WEIGHT", "0.5"))
+        done = set()
+        for r in recs:
+            for t in r.heb:
+                if not (t.is_content and t.strong) or t.lexeme in done or t.lexeme not in pr:
+                    continue
+                done.add(t.lexeme)
+                c = pr[t.lexeme]
+                tot = sum(c.values())
+                for w, k in c.most_common(top_k):
+                    if k / tot >= min_share:
+                        best[(t.strong, w)] = max(best.get((t.strong, w), 0), pw * k / tot)
+        if os.environ.get("ALIGNER_NT_BRIDGE_POOL_ONLY"):
+            return [(s, w, v * scale) for (s, w), v in best.items()]
     for r in recs:
         for t in r.heb:
             greek = (by_strong.get(t.strong) if by_strong is not None else br.get(t.lexeme)) if t.is_content and t.strong else None

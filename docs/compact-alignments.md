@@ -302,8 +302,8 @@ client can verify (and locate) the RIGHT file without downloading anything first
 
 e.g. `e/eng/eng_BSB/RUT_44f46079.json` — `iso` is the TRUE published language code (`eng`), never the
 internal alignment tag (`bsb`, which is edition-specific — see `onboard.py`'s tag-vs-iso split). The
-`<edition>` segment (`eng_BSB`) is derived from `config/sources.json`'s `source.edition` field — the SAME
-identifier already published as `base_text` in `publish/lexeme-alignments` — iso-prefixed unless it already
+`<edition>` segment (`eng_BSB`) is derived from `config/sources.json`'s `source.edition` field — the identifier
+published as `base_text` in `publish/lexeme-alignments` (`BSB`), so the two differ by that prefix — iso-prefixed unless it already
 carries one (a helloAO-sourced tag like `arb_vdv` already does, giving `a/arb/arb_vdv/...` with no
 double prefix; see `edition_id()` in `compact_align.py`).
 

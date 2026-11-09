@@ -230,8 +230,10 @@ layer. Until that layer ships, treat folded function words as "attached to the c
 | `<BOOK>` | 3-letter USFM book code | `RUT` |
 | `<hash>` | first 8 hex chars of that book's text fingerprint (below) | `6e149a85` |
 
-`<edition>` comes from the same identifier already published as `base_text` in `lexeme-alignments` — so
-a consumer of both datasets can join on it directly.
+**Joining with `lexeme-alignments`:** `<edition>` is that dataset's `base_text`, prefixed with `<iso>_` unless it
+already starts with the ISO code (case-insensitive): `base_text` `BSB` → `eng_BSB`, but `arb_vdv` → `arb_vdv` and `ENGWEB` →
+`ENGWEB`. Join on `base_text if base_text.lower().startswith(iso) else f"{iso}_{base_text}"`, not on the raw string; this holds
+for every edition both datasets share. (A few editions are here and not there: near copies of an edition already counted.)
 
 ## The compact string format
 

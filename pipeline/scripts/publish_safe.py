@@ -244,7 +244,7 @@ def drop_held(local: dict, held: set[str]) -> dict:
 def selected_files(name: str, kind: str, isos: list[str], local_root: Path, held: set[str] = frozenset()) -> list[str]:
     from lexeme_aligner.export_lex import _COMPANION_RESOURCES
     if kind == "partition":
-        return [f"iso={i}/data.parquet" for i in isos if (local_root / f"iso={i}/data.parquet").exists()] + \
+        return [f"iso={i}/{n}" for i in isos for n in ("data.parquet", "top.json") if (local_root / f"iso={i}/{n}").exists()] + \
                [f for f in ["README.md", *_COMPANION_RESOURCES] if (local_root / f).exists()]
     files = [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("*.json")]
     if kind == "fullalign":                                                 # one repo holds a layer's main + meta + _layer.json

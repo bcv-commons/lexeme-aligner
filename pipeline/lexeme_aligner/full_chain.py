@@ -268,6 +268,10 @@ def main() -> int:
     for tag in run_tags:
         _run("fullalign_build", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], env=env, soft=True)
 
+    # step 9c: lexeme-alignments/iso=<iso>/top.json — commonest renderings per lexeme, every edition of the language pooled, counted
+    # once per occurrence from the same final decision compact_align publishes (lexeme_glosses.py; for make-tanakh-review, 2026-11-04).
+    _run("lexeme_glosses", "--iso", args.iso, env=env, soft=True)
+
     # step 9b: the language's pipeline_decisions ledger entry (config/pipeline_decisions.json) — always-on mechanisms, opt-in flags and the stemming
     # decision this run actually used. Before 2026-10-04 only the batch runner / ad-hoc scripts wrote it, so a chain run by hand left it stale. Best-effort;
     # the write is locked + atomic (several chains finish at once). Dataset-root copies are refreshed by publish_safe at publish time (--no-publish).

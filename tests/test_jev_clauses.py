@@ -173,3 +173,25 @@ def test_estimate_counts_only_requests_not_in_the_cache():
     est = jcl.estimate(bodies, lambda raw: raw.startswith(b"x"))
     assert est["requests to send"] == 1 and est["requests cached"] == 1 and est["bytes to send"] == 2000
     assert est["input tokens (est., high side)"] == int(2000 * jcl.TOKENS_PER_BYTE)
+
+
+def test_updated_rules_ignores_a_new_words_marker():
+    old = ("- vø̄-ein [`formula:said.team` decided team-decision]\n"
+           "- no article [`article` observed corpus-observed]\n")
+    new = ("- vø̄-ein {words: vø̄ ein} [`formula:said.team` decided team-decision]\n"
+           "- no article; demonstratives instead [`article` observed corpus-observed]\n"
+           "- 'there was' = mø̀ndøgoám {words: mø̀ndøgoám} [`existence` observed corpus-observed]\n")
+    assert jcl.updated_rules(old, new) == {"article", "existence"}
+
+
+def test_in_cache_finds_a_request_answered_in_parts(tmp_path, monkeypatch):
+    import hashlib
+    import json
+    monkeypatch.setattr(jcl.jc, "WORK", tmp_path)
+    (tmp_path / "responses").mkdir()
+    body = {"state": {}, "questions": {"t9": 1, "h1": 2, "t2": 3}}          # not in key order: ask_split cuts in this order
+    dump = lambda b: json.dumps(b, ensure_ascii=False, sort_keys=True).encode()   # noqa: E731
+    for qs in ({"t9": 1, "h1": 2}, {"t2": 3}):
+        (tmp_path / "responses" / (hashlib.sha256(dump({**body, "questions": qs})).hexdigest()[:24] + ".json")).write_text("{}")
+    assert jcl._in_cache(dump(body), body)
+    assert not jcl._in_cache(dump({**body, "questions": {"t9": 1}}), {**body, "questions": {"t9": 1}})

@@ -27,7 +27,7 @@ A layer id is `<edition>+llm+<name>`, where `<edition>` is the compact-alignment
 | layer | text | model and method | rows |
 |---|---|---|---|
 | `ell_GreVamvas+llm+jev-v4` | Neophytos Vamvas 1850, Modern Greek (public domain; CrossWire GreVamvas via bcv-commons/bibles), 66 books | TypeSafe Jev (`jev-1.13.0`), design v4 | 624,632 |
-| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4, asked by clause with bsb-add-books' language modules (since v1.1; v1.0 was asked by verse) | 148,352 |
+| `kvg_wbt+llm+jev-v4` | Mbumbukiam-qa Manqat Mbomambaq, Kuni-Boazi (© 2015 Wycliffe Switzerland, CC BY-NC-ND 4.0; eBible `kvg` via bible.helloao.org), New Testament + Ruth + Jonah, 29 books | TypeSafe Jev (`jev-1.14.0`), design v4, asked by clause with bsb-add-books' language modules (since v1.1; v1.0 was asked by verse) | 148,355 |
 | `kvg-m_wbt+llm+jev-v4` | the same Kuni-Boazi text, **morphed** (aligned by word parts, see below), 29 books | as above, on the text split into parts with bsb-add-books' Kuni segmenter | 148,398 |
 | `zin-m_wbt+llm+jev-v4` | Endagano Eénsha omu Chiziinza, Zinza (© 2024 Wycliffe Bible Translators, CC BY-SA 4.0; eBible `zin` via bible.helloao.org), **morphed**, New Testament, 27 books | TypeSafe Jev, design v4, by clause with make-tanakh's modules (`zin/aa440920`), on the text split into parts with their published Zinza split | 144,514 |
 | `eng_kjv+llm+jev-v4` | King James Version, 1769 text (public domain outside the UK; eBible `eng-kjv2006` via bible.helloao.org), **Old Testament**, 39 books. Its New Testament was aligned to the Textus Receptus and is in [alignments-by-id](https://huggingface.co/datasets/bcv-commons/alignments-by-id) (`tr/e/eng/eng_kjv`) | TypeSafe Jev (`jev-1.14.0`), design v4; the KJV's own Strong's tagging cleared a word's doubt where the proposal matched it, and function-word links Jev kept at least 97% of the time on Ruth, Jonah, Esther and 1 Samuel were not asked again in the other books | 483,700 |
@@ -49,6 +49,9 @@ ask (mostly name lists) or no target text keep the chain's proposal. Model versi
 them out (NT: greek-nt-clause-layout; Ruth and Jonah: bcv-commons/hebrew-clause-layout v0.37). The checker is given bsb-add-books'
 language modules (bcv-commons/language-analysis: the Greek / Hebrew source module and the Kuni module `kvg/d8fdb53e`) instead of our
 conventions text; `_conventions.json` names them (below). Built by `lexeme_aligner.eval.jev_clauses`.
+Since v1.3 the requests where the newer Kuni module `kvg/b54d7f20` adds or changes a rule (its only new rule is `existence`:
+mø̀ndøgoám / ndøgoám / gegoam) were asked again with that module; every other request kept its v1.1 answer with `kvg/d8fdb53e`.
+`_conventions.json` records both per book (`target` and `update`).
 
 **Morphed editions:** `<iso>-m_<rest>` (e.g. `kvg-m_wbt`) is an edition aligned by word PARTS: each word split into prefixes, stem,
 tone and suffixes with a pinned segmenter, aligned part by part and folded back to the words. Its main file and channels read like any
@@ -83,7 +86,9 @@ name the compact file of that text has, so a file only matches the exact text it
 Each release is a git tag of this repo (`v1.0`, …); pin a tag (`revision="v1.0"`) rather than `main`. A tag is never moved: a
 rebuild becomes a new tag. `v1.0` (2026-10-26) is the first tag; it adds the owner-less `+` words to all three layers. `v1.1`
 (2026-10-28): Kuni-Boazi asked again by clause, and the morphed Kuni layer `kvg-m_wbt+llm+jev-v4`. `v1.2` (2026-10-30): the morphed
-Zinza New Testament `zin-m_wbt+llm+jev-v4`, made with `lexeme-aligner align-text --split auto --jev`.
+Zinza New Testament `zin-m_wbt+llm+jev-v4`, made with `lexeme-aligner align-text --split auto --jev`. `v1.3` (2026-11-09): both
+Kuni-Boazi layers updated for the Kuni module's new `existence` rule (136 verses whole words, 113 morphed; the existence words now
+link to εἰμί / γίνομαι 39 times instead of 17 in whole words, 87 instead of 70 morphed).
 
 ## Verse mapping
 

@@ -21,6 +21,9 @@ Conventions: `--conventions ours` = our config/llm_conventions/<iso>.md as in je
 source jev.md + their target jev.md FILTERED per request (an affix rule only when a part of the window carries that chain_id, a
 never-divided word only when the window has it) + our note (config/llm_conventions/<iso>.note.md). Every request's rule ids go to
 the unit log, for results per rule id.
+A module update without a full re-run (2026-11-09): `--target-module OLD --update-module NEW` asks with NEW only the requests where
+one of NEW's new or changed rules applies (`updated_rules`; a line that only gained a `{words: …}` marker is unchanged) and with OLD
+everywhere else, so those answers come from the cache and the cells are complete books again. The unit log marks `updated`.
 
     .venv/bin/python -m lexeme_aligner.eval.jev_clauses --iso bsb --publish-iso eng --book MRK --chapter 1 --margin 2 --dry-run
     ALIGNER_OUT=<chain run> .venv/bin/python -m lexeme_aligner.eval.jev_clauses --iso zin_wbt --publish-iso zin --book MRK --margin 3 \
@@ -81,8 +84,22 @@ def estimate(bodies: list[bytes], cached) -> dict:
             "input tokens (est., high side)": tokens, "usd (est., high side)": round(tokens / 1e6 * PRICE_PER_M_INPUT, 2)}
 
 
-def _in_cache(raw: bytes) -> bool:
-    return (jc.WORK / "responses" / (hashlib.sha256(raw).hexdigest()[:24] + ".json")).exists()
+def _in_cache(raw: bytes, body: dict | None = None, max_parts: int = 8) -> bool:
+    """The answer is in the cache: the request as one, or (like `jev_check.ask_split`) as 2, 4 or 8 parts of its questions, cut in
+    the body's own question order (pass `body`: `raw` is dumped with sorted keys, so re-reading it loses that order)."""
+    hit = lambda r: (jc.WORK / "responses" / (hashlib.sha256(r).hexdigest()[:24] + ".json")).exists()   # noqa: E731
+    if hit(raw):
+        return True
+    body = body if body is not None else json.loads(raw)
+    ids = list(body["questions"])
+    parts = 2
+    while parts <= max_parts:
+        size = -(-len(ids) // parts)
+        if all(hit(json.dumps({**body, "questions": {q: body["questions"][q] for q in ids[i:i + size]}}, ensure_ascii=False,
+                              sort_keys=True).encode()) for i in range(0, len(ids), size)):
+            return True
+        parts *= 2
+    return False
 JOIN_UNDER, MAX_LINES, MAX_WORDS = 6, 3, 30
 HOME_REACH = 8          # written words a window may grow to hold a homed word; a word further out is asked nowhere (counted)
 GAP_MAX = 24            # a unit the chain linked to nothing gets the gap between its neighbours' links, at most this many tokens
@@ -381,6 +398,23 @@ def filter_module(text: str, chain_ids: set[str], words: set[str], whole_words: 
     return "\n".join(out), kept
 
 
+def rule_lines(text: str) -> dict[str, str]:
+    """{rule id: its line without the `{words: …}` marker} of a target jev.md."""
+    out = {}
+    for line in text.splitlines():
+        m = re.search(r"\[`([^`]+)`", line) if line.startswith("- ") else None
+        if m:
+            out[m.group(1)] = " ".join(WORDS_MARK.sub("", line).split())
+    return out
+
+
+def updated_rules(old: str, new: str) -> set[str]:
+    """Rule ids of module `new` that are not in `old` or whose wording changed. A line that only gained a `{words: …}` marker is
+    the same rule (it changes where the rule is sent, not what it says)."""
+    o = rule_lines(old)
+    return {rid for rid, line in rule_lines(new).items() if o.get(rid) != line}
+
+
 def source_rule_ids(text: str) -> list[str]:
     return re.findall(r"`((?:grc|hbo|arc)\.\d+)`", text)
 
@@ -394,6 +428,11 @@ def body_for(b: Book, w: dict, sentences: dict, lex_pos: dict, lang: str, conv: 
         written = {(u["in_word"] if u and u.get("in_word") else tok).lower() for u, tok in zip(units or [None] * len(p.toks), p.toks)}
         written |= {w.lower() for w in shown}               # the marked forms too (rules are written with tone marks)
         target, rules = filter_module(conv["target"], ids, written, whole_words=units is None)
+        if conv.get("update"):                              # --update-module: only where one of its new or changed rules applies
+            t2, r2 = filter_module(conv["update"], ids, written, whole_words=units is None)
+            if set(r2) & conv["update_ids"]:
+                target, rules = t2, r2
+                w["updated"] = True
         source = conv["sources"][w["unit"].get("language", "grc")]
         conventions = (jc._CONV + "\n\nSource-language rules:\n" + source + f"\n\nTarget-language rules ({lang}):\n" + target
                        + ("\n\n" + conv["note"] if conv["note"] else "") + UNIT_NOTE)
@@ -479,6 +518,10 @@ def main() -> int:
     ap.add_argument("--conventions", default="ours", choices=["ours", "modules"])
     ap.add_argument("--usj-dir", type=Path); ap.add_argument("--parts", type=Path)
     ap.add_argument("--tags", type=Path); ap.add_argument("--skip-pairs", type=Path); ap.add_argument("--hints", type=Path)
+    ap.add_argument("--target-module", type=Path, help="with --conventions modules: this target jev.md instead of TARGET_MODULE")
+    ap.add_argument("--update-module", type=Path,
+                    help="with --conventions modules: a newer target jev.md, used only for the requests where one of its new or changed "
+                         "rules applies (`updated_rules`); every other request keeps --target-module, so its answer comes from the cache")
     ap.add_argument("--variant", required=True); ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--dry-run", action="store_true", help="build the requests, report their size and estimated cost; no call, no cell")
     ap.add_argument("--max-usd", type=float, default=None,
@@ -508,12 +551,19 @@ def main() -> int:
         ws = [w for w in ws if b.props[w["hs"][0][0]].ch in set(a.chapter)]
     lang = jc.LANG.get(a.publish_iso, a.publish_iso)
     if a.conventions == "modules":
+        target_fp = a.target_module or TARGET_MODULE.get(a.publish_iso)
         conv = {"mode": "modules", "sources": {k: v.read_text(encoding="utf-8") for k, v in SOURCE_MODULE.items()},
-                "target": (TARGET_MODULE[a.publish_iso].read_text(encoding="utf-8") if a.publish_iso in TARGET_MODULE
-                           else _GENERIC_CONVENTIONS),
+                "target": target_fp.read_text(encoding="utf-8") if target_fp else _GENERIC_CONVENTIONS,
                 "note": (le._CONVENTIONS_DIR / f"{a.publish_iso}.note.md").read_text(encoding="utf-8")
                 if (le._CONVENTIONS_DIR / f"{a.publish_iso}.note.md").exists() else ""}
+        if a.update_module:
+            conv["update"] = a.update_module.read_text(encoding="utf-8")
+            conv["update_ids"] = updated_rules(conv["target"], conv["update"])
+            print(f"[jev-clauses] update module: {len(conv['update_ids'])} new or changed rules {sorted(conv['update_ids'])}",
+                  file=sys.stderr)
     else:
+        if a.target_module or a.update_module:
+            raise SystemExit("jev_clauses: --target-module / --update-module need --conventions modules")
         fp = le._CONVENTIONS_DIR / f"{a.publish_iso}.md"
         conv = {"mode": "ours", "text": jc._CONV + f"\n\nLanguage conventions ({lang}):\n"
                 + (fp.read_text(encoding="utf-8") if fp.exists() else _GENERIC_CONVENTIONS)}
@@ -537,9 +587,11 @@ def main() -> int:
         size["source words over a verse break"] += len({r for r, _ in src}) > 1
         size["window over a verse break"] += len({b.seq[g][0] for g in tgt}) > 1
         size["target words asked nowhere (too far)"] += len(w.get("unasked", ()))
+        size["requests on the update module"] += bool(w.get("updated"))
     verses = {r for w in ws for r, _ in w["hs"]}
     size["verses"] = len(verses)
-    est = estimate([json.dumps(j[4], ensure_ascii=False, sort_keys=True).encode() for j in jobs], _in_cache)
+    raws = {json.dumps(j[4], ensure_ascii=False, sort_keys=True).encode(): j[4] for j in jobs}
+    est = estimate(list(raws), lambda raw: _in_cache(raw, raws[raw]))
     if a.dry_run:
         print(json.dumps({"tag": tag, "dry_run": dict(size), "estimate": est}, ensure_ascii=False))
         return 0
@@ -575,7 +627,7 @@ def main() -> int:
         sha = hashlib.sha256(json.dumps(body, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:24]
         log.append({"sentence": w["unit"]["sentence"], "keys": w["unit"]["words"], "source": [list(x) for x in src],
                     "window": [list(b.seq[g]) for g in tgt], "home": sorted(tgt.index(g) for g in w["home"]),
-                    "rules": rules, "body": sha, "error": res.get("_error")})
+                    "rules": rules, "body": sha, "error": res.get("_error"), **({"updated": True} if w.get("updated") else {})})
         if "_error" in res:
             usage["requests failed"] += 1
             print(f"[jev-clauses] {body['state']['reference']}: {res['_error']}", file=sys.stderr)

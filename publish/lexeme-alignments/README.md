@@ -159,9 +159,11 @@ A small JSON file beside each language's `data.parquet`, for apps that show a gl
   source word counts once, with the chain's final decision for it: the same one the compact-alignments main array publishes (span
   extension first, then the eflomal/gloss disagreement rule, then gap fill).
 - **Function words included**: prefixes, the article, אֵת and the Greek article and particles, which the rows above leave out. They are
-  listed in `function`; their forms are less reliable, because a word with no counterpart in the translation (אֵת) is linked to a
-  neighbouring word.
-- **Multi-word renderings** stay one form (`"guds hus"`), lowercased, words in text order.
+  listed in `function` (a lexeme that is a function token in at least half of its counted occurrences; since 2026-11-09, before
+  that a single occurrence was enough, e.g. a Psalm heading); their forms are less reliable, because a word with no counterpart in
+  the translation (אֵת) is linked to a neighbouring word.
+- **Multi-word renderings** stay one form (`"guds hus"`), lowercased, words in text order, when the chain linked all the words. A
+  rendering the aligner linked only in part (`drog op` linked as `op`) is counted as that part.
 - **Every edition of the language** in compact-alignments is pooled; `sources` lists them by their compact-alignments edition id
   (`eng_BSB`, not this dataset's `base_text` `BSB`; see the `base_text` row above).
 - **Trimmed**: most frequent first, at most 8 forms per lexeme; forms seen once or under 5% of the lexeme's count are dropped, but the

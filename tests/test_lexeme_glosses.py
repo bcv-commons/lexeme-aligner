@@ -39,10 +39,24 @@ def test_count_edition_once_per_occurrence(tmp_path):
         _pair(1, "hbo:0430", "Gud", [0], method="gloss")]}])
     _write(tmp_path / "align_spanext_dan_x_RUT.jsonl", [{"chapter": 1, "verse": 1, "pairs": [
         _pair(2, "hbo:1004", "Guds  hus", [2, 3], method="spanext")]}])
-    fn = set()
+    fn = collections.Counter()
     c = lg.count_edition("dan_x", tmp_path, contest={}, function=fn)
     assert c == collections.Counter({("hbo:0430", "gud"): 1, ("hbo:1004", "guds hus"): 1, ("hbo:0853", "med"): 1})
-    assert fn == {"hbo:0853"}
+    assert fn == {"hbo:0853": 1}
+
+
+def test_function_list_needs_mostly_function_occurrences(tmp_path, monkeypatch):
+    # hbo:5650 is a function token once (a Psalm heading forces content: false) in 3 occurrences; hbo:0853 always
+    out = tmp_path / "out"
+    out.mkdir()
+    _write(out / "align_eflomal_dan_a_PSA.jsonl", [{"chapter": 18, "verse": 1, "pairs": [
+        _pair(0, "hbo:5650", "tjener", [0], content=False), _pair(1, "hbo:5650", "tjener", [1]), _pair(2, "hbo:5650", "tjener", [2]),
+        _pair(3, "hbo:0853", "med", [3], content=False)]}])
+    man = tmp_path / "manifest.json"
+    man.write_text(json.dumps({"languages": {"dan": {"editions": {"dan_a": {}}}}}))
+    monkeypatch.setattr(lg, "COMPACT_MANIFEST", man)
+    lg.build("dan", out, tmp_path / "lex", rev="abc")
+    assert json.loads((tmp_path / "lex/iso=dan/top.json").read_text())["function"] == ["hbo:0853"]
 
 
 def test_build_pools_editions(tmp_path, monkeypatch):

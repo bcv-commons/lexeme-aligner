@@ -10,8 +10,10 @@ edition's align_<method>_<tag>_<BOOK>.jsonl(.gz). Function tokens (prefixes, the
 link them although the compact main array leaves them out. A rendering = the linked target words, lowercased, in text order, one
 space between (a multi-word rendering stays one form). All editions of the language in the compact-alignments manifest are pooled
 (`sources`). Trim per lexeme: most frequent first, at most 8 forms, forms seen once or under 5% of the lexeme's count dropped, but
-the commonest form is always kept. `function` lists the lexemes counted as function tokens (the aligner's `content: false`);
-their forms are less reliable: a token with no word of its own in the translation (אֵת) gets linked to a neighbouring word.
+the commonest form is always kept. `function` lists the lexemes that are function tokens (the aligner's `content: false`) in at
+least half of their counted occurrences (FUNCTION_SHARE; until 2026-11-09 a single one was enough, so Psalm-heading occurrences,
+which are forced to `content: false`, put עֶבֶד, Moses and יהוה on the list). Their forms are less reliable: a token with no word
+of its own in the translation (אֵת) gets linked to a neighbouring word.
 Counts only: no positions, no verse text.
 
     python -m lexeme_aligner.lexeme_glosses --iso dan [--iso eng ...] | --all [--workers N]
@@ -38,6 +40,7 @@ COMPACT_MANIFEST = REPO / "publish/compact-alignments/manifest.json"
 METHODS = ("spanext", "eflomal", "gloss", "gapfill")          # = full_chain._METHODS, the compact main array's priority
 FORMAT = "lexeme-glosses/1"
 MAX_FORMS, MIN_SHARE = 8, 0.05
+FUNCTION_SHARE = 0.5
 
 
 def rendering(p: dict) -> str | None:
@@ -46,9 +49,10 @@ def rendering(p: dict) -> str | None:
     return " ".join(t.lower().split()) or None
 
 
-def count_edition(tag: str, out_dir: Path = OUT, contest: dict | None = None, function: set | None = None) -> collections.Counter:
-    """Counter((lexeme, rendering)) over every source-word occurrence of one edition that the chain linked. Lexemes of function
-    tokens are added to `function` when given."""
+def count_edition(tag: str, out_dir: Path = OUT, contest: dict | None = None,
+                  function: collections.Counter | None = None) -> collections.Counter:
+    """Counter((lexeme, rendering)) over every source-word occurrence of one edition that the chain linked. When `function` is
+    given, it counts per lexeme the occurrences that are function tokens."""
     contest = load_contest_rule() if contest is None else contest
     files: dict[str, dict[str, Path]] = collections.defaultdict(dict)
     for m in METHODS:
@@ -71,7 +75,7 @@ def count_edition(tag: str, out_dir: Path = OUT, contest: dict | None = None, fu
             if win is not None and (r := rendering(win)):
                 out[(win["lexeme"], r)] += 1
                 if function is not None and win.get("content") is False:
-                    function.add(win["lexeme"])
+                    function[win["lexeme"]] += 1
     return out
 
 
@@ -108,7 +112,7 @@ def build(iso: str, out_dir: Path = OUT, root: Path = LEX_ROOT, rev: str | None 
     contest = load_contest_rule()
     total: collections.Counter = collections.Counter()
     sources = []
-    function: set[str] = set()
+    function: collections.Counter = collections.Counter()
     for ed, tag in editions_of(iso):
         c = count_edition(tag, out_dir, contest, function)
         if c:
@@ -117,8 +121,12 @@ def build(iso: str, out_dir: Path = OUT, root: Path = LEX_ROOT, rev: str | None 
     if not total:
         return {"iso": iso, "skipped": "no align files"}
     lexemes = trim(total)
+    occ: collections.Counter = collections.Counter()
+    for (lex, _form), n in total.items():
+        occ[lex] += n
+    mostly = {lex for lex, n in function.items() if n >= FUNCTION_SHARE * occ[lex]}
     doc = {"format": FORMAT, "language": iso, "revision": rev or revision(), "built": datetime.date.today().isoformat(),
-           "sources": sources, "function": sorted(function & set(lexemes)), "lexemes": lexemes}
+           "sources": sources, "function": sorted(mostly & set(lexemes)), "lexemes": lexemes}
     d = root / f"iso={iso}"
     d.mkdir(parents=True, exist_ok=True)
     tmp = d / "top.json.tmp"

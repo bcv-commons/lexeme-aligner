@@ -5,6 +5,7 @@ reported to bibles: `\\v 43a`/`\\v 43b` and a stray `\\v 0`)."""
 import importlib.util
 import json
 import random
+import re
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,8 @@ def theirs(path):
         for x in verses:
             toks = u.tokenize(x["text"])
             if toks:
-                out[(int(c), int(x["verse"]))] = toks
+                # verse parts ("10a", "10b": gefsgv GEN 13:10b): our reader keeps them in verse 10
+                out.setdefault((int(c), int(re.match(r"\d+", x["verse"]).group())), []).extend(toks)
     return out
 
 

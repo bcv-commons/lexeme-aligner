@@ -15,9 +15,10 @@ import gzip
 import json
 from pathlib import Path
 
-from lexeme_aligner.config import PRIOR_PACK, _REPO_ROOT
+from lexeme_aligner.config import LEX_ROOT, PRIOR_PACK, _REPO_ROOT
 
 CONFIG = _REPO_ROOT / "config" / "nt_bridge.json"
+COMPACT_MANIFEST = _REPO_ROOT / "publish" / "compact-alignments" / "manifest.json"
 
 
 def load_config(path: Path = CONFIG) -> dict:
@@ -80,19 +81,45 @@ def table_weights(path: Path, glaux_min: float | None = None, exclude: set[str] 
     return dict(share), dict(extra)
 
 
-def pool_renderings(partition: Path, exclude: set[str], lexemes: set[str]) -> dict[str, collections.Counter]:
+def pool_renderings(partition: Path, exclude: set[str], lexemes: set[str], keep=None) -> dict[str, collections.Counter]:
     """{lexeme: Counter(target word)} from a published lexeme-alignments partition: eflomal rows of every edition but `exclude`
-    (base_text, case-insensitive), single-word surfaces, only `lexemes`. Experiment (make-tanakh request 1, 2026-10-30):
-    ALIGNER_NT_BRIDGE_POOL."""
+    (base_text, case-insensitive) and, when given, only base_texts `keep(base_text)` accepts; single-word surfaces, only `lexemes`.
+    make-tanakh request 1 (2026-10-30); on in production since 2026-11-09 (config `pool`, see pool_sources)."""
     import pyarrow.parquet as pq
     t = pq.read_table(partition, columns=["surface", "lexeme", "method", "base_text", "count"],
                       filters=[("method", "=", "eflomal")]).to_pylist()
     ex = {e.lower() for e in exclude}
     out: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for r in t:
-        if r["lexeme"] in lexemes and r["base_text"].lower() not in ex and " " not in r["surface"]:
+        if r["lexeme"] in lexemes and r["base_text"].lower() not in ex and " " not in r["surface"] and (keep is None or keep(r["base_text"])):
             out[r["lexeme"]][r["surface"].lower()] += r["count"]
     return dict(out)
+
+
+def pool_sources(tag: str, cfg: dict, manifest: Path | dict | None = None) -> tuple[str, set[str]] | None:
+    """(language iso, compact edition ids to pool from) for edition `tag`: the language's OTHER editions in the compact-alignments
+    manifest with at least pool.min_ot_books OT books (an edition with a thin OT of its own has weak OT renderings to lend). None when
+    the pool is off, the tag is in no language, or no such edition exists."""
+    from lexeme_aligner.run_pilot import OT_BOOKS
+    pc = cfg.get("pool") or {}
+    if not pc.get("enabled"):
+        return None
+    manifest = COMPACT_MANIFEST if manifest is None else manifest
+    doc = manifest if isinstance(manifest, dict) else (json.loads(Path(manifest).read_text(encoding="utf-8"))
+                                                       if Path(manifest).exists() else {})
+    for iso, e in doc.get("languages", {}).items():
+        eds = e.get("editions", {})
+        if not any((v.get("tag") or ed).lower() == tag.lower() for ed, v in eds.items()):
+            continue
+        ids = {ed for ed, v in eds.items() if (v.get("tag") or ed).lower() != tag.lower()
+               and len(set(v.get("books", [])) & set(OT_BOOKS)) >= pc.get("min_ot_books", 39)}
+        return (iso, ids) if ids else None
+    return None
+
+
+def compact_id(iso: str, base_text: str) -> str:
+    """lexeme-alignments base_text -> compact-alignments edition id (the join rule on both cards: `BSB` -> `eng_BSB`)."""
+    return base_text if base_text.lower().startswith(iso) else f"{iso}_{base_text}"
 
 
 def frequent_nt_greek(n: int = 50) -> set[str]:
@@ -173,13 +200,17 @@ def build_priors(recs, tag: str, out_dir: Path, cfg: dict | None = None) -> list
                         best[(t.strong, word)] = v
         return [(s, w, v * scale) for (s, w), v in best.items()]
     best: dict[tuple[str, str], float] = {}
-    pool = os.environ.get("ALIGNER_NT_BRIDGE_POOL")
-    if pool:
+    pool, pool_args = os.environ.get("ALIGNER_NT_BRIDGE_POOL"), None
+    if pool:          # experiment knob (run5.py): any partition, editions left out by name
+        pool_args = (Path(pool), set(os.environ.get("ALIGNER_NT_BRIDGE_POOL_EXCLUDE", "").split(",")), None)
+    elif (src := pool_sources(tag, cfg)) and (part := LEX_ROOT / f"iso={src[0]}" / "data.parquet").exists():
+        pool_args = (part, set(), lambda bt, iso=src[0], ids=src[1]: compact_id(iso, bt) in ids)
+    if pool_args:
         # make-tanakh request 1: renderings of the same Hebrew lexeme in the language's OTHER editions (published partition), as priors
-        # beside the bridge's (max per pair), times ALIGNER_NT_BRIDGE_POOL_WEIGHT; ALIGNER_NT_BRIDGE_POOL_ONLY=1 drops the bridge's
+        # beside the bridge's (max per pair), times the pool weight; ALIGNER_NT_BRIDGE_POOL_ONLY=1 drops the bridge's
         lex = {t.lexeme for r in recs for t in r.heb if t.is_content and t.strong}
-        pr = pool_renderings(Path(pool), set(os.environ.get("ALIGNER_NT_BRIDGE_POOL_EXCLUDE", "").split(",")), lex)
-        pw = float(os.environ.get("ALIGNER_NT_BRIDGE_POOL_WEIGHT", "0.5"))
+        pr = pool_renderings(pool_args[0], pool_args[1], lex, pool_args[2])
+        pw = float(os.environ.get("ALIGNER_NT_BRIDGE_POOL_WEIGHT") or (cfg.get("pool") or {}).get("weight", 0.5))
         done = set()
         for r in recs:
             for t in r.heb:
@@ -218,5 +249,9 @@ def ledger_entry(tags: list[str], usj_dirs: list[str | Path]) -> dict | None:
     on = sorted(t for t, d in zip(tags, usj_dirs) if d and applies(d, cfg))
     if not on:
         return None
-    return {"value": True, "editions": on, "scale": cfg.get("scale"), "max_ot_books": cfg.get("max_ot_books"),
-            "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json"}
+    out = {"value": True, "editions": on, "scale": cfg.get("scale"), "max_ot_books": cfg.get("max_ot_books"),
+           "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json"}
+    pooled = {t: sorted(src[1]) for t in on if (src := pool_sources(t, cfg))}
+    if pooled:        # only languages with another full-OT edition get the key
+        out["pool"] = {"weight": cfg["pool"].get("weight", 0.5), "from": pooled}
+    return out

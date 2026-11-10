@@ -1294,6 +1294,15 @@
     "bel_njo"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "bel_njo": [
+      "bel_BBL",
+      "bel_jfc"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -1783,6 +1792,14 @@
     "bodnvs"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "bodnvs": [
+      "bod_ntb"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -2036,6 +2053,15 @@
     "bulbob"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "bulbob": [
+      "BULB40",
+      "BULCBV"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -3184,6 +3210,14 @@
     "ctu_cti"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "ctu_cti": [
+      "ctupkf"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -4069,6 +4103,61 @@
     "engoebus"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "engoebcw": [
+      "ENGEVD",
+      "ENGNAS",
+      "ENGNLH",
+      "ENGWEB",
+      "ENGWMV",
+      "eng_BSB",
+      "eng_EN1ESV",
+      "eng_asv",
+      "eng_bbe",
+      "eng_cpb",
+      "eng_dby",
+      "eng_dra",
+      "eng_fbv",
+      "eng_gnv",
+      "eng_jps",
+      "eng_lee",
+      "eng_net",
+      "eng_ojb",
+      "eng_rv5",
+      "eng_t4t",
+      "eng_ulb",
+      "eng_wyc2017",
+      "eng_ylt"
+     ],
+     "engoebus": [
+      "ENGEVD",
+      "ENGNAS",
+      "ENGNLH",
+      "ENGWEB",
+      "ENGWMV",
+      "eng_BSB",
+      "eng_EN1ESV",
+      "eng_asv",
+      "eng_bbe",
+      "eng_cpb",
+      "eng_dby",
+      "eng_dra",
+      "eng_fbv",
+      "eng_gnv",
+      "eng_jps",
+      "eng_lee",
+      "eng_net",
+      "eng_ojb",
+      "eng_rv5",
+      "eng_t4t",
+      "eng_ulb",
+      "eng_wyc2017",
+      "eng_ylt"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -5149,6 +5238,15 @@
     "hatbiv"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "hatbiv": [
+      "hat_bsa",
+      "hat_pds"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -5337,6 +5435,14 @@
     "hlt_thb"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "hlt_thb": [
+      "hlt_mcs"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -8344,6 +8450,14 @@
     "mbtpkf"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "mbtpkf": [
+      "MBTSUM"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -10129,6 +10243,16 @@
     "nld_1939"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "nld_1939": [
+      "NLDHSV",
+      "nld_",
+      "nld_nbg"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -11387,9 +11511,36 @@
     "pon_psa"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "pon_pja": [
+      "pon_ssp"
+     ],
+     "pon_psa": [
+      "pon_ssp"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
+  },
+  "subject_indexing": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089,GB090",
+   "value": false
+  },
+  "tam_auxiliary": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB120",
+   "value": false
   },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=22.95)",
@@ -11909,6 +12060,16 @@
     "rifnvs"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "rifnvs": [
+      "rif_ati",
+      "rif_lti",
+      "rif_tti"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -14298,6 +14459,17 @@
     "uigumk"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "uigumk": [
+      "uig_ara",
+      "uig_cyr",
+      "uig_lat",
+      "uig_pin"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
@@ -14328,6 +14500,15 @@
     "ukr_npu"
    ],
    "max_ot_books": 38,
+   "pool": {
+    "from": {
+     "ukr_npu": [
+      "UKRO30",
+      "ukr_1996"
+     ]
+    },
+    "weight": 0.5
+   },
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true

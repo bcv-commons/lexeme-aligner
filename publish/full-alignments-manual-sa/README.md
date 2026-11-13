@@ -21,6 +21,16 @@ A layer id is `<edition>+manual+door43`, e.g. `h/hin/hin_higlt+manual+door43/`. 
 layers, with rows and books, is in `manifest.json`. Greek NT links are mapped by Strong's number and occurrence; Hebrew OT links
 (where a Door43 edition has OT books) by a prefix crosswalk that maps about 82% of spans; compound prefix codes are left out.
 
+Two layers take books from a second Door43 repository (2026-11-13):
+
+- `telglt+manual+door43` and `marglt+manual+door43`: **GAL** comes from `translationCore-Create-BCS/te_glt` and `mr_glt`
+  (release v4), where it is hand-aligned. The other books are from `Door43-Catalog/te_glt` and `mr_glt`. MAT, ACT, ROM, HEB and REV
+  exist as text in no Door43 version of either, so they are not in the layers.
+- `HINIRV+manual+door43` (`h/hin/`): Door43's alignment of the Hindi IRV (`Door43-Catalog/hi_irv`, v12), **2JN only** — the NT book
+  missing from Clear's `HINIRV+manual+clear` (in full-alignments-manual). Its links are placed on HINIRV's own verse text, which is the
+  same as Door43's in 12 of 13 verses (letters compared); a Door43 word whose letters are not in the verse is left out. Kept as its own
+  layer: different team (Door43, not Clear), different Greek text (UGNT, not SBLGNT) and licence (CC BY-SA, not CC BY).
+
 ## File format
 
 Every layer is a folder `<iso[0]>/<iso>/<layer id>/` with per-book files that look exactly like

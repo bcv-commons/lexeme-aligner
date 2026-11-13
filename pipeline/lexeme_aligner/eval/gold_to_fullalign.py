@@ -79,7 +79,9 @@ KIND_OF_GOLD_METHOD = {"manual": "manual", "transfer": "transfer", "sword": "man
 
 def door43_edition(base_text: str) -> str | None:
     """The ingest tag of a Door43 aligned edition (eval/door43_align.LANGUAGES: repo -> tag), e.g. hi_glt -> higlt."""
-    from lexeme_aligner.eval.door43_align import LANGUAGES
+    from lexeme_aligner.eval.door43_align import LANGUAGES, ONTO_EDITIONS
+    if base_text in ONTO_EDITIONS:                       # a Door43 alignment of a text we ingest under another tag
+        return ONTO_EDITIONS[base_text]["edition"]
     return next((v["tag"] for v in LANGUAGES.values() if v["repo"] == base_text), None)
 # a second Clear base_text is a DIFFERENT text than the language's primary edition — the ingest tag
 # whose text matches is picked by probing (lowest refused-verse rate), never assumed

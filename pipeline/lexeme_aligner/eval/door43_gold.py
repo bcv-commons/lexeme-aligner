@@ -53,10 +53,11 @@ def word_positions_to_clear(words: list[str], text: str) -> list[int | None]:
     return out
 
 
-def rows_for_book(iso: str, book: str, spans_by_verse: dict, texts: dict, words: dict) -> tuple[list[dict], dict]:
+def rows_for_book(iso: str, book: str, spans_by_verse: dict, texts: dict, words: dict,
+                  base_text: str | None = None) -> tuple[list[dict], dict]:
     """Gold rows for one Greek-NT book. `words[(ch, v)]` is the verse's full `\\w` list (aligned or not)
     so `target_positions` index into it. Returns (rows, stats)."""
-    repo = da.LANGUAGES[iso]["repo"]
+    repo = base_text or da.LANGUAGES[iso]["repo"]
     rows: list[dict] = []
     st: collections.Counter = collections.Counter()
     for (ch, v), spans in sorted(spans_by_verse.items()):
@@ -253,12 +254,38 @@ def build_gold(iso: str, books: list[str] | None = None, res_dir: Path = RESOURC
     fp.parent.mkdir(parents=True, exist_ok=True)
     cols = ["strong", "lemma", "surface", "ref", "target_id", "source_id", "method", "source_corpus", "base_text"]
     keep: list[dict] = []
+    onto = {k for k, v in da.ONTO_EDITIONS.items() if v["iso"] == iso}    # their rows come from build_onto
     if fp.exists():
-        keep = [r for r in pq.read_table(fp, columns=cols).to_pylist() if r["method"] != "door43"]
+        keep = [r for r in pq.read_table(fp, columns=cols).to_pylist() if r["method"] != "door43" or r["base_text"] in onto]
         stats["kept_other_method_rows"] = len(keep)
     table = pa.table({c: pa.array([r[c] for r in keep + rows], pa.string()) for c in cols})
     pq.write_table(table, fp, compression="zstd")
     stats["parquet"] = str(fp)
+    return dict(stats)
+
+
+def build_onto(name: str, res_dir: Path = RESOURCES, ingest_cache: Path = Path("pipeline/work/ingest-cache")) -> dict:
+    """Door43 rows of `ONTO_EDITIONS[name]` (NT books only), placed on the edition's OWN verse text (same letter-
+    containment placement as `rows_for_book`; a Door43 word whose letters are not in that verse stays unplaced), merged
+    into `<iso>.parquet` replacing only the earlier rows of this base_text."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from lexeme_aligner.run_pilot import _BOOK_FILE_NUM
+    from lexeme_aligner.usj_source import read_verses
+    spec = da.ONTO_EDITIONS[name]
+    rows: list[dict] = []
+    stats: collections.Counter = collections.Counter()
+    for book in spec["books"]:
+        spans, _texts, words = da.parsed_book(name, book)
+        ours = read_verses(Path(ingest_cache) / f"usj-{spec['edition']}" / f"{_BOOK_FILE_NUM[book]}-{book}.json", rules={})
+        r, st = rows_for_book(spec["iso"], book, spans, ours, words, base_text=name)
+        rows.extend(r)
+        stats.update(st)
+        stats["books"] += 1
+    fp = res_dir / "strongs" / "attestations" / f"{spec['iso']}.parquet"
+    cols = ["strong", "lemma", "surface", "ref", "target_id", "source_id", "method", "source_corpus", "base_text"]
+    keep = [r for r in pq.read_table(fp, columns=cols).to_pylist() if r["base_text"] != name] if fp.exists() else []
+    pq.write_table(pa.table({c: pa.array([r[c] for r in keep + rows], pa.string()) for c in cols}), fp, compression="zstd")
     return dict(stats)
 
 

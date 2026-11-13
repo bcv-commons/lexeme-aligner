@@ -92,16 +92,28 @@ _PUBLISH_ROOT = Path("pipeline/work/door43_dumps")     # raw per-book dumps (inp
 LANGUAGES = {
     "arb": {"org": "BSOJ", "repo": "ar_arst", "tag": "ararst"},      # NOT ARABIC: the repo is the English UST (USFM `\\id ... EN_UST en_English`; found 2026-10-09) — quarantined in gold_to_fullalign
     "hin": {"org": "Door43-Catalog", "repo": "hi_glt", "tag": "higlt"},
-    "mar": {"org": "Door43-Catalog", "repo": "mr_glt", "tag": "marglt"},
+    "mar": {"org": "Door43-Catalog", "repo": "mr_glt", "tag": "marglt",
+            "extra_books": {"GAL": "translationCore-Create-BCS/mr_glt@v4"}},
     "ben": {"org": "Door43-Catalog", "repo": "bn_gst", "tag": "bengst"},
     "spa": {"org": "Door43-Catalog", "repo": "es-419_glt", "tag": "es419glt"},
     "guj": {"org": "Door43-Catalog", "repo": "gu_glt", "tag": "gujglt"},
     "kan": {"org": "Door43-Catalog", "repo": "kn_glt", "tag": "knglt"},
     "npi": {"org": "Door43-Catalog", "repo": "ne_glt", "tag": "neglt"},
     "ory": {"org": "Door43-Catalog", "repo": "or_glt", "tag": "orglt"},
-    "tel": {"org": "Door43-Catalog", "repo": "te_glt", "tag": "telglt"},
+    "tel": {"org": "Door43-Catalog", "repo": "te_glt", "tag": "telglt",
+            "extra_books": {"GAL": "translationCore-Create-BCS/te_glt@v4"}},
     # "vie": intentionally excluded — Door43-Catalog/vi_glt confirmed to carry ZERO real \zaln markers
     # despite the same naming convention (checked directly, not assumed from the name).
+}
+# `extra_books` (2026-11-13, bcv-query top-up): a book the language's Door43-Catalog repo does not have, taken from
+# another Door43 repo `<org>/<repo>@<release tag>` (translationCore-Create-BCS te_glt/mr_glt v4 have GAL hand-aligned;
+# MAT ACT ROM HEB REV exist in no Door43 version of either). Only the listed books come from there.
+
+# A Door43 alignment of a text we already ingest under another tag (2026-11-13): hi_irv = our HINIRV (2JN: 12 of 13
+# verses identical letter for letter). Its rows are placed on that edition's own verse text and kept as their own
+# base_text, so they make a separate `door43` layer beside Clear's; only `books` (Clear's Hindi NT lacks 2JN).
+ONTO_EDITIONS = {
+    "hi_irv": {"iso": "hin", "source": "Door43-Catalog/hi_irv@v12", "edition": "hinirv", "books": ["2JN"]},
 }
 
 _BOOK_FILES = {
@@ -262,16 +274,28 @@ def list_available_books(iso: str) -> dict[str, str]:
     entries = _api_get_json(url)
     stems = {e["name"][:-5] for e in entries if isinstance(e, dict) and e["name"].endswith(".usfm")}
     stem_to_book = {v: k for k, v in _BOOK_FILES.items()}
-    return {stem_to_book[s]: s for s in stems if s in stem_to_book}
+    out = {stem_to_book[s]: s for s in stems if s in stem_to_book}
+    return out | {b: _BOOK_FILES[b] for b in lang.get("extra_books", {})}
 
 
-def _fetch(iso: str, rel: str) -> str:
+def _source_url(source: str, rel: str) -> str:
+    """`<org>/<repo>@<tag>` + file -> the raw URL of that file at that release tag."""
+    repo, tag = source.split("@")
+    return f"https://git.door43.org/{repo}/raw/tag/{tag}/{rel}"
+
+
+def _fetch(iso: str, rel: str, source: str | None = None) -> str:
+    """One USFM file, cached under door43_cache/<iso>/ (a book from `extra_books`) or door43_cache/<base_text>/ (ONTO_EDITIONS)."""
+    if source is None:
+        book = next((b for b, f in _BOOK_FILES.items() if f"{f}.usfm" == rel), None)
+        source = LANGUAGES[iso].get("extra_books", {}).get(book) if iso in LANGUAGES else None
     cache_dir = _CACHE_ROOT / iso
     cache_dir.mkdir(parents=True, exist_ok=True)
     fp = cache_dir / rel
     if fp.exists():
         return fp.read_text(encoding="utf-8")
-    req = urllib.request.Request(f"{_raw_base(iso)}/{rel}", headers={"User-Agent": _UA})
+    url = _source_url(source, rel) if source else f"{_raw_base(iso)}/{rel}"
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
     with urllib.request.urlopen(req, timeout=60) as r:   # noqa: S310 — fixed https door43 origin
         data = r.read().decode("utf-8")
     fp.write_text(data, encoding="utf-8")
@@ -282,6 +306,8 @@ def fetch_book(iso: str, book: str) -> str:
     fname = _BOOK_FILES.get(book)
     if not fname:
         raise ValueError(f"unknown book code {book!r}")
+    if iso in ONTO_EDITIONS:
+        return _fetch(iso, f"{fname}.usfm", ONTO_EDITIONS[iso]["source"])
     return _fetch(iso, f"{fname}.usfm")
 
 

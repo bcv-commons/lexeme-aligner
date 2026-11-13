@@ -118,3 +118,16 @@ def test_zero_width_joiners_are_stripped_from_words_and_text():
     assert words[(1, 1)] == ["परमेश्वरको"]
     assert "‍" not in texts[(1, 1)]
     assert spans[(1, 1)][0]["target_words"] == ["परमेश्वरको"]
+
+
+def test_extra_books_come_from_their_own_repo(monkeypatch):
+    """2026-11-13: GAL for tel/mar comes from translationCore-Create-BCS at a release tag, the rest from Door43-Catalog."""
+    monkeypatch.setattr(da, "_api_get_json", lambda url: [{"name": "42-MRK.usfm"}])
+    assert set(da.list_available_books("tel")) == {"MRK", "GAL"}
+    assert da._source_url(da.LANGUAGES["tel"]["extra_books"]["GAL"], "49-GAL.usfm") == \
+        "https://git.door43.org/translationCore-Create-BCS/te_glt/raw/tag/v4/49-GAL.usfm"
+
+
+def test_onto_edition_maps_to_its_ingest_tag():
+    from lexeme_aligner.eval.gold_to_fullalign import door43_edition
+    assert door43_edition("hi_irv") == "hinirv" and door43_edition("hi_glt") == "higlt"

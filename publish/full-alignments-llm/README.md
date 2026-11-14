@@ -31,6 +31,7 @@ A layer id is `<edition>+llm+<name>`, where `<edition>` is the compact-alignment
 | `kvg-m_wbt+llm+jev-v4` | the same Kuni-Boazi text, **morphed** (aligned by word parts, see below), 29 books | as above, on the text split into parts with bsb-add-books' Kuni segmenter | 148,398 |
 | `zin-m_wbt+llm+jev-v4` | Endagano Eénsha omu Chiziinza, Zinza (© 2024 Wycliffe Bible Translators, CC BY-SA 4.0; eBible `zin` via bible.helloao.org), **morphed**, New Testament, 27 books | TypeSafe Jev, design v4, by clause with make-tanakh's modules (`zin/aa440920`), on the text split into parts with their published Zinza split | 144,514 |
 | `eng_kjv+llm+jev-v4` | King James Version, 1769 text (public domain outside the UK; eBible `eng-kjv2006` via bible.helloao.org), **Old Testament**, 39 books. Its New Testament was aligned to the Textus Receptus and is in [alignments-by-id](https://huggingface.co/datasets/bcv-commons/alignments-by-id) (`tr/e/eng/eng_kjv`) | TypeSafe Jev (`jev-1.14.0`), design v4; the KJV's own Strong's tagging cleared a word's doubt where the proposal matched it, and function-word links Jev kept at least 97% of the time on Ruth, Jonah, Esther and 1 Samuel were not asked again in the other books | 483,700 |
+| `tgl_ulb+llm+jev-v4` | Unlocked Literal Bible, Tagalog (Door43 / unfoldingWord, CC BY-SA 4.0; eBible `tglulb` via bible.helloao.org), 66 books | TypeSafe Jev (`jev-1.14.0`), design v4, by clause; source modules only (no Tagalog module exists, see below) | 635,425 |
 
 **Design v4:** for each verse the model is asked about every target function word and every source function word, and about each
 content link the chain flagged as doubtful: which source word a target word belongs to, or which target word carries a source word.
@@ -52,6 +53,11 @@ conventions text; `_conventions.json` names them (below). Built by `lexeme_align
 Since v1.3 the requests where the newer Kuni module `kvg/b54d7f20` adds or changes a rule (its only new rule is `existence`:
 mø̀ndøgoám / ndøgoám / gegoam) were asked again with that module; every other request kept its v1.1 answer with `kvg/d8fdb53e`.
 `_conventions.json` records both per book (`target` and `update`).
+
+**Tagalog (v1.4):** asked by clause like Kuni, with the Greek / Hebrew / Aramaic source modules; there is no Tagalog module, so the
+requests carried only a short generic note on how target words are numbered (`_conventions.json`: `target`). Every link is
+machine-made (model + statistical chain, no human check); each row's profile gives its method and score. One request failed and kept
+the chain's proposal: LUK 3:23-4:1 (the genealogy has more choices than the model accepts in one question).
 
 **Morphed editions:** `<iso>-m_<rest>` (e.g. `kvg-m_wbt`) is an edition aligned by word PARTS: each word split into prefixes, stem,
 tone and suffixes with a pinned segmenter, aligned part by part and folded back to the words. Its main file and channels read like any
@@ -88,7 +94,8 @@ rebuild becomes a new tag. `v1.0` (2026-10-26) is the first tag; it adds the own
 (2026-10-28): Kuni-Boazi asked again by clause, and the morphed Kuni layer `kvg-m_wbt+llm+jev-v4`. `v1.2` (2026-10-30): the morphed
 Zinza New Testament `zin-m_wbt+llm+jev-v4`, made with `lexeme-aligner align-text --split auto --jev`. `v1.3` (2026-11-09): both
 Kuni-Boazi layers updated for the Kuni module's new `existence` rule (136 verses whole words, 113 morphed; the existence words now
-link to εἰμί / γίνομαι 39 times instead of 17 in whole words, 87 instead of 70 morphed).
+link to εἰμί / γίνομαι 39 times instead of 17 in whole words, 87 instead of 70 morphed). `v1.4` (2026-11-13): the Tagalog
+Unlocked Literal Bible, whole Bible, `tgl_ulb+llm+jev-v4`.
 
 ## Verse mapping
 
@@ -98,4 +105,4 @@ Spans are keyed by the source verse (Hebrew WLC numbering in the OT); read the t
 
 ## License
 
-The alignments are CC0 1.0. They hold no text; the edition named by each layer keeps its own licence (Vamvas: public domain; Kuni-Boazi `kvg_wbt`: CC BY-NC-ND 4.0, Wycliffe Switzerland; Zinza `zin_wbt`: CC BY-SA 4.0, Wycliffe Bible Translators).
+The alignments are CC0 1.0. They hold no text; the edition named by each layer keeps its own licence (Vamvas: public domain; Kuni-Boazi `kvg_wbt`: CC BY-NC-ND 4.0, Wycliffe Switzerland; Zinza `zin_wbt`: CC BY-SA 4.0, Wycliffe Bible Translators; Tagalog `tgl_ulb`: CC BY-SA 4.0, Door43 / unfoldingWord).

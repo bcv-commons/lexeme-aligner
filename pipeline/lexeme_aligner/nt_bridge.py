@@ -11,6 +11,7 @@ MACULA's per-word `greekstrong` (bcv-query spine, 2026-10-27) was measured as we
 from __future__ import annotations
 
 import collections
+import re
 import gzip
 import json
 from pathlib import Path
@@ -79,6 +80,45 @@ def table_weights(path: Path, glaux_min: float | None = None, exclude: set[str] 
             elif r["tier"] == "lxx" and glaux_min is not None and float(r["score"]) >= glaux_min and g not in exclude:
                 extra[r["hebrew"]][g] = float(r["score"])
     return dict(share), dict(extra)
+
+
+def _lexeme_num(lx: str | None) -> int | None:
+    """hbo:4430 / hbo:0871a -> 4430 / 871; None for a compound (hbo:1886a|0725) or another language."""
+    m = re.fullmatch(r"hbo:(\d+)[a-z]*", lx or "")
+    return int(m.group(1)) if m else None
+
+
+def aramaic_keys(mode: str, data_dir: Path, hebrew_lexemes) -> dict[int, list[tuple[str, float]]]:
+    """Experiment (ALIGNER_NT_BRIDGE_ARAMAIC=cognate|list, _DIR = a download of bcv-commons/aramaic-hebrew-equivalents): an Aramaic
+    lexeme's number -> [(Hebrew lexeme, weight)], extra keys into the bridge. `cognate`: the `lexemes` table's cognate (basis strongs or
+    consonants), weight 1. `list`: the `words` lists summed per Aramaic lexeme (the priors are per type): each word's candidate scores
+    over its best, averaged over the lexeme's words, kept at >= 0.2 of the best."""
+    import pyarrow.parquet as pq
+    by_num: dict[int, list[str]] = collections.defaultdict(list)
+    for lx in hebrew_lexemes:
+        if (k := _lexeme_num(lx)) is not None:
+            by_num[k].append(lx)
+    out: dict[int, list[tuple[str, float]]] = {}
+    if mode == "cognate":
+        for r in pq.read_table(data_dir / "data/lexemes.parquet").to_pylist():
+            if r["basis"] in ("strongs", "consonants") and r["hebrew_strong"]:
+                out[int(r["aramaic_strong"])] = [(lx, 1.0) for lx in by_num.get(int(r["hebrew_strong"]), [])]
+        return out
+    acc: dict[int, collections.Counter] = collections.defaultdict(collections.Counter)
+    n: collections.Counter = collections.Counter()
+    for r in pq.read_table(data_dir / "data/words.parquet").to_pylist():
+        a = int(r["aramaic_strong"])
+        n[a] += 1
+        cs, ss = r["candidates"].split(), [float(x) for x in r["candidate_scores"].split()]
+        if not cs:
+            continue
+        top = max(ss) or 1.0
+        for c, s in zip(cs, ss):
+            acc[a][int(c)] += s / top
+    for a, c in acc.items():
+        best = max(c.values()) / n[a]
+        out[a] = [(lx, v / n[a]) for h, v in c.items() if v / n[a] >= 0.2 * best for lx in by_num.get(h, [])]
+    return out
 
 
 def pool_renderings(partition: Path, exclude: set[str], lexemes: set[str], keep=None) -> dict[str, collections.Counter]:
@@ -201,7 +241,9 @@ def build_priors(recs, tag: str, out_dir: Path, cfg: dict | None = None) -> list
         return [(s, w, v * scale) for (s, w), v in best.items()]
     best: dict[tuple[str, str], float] = {}
     pool, pool_args = os.environ.get("ALIGNER_NT_BRIDGE_POOL"), None
-    if pool:          # experiment knob (run5.py): any partition, editions left out by name
+    if pool == "off":  # experiment knob (run6.py): the bridge alone, as for the languages with no other full-OT edition
+        pass
+    elif pool:        # experiment knob (run5.py): any partition, editions left out by name
         pool_args = (Path(pool), set(os.environ.get("ALIGNER_NT_BRIDGE_POOL_EXCLUDE", "").split(",")), None)
     elif (src := pool_sources(tag, cfg)) and (part := LEX_ROOT / f"iso={src[0]}" / "data.parquet").exists():
         pool_args = (part, set(), lambda bt, iso=src[0], ids=src[1]: compact_id(iso, bt) in ids)
@@ -224,19 +266,25 @@ def build_priors(recs, tag: str, out_dir: Path, cfg: dict | None = None) -> list
                         best[(t.strong, w)] = max(best.get((t.strong, w), 0), pw * k / tot)
         if os.environ.get("ALIGNER_NT_BRIDGE_POOL_ONLY"):
             return [(s, w, v * scale) for (s, w), v in best.items()]
+    ar_mode = os.environ.get("ALIGNER_NT_BRIDGE_ARAMAIC")
+    ar = aramaic_keys(ar_mode, Path(os.environ["ALIGNER_NT_BRIDGE_ARAMAIC_DIR"]), br) if ar_mode else {}
     for r in recs:
         for t in r.heb:
-            greek = (by_strong.get(t.strong) if by_strong is not None else br.get(t.lexeme)) if t.is_content and t.strong else None
-            if not greek:
+            if not (t.is_content and t.strong):
                 continue
-            for g in greek:
+            greek = by_strong.get(t.strong) if by_strong is not None else br.get(t.lexeme)
+            weighted_greek = [(g, 1.0) for g in greek or []]
+            if ar:      # make-tanakh 2026-11-14: Hebrew equivalents of an Aramaic word, as extra bridge keys
+                for hl, wt in ar.get(_lexeme_num(t.lexeme), []):
+                    weighted_greek += [(g, wt) for g in br.get(hl, [])]
+            for g, wt in weighted_greek:
                 c = rend.get(g)
                 if not c:
                     continue
                 tot = sum(c.values())
                 for w, k in c.most_common(top_k):
-                    if k / tot >= min_share and k / tot > best.get((t.strong, w), 0):
-                        best[(t.strong, w)] = k / tot
+                    if k / tot >= min_share and wt * k / tot > best.get((t.strong, w), 0):
+                        best[(t.strong, w)] = wt * k / tot
     return [(s, w, share * scale) for (s, w), share in best.items()]
 
 

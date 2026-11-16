@@ -77,6 +77,15 @@ What you get in `OUT`:
 | `align-text-run.json` | the run record: package version, git commit, sha256 of your text and of every input and setting, and each step's command, exit code and time |
 | `run.log` | the steps' output |
 
+**Verse numbers in the output are the source text's, not yours.** Every output keys a verse by the Hebrew/Greek source's
+numbering (Hebrew numbering in the Old Testament): the `book`/`chapter`/`verse` of the `.jsonl` records and the verses of the compact
+files. Where your text is numbered differently (English numbering: Psalm headings, DEU 29, MAL 4, ...) the verse map says which of
+your verses a source verse was paired with: the compact manifest's `verse_map` names it, e.g. `_versification_eng.json`, in
+[compact-alignments](https://huggingface.co/datasets/bcv-commons/compact-alignments) `_index/` (also in this checkout,
+`publish/compact-alignments/_index/`). Its `map` lists only the verses that differ, source -> yours: `"DEU 29:12": "DEU 29:13"`
+(your 29:13 was aligned as source 29:12), `"PSA 3:1": "PSA 3:title"` (a heading your text does not number). Use this file rather than
+a versification table: it is exactly the pairing the run used.
+
 The quality depends on how much text there is. The statistical aligner learns from your text, so a whole New Testament aligns
 much better than one book. For a language we have published, it also starts from what our editions of that language show (pooled
 priors, below), which matters most for a small text.

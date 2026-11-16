@@ -9,6 +9,7 @@ Language plug-point: `Normalizer` — per-language token normalization (the Indo
 strips clitics/affixes: -lah/-nya/…, me-/di-/ber-/ter-/…). Everything else is generic.
 """
 from __future__ import annotations
+import os
 
 from dataclasses import dataclass
 
@@ -160,6 +161,12 @@ def _gforms(word: str, norm: Normalizer, iso: str) -> list[str]:
     return _GLOSS_FORM_CACHE[key]
 
 
+# EXPERIMENT (2026-11-16, off by default): link content source words only. Function words (prefixes, suffixes, particles) have no
+# keyness-passing candidates of their own; they reach gloss only through the Strong's rollup (BootstrapPriors.by_strong), which hands
+# them a content lexeme's renderings ("to", "and", "will" for לְ / וְ). Measured as mostly wrong: pipeline/work/gloss-only.
+CONTENT_ONLY = os.environ.get("ALIGNER_GLOSS_CONTENT_ONLY", "") == "1"
+
+
 def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
                 stopwords=None, cross_lang: dict | None = None, multiword_floor: float = 0.6,
                 skip_lexemes: set | None = None, light_last: bool = False,
@@ -202,7 +209,7 @@ def align_verse(heb: list[HebToken], tokens: list[str], priors, iso: str,
         return blocked
     cands: list[Match] = []
     for h in heb:
-        if not h.strong:
+        if not h.strong or (CONTENT_ONLY and not h.is_content):
             continue
         h_blocked = blocked_for(h)
         is_name = (h.sp == "nmpr") or (h.morph or "").endswith("Np")

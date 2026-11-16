@@ -116,6 +116,30 @@ def _usj_structure(usj_dir: str) -> dict:
     return R
 
 
+MIN_COMPLETE_SHARE = 0.5          # align-text: below this, detect_scheme's verdict is not trusted (see complete_share)
+
+
+def complete_share(usj_dir: str) -> float | None:
+    """Share of the text's protestant-OT chapters that hold every verse from 1 to their last one (bridges count for their range);
+    None when the text has no such chapter. detect_scheme reads each chapter's LAST verse, so on a text with gaps (a film's narration,
+    sampled verses) its scores are noise: 420 sampled BSB verses scored best as lxx (2026-11-16). align-text uses this to fall back to
+    eng numbering. NOT applied inside detect_scheme: 57 ingested editions (partial OTs of selected verses) are below 0.5 and their
+    detected schemes would change."""
+    from lexeme_aligner.usj_source import verse_markers
+    seen: dict[tuple, set] = collections.defaultdict(set)
+    for fp in glob.glob(os.path.join(usj_dir, "*.json")):
+        try:
+            book, marks = verse_markers(Path(fp))
+        except (json.JSONDecodeError, OSError, ValueError, KeyError):
+            continue
+        if book in _PROT_OT:
+            for ch, vs, ve in marks:
+                seen[(book, ch)].update(range(vs, (ve or vs) + 1))
+    if not seen:
+        return None
+    return sum(1 for vv in seen.values() if vv >= set(range(1, max(vv) + 1))) / len(seen)
+
+
 def detect_scheme(usj_dir: str):
     """Fingerprint an ingested USJ's structure vs the pinned CDN schemes → (aligner_label, cdn_scheme, scores).
     Returns (None, None, {}) if the USJ is unreadable/empty. Scores = per-CDN-scheme chapter-match fraction
@@ -396,12 +420,25 @@ def ot_variant_rows(variants) -> int:
 
 def scheme_of(iso: str, usj_dir: str | None = None) -> str:
     """Resolve the aligner scheme label by fingerprinting the ingested USJ structure; `protestant` (identity) when there is
-    no ingested text to fingerprint."""
+    no ingested text to fingerprint. $ALIGNER_VERSIFICATION (align-text --versification) overrides both."""
+    if forced := forced_scheme():
+        return forced
     if usj_dir and os.path.isdir(usj_dir):
         label, _, _ = detect_scheme(usj_dir)
         if label:
             return label
     return "protestant"
+
+
+def forced_scheme() -> str | None:
+    """$ALIGNER_VERSIFICATION as an aligner label (a bibles code such as eng/org is accepted too); None when unset."""
+    v = (os.environ.get("ALIGNER_VERSIFICATION") or "").strip()
+    if not v:
+        return None
+    label = _CDN_TABLE.get(v, v)
+    if label not in _SCHEME_FILE and label not in _IDENTITY:
+        raise SystemExit(f"ALIGNER_VERSIFICATION={v}: not a scheme (one of {sorted(set(_CDN_TABLE) | set(_SCHEME_FILE) | {'protestant'})})")
+    return label
 
 
 _REF_RE = __import__("re").compile(r"^(\w{3}) (\d+):(\d+)(?:-(?:(\d+):)?(\d+))?$")
@@ -608,6 +645,8 @@ _LABEL_TO_CDN = {"protestant": "eng", "kjv": "eng", "": "eng", "hebrew": "org", 
 
 def edition_scheme(iso: str, usj_dir: str | None = None) -> str:
     """The edition's numbering as a bcv-commons/bibles scheme code (eng, org, orgw, catm, lxx, vul, rso)."""
+    if forced := forced_scheme():
+        return _LABEL_TO_CDN.get(forced, "eng")
     if usj_dir and os.path.isdir(usj_dir):
         _, cdn, _ = detect_scheme(usj_dir)
         if cdn:

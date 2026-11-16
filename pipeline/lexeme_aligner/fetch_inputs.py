@@ -8,6 +8,8 @@ the checkout:
     DATA/prior_pack.parquet                        language-independent priors
     DATA/gram_struct/<partition>/<iso>.json        grammar facts for each language asked for (--iso; absent = no facts, not an error)
     DATA/gram_struct/article_bound.json            one file for all languages
+    DATA/lexeme-alignments/iso=<iso>/data.parquet  the language's published alignments, all editions pooled (--iso; absent = none
+                                                   published): align-text lends their renderings to the text (pooled priors)
     DATA/greek-nt-clause-layout/clauses.parquet    only with --jev: NT clause units for LLM (Jev) checking
     DATA/hebrew-clause-layout/clauses-<BOOK>.parquet   --jev: OT clause units
     DATA/language-analysis/source/<grc|hbo|arc>/jev.md   --jev: source-language rules (bsb-add-books)
@@ -82,6 +84,11 @@ def wanted(lst: dict, isos: list[str], jev: bool) -> list[dict]:
             out.append({"name": f"gram_struct/{part}/{iso}", "url": hf_url(g["repo"], g["revision"], f"{part}/{iso}.json"),
                         "dest": f"gram_struct/{part}/{iso}.json", "sha256": None, "bytes": None,
                         "licence": g["licences"].get(part, g["licences"]["default"]), "optional": True})
+    la = lst.get("lexeme_alignments")
+    for iso in isos if la else []:       # the language's pooled published alignments: align-text's pooled priors (absent = the text alone)
+        out.append({"name": f"lexeme_alignments/{iso}", "url": hf_url(la["repo"], la["revision"], f"iso={iso}/data.parquet"),
+                    "dest": f"lexeme-alignments/iso={iso}/data.parquet", "sha256": None, "bytes": None, "licence": la["licence"],
+                    "optional": True})
     return out
 
 

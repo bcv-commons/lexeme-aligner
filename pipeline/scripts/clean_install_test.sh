@@ -48,9 +48,11 @@ w = Path(sys.argv[1])
 rec = json.loads((w / "out/align-text-run.json").read_text())
 compact = list((w / "out/compact").rglob("*.json"))
 problems = [m for m, bad in [("run not ok", not rec.get("ok")), ("guard refusals", rec.get("guard_refusals")),
-                             ("no compact files", not compact)] if bad]
+                             ("no compact files", not compact),
+                             ("pooled priors not used", not (rec.get("pool") or {}).get("used"))] if bad]
 print("[clean-install] steps:", ", ".join(f"{s['step']} {s['seconds']}s" for s in rec["steps"]))
 print("[clean-install] compact files:", len(compact), "| missing settings:", [k for k, v in rec["settings"].items() if v.get("missing")])
+print("[clean-install] pool:", {k: (rec.get("pool") or {}).get(k) for k in ("used", "sha256", "editions", "fetched")})
 if problems:
     sys.exit("[clean-install] FAILED: " + "; ".join(problems))
 EOF

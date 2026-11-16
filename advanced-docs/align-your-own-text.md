@@ -31,9 +31,13 @@ Tested on Linux with Python 3.12 and 3.14 (`pipeline/scripts/clean_install_test.
 What it downloads:
 - the Hebrew/Greek word spine, from bcv-query's fixed release;
 - the prior pack;
-- whatever grammar facts we have for your language.
+- whatever grammar facts we have for your language;
+- our published alignments of your language, all editions pooled
+  ([bcv-commons/lexeme-alignments](https://huggingface.co/datasets/bcv-commons/lexeme-alignments), one file per language, a few MB),
+  if we have the language.
 
-Every file is checked against a pinned sha256, so a file that changed upstream is refused. The folder's `inputs.json` records
+Every file is checked against a pinned sha256 or comes from a pinned dataset revision, so a file that changed upstream is refused
+or never fetched. The folder's `inputs.json` records
 what came from where, under which licence. A language we have no facts for still works, because the facts are only hints.
 Run it again with `--iso` for each further language.
 
@@ -73,8 +77,9 @@ What you get in `OUT`:
 | `align-text-run.json` | the run record: package version, git commit, sha256 of your text and of every input and setting, and each step's command, exit code and time |
 | `run.log` | the steps' output |
 
-The quality depends on how much text there is. The statistical aligner learns from your text alone, so a whole New Testament
-aligns much better than one book.
+The quality depends on how much text there is. The statistical aligner learns from your text, so a whole New Testament aligns
+much better than one book. For a language we have published, it also starts from what our editions of that language show (pooled
+priors, below), which matters most for a small text.
 
 ## 5. Options
 
@@ -96,6 +101,27 @@ made for exactly this text, or `--split auto` for the language's published split
 The split's text fingerprints are checked against your text, so a split made for another text is refused. The output is the
 **morphed** edition `<iso>-m_<rest>` (here `zin-m_wbt`). Its `.meta.json` has a `parts` channel saying which part of each word a link
 goes to, and the manifest names the split it was made with. The edition id must start with the ISO code.
+
+**Pooled priors** (from version 0.3.0). For a language we have published, the run borrows what our editions of it show: for each
+Hebrew or Greek word in your text, how those editions render it (from `fetch-inputs`' copy of the language's lexeme-alignments
+file). These renderings become starting weights for the statistical aligner and join the dictionary the gloss step aligns with.
+Your text still decides: a rendering it does not use gets no link. `--no-pool` aligns with your text alone, as before 0.3.0;
+`--pool FILE` uses another lexeme-alignments file; `--pool-exclude A,B` leaves editions out of the pool (an edition with your id
+is always left out). The run record's `pool` names the file, its sha256 and what was left out.
+Measured on four languages with gold alignments (English BSB, Spanish RV09, Hindi IRV, Arabic Van Dyck), each edition left out of its
+own pool. Link F1 of the whole chain, without -> with the pool, mean of paired runs:
+
+| Text | English | Spanish | Hindi | Arabic |
+|---|---|---|---|---|
+| 420 scattered verses (GEN EXO NUM DEU EZR NEH 1CH JER MAT), 3 runs | 0.458 -> 0.498 | 0.721 -> 0.753 | 0.393 -> 0.460 | 0.806 -> 0.822 |
+| whole books (JOS RUT EZR MAT MRK, ~2,800 verses), 2 runs | 0.499 -> 0.525 | 0.787 -> 0.790 | 0.565 -> 0.578 | 0.785 -> 0.789 |
+
+Every one of the 12 small-text runs gained, in precision and recall both.
+
+**Verse numbering.** Your text's numbering (English/KJV, Hebrew, ...) is detected from which verses its chapters end on. A text with
+gaps (selected verses, a film's narration) cannot be detected that way, so such a text is taken as English (KJV) numbering and the run
+says so. Give `--versification org` for Hebrew numbering, or `eng`, `lxx`, `vul`, `rso`, `orgw`, `catm`
+([bcv-commons/bibles](https://github.com/bcv-commons/bibles) scheme codes). The run record's `versification` says what was used.
 
 ## 6. Optional: check the links with an LLM (paid, your key)
 
@@ -124,7 +150,8 @@ TYPESAFE_API_KEY=apikey_... .venv/bin/lexeme-aligner align-text ... --force --je
 - **The inputs** carry their own licences, recorded per file in `inputs.json`:
   - the spine: CC BY 4.0 (MACULA, Clear Bible);
   - the prior pack and the Hebrew clause layout: CC BY-SA 4.0;
-  - grammar facts: CC BY 4.0 (Grambank, Glottolog), CC BY-SA 4.0 (URIEL), or CC0.
+  - grammar facts: CC BY 4.0 (Grambank, Glottolog), CC BY-SA 4.0 (URIEL), or CC0;
+  - our published alignments of your language (pooled priors): CC0.
 
   If you publish output, credit MACULA. If you publish anything that includes the CC BY-SA inputs, use the same licence for it.
 

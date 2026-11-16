@@ -6,7 +6,8 @@ plus an edition id and the language's ISO 639-3 code. The output folder gets the
     OUT/align_<method>_<edition>_<BOOK>.jsonl      per-method links (eflomal, gloss, spanext, gapfill, residual)
     OUT/compact/<i>/<iso>/<edition>/...            compact-alignments, laid out exactly as published (+ .meta.json, manifest)
     OUT/target-stopwords/, target-morphology/      computed from THIS text (never read from our published lists)
-    OUT/lexroot/                                   the eflomal-only lexeme export the gloss step bootstraps from
+    OUT/lexroot/                                   the eflomal-only lexeme export of this text
+    OUT/lexroot-pool/                              that export + the language's published pool: what the gloss step bootstraps from
     OUT/align-text-run.json                        the run record: package version, git commit, sha256 of the text and of every
                                                    data/settings input, each step's command, exit code and time
     OUT/guard.log                                  only if something tried to write elsewhere (that step then fails)
@@ -17,6 +18,11 @@ export, aligned_mwe, senses), the ledger, publishing. Every step runs under lexe
 folder) writable; every chain setting that has a folder is pointed inside OUT.
 
     lexeme-aligner align-text --text PATH --edition kvg_draft --iso kvg --out OUT [--lang-name Kuni] [--data DIR]
+
+Pooled priors (0.3.0, 2026-11-16): like full_chain, which aligns a language's editions together, the text borrows what the language's
+published editions know: `bcv-commons/lexeme-alignments` iso=<iso> (fetch-inputs --iso fetches it) gives eflomal LEX priors for the
+text's content words and joins the gloss seed (lexeme_aligner.pool_priors). Most useful for a small text. `--no-pool` = the text alone;
+the run record's `pool` names the file, its sha256 and what was left out.
 
 `--text` reads USJ, USFM, the eBible corpus layout (vref.txt) or plain text with one verse per line (lexeme_aligner.text_input);
 anything but USJ is converted into OUT/text-usj first. `--usj DIR` still works for a USJ folder.
@@ -165,26 +171,85 @@ def resolve_split(arg: str, iso: str, data: Path | None, usj: Path) -> tuple[Pat
     return fp, pin
 
 
-def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None) -> list[tuple[str, list[str]]]:
-    """[(step name, [module, args...])] — pure, the tests call it."""
+POOL_ROOT = "lexroot-pool"                  # OUT/lexroot-pool: the text's own eflomal export + the language's published pool (gloss reads it)
+
+
+def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None,
+         pool: dict | None = None) -> list[tuple]:
+    """[(step name, [module, args...][, extra env])] — pure, the tests call it. `pool` = {"path", "exclude"}: the language's published
+    lexeme-alignments partition lends eflomal priors and the gloss seed (pool_priors.py); None = the text alone."""
     common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj)]
     name = ["--lang-name", lang_name] if lang_name else []
     pilot = ["lexeme_aligner.run_pilot", "--usj-dir", str(usj), "--iso", edition, "--publish-iso", iso, "--out", str(out), *name]
-    steps: list[tuple[str, list[str]]] = []
+    ex = ",".join(pool["exclude"]) if pool else ""
+    pp = ["--pool-priors", str(pool["path"]), *(["--pool-exclude", ex] if ex else [])] if pool else []
+    steps: list[tuple] = []
     if bridge:
-        steps += [("eflomal-nt", [*pilot, "--method", "eflomal", "--nt"]), ("eflomal-ot", [*pilot, "--method", "eflomal", "--ot", "--nt-bridge"])]
+        steps += [("eflomal-nt", [*pilot, "--method", "eflomal", "--nt", *pp]),
+                  ("eflomal-ot", [*pilot, "--method", "eflomal", "--ot", "--nt-bridge", *pp])]
     else:
-        steps += [("eflomal", [*pilot, "--method", "eflomal", scope])]
+        steps += [("eflomal", [*pilot, "--method", "eflomal", scope, *pp])]
     steps += [
         ("export", ["lexeme_aligner.export_lex", "--iso", edition, "--publish-iso", iso, "--methods", "eflomal", "--out", str(out),
-                    "--root", str(out / "lexroot"), *name]),
-        ("gloss", [*pilot, "--method", "gloss", scope]),
+                    "--root", str(out / "lexroot"), *name])]
+    if pool:
+        steps += [("pool-merge", ["lexeme_aligner.pool_priors", "merge", "--iso", iso, "--own", str(out / "lexroot"), "--pool", str(pool["path"]),
+                                  "--out", str(out / POOL_ROOT), *(["--exclude", ex] if ex else [])]),
+                  ("gloss", [*pilot, "--method", "gloss", scope], {"ALIGNER_LEX_ROOT": str(out / POOL_ROOT)})]
+    else:
+        steps += [("gloss", [*pilot, "--method", "gloss", scope])]
+    steps += [
         ("spanext", ["lexeme_aligner.span_extension", *common, scope, "--methods", "eflomal,gloss", "--out", str(out)]),
         ("gapfill", ["lexeme_aligner.gapfill", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
         ("residual", ["lexeme_aligner.residual_align", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
         ("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(out), "--publish", str(out / "compact")]),
     ]
     return steps
+
+
+def resolve_pool(arg: str | None, iso: str, edition: str, data: Path | None, exclude: str = "") -> tuple[dict | None, dict]:
+    """(plan's pool or None, its run-record entry). `auto` = the language's partition in the data folder (fetch-inputs --iso), else in
+    this checkout's publish/lexeme-alignments; absent = no pool (a language we have not published), recorded, not an error. A FILE is
+    used as given. The edition itself is always left out of the pool when it is one of the pooled editions (base_text or compact id)."""
+    from lexeme_aligner import pool_priors
+    from lexeme_aligner.nt_bridge import compact_id
+    if arg is None:
+        return None, {"used": False, "why": "--no-pool"}
+    if arg == "auto":
+        fp = (data / "lexeme-alignments" if data is not None else REPO / "publish" / "lexeme-alignments") / f"iso={iso}" / "data.parquet"
+        if not fp.is_file():
+            return None, {"used": False, "why": f"no published lexeme-alignments for {iso} at {fp}"}
+    else:
+        fp = Path(arg).expanduser().resolve()
+        if not fp.is_file():
+            raise SystemExit(f"align-text: no pool file {fp}")
+    import pyarrow.parquet as pq
+    bts = set(pq.read_table(fp, columns=["base_text"]).column("base_text").to_pylist())
+    ex = sorted({e for e in exclude.split(",") if e} | {b for b in bts if edition.lower() in (b.lower(), compact_id(iso, b).lower())})
+    rec = {"used": True, **_file_entry(fp), "editions": len(bts - set(ex)), "exclude": ex, **pool_priors.settings()}
+    if data is not None and (data / "inputs.json").exists():
+        rec["fetched"] = (json.loads((data / "inputs.json").read_text(encoding="utf-8")).get("files") or {}).get(f"lexeme-alignments/iso={iso}/data.parquet")
+    return {"path": fp, "exclude": ex}, rec
+
+
+def versification_choice(arg: str | None, usj: Path, warn=sys.stderr) -> dict:
+    """The run record's `versification`, with `forced` = the value for $ALIGNER_VERSIFICATION when the steps must not detect it:
+    given (--versification), or eng for a text with gaps, whose detection is noise (versification.complete_share)."""
+    from lexeme_aligner import versification as vf
+    share = vf.complete_share(str(usj))
+    rec = {"complete_share": None if share is None else round(share, 3)}
+    if arg:
+        os.environ["ALIGNER_VERSIFICATION"] = arg
+        try:
+            vf.forced_scheme()                                    # refuses an unknown scheme before any step runs
+        finally:
+            del os.environ["ALIGNER_VERSIFICATION"]
+        return {**rec, "scheme": arg, "how": "given", "forced": arg}
+    if share is not None and share < vf.MIN_COMPLETE_SHARE:
+        print(f"[align-text] the text has gaps (only {share:.0%} of its OT chapters are complete): its verse numbering cannot be detected, "
+              "using eng (English/KJV numbering); pass --versification if it is numbered otherwise", file=warn)
+        return {**rec, "scheme": "eng", "how": "default (text with gaps)", "forced": "eng"}
+    return {**rec, "scheme": vf.edition_scheme("", str(usj)), "how": "detected"}
 
 
 def step_env(out: Path, data: Path | None) -> dict:
@@ -354,6 +419,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jev-workers", type=int, default=4, help="with --jev: requests in parallel")
     ap.add_argument("--split", default=None, help="align by word parts: a bcv-split words.parquet made for this text, or `auto` = the "
                     "language's published split (fetch-inputs --split); output is the morphed edition <iso>-m_<rest>")
+    ap.add_argument("--pool", default="auto", help="the language's published lexeme-alignments partition lends eflomal priors and the "
+                    "gloss seed (default auto: fetch-inputs' copy in --data, else this checkout's; none published = the text alone), or a "
+                    "data.parquet to use")
+    ap.add_argument("--no-pool", action="store_true", help="the text alone (align-text before 0.3.0)")
+    ap.add_argument("--pool-exclude", default="", help="base_texts to leave out of the pool (comma-separated); the edition itself always is")
+    ap.add_argument("--versification", default=None, help="the text's verse numbering: eng (English/KJV, protestant), org (Hebrew), "
+                    "lxx, vul, rso, orgw, catm. Default: detected from the text; a text with gaps (most chapters missing verses) cannot be "
+                    "detected and gets eng")
     ap.add_argument("--runs", type=int, default=1, help="run the chain N times; run 1's compact gets a `runs` agreement channel")
     ap.add_argument("--books", default=None, help="with --jev: only these books (comma-separated codes, e.g. PHM,RUT); the chain still "
                     "aligns every book of the text")
@@ -397,6 +470,11 @@ def main(argv: list[str] | None = None) -> int:
         split, split_pin = resolve_split(args.split, args.iso, data, usj)
     if args.runs < 1:
         raise SystemExit("align-text: --runs must be at least 1")
+    if split:
+        pool, pool_rec = None, {"used": False, "why": "--split: the parts route takes part-level priors from its own view"}
+    else:
+        pool, pool_rec = resolve_pool(None if args.no_pool else args.pool, args.iso, args.edition, data, args.pool_exclude)
+    vers = versification_choice(args.versification, usj)
     run_dirs = [out] + [out / "runs" / f"run{k}" for k in range(2, args.runs + 1)]
     runs_plan = []                                   # (run dir, its env, its steps)
     for rd in run_dirs:
@@ -405,8 +483,11 @@ def main(argv: list[str] | None = None) -> int:
             (rd / "parts-pin.json").write_text(json.dumps(split_pin, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
             rsteps = plan_parts(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, split)
         else:
-            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name)
-        runs_plan.append((rd, step_env(rd, data), rsteps))
+            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, pool)
+        renv = step_env(rd, data)
+        if vers.get("forced"):
+            renv["ALIGNER_VERSIFICATION"] = vers["forced"]
+        runs_plan.append((rd, renv, rsteps))
     steps = runs_plan[0][2]
 
     record = {
@@ -415,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         "edition": args.edition, "iso": args.iso, "lang_name": args.lang_name,
         "text": {"path": str(usj), "sha256": digest, "books": books, "format": text_format,
                  **({"source": str(given), "source_sha256": text_input.source_digest(given)} if usj != given else {})},
-        "scope": scope.lstrip("-"), "nt_bridge": bridge,
+        "scope": scope.lstrip("-"), "nt_bridge": bridge, "pool": pool_rec, "versification": vers,
         **({"split": {"path": str(split), "pin": split_pin}} if split else {}),
         **({"runs": args.runs} if args.runs > 1 else {}),
         "data": {k: _file_entry(fp) for k, fp in inputs.items()},

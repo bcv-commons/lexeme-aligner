@@ -23,7 +23,10 @@ def test_wanted_adds_grammar_files_per_language_and_jev_only_on_request():
     lst = fi.load_list()
     plain = fi.wanted(lst, ["kvg"], jev=False)
     assert not any(w["dest"].startswith("greek-nt-clause-layout") for w in plain)
-    assert {w["dest"] for w in plain if w["optional"]} == {f"gram_struct/{p}/kvg.json" for p in lst["gram_struct"]["partitions"]}
+    assert {w["dest"] for w in plain if w["optional"]} == ({f"gram_struct/{p}/kvg.json" for p in lst["gram_struct"]["partitions"]}
+                                                          | {"lexeme-alignments/iso=kvg/data.parquet"})
+    la = next(w for w in plain if w["dest"] == "lexeme-alignments/iso=kvg/data.parquet")
+    assert lst["lexeme_alignments"]["revision"] in la["url"] and la["url"].endswith("/iso=kvg/data.parquet")
     assert any(w["dest"] == "greek-nt-clause-layout/clauses.parquet" for w in fi.wanted(lst, [], jev=True))
 
 

@@ -295,6 +295,10 @@ def main() -> int:
     ap.add_argument("--nt-bridge", action="store_true",
                     help="eflomal priors for a thin OT from this edition's own NT alignment (nt_bridge.py; the NT must be "
                          "aligned already in --out). onboard.py sets it when nt_bridge.applies()")
+    ap.add_argument("--pool-priors", type=Path, default=None,
+                    help="eflomal LEX priors from a lexeme-alignments partition (the language's other editions; pool_priors.py). "
+                         "align-text passes it for an outside text")
+    ap.add_argument("--pool-exclude", default="", help="with --pool-priors: base_texts to leave out (comma-separated)")
     ap.add_argument("--book", action="append")
     ap.add_argument("--ot", action="store_true", help="use all 39 OT books (Hebrew spine)")
     ap.add_argument("--nt", action="store_true", help="use all 27 NT books (Greek spine) — gold benchmark")
@@ -537,6 +541,18 @@ def main() -> int:
             with (args.out / f"nt_bridge_priors_{args.iso}.tsv").open("w", encoding="utf-8") as fh:
                 fh.writelines(f"{s}\t{w}\t{a:.3f}\n" for s, w, a in bridged)
             print(f"[pilot] eflomal priors: {len(bridged)} from the NT bridge (nt_bridge.py)", file=sys.stderr)
+        if args.pool_priors:
+            from lexeme_aligner import pool_priors
+            pooled = [(s, norm.forms(w)[0], a) for s, w, a in
+                      pool_priors.pairs(recs, args.pool_priors, [e for e in args.pool_exclude.split(",") if e])]
+            best: dict[tuple[str, str], float] = {}
+            for s, w, a in (prior_pairs or []) + pooled:      # one LEX line per pair: the strongest source wins
+                best[(s, w)] = max(best.get((s, w), 0.0), a)
+            prior_pairs = [(s, w, a) for (s, w), a in best.items()]
+            part = "ot" if all(r.book in OT_BOOKS for r in recs) else "nt" if not any(r.book in OT_BOOKS for r in recs) else "all"
+            with (args.out / f"pool_priors_{args.iso}_{part}.tsv").open("w", encoding="utf-8") as fh:
+                fh.writelines(f"{s}\t{w}\t{a:.3f}\n" for s, w, a in pooled)
+            print(f"[pilot] eflomal priors: {len(pooled)} pooled from {args.pool_priors} (pool_priors.py)", file=sys.stderr)
         fert_priors = None
         from lexeme_aligner import fertility_priors as fertmod
         fert_flags = fertmod.load_fertility_flags(publish_iso)

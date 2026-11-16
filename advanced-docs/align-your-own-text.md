@@ -72,6 +72,7 @@ What you get in `OUT`:
 | Path | What it holds |
 |---|---|
 | `compact/<i>/<iso>/<edition>/` | the alignment, one file per book in the [compact format](../docs/compact-alignments.md), with `.meta.json` sidecars and a manifest |
+| `compact/_index/` | what the compact files are read with: the source-word index of your text's books (`<BOOK>_lexemes.json`, `_keys`, `_fn`, `_fn_keys`, stamped in `_source.json`) and the verse map (`_versification_<scheme>.json`). The same files as compact-alignments' own `_index/`, for your books only |
 | `align_<method>_<edition>_<BOOK>.jsonl` | the links from each step: `eflomal`, `gloss`, `spanext`, `gapfill`, `residual` |
 | `target-stopwords/`, `target-morphology/` | function words and affixes learned from your text |
 | `align-text-run.json` | the run record: package version, git commit, sha256 of your text and of every input and setting, and each step's command, exit code and time |
@@ -80,9 +81,9 @@ What you get in `OUT`:
 **Verse numbers in the output are the source text's, not yours.** Every output keys a verse by the Hebrew/Greek source's
 numbering (Hebrew numbering in the Old Testament): the `book`/`chapter`/`verse` of the `.jsonl` records and the verses of the compact
 files. Where your text is numbered differently (English numbering: Psalm headings, DEU 29, MAL 4, ...) the verse map says which of
-your verses a source verse was paired with: the compact manifest's `verse_map` names it, e.g. `_versification_eng.json`, in
-[compact-alignments](https://huggingface.co/datasets/bcv-commons/compact-alignments) `_index/` (also in this checkout,
-`publish/compact-alignments/_index/`). Its `map` lists only the verses that differ, source -> yours: `"DEU 29:12": "DEU 29:13"`
+your verses a source verse was paired with: the compact manifest's `verse_map` names it, e.g. `_versification_eng.json`, and the run
+writes it into `OUT/compact/_index/` (from 0.3.1; the same file as in
+[compact-alignments](https://huggingface.co/datasets/bcv-commons/compact-alignments) `_index/`). Its `map` lists only the verses that differ, source -> yours: `"DEU 29:12": "DEU 29:13"`
 (your 29:13 was aligned as source 29:12), `"PSA 3:1": "PSA 3:title"` (a heading your text does not number). Use this file rather than
 a versification table: it is exactly the pairing the run used.
 

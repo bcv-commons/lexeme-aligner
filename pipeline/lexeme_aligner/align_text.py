@@ -5,6 +5,9 @@ plus an edition id and the language's ISO 639-3 code. The output folder gets the
 
     OUT/align_<method>_<edition>_<BOOK>.jsonl      per-method links (eflomal, gloss, spanext, gapfill, residual)
     OUT/compact/<i>/<iso>/<edition>/...            compact-alignments, laid out exactly as published (+ .meta.json, manifest)
+    OUT/compact/_index/                            what those files are read with: the source index of the text's books
+                                                   (<BOOK>_lexemes/_keys/_fn/_fn_keys.json, _source.json) and its verse map
+                                                   (_versification_<scheme>.json), byte-identical to compact-alignments' own
     OUT/target-stopwords/, target-morphology/      computed from THIS text (never read from our published lists)
     OUT/lexroot/                                   the eflomal-only lexeme export of this text
     OUT/lexroot-pool/                              that export + the language's published pool: what the gloss step bootstraps from
@@ -118,8 +121,8 @@ PARTS = "parts"                              # OUT/parts/{usj,out,priors}: the p
 
 
 def plan_parts(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None,
-               split: Path) -> list[tuple[str, list[str], dict]]:
-    """[(step name, [module, args...], extra env)] for alignment by word parts — pure, the tests call it."""
+               split: Path, index_root: Path | None = None) -> list[tuple[str, list[str], dict]]:
+    """[(step name, [module, args...], extra env)] for alignment by word parts — pure, the tests call it. `index_root`: as in plan()."""
     view, vout, priors = out / PARTS / "usj", out / PARTS / "out", out / PARTS / "priors"
     venv = {"ALIGNER_OUT": str(vout)}
     common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(view), "--out", str(vout)]
@@ -142,7 +145,8 @@ def plan_parts(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge:
         ("fold", ["lexeme_aligner.target_parts", "fold", "--tag", edition, "--view-out", str(vout), "--out", str(out), "--view", str(view),
                   "--usj", str(usj)], {}),
         ("compact", ["lexeme_aligner.compact_align", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj), "--methods", _METHODS,
-                     "--out-dir", str(out), "--publish", str(out / "compact"), "--morphed", "--parts-pin", str(out / "parts-pin.json")], {}),
+                     "--out-dir", str(out), "--publish", str(out / "compact"), "--index-root", str(index_root or out / "compact" / INDEX),
+                     "--morphed", "--parts-pin", str(out / "parts-pin.json")], {}),
     ]
     return steps
 
@@ -171,13 +175,15 @@ def resolve_split(arg: str, iso: str, data: Path | None, usj: Path) -> tuple[Pat
     return fp, pin
 
 
+INDEX = "_index"                           # OUT/compact/_index: the source index (per book) + verse map the compact files are read with
 POOL_ROOT = "lexroot-pool"                  # OUT/lexroot-pool: the text's own eflomal export + the language's published pool (gloss reads it)
 
 
 def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None,
-         pool: dict | None = None) -> list[tuple]:
+         pool: dict | None = None, index_root: Path | None = None) -> list[tuple]:
     """[(step name, [module, args...][, extra env])] — pure, the tests call it. `pool` = {"path", "exclude"}: the language's published
-    lexeme-alignments partition lends eflomal priors and the gloss seed (pool_priors.py); None = the text alone."""
+    lexeme-alignments partition lends eflomal priors and the gloss seed (pool_priors.py); None = the text alone. `index_root`: where
+    compact writes the source index and verse map the compact files need (default OUT/compact/_index; extra runs share run 1's)."""
     common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj)]
     name = ["--lang-name", lang_name] if lang_name else []
     pilot = ["lexeme_aligner.run_pilot", "--usj-dir", str(usj), "--iso", edition, "--publish-iso", iso, "--out", str(out), *name]
@@ -202,7 +208,8 @@ def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool,
         ("spanext", ["lexeme_aligner.span_extension", *common, scope, "--methods", "eflomal,gloss", "--out", str(out)]),
         ("gapfill", ["lexeme_aligner.gapfill", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
         ("residual", ["lexeme_aligner.residual_align", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
-        ("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(out), "--publish", str(out / "compact")]),
+        ("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(out), "--publish", str(out / "compact"),
+                     "--index-root", str(index_root or out / "compact" / INDEX)]),
     ]
     return steps
 
@@ -481,9 +488,9 @@ def main(argv: list[str] | None = None) -> int:
         rd.mkdir(parents=True, exist_ok=True)
         if split:
             (rd / "parts-pin.json").write_text(json.dumps(split_pin, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-            rsteps = plan_parts(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, split)
+            rsteps = plan_parts(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, split, out / "compact" / INDEX)
         else:
-            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, pool)
+            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, pool, out / "compact" / INDEX)
         renv = step_env(rd, data)
         if vers.get("forced"):
             renv["ALIGNER_VERSIFICATION"] = vers["forced"]

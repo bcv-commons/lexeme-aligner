@@ -93,3 +93,16 @@ def test_resolve_split_refuses_a_split_made_from_another_text(tmp_path):
     (tmp_path / "_split.json").write_text(json.dumps({"text_fp": {"PHM": book_file_hash(usj / "57-PHM.json")}}))
     fp, pin = align_text.resolve_split(str(split), "zin", None, usj)
     assert fp == split and pin["format"] == "bcv-split" and pin["file"] == "words.parquet"
+
+
+def test_compact_writes_its_index_into_out_and_extra_runs_share_run_1s(tmp_path):
+    steps = align_text.plan(tmp_path / "usj", "x", "eng", tmp_path / "o", "--nt", False, None)
+    c = dict((s[0], s[1]) for s in steps)["compact"]
+    assert c[c.index("--index-root") + 1] == str(tmp_path / "o" / "compact" / "_index")
+    shared = tmp_path / "o" / "compact" / "_index"
+    run2 = align_text.plan(tmp_path / "usj", "x", "eng", tmp_path / "o" / "runs" / "run2", "--nt", False, None, None, shared)
+    c2 = dict((s[0], s[1]) for s in run2)["compact"]
+    assert c2[c2.index("--index-root") + 1] == str(shared)
+    parts = align_text.plan_parts(tmp_path / "usj", "zin_wbt", "zin", tmp_path / "o", "--nt", False, None, tmp_path / "w.parquet")
+    cp = dict((s[0], s[1]) for s in parts)["compact"]
+    assert cp[cp.index("--index-root") + 1] == str(tmp_path / "o" / "compact" / "_index")

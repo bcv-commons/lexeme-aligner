@@ -48,7 +48,7 @@ def load_alignment(tag: str, methods: tuple[str, ...], out_dir: Path, books: set
                     if books and rec["ref"] // 1_000_000 not in books:
                         continue
                     verse = out[rec["ref"]]
-                    for p in rec["pairs"]:
+                    for p in rec["pairs"] + rec.get("held", []):   # held = gloss function links: analysis input
                         if p.get("t_idx") and p["h_idx"] not in verse:
                             verse[p["h_idx"]] = sorted(p["t_idx"])
     return out

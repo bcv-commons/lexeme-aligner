@@ -71,7 +71,7 @@ def build_function_classes(tag: str, out_dir: Path = OUT, methods: tuple[str, ..
             with fp.open(encoding="utf-8") as fh:
                 for line in fh:
                     rec = json.loads(line)
-                    for p in rec["pairs"]:
+                    for p in rec["pairs"] + rec.get("held", []):   # held = gloss function links: analysis input, never published
                         if p.get("content"):
                             continue
                         cls = lemma_to_class.get(p.get("lemma") or "")

@@ -107,7 +107,7 @@ def load_covered(iso: str, out_dir: Path, methods, min_score: float, lex_pos: di
                 for line in fh:
                     rec = json.loads(line)
                     ref = rec["ref"]
-                    for p in rec["pairs"]:
+                    for p in rec["pairs"] + rec.get("held", []):    # held: gloss function links kept only as slot holders
                         if not ((p.get("target") or "").strip()
                                 and (p.get("score") or 0) >= min_score):
                             continue

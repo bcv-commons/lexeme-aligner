@@ -906,7 +906,7 @@ def extend_spans(iso: str, publish_iso: str, usj_dir: Path, books: list[str], ou
                     ref = rec["ref"]
                     meta.setdefault(ref, {"book": rec["book"], "chapter": rec["chapter"], "verse": rec["verse"]})
                     verse = unioned[ref]
-                    for p in rec["pairs"]:
+                    for p in rec["pairs"] + [dict(h, held=True) for h in rec.get("held", [])]:   # held: claims, never widened
                         if p.get("t_idx") and p["h_idx"] not in verse:
                             verse[p["h_idx"]] = p
 

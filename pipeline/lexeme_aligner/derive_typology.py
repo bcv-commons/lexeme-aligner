@@ -377,7 +377,7 @@ def full_anchors(out_dir: Path, tag: str, methods=("eflomal", "gloss")) -> dict[
                     rec = json.loads(line)
                     ref = rec["ref"]
                     verse = out.setdefault(ref, {})
-                    for p in rec["pairs"]:
+                    for p in rec["pairs"] + rec.get("held", []):   # held = gloss function links: analysis input, never published
                         ti = p.get("t_idx") or []
                         if ti and p["h_idx"] not in verse:
                             verse[p["h_idx"]] = ti[0]
@@ -399,7 +399,7 @@ def full_span_lengths(out_dir: Path, tag: str, methods=("eflomal", "gloss")) -> 
                     rec = json.loads(line)
                     ref = rec["ref"]
                     verse = out.setdefault(ref, {})
-                    for p in rec["pairs"]:
+                    for p in rec["pairs"] + rec.get("held", []):   # held = gloss function links: analysis input, never published
                         ti = p.get("t_idx") or []
                         if ti and p["h_idx"] not in verse:
                             verse[p["h_idx"]] = len(ti)

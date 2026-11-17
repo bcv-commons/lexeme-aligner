@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import os
 import json
 import sys
 from dataclasses import dataclass, field
@@ -177,6 +178,15 @@ def _hi(m) -> bool:
             or (m.method == "gapfill" and m.score >= 0.9))   # always 0.9 — only strong/name ever fire
 
 
+# Gloss's links on FUNCTION source words go to the record's `held` list, not `pairs` (on since 2026-11-16; ALIGNER_GLOSS_HOLD_FUNCTION=0
+# restores the old output). They come from the Strong's rollup and are mostly wrong (eng ~5-20% correct), so nothing that publishes
+# alignments reads them (compact, lexeme-alignments, full-align layers, Jev proposals read `pairs`). They still hold their target
+# words: span extension, gap-fill and residual count them as claims (dropping them outright let span extension widen onto those words),
+# and the grammar analyses that look at function words (derive_typology, function_classes, word_checks) read them as before.
+# Measured with eflomal held fixed (pipeline/work/gloss-only/replay.py): content links identical, all words eng +.0005 spa +.0002.
+GLOSS_HOLD_FUNCTION = os.environ.get("ALIGNER_GLOSS_HOLD_FUNCTION", "1") != "0"
+
+
 def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path) -> list[dict]:
     by_book: dict[str, list[VerseRec]] = collections.defaultdict(list)
     for r in recs:
@@ -211,7 +221,8 @@ def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path
                 for m in matches:
                     methods[m.method] += 1
 
-                pairs = []
+                pairs, held = [], []
+                hold = GLOSS_HOLD_FUNCTION and tag == "gloss"
                 for t in rec.heb:
                     m = by_h.get(t.idx)
                     if not m:
@@ -224,6 +235,9 @@ def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path
                             "method": m.method, "content": bool(t.is_content)}
                     if getattr(m, "light", False):
                         pair["light"] = True
+                    if hold and not t.is_content:
+                        held.append(pair)
+                        continue
                     pairs.append(pair)
                     if t.is_content:
                         lex_agg[(rendering.lower(), t.strong)] += 1
@@ -233,7 +247,7 @@ def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path
                     if t.lexeme and t.sense:
                         sense_agg[(t.lexeme, t.stem or "", t.sense)][rendering.lower()] += 1
                 fh.write(json.dumps({"ref": encode(book, rec.ch, rec.v), "book": book,
-                                     "chapter": rec.ch, "verse": rec.v, "pairs": pairs},
+                                     "chapter": rec.ch, "verse": rec.v, "pairs": pairs, **({"held": held} if held else {})},
                                     ensure_ascii=False) + "\n")
                 if len(samples) < 2 and len(pairs) >= 6:
                     samples.append({"ref": f"{book} {rec.ch}:{rec.v}", "text": rec.text,

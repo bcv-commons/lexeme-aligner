@@ -341,10 +341,16 @@ class HebrewSource:
             # found diagnosing why Joshua 2:4 (idx 10/11) looked full of errors in an external comparison
             # that tokenizes the same MACULA data without this merge. The lexeme check preserves the
             # intended case and blocks the false-positive one.
-            if padded and toks and toks[-1].strong == padded and toks[-1].lexeme == lexeme:
-                toks[-1].surface += " " + r.get("surface", "")
+            # A parts spine (source_parts.py) puts a word's other parts (endings, prefixes; key "<word key>.<n>") between two
+            # such rows; they do not block the merge, so the carrying parts merge exactly as the words do in the word spine.
+            sub = "." in (r.get("key") or "")
+            prev = len(toks) - 1
+            while not sub and prev >= 0 and toks[prev].keys and "." in toks[prev].keys[0]:
+                prev -= 1
+            if padded and not sub and prev >= 0 and toks[prev].strong == padded and toks[prev].lexeme == lexeme:
+                toks[prev].surface += " " + r.get("surface", "")
                 if r.get("key"):
-                    toks[-1].keys.append(r["key"])
+                    toks[prev].keys.append(r["key"])
                 continue
             tok = HebToken(r.get("idx"), r.get("surface"), padded, lexeme,
                            r.get("lemma"), r.get("morph"), bool(r.get("is_content")))

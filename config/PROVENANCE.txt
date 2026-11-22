@@ -659,6 +659,15 @@ pipeline/vendor/hebrew-clause-layout/v0.37/ — Hebrew OT clause layout (bcv-com
     (data only; nothing derived from it is published: it only cuts Jev requests). Used by lexeme_aligner.eval.jev_clauses (OT requests by
     clause). Gitignored.
 
+pipeline/vendor/word-parts/v1.0/ — Greek NT + Hebrew Bible source word parts (bcv-commons/word-parts, HF tag v1.0, commit 9733875e, 2026-11-22)
+  source: huggingface.co/datasets/bcv-commons/word-parts @ 9733875e4bb3361b1240d9814611c7535bf3480b: all 27 files (SHA256SUMS sha256
+    e34d278e3ea05d88…, every file checked OK 2026-11-22). greek/parts.tsv ba699e3c2cf51ca3… (220,871 parts of 137,779 Nestle 1904 words; kinds
+    stem 103,503, ending 70,740, particle 29,929, preverb 7,009, augment 4,365, fused 4,347, reduplication 978), hebrew/parts.tsv cfd5ce9542acf48a…
+    (578,786 pieces of 469,476 MACULA parts; 368,138 uncut). Ids: Greek word_id = our spine `key` (all 137,779 match both ways); Hebrew macula_id =
+    our spine `key` (all 469,476 match both ways, pieces rebuild every spine surface). Built by bcv-query (release_word_parts_v1.py, bcv-query f9d056f)
+    from MACULA Greek/Hebrew (CC BY 4.0) + greek-inflexion (MIT) + Dodson (CC0) + BDB root groups. Licence CC BY 4.0. Owner decision 2026-11-22:
+    source units of every alignment (part-alignments). Gitignored.
+
 pipeline/vendor/bsb-add-books/zin-split-2026-10-26c/split/ — Zinza (zin_wbt) split file, third version (bcv-commons/language-analysis zin/9d710dc8 = ab3848ee)
   source: huggingface.co/datasets/bcv-commons/language-analysis @ d38a81f3, zin/9d710dc8/split/{_split.json, words.parquet};
     words.parquet sha256 6b6f2683d2dd3af0... (= manifest), text_fp_version 1. 173,368 tokens, 236,091 rows, 28,525 divided

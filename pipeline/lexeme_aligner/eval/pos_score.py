@@ -286,6 +286,9 @@ class Spine:
     counts: dict[int, collections.Counter]                  # ref -> strong -> occurrences in the verse
     # ref -> (strong, k) -> source WORD id (MACULA node key without the morpheme digit, see word_bridge); empty = word scoring unavailable
     word_of: dict[int, dict[tuple[str, int], str]] = field(default_factory=dict)
+    # ref -> h_idx of a word's non-carrying part (parts spine, source_parts.py: key "<word key>.<n>") -> h_idx of the part that
+    # carries the word. Empty for the word spine. load_ours folds those parts' links into the word (gold is by word).
+    fold_of: dict[int, dict[int, int]] = field(default_factory=dict)
 
 
 def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
@@ -299,6 +302,7 @@ def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
     key_of: dict[int, dict[int, tuple[str, int]]] = {}
     content: dict[int, set[tuple[str, int]]] = {}
     counts: dict[int, collections.Counter] = {}
+    fold_of: dict[int, dict[int, int]] = {}
     for r in recs:
         ref = encode(r.book, r.ch, r.v)
         seen: collections.Counter = collections.Counter()
@@ -315,7 +319,11 @@ def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
             if t.is_content:
                 content[ref].add((t.strong, k))
         counts[ref] = seen
-    return Spine(key_of, content, counts, word_of)
+        carrier = {k: t.idx for t in r.heb for k in (t.keys or []) if "." not in k}
+        sub = {t.idx: carrier.get(t.keys[0].split(".")[0]) for t in r.heb if t.keys and "." in t.keys[0]}
+        if sub:
+            fold_of[ref] = {i: c for i, c in sub.items() if c is not None}
+    return Spine(key_of, content, counts, word_of, fold_of)
 
 
 @dataclass
@@ -324,9 +332,11 @@ class Ours:
     vetoed: set[tuple[int, str, int]] = field(default_factory=set)                   # (ref, strong, k) an LLM rejected
 
 
-def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spine) -> Ours:
+def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True) -> Ours:
     """Our pairs keyed like the gold. `llm_skipped` entries with status rejected/unrepresented become vetoes:
-    a verify cell that rejected eflomal's proposal means the token has NO alignment in the LLM's view."""
+    a verify cell that rejected eflomal's proposal means the token has NO alignment in the LLM's view.
+    `fold` (parts spine only): a word's other parts' links count as the word's (`Spine.fold_of`); False scores the carrying
+    part alone."""
     wanted = {BOOK_NUMBERS[b] for b in books}
     o = Ours()
     for fp in tag_files(out_dir, method, tag):
@@ -337,10 +347,17 @@ def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spi
                 if ref // 1_000_000 not in wanted or ref not in spine.key_of:
                     continue
                 verse = o.spans.setdefault(ref, {})
+                fo = spine.fold_of.get(ref, {}) if fold else {}
                 for p in rec["pairs"]:
-                    key = spine.key_of[ref].get(p["h_idx"])
+                    h = p["h_idx"]
+                    if h in fo:
+                        key = spine.key_of[ref].get(fo[h])
+                        if key and p.get("t_idx"):
+                            verse[key] = verse.get(key, set()) | set(p["t_idx"])
+                        continue
+                    key = spine.key_of[ref].get(h)
                     if key and p.get("t_idx"):
-                        verse[key] = set(p["t_idx"])
+                        verse[key] = (verse.get(key, set()) | set(p["t_idx"])) if fo else set(p["t_idx"])
                 for sk in rec.get("llm_skipped", []):
                     key = spine.key_of[ref].get(sk.get("h_idx", -1))
                     if key and sk.get("status") in ("rejected", "unrepresented"):
@@ -361,12 +378,12 @@ def union(parts: list[Ours]) -> Ours:
     return out
 
 
-def load_spec(spec: str, default_tag: str, out_dir: Path, books: list[str], spine: Spine) -> Ours:
+def load_spec(spec: str, default_tag: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True) -> Ours:
     """`eflomal` · `llm:<tag>` · `a+b+c` (union, first wins) — e.g. `llm:x.verify+eflomal+gloss+gapfill`."""
     parts = []
     for item in spec.split("+"):
         method, _, tag = item.partition(":")
-        parts.append(load_ours(tag or default_tag, method, out_dir, books, spine))
+        parts.append(load_ours(tag or default_tag, method, out_dir, books, spine, fold=fold))
     return union(parts) if len(parts) > 1 else parts[0]
 
 

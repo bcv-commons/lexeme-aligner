@@ -42,7 +42,7 @@ OUT/parts/out, folded back to the real tokens in OUT, then compact as the MORPHE
 manifest `parts` pin). With --jev, Jev is asked on the parts view and its layer is the morphed edition's too.
 
 Repeated runs (2026-10-30): `--runs N` runs the chain N times (run 1 in OUT, the others in OUT/runs/run<k>) and adds to run 1's compact
-`.meta.json` a `runs` channel: per aligned entry, how many of the N runs made exactly that link (lexeme_aligner.run_agreement). Links all
+`.meta.json` (on source parts: to part-alignments' per unit, and compact gets it by the fold) a `runs` channel: per aligned entry, how many of the N runs made exactly that link (lexeme_aligner.run_agreement). Links all
 runs agree on are far more precise than the rest (make-tanakh, Kuni Ruth: 0.706 vs 0.232). Jev, when asked, works on run 1.
 
 `--data DIR` (or `$ALIGNER_DATA`) takes the spine, prior-pack and the language's grammar facts from the folder `lexeme-aligner fetch-inputs
@@ -189,7 +189,8 @@ def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool,
     lexeme-alignments partition lends eflomal priors and the gloss seed (pool_priors.py); None = the text alone. `index_root`: where
     compact writes the source index and verse map the compact files need (default OUT/compact/_index; extra runs share run 1's).
     `word_spine`: the chain runs on SOURCE PARTS (ALIGNER_SPINE_DB = the parts spine, source_parts.py); its align files are folded to
-    the word view in OUT/words (parts_fold) and compact is built from there on this word spine."""
+    the word view in OUT/words (parts_fold); OUT/part-alignments is written from the parts run, and compact is its fold
+    (compact_align --from-parts), on this word spine."""
     common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj)]
     name = ["--lang-name", lang_name] if lang_name else []
     pilot = ["lexeme_aligner.run_pilot", "--usj-dir", str(usj), "--iso", edition, "--publish-iso", iso, "--out", str(out), *name]
@@ -220,12 +221,13 @@ def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool,
         cout = out / WORDS
         steps += [("parts-fold", ["lexeme_aligner.parts_fold", "--usj", str(usj), "--in", str(out), "--out", str(cout), "--books", "ALL",
                                   "--iso", edition, "--word-spine", str(word_spine)])]
-    steps += [("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(cout), "--publish", str(out / "compact"),
-                           "--index-root", str(index_root or out / "compact" / INDEX)],
-               *([{"ALIGNER_SPINE_DB": str(word_spine)}] if word_spine is not None else []))]
     if word_spine is not None:                     # the part-level output itself, from the parts run's own files (parts spine)
         steps += [("part-alignments", ["lexeme_aligner.part_alignments", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj),
                                        "--out-dir", str(out), "--dest", str(out / PART_ALIGNMENTS)])]
+    steps += [("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(cout), "--publish", str(out / "compact"),
+                           "--index-root", str(index_root or out / "compact" / INDEX),
+                           *(["--from-parts", str(out / PART_ALIGNMENTS)] if word_spine is not None else [])],
+               *([{"ALIGNER_SPINE_DB": str(word_spine)}] if word_spine is not None else []))]
     return steps
 
 
@@ -282,6 +284,8 @@ def step_env(out: Path, data: Path | None) -> dict:
                ALIGNER_MORPH_CACHE=str(out / "target-morphology"), PYTHONDONTWRITEBYTECODE="1")
     if data is not None:
         env["ALIGNER_SPINE_DB"] = str(data / "lexeme-spine-macula.db")
+        env["ALIGNER_PARTS_SPINE_DB"] = str(data / "lexeme-spine-macula-parts-v1.1.db")
+        env["ALIGNER_WORD_PARTS"] = str(data / "word-parts" / "v1.1")      # part kinds/texts for the part-alignments index
         env["ALIGNER_PRIOR_PACK"] = str(data / "prior_pack.parquet")
         env["ALIGNER_GRAM_STRUCT"] = str(data / "gram_struct")
     return env
@@ -466,8 +470,10 @@ def main(argv: list[str] | None = None) -> int:
                     "lxx, vul, rso, orgw, catm. Default: detected from the text; a text with gaps (most chapters missing verses) cannot be "
                     "detected and gets eng")
     ap.add_argument("--runs", type=int, default=1, help="run the chain N times; run 1's compact gets a `runs` agreement channel")
-    ap.add_argument("--source-parts", type=Path, default=None, help="align on SOURCE parts: the parts spine (source_parts.py, word-parts "
-                    "v1.1); compact and the Jev layer are built from the word view (OUT/words)")
+    ap.add_argument("--source-parts", type=Path, default=None, help="the parts spine (default: fetch-inputs' copy in --data, else this "
+                    "checkout's pipeline/lexeme-spine-macula-parts-v1.1.db). align-text aligns on SOURCE parts (word-parts v1.1) by default "
+                    "since 0.4.0: OUT/part-alignments, compact = its fold, the Jev layer from the word view (OUT/words)")
+    ap.add_argument("--no-source-parts", action="store_true", help="align on whole source words (align-text before 0.4.0)")
     ap.add_argument("--books", default=None, help="with --jev: only these books (comma-separated codes, e.g. PHM,RUT); the chain still "
                     "aligns every book of the text")
     args = ap.parse_args(argv)
@@ -511,12 +517,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.runs < 1:
         raise SystemExit("align-text: --runs must be at least 1")
     word_spine = None
+    source_parts_off = "--no-source-parts" if args.no_source_parts else ("--split (source parts with target parts: not built yet)" if split else None)
+    if split and args.source_parts:
+        raise SystemExit("align-text: --source-parts with --split is not built yet")
+    args.source_parts = None if source_parts_off else (args.source_parts or Path(env.get("ALIGNER_PARTS_SPINE_DB")
+                                                                               or REPO / "pipeline" / "lexeme-spine-macula-parts-v1.1.db"))
     if args.source_parts:
-        if split:
-            raise SystemExit("align-text: --source-parts with --split is not built yet")
         args.source_parts = args.source_parts.expanduser().resolve()
         if not args.source_parts.is_file():
-            raise SystemExit(f"align-text: no parts spine at {args.source_parts}")
+            raise SystemExit(f"align-text: no parts spine at {args.source_parts}" + (" (run lexeme-aligner fetch-inputs)" if data else "")
+                             + "; or pass --no-source-parts")
         word_spine = data_inputs(env)["spine"].resolve()
         env.update(ALIGNER_SPINE_DB=str(args.source_parts), ALIGNER_WORD_SPINE_DB=str(word_spine))
     if split:
@@ -550,7 +560,8 @@ def main(argv: list[str] | None = None) -> int:
         "scope": scope.lstrip("-"), "nt_bridge": bridge, "pool": pool_rec, "versification": vers,
         **({"split": {"path": str(split), "pin": split_pin}} if split else {}),
         **({"runs": args.runs} if args.runs > 1 else {}),
-        **({"source_parts": {**_file_entry(args.source_parts), "word_spine": str(word_spine)}} if word_spine is not None else {}),
+        "source_parts": ({**_file_entry(args.source_parts), "word_spine": str(word_spine)} if word_spine is not None
+                         else {"used": False, "why": source_parts_off}),
         "data": {k: _file_entry(fp) for k, fp in inputs.items()},
         "settings": {p.replace("<iso>", args.iso): _file_entry(settings_path(p, args.iso, data)) for p in SETTINGS},
         "steps": [],
@@ -581,7 +592,14 @@ def main(argv: list[str] | None = None) -> int:
     for k, (rd, renv, rsteps) in enumerate(runs_plan, 1):
         sfx = f"-run{k}" if k > 1 else ""
         ok = ok and all(run(name + sfx, cmd, dict(renv, **(more[0] if more else {})))[0] == 0 for name, cmd, *more in rsteps)
-    if ok and len(runs_plan) > 1:
+    if ok and len(runs_plan) > 1 and word_spine is not None:
+        # source parts: the agreement is counted per source unit on part-alignments, then run 1's compact is folded again from it, so
+        # compact's `runs` is the fold of part-alignments' too (compact = fold(part-alignments), every channel)
+        ok = run("agreement", ["lexeme_aligner.run_agreement", "--main", str(out / PART_ALIGNMENTS),
+                               "--runs", *[str(rd / PART_ALIGNMENTS) for rd, _e, _s in runs_plan[1:]]])[0] == 0
+        name, cmd, *more = next(st for st in steps if st[0] == "compact")
+        ok = ok and run("compact-refold", cmd, dict(runs_plan[0][1], **(more[0] if more else {})))[0] == 0
+    elif ok and len(runs_plan) > 1:
         ok = run("agreement", ["lexeme_aligner.run_agreement", "--main", str(out / "compact"),
                                "--runs", *[str(rd / "compact") for rd, _e, _s in runs_plan[1:]]])[0] == 0
     if ok and args.jev:

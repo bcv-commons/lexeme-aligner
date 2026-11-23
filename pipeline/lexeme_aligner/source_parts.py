@@ -26,12 +26,13 @@ import argparse
 import collections
 import csv
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-PARTS_DIR = REPO / "pipeline/vendor/word-parts/v1.1"   # v1.1 (2026-11-23): v1.0 + the Aramaic parts cut by Aramaic tables; Greek unchanged
+PARTS_DIR = Path(os.environ.get("ALIGNER_WORD_PARTS") or REPO / "pipeline/vendor/word-parts/v1.1")   # fetch-inputs: <data>/word-parts/v1.1; v1.1 (2026-11-23): v1.0 + the Aramaic parts cut by Aramaic tables; Greek unchanged
 PARTS_PIN = {"dataset": "bcv-commons/word-parts", "tag": "v1.1", "revision": "1809898895f684ca15f6981bf3e78c353d986d20",
              "sha256sums": "356f87fd24a6860d"}
 ANCHOR_BASE = 100000

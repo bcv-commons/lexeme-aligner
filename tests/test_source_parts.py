@@ -136,7 +136,22 @@ def test_align_text_plan_on_source_parts_folds_before_compact(tmp_path):
     from lexeme_aligner.align_text import plan
     steps = plan(Path("/t/usj"), "eng_x", "eng", tmp_path, "--nt", False, None, None, None, Path("/s/word.db"))
     names = [s[0] for s in steps]
-    assert names[-3:] == ["parts-fold", "compact", "part-alignments"]
-    compact = steps[-2]
+    assert names[-3:] == ["parts-fold", "part-alignments", "compact"]
+    compact = steps[-1]
     assert compact[2] == {"ALIGNER_SPINE_DB": "/s/word.db"} and str(tmp_path / "words") in compact[1]
+    assert compact[1][compact[1].index("--from-parts") + 1] == str(tmp_path / "part-alignments")    # compact = fold(part-alignments)
     assert "parts-fold" not in [s[0] for s in plan(Path("/t/usj"), "eng_x", "eng", tmp_path, "--nt", False, None)]
+
+
+def test_parts_fold_carries_target_parts():
+    """A target-parts edition (heb_scg) on source parts: the folded word keeps the target-part links of the positions it takes."""
+    from types import SimpleNamespace as NS
+    from lexeme_aligner.parts_fold import fold_record
+    P = [NS(idx=0, keys=["w1"]), NS(idx=1, keys=["w1.2"]), NS(idx=2, keys=["w2"]), NS(idx=3, keys=["w2.2"])]
+    W = [NS(idx=0, keys=["w1"], surface="ab", lexeme="x:1", strong="G1", lemma="a", is_content=1),
+         NS(idx=1, keys=["w2"], surface="cd", lexeme="x:2", strong="G2", lemma="c", is_content=1)]
+    rec = {"ref": 1, "pairs": [{"h_idx": 0, "t_idx": [1], "t_parts": [[1, 2]]}, {"h_idx": 1, "t_idx": [1, 4], "t_parts": [[1, 1], [4, 0]]},
+                               {"h_idx": 3, "t_idx": [6], "t_parts": [[6, 1]]}]}
+    out = {p["h_idx"]: p for p in fold_record(rec, P, W)["pairs"]}
+    assert out[0]["t_idx"] == [1, 4] and out[0]["t_parts"] == [[1, 1], [1, 2], [4, 0]]
+    assert out[1]["t_idx"] == [6] and out[1]["t_parts"] == [[6, 1]]

@@ -80,6 +80,13 @@ publish/full-alignments-llm/[a-z]/
 publish/alignments-tr/[a-z]/
 publish/alignments-by-id/n1904/[a-z]/
 publish/alignments-by-id/tr/[a-z]/
+# part-alignments (2026-11-23): bucket dirs are data; _index/<BOOK>_parts.json (~54 MB for the whole Bible) is regenerated from the
+# parts spine by part_alignments, so not tracked; the code companions (fold.py ...) are copies written by part_alignments
+publish/part-alignments/[a-z]/
+publish/part-alignments/_index/
+publish/part-alignments/*.py
+publish/part-alignments/*.mjs
+publish/part-alignments/*.js
 # The SHARED per-book lexeme indices live (and are tracked) at publish/compact-alignments/_index/ —
 # that is compact_align's --index-root CLI default. `config/canonical_index/` is only the library-level
 # fallback in publish_compact()'s signature, so a direct in-process call that doesn't pass index_root

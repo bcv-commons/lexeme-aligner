@@ -30,6 +30,9 @@ Tested on Linux with Python 3.12 and 3.14 (`pipeline/scripts/clean_install_test.
 
 What it downloads:
 - the Hebrew/Greek word spine, from bcv-query's fixed release;
+- [bcv-commons/word-parts](https://huggingface.co/datasets/bcv-commons/word-parts) v1.1 (every Greek and Hebrew word cut into
+  its parts), from which it then BUILDS the parts spine in the data folder (about 30 s; its content is pinned, so a build that came out
+  different is refused);
 - the prior pack;
 - whatever grammar facts we have for your language;
 - our published alignments of your language, all editions pooled
@@ -71,9 +74,10 @@ What you get in `OUT`:
 
 | Path | What it holds |
 |---|---|
-| `compact/<i>/<iso>/<edition>/` | the alignment, one file per book in the [compact format](../docs/compact-alignments.md), with `.meta.json` sidecars and a manifest |
+| `part-alignments/<i>/<iso>/<edition>/` | the alignment of every Hebrew/Greek word PART (stem, ending, prefix ...) to your words, one file per book in the [part-alignments format](../publish/part-alignments/README.md), with `.meta.json` sidecars, the part index `part-alignments/_index/`, a manifest, and `fold.py` / `read_verse.py` (and `.mjs`) to read it |
+| `compact/<i>/<iso>/<edition>/` | the same alignment by whole words, one file per book in the [compact format](../docs/compact-alignments.md), with `.meta.json` sidecars and a manifest: the fold of `part-alignments` (`fold.py`) |
 | `compact/_index/` | what the compact files are read with: the source-word index of your text's books (`<BOOK>_lexemes.json`, `_keys`, `_fn`, `_fn_keys`, stamped in `_source.json`) and the verse map (`_versification_<scheme>.json`). The same files as compact-alignments' own `_index/`, for your books only |
-| `align_<method>_<edition>_<BOOK>.jsonl` | the links from each step: `eflomal`, `gloss`, `spanext`, `gapfill`, `residual` |
+| `align_<method>_<edition>_<BOOK>.jsonl` | the links from each step: `eflomal`, `gloss`, `spanext`, `gapfill`, `residual`, by source part; `words/` holds the same by whole words |
 | `target-stopwords/`, `target-morphology/` | function words and affixes learned from your text |
 | `align-text-run.json` | the run record: package version, git commit, sha256 of your text and of every input and setting, and each step's command, exit code and time |
 | `run.log` | the steps' output |
@@ -93,8 +97,14 @@ priors, below), which matters most for a small text.
 
 ## 5. Options
 
+**Source words or source parts** (from version 0.4.0). The run aligns your words to the PARTS of the Hebrew and Greek words (a Greek
+verb's stem and its ending, a Hebrew noun's prefix, stem and suffix), not to whole words: `OUT/part-alignments` has a link per part,
+and `OUT/compact` is the same folded to whole words. `--no-source-parts` aligns to whole source words, as before 0.4.0 (then there is
+no `part-alignments`). With `--split` (below) the run aligns whole source words for now.
+
 **Confidence from repeated runs.** The statistical aligner samples, so two runs on the same text differ a little. `--runs 3` runs the
-chain three times (the extra runs go in `OUT/runs/`) and adds a `runs` channel to each book's `.meta.json`: one digit per aligned entry,
+chain three times (the extra runs go in `OUT/runs/`) and adds a `runs` channel to each book's `.meta.json` (per source part in
+`part-alignments`, and compact's is its fold): one digit per aligned entry,
 in the same order as the entries, saying how many of the runs made exactly that link. Links that every run makes are much more often
 right than the rest: on Kuni Ruth, make-tanakh measured precision 0.71 for links two runs share against 0.23 for the others. On the
 WEB sample, 85% of links are made by all three runs.

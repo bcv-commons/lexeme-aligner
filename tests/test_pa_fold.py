@@ -68,3 +68,42 @@ def test_javascript_fold_matches_python(tmp_path):
     for f in files:
         assert (py / f).read_bytes() == (js / f).read_bytes(), f
     assert json.loads((py / "e/eng/x/MAT_0000abcd.json").read_text()) == ["0:0-1 1:3", "0:4"]
+
+
+def test_parts_fold_replaces_an_editions_old_files(tmp_path, monkeypatch):
+    """full_chain folds into the shared out dir: a book the parts run wrote nothing for must not keep an older run's file of that method;
+    other editions and methods the run did not produce stay."""
+    import gzip
+    from lexeme_aligner import hebrew_source, parts_fold, run_pilot, versification
+    monkeypatch.setattr(hebrew_source, "HebrewSource", lambda **k: None)
+    monkeypatch.setattr(run_pilot, "build_corpus", lambda *a, **k: [])
+    monkeypatch.setattr(versification, "remapper", lambda *a: None)
+    src, dst = tmp_path / "parts", tmp_path / "out"
+    src.mkdir(); dst.mkdir()
+    (src / "align_gapfill_xx_GEN.jsonl").write_text('{"ref": 1}\n')
+    (src / "align_gapfill_yy_GEN.jsonl").write_text('{"ref": 1}\n')                 # another edition: not folded here
+    for name in ("align_gapfill_xx_GEN.jsonl", "align_gapfill_xx_NAM.jsonl", "align_gapfill_yy_NAM.jsonl", "align_llm_xx_GEN.jsonl"):
+        with gzip.open(dst / (name + ".gz"), "wt") as fh:
+            fh.write('{"ref": 0}\n')
+    n = parts_fold.fold_dir(tmp_path, src, dst, ["GEN", "NAM"], Path("p.db"), Path("w.db"), "xx", only_tag="xx")
+    assert n["old files removed"] == 2
+    assert sorted(p.name for p in dst.iterdir()) == ["align_gapfill_xx_GEN.jsonl", "align_gapfill_yy_NAM.jsonl.gz", "align_llm_xx_GEN.jsonl.gz"]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_readers_print_the_same(tmp_path):
+    """read_verse.py and read_verse.mjs (published beside the data) give the same lines, from the published companions."""
+    from lexeme_aligner.part_alignments import write_companions
+    root = tmp_path / "pa"
+    (root / "_index").mkdir(parents=True)
+    (root / "_index" / "MAT_parts.json").write_text(json.dumps({"MAT 1:1": VERSE}), encoding="utf-8")
+    ed = root / "x" / "xyz" / "xyz_e"
+    ed.mkdir(parents=True)
+    (ed / "MAT_0000abcd.json").write_text(json.dumps(["0:2 1:1 2:0,3 3:3"]), encoding="utf-8")
+    (root / "manifest.json").write_text(json.dumps({"languages": {"xyz": {"editions": {"xyz_e": {"books": {"MAT": "MAT_0000abcd.json"}}}}}}))
+    write_companions(root)
+    args = [".", "xyz", "xyz_e", "MAT 1:1", "he says to them and"]
+    py = subprocess.run(["python3", "-I", "read_verse.py", *args], cwd=root, capture_output=True, text=True, check=True).stdout
+    js = subprocess.run(["node", "read_verse.mjs", *args], cwd=root, capture_output=True, text=True, check=True).stdout
+    assert py == js
+    assert "-> he says" in py and "λέγει" in py

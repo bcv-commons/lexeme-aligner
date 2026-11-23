@@ -78,6 +78,26 @@
    "archive_bytes": 17710733
   },
   {
+   "name": "word_parts_greek",
+   "dest": "word-parts/v1.1/greek/parts.tsv",
+   "repo": "bcv-commons/word-parts",
+   "revision": "1809898895f684ca15f6981bf3e78c353d986d20",
+   "path": "greek/parts.tsv",
+   "sha256": "ba699e3c2cf51ca35bfcb802be88dbc15334f81054f2ce3add939b505b067376",
+   "bytes": 10868083,
+   "licence": "CC BY 4.0 (bcv-commons/word-parts v1.1; Greek parts from MACULA Greek + greek-inflexion (MIT) + Dodson (public domain), Hebrew from MACULA Hebrew)"
+  },
+  {
+   "name": "word_parts_hebrew",
+   "dest": "word-parts/v1.1/hebrew/parts.tsv",
+   "repo": "bcv-commons/word-parts",
+   "revision": "1809898895f684ca15f6981bf3e78c353d986d20",
+   "path": "hebrew/parts.tsv",
+   "sha256": "dcf7b1b8e8170f7ba116e5948e9c5caeab63ce61e19e0d2ba5547d275c1d7462",
+   "bytes": 36576441,
+   "licence": "CC BY 4.0 (bcv-commons/word-parts v1.1; Greek parts from MACULA Greek + greek-inflexion (MIT) + Dodson (public domain), Hebrew from MACULA Hebrew)"
+  },
+  {
    "name": "prior_pack",
    "dest": "prior_pack.parquet",
    "repo": "bcv-commons/prior-pack",
@@ -558,5 +578,89 @@
   "repo": "bcv-commons/lexeme-alignments",
   "revision": "6f169dba153fa6c1a67083bcfe24a81bba1c2857",
   "licence": "CC0 1.0 (bcv-commons/lexeme-alignments)"
+ },
+ "parts_spine": {
+  "dest": "lexeme-spine-macula-parts-v1.1.db",
+  "from_spine": "spine",
+  "word_parts": "word-parts/v1.1",
+  "_note": "Built here, not downloaded: source_parts.build(spine, word parts). The source units of every alignment since 2026-11-23 (owner: switch fully to part-alignments).",
+  "licence": "CC BY 4.0 (MACULA via the spine + bcv-commons/word-parts)",
+  "content": {
+   "rule": "tables-v1",
+   "tables": [
+    {
+     "name": "spine_words",
+     "columns": [
+      "book",
+      "chapter",
+      "verse",
+      "idx",
+      "key",
+      "surface",
+      "lexeme",
+      "strong",
+      "lemma",
+      "is_content",
+      "morph",
+      "gloss",
+      "role",
+      "stem",
+      "person",
+      "number",
+      "gender",
+      "case_",
+      "tense",
+      "voice",
+      "mood",
+      "degree",
+      "state",
+      "is_superscription",
+      "head_idx",
+      "phrase_role",
+      "construct_group",
+      "construct_role",
+      "part_id",
+      "part_kind",
+      "word_key"
+     ],
+     "order": [
+      "key"
+     ]
+    },
+    {
+     "name": "spine_assimilated_articles",
+     "columns": [
+      "book",
+      "chapter",
+      "verse",
+      "after_idx",
+      "lemma",
+      "gloss",
+      "strong"
+     ],
+     "order": [
+      "book",
+      "chapter",
+      "verse",
+      "after_idx",
+      "lemma",
+      "gloss",
+      "strong"
+     ]
+    },
+    {
+     "name": "spine_part_anchors",
+     "columns": [
+      "strong",
+      "lexeme"
+     ],
+     "order": [
+      "strong"
+     ]
+    }
+   ],
+   "sha256": "0348066b0f00d4fd6b975572399b10eadfec8e693931829f65eb9d57778b1a28",
+   "_doc": "tables-v1 over the parts spine as source_parts.build makes it from the pinned spine + the word-parts files above (rebuilt 2026-11-23: same content)."
+  }
  }
 }

@@ -185,6 +185,29 @@ def source_record(spine_db: Path) -> dict:
                             "units": int(meta["words"]) if meta.get("words") else None}}
 
 
+_HERE = Path(__file__).resolve().parent
+_REPO = _HERE.parents[1]
+# published path -> source: the fold library, the readers, the tokenizer every position refers to (bcv-commons/bibles, CC0), the card
+COMPANIONS = {"fold.py": _HERE / "pa_fold.py", "fold.mjs": _HERE / "js" / "pa_fold.mjs",
+              "read_verse.py": _HERE / "pa_examples" / "read_verse.py", "read_verse.mjs": _HERE / "pa_examples" / "read_verse.mjs",
+              "bcv_tokenize.py": _REPO / "pipeline" / "vendor" / "bibles" / "bcv_tokenize.py",
+              "tokenize.js": _REPO / "pipeline" / "vendor" / "bibles" / "js" / "tokenize.js",
+              "README.md": _REPO / "publish" / "part-alignments" / "README.md"}
+
+
+def write_companions(dest: Path) -> list[str]:
+    """Copy COMPANIONS into `dest` (skipping a source that is the destination itself, i.e. the card in publish/part-alignments)."""
+    done = []
+    for name, src in COMPANIONS.items():
+        out = dest / name
+        if src.exists() and src.resolve() != out.resolve():
+            tmp = out.with_name(out.name + ".tmp")
+            tmp.write_bytes(src.read_bytes())
+            tmp.replace(out)
+            done.append(name)
+    return done
+
+
 def update_manifest(dest: Path, iso: str, edition: str, entry: dict, spine_db: Path) -> None:
     from lexeme_aligner.manifest_io import update_json
     from lexeme_aligner.usj_source import TOKENIZER_VERSION
@@ -197,6 +220,7 @@ def update_manifest(dest: Path, iso: str, edition: str, entry: dict, spine_db: P
         doc.setdefault("languages", {}).setdefault(iso, {"editions": {}}).setdefault("editions", {})[edition] = {
             **entry, "tokenizer_version": TOKENIZER_VERSION}
     update_json(dest / "manifest.json", mutate)
+    write_companions(dest)
 
 
 def main(argv=None) -> int:
@@ -208,14 +232,20 @@ def main(argv=None) -> int:
     ap.add_argument("--usj-dir", type=Path, required=True)
     ap.add_argument("--out-dir", type=Path, required=True, help="the parts run's align files")
     ap.add_argument("--dest", type=Path, required=True)
-    ap.add_argument("--edition", default=None, help="edition id (default: the tag)")
+    ap.add_argument("--edition", default=None, help="edition id (default: compact's, compact_align.edition_id)")
+    ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--book", action="append")
     ap.add_argument("--methods", default="spanext," + ",".join(METHODS))
     ap.add_argument("--llm-cell", default=None, help="write the LLM layer from these cells instead (may hold {BOOK})")
     ap.add_argument("--llm-name", default="jev-v4")
     a = ap.parse_args(argv)
     books = [b.upper() for b in a.book] if a.book else [b for b in ALL_BOOKS if any(a.usj_dir.glob(f"*-{b}.json"))]
-    edition = a.edition or a.iso
+    sources = json.loads(a.sources.read_text(encoding="utf-8")) if a.sources.exists() else {}
+    if a.edition:
+        edition = a.edition
+    else:                                                 # compact's edition id, so both datasets name an edition the same way
+        from lexeme_aligner.compact_align import edition_id
+        edition = edition_id(a.publish_iso, a.iso, sources)
     if a.llm_cell:
         lid = f"{edition}+llm+{a.llm_name}"
         files = {}
@@ -228,7 +258,8 @@ def main(argv=None) -> int:
         methods = [m for m in a.methods.split(",") if m]
         files = write_edition(a.iso, a.publish_iso, a.usj_dir, a.out_dir, a.dest, books, edition, methods, SPINE_DB,
                               contest=load_contest_rule())
-        update_manifest(a.dest, a.publish_iso, edition, {"tag": a.iso, "methods": methods, "books": files}, SPINE_DB)
+        update_manifest(a.dest, a.publish_iso, edition, {"tag": a.iso, "methods": methods, "books": files,
+                                                         "source": sources.get(a.iso, {})}, SPINE_DB)   # the text's licence pointer
     print(json.dumps({"edition": edition, "books": len(files)}))
     return 0
 

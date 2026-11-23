@@ -5,6 +5,9 @@ the data folder (`--data`, else `$ALIGNER_DATA`, else `$XDG_DATA_HOME/lexeme-ali
 the checkout:
 
     DATA/lexeme-spine-macula.db                    the source-language spine (MACULA Hebrew + Greek)
+    DATA/word-parts/v1.1/{greek,hebrew}/parts.tsv  bcv-commons/word-parts: every Greek and Hebrew word cut into its parts
+    DATA/lexeme-spine-macula-parts-v1.1.db         BUILT here from the two above (source_parts.build), content-pinned: the source
+                                                   units every alignment uses (word parts, since 2026-11-23)
     DATA/prior_pack.parquet                        language-independent priors
     DATA/gram_struct/<partition>/<iso>.json        grammar facts for each language asked for (--iso; absent = no facts, not an error)
     DATA/gram_struct/article_bound.json            one file for all languages
@@ -254,6 +257,31 @@ def _get(w: dict, data: Path, record: dict, log) -> None:
                                   **({"accepted_by": got[2]} if got[2] else {})}
 
 
+def build_parts_spine(data: Path, lst: dict, record: dict, log=sys.stderr) -> Path:
+    """DATA/<parts spine>: source_parts.build(the spine, the word-parts files), unless a file with the pinned content is there. The result
+    must have the pinned content (rule tables-v1), else it is removed and the run stops: the pin moves only on purpose."""
+    ps = lst["parts_spine"]
+    dest = data / ps["dest"]
+    spine = data / next(f["dest"] for f in lst["files"] if f["name"] == ps["from_spine"])
+    if dest.exists() and content_sha256(dest, ps["content"]) == ps["content"]["sha256"]:
+        print(f"[fetch-inputs] ok      {ps['dest']} (same content as the pin)", file=log)
+        return dest
+    from lexeme_aligner import source_parts
+    print(f"[fetch-inputs] build   {ps['dest']}  <- {spine.name} + {ps['word_parts']} (source_parts, ~30 s)", file=log, flush=True)
+    tmp = dest.with_name(dest.name + ".tmp")
+    tmp.unlink(missing_ok=True)
+    source_parts.build(spine, tmp, data / ps["word_parts"])
+    got = content_sha256(tmp, ps["content"])
+    if got != ps["content"]["sha256"]:
+        tmp.unlink()
+        raise SystemExit(f"fetch-inputs: the parts spine built from {spine.name} + {ps['word_parts']} has content {got}, pinned "
+                         f"{ps['content']['sha256']}: refused")
+    os.replace(tmp, dest)
+    record["files"][ps["dest"]] = {"built_from": [spine.name, ps["word_parts"]], "content_sha256": got, "licence": ps["licence"],
+                                   "fetched": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
+    return dest
+
+
 def fetch(data: Path, isos: list[str], jev: bool, lst: dict | None = None, log=sys.stderr, split: bool = False) -> dict:
     lst = lst or load_list()
     data.mkdir(parents=True, exist_ok=True)
@@ -261,6 +289,8 @@ def fetch(data: Path, isos: list[str], jev: bool, lst: dict | None = None, log=s
     record = json.loads(rec_fp.read_text(encoding="utf-8")) if rec_fp.exists() else {"files": {}, "isos": []}
     for w in wanted(lst, isos, jev):
         _get(w, data, record, log)
+    if lst.get("parts_spine"):
+        build_parts_spine(data, lst, record, log)
     if (jev or split) and lst.get("target_modules") and isos:
         tm = lst["target_modules"]
         _get({"name": "language_analysis_manifest", "url": hf_url(tm["repo"], tm["revision"], "manifest.json"),

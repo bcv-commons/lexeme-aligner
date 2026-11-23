@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 from lexeme_aligner import full_chain as fc
 
 
@@ -16,7 +18,7 @@ def _run_chain(monkeypatch, tmp_path, editions, extra=()):
     monkeypatch.setattr(fc, "_run", fake_run)
     monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
     monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": e} for e in editions])
-    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", *extra])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", "--no-source-parts", *extra])
     tags = [fc._tag("xyz", e, is_primary=(i == 0)) for i, e in enumerate(editions)]
     for t in tags[:3]:
         d = tmp_path / "pipeline/work/ingest-cache" / f"usj-{t}"
@@ -81,7 +83,7 @@ def test_an_edition_whose_text_folder_is_empty_is_not_run(monkeypatch, tmp_path)
     monkeypatch.setattr(fc, "_run", lambda mod, *a, **k: (calls.append((mod, [str(v) for v in a])), True)[1])
     monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
     monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": "AAA"}, {"edition_code": "BBB"}])
-    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest"])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", "--no-source-parts"])
     a, b = fc._tag("xyz", "AAA", is_primary=True), fc._tag("xyz", "BBB", is_primary=False)
     (tmp_path / "pipeline/work/ingest-cache" / f"usj-{a}").mkdir(parents=True)
     (tmp_path / "pipeline/work/ingest-cache" / f"usj-{a}" / "01-GEN.json").write_text("{}")
@@ -171,3 +173,81 @@ def test_source_parts_route(monkeypatch, tmp_path):
     assert max(i for i, m in enumerate(mods) if m == "residual_align") < mods.index("parts_fold") < mods.index("export_lex")
     pa = [a for m, a, _ in calls if m == "part_alignments"]
     assert [_arg(a, "--iso") for a in pa] == tags and all(_arg(a, "--out-dir") == str(PARTS_OUT) for a in pa)
+    compact = [a for m, a, _ in calls if m == "compact_align"]
+    assert all(_arg(a, "--from-parts") == str(fc.PART_ALIGNMENTS_ROOT) for a in compact)
+    assert max(i for i, m in enumerate(mods) if m == "part_alignments") < mods.index("compact_align")
+
+
+def test_from_fold_skips_ingest_and_alignment(monkeypatch, tmp_path):
+    spine = tmp_path / "parts.db"
+    spine.write_bytes(b"")
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fc, "_run", lambda mod, *a, env, **k: (calls.append(mod), True)[1])
+    monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
+    monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": "AAA"}])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", "--source-parts", str(spine), "--from-fold"])
+    d = tmp_path / "pipeline/work/ingest-cache" / f"usj-{fc._tag('xyz', 'AAA', is_primary=True)}"
+    d.mkdir(parents=True)
+    (d / "01-GEN.json").write_text("{}")
+    assert fc.main() == 0
+    assert not {"onboard", "run_pilot", "span_extension", "gapfill", "residual_align"} & set(calls)
+    assert calls[0] == "parts_fold" and "compact_align" in calls
+
+
+def test_source_parts_is_the_default(monkeypatch, tmp_path):
+    from lexeme_aligner import config
+    spine = tmp_path / "default-parts.db"
+    spine.write_bytes(b"")
+    monkeypatch.setattr(config, "PARTS_SPINE_DB", spine)
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fc, "_run", lambda mod, *a, env, **k: (calls.append((mod, env)), True)[1])
+    monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
+    monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": "AAA"}])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest"])
+    d = tmp_path / "pipeline/work/ingest-cache" / f"usj-{fc._tag('xyz', 'AAA', is_primary=True)}"
+    d.mkdir(parents=True)
+    (d / "01-GEN.json").write_text("{}")
+    assert fc.main() == 0
+    assert dict(calls)["onboard"]["ALIGNER_SPINE_DB"] == str(spine.resolve()) and "parts_fold" in dict(calls)
+
+
+def test_a_missing_default_parts_spine_stops_the_chain(monkeypatch, tmp_path):
+    from lexeme_aligner import config
+    monkeypatch.setattr(config, "PARTS_SPINE_DB", tmp_path / "absent.db")
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest"])
+    with pytest.raises(SystemExit, match="no parts spine"):
+        fc.main()
+
+
+def test_target_parts_edition_on_source_parts(monkeypatch, tmp_path):
+    """heb_scg-like: the view's chain runs on the parts spine, its target fold lands in PARTS_OUT, and the edition is source-folded and gets
+    part-alignments like any other (Greek part -> Hebrew part)."""
+    from lexeme_aligner import target_parts
+    from lexeme_aligner.config import PARTS_OUT
+    spine = tmp_path / "parts.db"
+    spine.write_bytes(b"")
+    folds = []
+    the_tag = fc._tag("xyz", "AAA", is_primary=True)
+    monkeypatch.setattr(target_parts, "for_edition", lambda tag: (tmp_path / "a.parquet", {}) if tag == the_tag else None)
+    monkeypatch.setattr(target_parts, "write_view", lambda *a, **k: {})
+    monkeypatch.setattr(target_parts, "load_parts", lambda *a, **k: {})
+    monkeypatch.setattr(target_parts, "content_priors", lambda *a, **k: {})
+    monkeypatch.setattr(target_parts, "fold", lambda tag, vout, dest, view, usj: (folds.append(dest), {})[1])
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fc, "_run", lambda mod, *a, env, **k: (calls.append((mod, [str(v) for v in a], env)), True)[1])
+    monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt"})
+    monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": "AAA"}])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", "--source-parts", str(spine)])
+    tag = fc._tag("xyz", "AAA", is_primary=True)
+    d = tmp_path / "pipeline/work/ingest-cache" / f"usj-{tag}"
+    d.mkdir(parents=True)
+    (d / "40-MAT.json").write_text("{}")
+    assert fc.main() == 0
+    assert folds == [PARTS_OUT]
+    view_steps = [(m, e) for m, a, e in calls if m in ("run_pilot", "span_extension", "gapfill", "residual_align")]
+    assert view_steps and all(e["ALIGNER_SPINE_DB"] == str(spine.resolve()) and "parts-view" in e["ALIGNER_OUT"] for _, e in view_steps)
+    assert [_arg(a, "--tag") for m, a, _ in calls if m == "parts_fold"] == [tag]
+    assert [_arg(a, "--iso") for m, a, _ in calls if m == "part_alignments"] == [tag]

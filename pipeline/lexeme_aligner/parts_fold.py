@@ -20,6 +20,7 @@ import argparse
 import collections
 import gzip
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -64,14 +65,20 @@ def fold_record(rec: dict, parts_toks: list, word_toks: list) -> dict:
             pos = [j for j in p.get("t_idx") or () if not (owner.get(j, set()) - {w.idx})]
             if not pos:
                 continue
+            sub_tp = [tp for tp in p.get("t_parts") or () if tp[0] in pos]      # target parts (a target-parts edition) on those tokens
             if w.idx in words:
                 q = words[w.idx]
                 if not set(pos) <= set(q.get("t_idx") or ()):
                     t_idx = sorted(set(q.get("t_idx") or ()) | set(pos))
                     words[w.idx] = dict(q, t_idx=t_idx)
+                if sub_tp:
+                    have = [tuple(tp) for tp in words[w.idx].get("t_parts") or ()]
+                    words[w.idx] = dict(words[w.idx], t_parts=[list(tp) for tp in sorted(set(have) | {tuple(tp) for tp in sub_tp})])
             else:
                 words[w.idx] = dict(p, h_idx=w.idx, surface=w.surface, lexeme=w.lexeme, strong=w.strong, lemma=w.lemma,
                                     content=bool(w.is_content), t_idx=sorted(pos))
+                if "t_parts" in p:
+                    words[w.idx]["t_parts"] = sub_tp
         out[field] = [words[i] for i in sorted(words)]
     if "llm_skipped" in rec:
         sk = []
@@ -107,6 +114,15 @@ def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Pat
     remap = remapper(tag, str(usj))                     # the run's own verse mapping (run_pilot: remapper(iso, usj_dir))
     dst.mkdir(parents=True, exist_ok=True)
     n = collections.Counter()
+    if only_tag is not None:
+        # a method's files for this edition in dst are replaced as a whole: a book this run wrote nothing for (gapfill with no fills)
+        # must not keep an earlier run's file. Methods the parts run did not produce (an LLM cell, spanext when off) are left alone.
+        rx = re.compile(rf"^align_([a-z]+)_{re.escape(only_tag)}_")
+        folded = {m.group(1) for f in tag_files_any_method(src, only_tag) if (m := rx.match(f.name))}
+        for f in tag_files_any_method(dst, only_tag):
+            if (m := rx.match(f.name)) and m.group(1) in folded and f.name.split(".jsonl")[0].rsplit("_", 1)[-1] in books:
+                f.unlink()
+                n["old files removed"] += 1
     for book in books:
         if only_tag is not None:
             files = [f for f in tag_files_any_method(src, only_tag) if f.name.split(".jsonl")[0].endswith(f"_{book}")]

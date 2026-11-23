@@ -80,6 +80,10 @@ def test_a_changed_upstream_file_is_refused_and_leaves_nothing(tmp_path, server)
 def test_align_text_reads_grammar_facts_from_the_data_folder(tmp_path):
     env = align_text.step_env(tmp_path, tmp_path / "data")
     assert env["ALIGNER_GRAM_STRUCT"] == str(tmp_path / "data" / "gram_struct")
+    # the part-alignments index reads part kinds/texts where fetch-inputs puts word-parts (a clean install has no vendor folder)
+    wp = Path(env["ALIGNER_WORD_PARTS"])
+    dests = {f["dest"] for f in json.loads((align_text.REPO / "config/align_inputs.json").read_text())["files"] if "word-parts" in f["dest"]}
+    assert dests == {str((wp / x).relative_to(tmp_path / "data")) for x in ("greek/parts.tsv", "hebrew/parts.tsv")}
     assert align_text.settings_path("config/gram_struct/external/<iso>.json", "kvg", tmp_path / "data") == \
         tmp_path / "data" / "gram_struct/external/kvg.json"
     assert align_text.settings_path("config/sources.json", "kvg", tmp_path / "data") == align_text.REPO / "config/sources.json"
@@ -155,3 +159,40 @@ def test_split_entries_take_the_latest_version_with_a_split():
     entries, pins = fi.split_entries(m, tm, ["zin", "kvg"])
     assert pins["kvg"] is None and pins["zin"]["file"] == "zin/a/split/words.parquet" and pins["zin"]["licence"] == "CC BY-SA"
     assert [e["dest"] for e in entries] == ["language-analysis/zin/split/words.parquet", "language-analysis/zin/split/_split.json"]
+
+
+def test_the_parts_spine_is_built_and_content_checked(tmp_path, monkeypatch):
+    """The parts spine is not downloaded: source_parts.build(spine, word parts) in the data folder, accepted only with the pinned content."""
+    from lexeme_aligner import source_parts
+    import sqlite3
+
+    def fake_build(spine, out, parts_dir):
+        con = sqlite3.connect(out)
+        con.execute("create table t (k)")
+        con.execute("insert into t values ('x')")
+        con.commit()
+        con.close()
+
+    monkeypatch.setattr(source_parts, "build", fake_build)
+    content = {"rule": "tables-v1", "tables": [{"name": "t", "columns": ["k"], "order": ["k"]}]}
+    data = tmp_path / "data"
+    data.mkdir()
+    fake_build(None, tmp_path / "ref.db", None)
+    content["sha256"] = fi.content_sha256(tmp_path / "ref.db", content)
+    lst = {"files": [{"name": "spine", "dest": "s.db"}], "parts_spine": {"dest": "p.db", "from_spine": "spine", "word_parts": "wp",
+                                                                       "licence": "CC BY", "content": content}}
+    rec = {"files": {}}
+    assert fi.build_parts_spine(data, lst, rec) == data / "p.db" and rec["files"]["p.db"]["content_sha256"] == content["sha256"]
+    fi.build_parts_spine(data, lst, rec)                       # a good copy is kept
+    bad = dict(lst, parts_spine=dict(lst["parts_spine"], dest="q.db", content=dict(content, sha256="0" * 64)))
+    with pytest.raises(SystemExit, match="refused"):
+        fi.build_parts_spine(data, bad, rec)
+    assert not (data / "q.db").exists() and not (data / "q.db.tmp").exists()
+
+
+def test_the_shipped_parts_spine_pin_names_its_inputs():
+    lst = fi.load_list()
+    ps = lst["parts_spine"]
+    dests = {f["dest"] for f in lst["files"]}
+    assert {f"{ps['word_parts']}/greek/parts.tsv", f"{ps['word_parts']}/hebrew/parts.tsv"} <= dests
+    assert ps["from_spine"] in {f["name"] for f in lst["files"]} and len(ps["content"]["sha256"]) == 64

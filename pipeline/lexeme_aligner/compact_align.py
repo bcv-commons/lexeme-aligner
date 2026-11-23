@@ -812,8 +812,12 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
                     sources_path: Path = Path("config/sources.json"),
                     with_layer: bool = True, contest: dict | None = None,
                     with_sidecars: bool = True, layer_methods=LAYER_METHODS,
-                    superseded_root: Path = SUPERSEDED) -> dict[str, Path]:
-    """Writes one compact-alignment JSON per (edition, book) at
+                    superseded_root: Path = SUPERSEDED, from_parts: Path | None = None) -> dict[str, Path]:
+    """`from_parts`: a part-alignments root (part_alignments.py) holding this edition: every book's main / meta / extra arrays are the FOLD of
+    its part-alignments files (pa_fold.fold_book) instead of a resolution of the align files — compact is derived from part-alignments
+    (owner 2026-11-23), so what clients get and what fold.py / fold.mjs compute are the same by construction.
+
+    Writes one compact-alignment JSON per (edition, book) at
     `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<fp8>.json` (fp8 = the book's text fingerprint, `text_fingerprint`) — `iso` is
     the true published language code (NOT the internal alignment `tag`, which can be an edition-specific
     id like `arb_vdv`), `edition` defaults to `edition_id(iso, tag, ...)` unless overridden. The content
@@ -850,16 +854,27 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         edition = edition_id(iso, tag, sources)
     written: dict[str, Path] = {}
     map_lines: dict[str, str] = {}
-    by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest, cross_edition_iso=iso)
-    layer = (build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref, layer_methods=layer_methods)
-            if with_layer else {})
+    if from_parts is not None:
+        from lexeme_aligner import pa_fold
+        by_ref, side, layer = {}, {}, {}
+        pa_dir = from_parts / iso[0] / iso / edition
+    else:
+        by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest, cross_edition_iso=iso)
+        layer = (build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref, layer_methods=layer_methods)
+                if with_layer else {})
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         if not usj_path.exists():
             continue
-        book_refs = [ref for ref in by_ref if ref.startswith(f"{book} ")]
-        if not book_refs:
-            continue
+        if from_parts is not None:
+            book_fp, chapter_fps = tf.usj_fingerprints(usj_path)
+            pa_main = pa_dir / f"{book}_{tf.file_hash(book_fp)}.json"
+            if not pa_main.exists():
+                continue
+        else:
+            book_refs = [ref for ref in by_ref if ref.startswith(f"{book} ")]
+            if not book_refs:
+                continue
         lexemes_fp = index_root / f"{book}_lexemes.json"
         if not lexemes_fp.exists():
             from lexeme_aligner.source_index import refresh as _refresh_index
@@ -870,7 +885,18 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
             from lexeme_aligner.source_index import ensure_current as _ensure_index_current
             _ensure_index_current(heb, book, index_root)
         book_index = list(json.loads(lexemes_fp.read_text(encoding="utf-8")).keys())
-        array = [by_ref.get(ref, "") for ref in book_index]
+        if from_parts is not None:
+            pidx = json.loads((from_parts / "_index" / f"{book}_parts.json").read_text(encoding="utf-8"))
+            if list(pidx) != book_index:
+                raise SystemExit(f"compact_align: {from_parts}/_index/{book}_parts.json and {lexemes_fp} list different verses")
+            stem = pa_main.name[:-len(".json")]
+            pmeta_fp, pextra_fp = pa_dir / f"{stem}.meta.json", pa_dir / f"{stem}.extra.json"
+            array, fmeta, fextra = pa_fold.fold_book(
+                pidx, json.loads(pa_main.read_text(encoding="utf-8")),
+                json.loads(pmeta_fp.read_text(encoding="utf-8")) if pmeta_fp.exists() else {},
+                json.loads(pextra_fp.read_text(encoding="utf-8")) if pextra_fp.exists() else None)
+        else:
+            array = [by_ref.get(ref, "") for ref in book_index]
         if not any(array):                                   # text but no alignment (a testament outside the chain's scope,
             continue                                         # e.g. heb OT, excluded): an all-empty file is not "aligned"
         book_fp, chapter_fps = tf.usj_fingerprints(usj_path)
@@ -884,8 +910,8 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         # the opt-in layer, written ONLY when it has content — its absence means "no residual here",
         # which is exactly true for every edition published before it existed, so there is no
         # backfill gap and no inconsistency to explain to a consumer.
-        extra = [layer.get(ref, "") for ref in book_index]
-        if any(extra):
+        extra = fextra if from_parts is not None else [layer.get(ref, "") for ref in book_index]
+        if any(extra) and with_layer:
             (out_fp.parent / f"{book}_{digest}.extra.json").write_text(
                 json.dumps(extra, ensure_ascii=False) + "\n", encoding="utf-8")
         # provenance sidecar — ONE file carrying all three channels, same "write only if non-empty"
@@ -894,7 +920,12 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
         # editions: three separate channels put the full-catalog publish at ~1,210 commits (~9.5h of
         # pure rate-limit), one file puts it at ~725 (~5.7h). Channels stay separate arrays inside it,
         # so each is still read independently.
-        if with_sidecars:
+        if with_sidecars and from_parts is not None:
+            meta = {c: v for c, v in fmeta.items() if c != "parts" or any(v)}
+            if any(any(a) for a in meta.values()):
+                (out_fp.parent / f"{book}_{digest}.meta.json").write_text(
+                    json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
+        elif with_sidecars:
             meta = {name: [side[name].get(ref, "") for ref in book_index]
                     for name in SIDECAR_CHANNELS
                     if not (name == "rend" and takedown.rend_scope(tag) == "none")
@@ -989,6 +1020,9 @@ def main() -> int:
     ap.add_argument("--sources", type=Path, default=Path("config/sources.json"))
     ap.add_argument("--index-root", type=Path, default=Path("publish/compact-alignments/_index"),
                     help="root for the shared per-book verse-ref indices (--publish mode)")
+    ap.add_argument("--from-parts", type=Path, default=None,
+                    help="a part-alignments root holding this edition (part_alignments.py): the arrays are its fold (pa_fold), not a "
+                         "resolution of the align files; --methods/--layer-methods then only describe the manifest entry")
     args = ap.parse_args()
 
     heb = HebrewSource()
@@ -1025,7 +1059,7 @@ def main() -> int:
                                   with_layer=not args.no_layer, contest=contest,
                                   with_sidecars=not args.no_sidecars,
                                   edition=resolved_edition, sources_path=args.sources,
-                                  index_root=args.index_root, layer_methods=layer_methods)
+                                  index_root=args.index_root, layer_methods=layer_methods, from_parts=args.from_parts)
         for book, fp in sorted(written.items()):
             print(f"[compact_align] {publish_iso}/{book} → {fp}", file=sys.stderr)
         scheme = edition_scheme(args.iso, str(usj_dir))
@@ -1042,6 +1076,14 @@ def main() -> int:
             manifest_entry["rend_scope"] = takedown.rend_scope(args.iso)      # absent = every aligned entry carries an id
         if args.not_in_statistics_pool:
             manifest_entry["statistics_pool"] = False
+        if args.from_parts is not None:
+            from lexeme_aligner.part_alignments import FORMAT as _PA_FORMAT
+            manifest_entry["derived_from"] = _PA_FORMAT          # the arrays are the fold of the edition's part-alignments
+            pa_man = args.from_parts / "manifest.json"
+            pa_ed = (json.loads(pa_man.read_text(encoding="utf-8")).get("languages", {}).get(publish_iso, {}).get("editions", {})
+                     .get(resolved_edition, {}) if pa_man.exists() else {})
+            if "runs" in pa_ed:
+                manifest_entry["runs"] = pa_ed["runs"]          # the folded `runs` channel counts that many runs
         from lexeme_aligner.target_parts import parts_pin
         pin = json.loads(args.parts_pin.read_text(encoding="utf-8")) if args.parts_pin else parts_pin(args.iso)
         if pin and _has_parts_channel(written):

@@ -746,4 +746,14 @@ bcv-query aligner tables v0.1 (2026-11-23; local hand-over, not on HF until bcv-
   pipeline/vendor/bcv-query-aligner-tables/v0.1 (git-ignored), from bcv-query/internal-docs/aligner-tables/v0.1; SHA256SUMS sha256 7805eabc7f47e719...
   grc_bre/positions.tsv: position -> bre word id (Brenton, word level; option (a): our links stop at Brenton WORDS, no GLAUx parts).
   heb_scg/, heb_mod/: bcv-split/0.1 level-2 Hebrew parts (Tanakh cut + Jev-parsed pieces, level2_basis); tokenizer 3 (= 2 for these texts).
-  text_faults.tsv: tracked source-text faults (heb_mod F0001-F0010 Latin labels / stray 'w'; heb_scg F0011 lost final he).
+  text_faults.tsv: tracked source-text faults, SUPERSEDED by the entry below (heb_mod F0001-F0010 Latin labels / stray 'w'; heb_scg F0011 lost final he).
+bcv-query aligner tables v0.2 (2026-11-23; local hand-over; the pin of the published heb_scg / heb_mod LLM layers since 2026-11-23)
+  pipeline/vendor/bcv-query-aligner-tables/v0.2 (git-ignored), from bcv-query/internal-docs/aligner-tables/v0.2; SHA256SUMS sha256 acd88d215dd55b66...
+  heb_mod/words.parquet 81c7eeb83db114fb..., heb_scg/words.parquet b0d2ff8a44feb769... Level-2 cut fixed (2,985 / 2,617 level-1 parts get other
+  pieces); level-1 ids unchanged. <ed>/piece_map_v0.1.parquet: v0.1 piece -> v0.2 pieces sharing letters; links carried over through it
+  (pipeline/work/nt-part-compare/carry_v02.py), no new Jev run. grc_bre/ and text faults as in v0.1.
+bcv-query text faults 2026-11-23 (bcv-query 6ed8d17, shoresh/macula/text_faults/text_faults.tsv)
+  pipeline/vendor/bcv-query-text-faults/2026-11-23/text_faults.tsv (git-ignored), sha256 bf3dba75b4370e80...; read by lexeme_aligner/text_faults.py
+  (override $ALIGNER_TEXT_FAULTS). 95 rows: heb_mod F0001-F0010, heb_scg F0011, grc_bre F0012-F0015 (copied verses 1KI 8:58, 1CH 11:24,
+  JOB 3:14 -> drop; γἱοὶ -> υἱοὶ replace). fix `drop` = no link to that token (compact_align.build_compact, by the edition's own verse);
+  a bracket span holding a drop token is running text (heb_mod "[ (Romans 7:26) ... ]").

@@ -609,6 +609,8 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
     rend_ids: dict[str, dict[str, int]] = {}
     rend_stop, _ = load_rend_stopwords(cross_edition_iso or iso)
     rend_scope = takedown.rend_scope(iso)                  # 'all' unless config/takedown.json says otherwise for this edition
+    from lexeme_aligner.text_faults import drops as _fault_drops
+    faults = _fault_drops(iso)
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         strip_rules = _rules_for(usj_path)
@@ -630,6 +632,13 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                 annot_spans = annotation_spans(raw_text) if raw_text else []
                 raw_toks = tokenize(raw_text) if raw_text else []
                 raw_spans = _token_spans(raw_text) if raw_text else []
+                # bcv-query's text faults, fix `drop` (keyed by the EDITION's verse, in raw-token positions): no link to those tokens
+                gone = faults.get((book, tc, vs)) if faults else None
+                if gone and annot_spans:
+                    # a bracket holding a text-fault `drop` token (e.g. heb_mod's "[ (Romans 7:26) ... ]") is running text whose
+                    # marker is the fault (bcv-query 2026-11-23): the marker gets no link (_merged_pairs), the rest is kept
+                    hit = [raw_spans[t] for t in gone if t < len(raw_spans)]
+                    annot_spans = [(ps, pe) for ps, pe in annot_spans if not any(ps <= a and b <= pe for a, b in hit)]
                 parts, meth, conf, contested, bonus, rule, rend, tparts = [], [], [], [], [], [], [], []
                 gap_ordinals: list[tuple[int, object]] = []
                 for ordinal, tok in enumerate(anchor_content):
@@ -637,6 +646,11 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
                     if not rec:
                         gap_ordinals.append((ordinal, tok))
                         continue
+                    if gone:
+                        keep = [i for i in rec["t_idx"] if not (i < len(raw_idx_of) and raw_idx_of[i] in gone)]
+                        if len(keep) < len(rec["t_idx"]):
+                            rec = dict(rec, t_idx=keep, **({"t_parts": [tp for tp in rec["t_parts"] if tp[0] in keep]}
+                                                            if rec.get("t_parts") else {}))
                     mapped = [raw_idx_of[i] for i in rec["t_idx"]
                               if i < len(raw_idx_of) and raw_idx_of[i] >= 0]
                     if not mapped:

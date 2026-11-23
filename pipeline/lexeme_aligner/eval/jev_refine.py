@@ -380,8 +380,9 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true"); ap.add_argument("--max-usd", type=float)
     ap.add_argument("--sister-dir", type=Path); ap.add_argument("--sister-cell"); ap.add_argument("--out", type=Path)
     a = ap.parse_args(argv)
-    from lexeme_aligner.run_pilot import NT_BOOKS
-    books = [b.upper() for b in a.book] if a.book else [b for b in NT_BOOKS if any(a.usj_dir.glob(f"*-{b}.json"))]
+    from lexeme_aligner.run_pilot import NT_BOOKS, OT_BOOKS
+    # every book with text (OT too: Brenton's first run asked nothing because this default was NT-only)
+    books = [b.upper() for b in a.book] if a.book else [b for b in [*OT_BOOKS, *NT_BOOKS] if any(a.usj_dir.glob(f"*-{b}.json"))]
     if a.cmd == "accept":
         return accept_main(a, books)
     hp = {}

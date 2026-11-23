@@ -37134,6 +37134,110 @@
         }
       }
     },
+    "grc": {
+      "editions": {
+        "grc_bre": {
+          "books": {
+            "1CH": "1CH_921b8a1e.json",
+            "1KI": "1KI_2e673f09.json",
+            "1SA": "1SA_a002b7af.json",
+            "2CH": "2CH_2119f830.json",
+            "2KI": "2KI_aeb35d23.json",
+            "2SA": "2SA_090d908d.json",
+            "AMO": "AMO_0c483028.json",
+            "DEU": "DEU_c6d2b0e5.json",
+            "ECC": "ECC_aa11c2ac.json",
+            "EXO": "EXO_9b1e1add.json",
+            "EZK": "EZK_040684c3.json",
+            "EZR": "EZR_74a2950f.json",
+            "GEN": "GEN_c2ffe1d4.json",
+            "HAB": "HAB_5facc0dc.json",
+            "HAG": "HAG_775bef07.json",
+            "HOS": "HOS_978ff4dd.json",
+            "ISA": "ISA_f61a5404.json",
+            "JDG": "JDG_a00bcd8e.json",
+            "JER": "JER_65f049e8.json",
+            "JOB": "JOB_77410060.json",
+            "JOL": "JOL_ca8c6478.json",
+            "JON": "JON_2d49a7b4.json",
+            "JOS": "JOS_07d4e03a.json",
+            "LAM": "LAM_672f6651.json",
+            "LEV": "LEV_e222bb01.json",
+            "MAL": "MAL_bbf0fced.json",
+            "MIC": "MIC_eb019277.json",
+            "NAM": "NAM_f4df22ee.json",
+            "NEH": "NEH_5cb6a883.json",
+            "NUM": "NUM_3eab3169.json",
+            "OBA": "OBA_eb354871.json",
+            "PRO": "PRO_6dd255cf.json",
+            "PSA": "PSA_a1673f5a.json",
+            "RUT": "RUT_63b9adb7.json",
+            "SNG": "SNG_343e1fbf.json",
+            "ZEC": "ZEC_2dbed5bb.json",
+            "ZEP": "ZEP_de6a9294.json"
+          },
+          "methods": [
+            "spanext",
+            "eflomal",
+            "gloss",
+            "gapfill"
+          ],
+          "source": {
+            "edition": "grc_bre",
+            "license_url": "https://ebible.org/Scriptures/details.php?id=grcbrent",
+            "provider": "bible.helloao.org"
+          },
+          "tag": "grc_bre",
+          "tokenizer_version": 3
+        },
+        "grc_bre+llm+jev-v4": {
+          "books": {
+            "1CH": "1CH_921b8a1e.json",
+            "1KI": "1KI_2e673f09.json",
+            "1SA": "1SA_a002b7af.json",
+            "2CH": "2CH_2119f830.json",
+            "2KI": "2KI_aeb35d23.json",
+            "2SA": "2SA_090d908d.json",
+            "AMO": "AMO_0c483028.json",
+            "DEU": "DEU_c6d2b0e5.json",
+            "ECC": "ECC_aa11c2ac.json",
+            "EXO": "EXO_9b1e1add.json",
+            "EZK": "EZK_040684c3.json",
+            "EZR": "EZR_74a2950f.json",
+            "GEN": "GEN_c2ffe1d4.json",
+            "HAB": "HAB_5facc0dc.json",
+            "HAG": "HAG_775bef07.json",
+            "HOS": "HOS_978ff4dd.json",
+            "ISA": "ISA_f61a5404.json",
+            "JDG": "JDG_a00bcd8e.json",
+            "JER": "JER_65f049e8.json",
+            "JOB": "JOB_77410060.json",
+            "JOL": "JOL_ca8c6478.json",
+            "JON": "JON_2d49a7b4.json",
+            "JOS": "JOS_07d4e03a.json",
+            "LAM": "LAM_672f6651.json",
+            "LEV": "LEV_e222bb01.json",
+            "MAL": "MAL_bbf0fced.json",
+            "MIC": "MIC_eb019277.json",
+            "NAM": "NAM_f4df22ee.json",
+            "NEH": "NEH_5cb6a883.json",
+            "NUM": "NUM_3eab3169.json",
+            "OBA": "OBA_eb354871.json",
+            "PRO": "PRO_6dd255cf.json",
+            "PSA": "PSA_a1673f5a.json",
+            "RUT": "RUT_63b9adb7.json",
+            "SNG": "SNG_343e1fbf.json",
+            "ZEC": "ZEC_2dbed5bb.json",
+            "ZEP": "ZEP_de6a9294.json"
+          },
+          "cell": "jevR.grc_bre.{BOOK}.v4.R1.jev-0",
+          "name": "jev-v4",
+          "source": "llm",
+          "tag": "grc_bre",
+          "tokenizer_version": 3
+        }
+      }
+    },
     "grg": {
       "editions": {
         "grgpkf": {
@@ -40530,18 +40634,19 @@
             "ROM": "ROM_45d33a9a.json",
             "TIT": "TIT_91497045.json"
           },
-          "cell": "jevM.heb_mod.{BOOK}.v4.M1.jev-0",
+          "cell": "jevL.heb_mod.{BOOK}.v4.L1.jev-0",
           "links_from": {
             "bcv-query nt-part-level (2026-11-23)": "rule links (rule:one_greek_part, rule:one_hebrew_part, rule:verb_government, rule:om_case) kept",
+            "carried to v0.2": "links on v0.1 pieces carried over through piece_map_v0.1.parquet (2026-11-23)",
             "lexeme-aligner jev refine (level 2)": "everything else, incl. replacing bcv-query's Jev-decided links"
           },
           "name": "jev-v4",
           "parts": {
             "file": "heb_mod/words.parquet",
             "numbering": "the split file's `part` (level 2: the Tanakh's cut inside hebrew-nt-analysis v0.2 level-1 parts)",
-            "sha256": "e9d2b1abd1cc1d6ec30ff19e3c27427206149dcaa62124123adc1a69f42ea9a6",
+            "sha256": "81c7eeb83db114fb247f89da5365b0f7bbfa03a78ef741fb01d6efa7ac3b1f6b",
             "table": "bcv-query aligner tables",
-            "table_version": "v0.1"
+            "table_version": "v0.2"
           },
           "source": "llm",
           "tag": "heb_mod",
@@ -40621,18 +40726,19 @@
             "ROM": "ROM_c1030130.json",
             "TIT": "TIT_a874f384.json"
           },
-          "cell": "jevM.heb_scg.{BOOK}.v4.M1.jev-0",
+          "cell": "jevL.heb_scg.{BOOK}.v4.L1.jev-0",
           "links_from": {
             "bcv-query nt-part-level (2026-11-23)": "rule links (rule:one_greek_part, rule:one_hebrew_part, rule:verb_government, rule:om_case) kept",
+            "carried to v0.2": "links on v0.1 pieces carried over through piece_map_v0.1.parquet (2026-11-23)",
             "lexeme-aligner jev refine (level 2)": "everything else, incl. replacing bcv-query's Jev-decided links"
           },
           "name": "jev-v4",
           "parts": {
             "file": "heb_scg/words.parquet",
             "numbering": "the split file's `part` (level 2: the Tanakh's cut inside hebrew-nt-analysis v0.2 level-1 parts)",
-            "sha256": "39410b7c9347c35f19d84899136e7fbfdf19a17b8a7f6b3592b442ecfeee28fd",
+            "sha256": "b0d2ff8a44feb7694cf306d2e98b9ec3baf2cb3e84d30a44194c4969c4df0fa9",
             "table": "bcv-query aligner tables",
-            "table_version": "v0.1"
+            "table_version": "v0.2"
           },
           "source": "llm",
           "tag": "heb_scg",

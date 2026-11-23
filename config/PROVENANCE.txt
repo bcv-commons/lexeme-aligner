@@ -763,6 +763,9 @@ bcv-query piece rule v0.2 (2026-11-23, on tables v0.3; CC BY 4.0 as stated in bc
 bcv-query fixed pairs v0.1 (2026-11-23; two-word Hebrew renderings, 10 with Tanakh support counted in MACULA Hebrew)
   pipeline/vendor/bcv-query-fixed-pairs/v0.1/pairs.tsv (git-ignored; folder has no SHA256SUMS), sha256 58e373f1fbcee439... 15 pairs keyed by Greek
   lemma + Strong's; applied in update_v03.py (ἀκολουθέω only with אחרי directly after).
+  PUBLISHED 2026-11-23 by bcv-query as bcv-commons/hebrew-nt-pieces-model tag v0.1 (rev 1c514e32): tables/heb_mod|heb_scg/words.parquet,
+  piece_rule.parquet and fixed_pairs.tsv are byte-identical to the vendored v0.3 / v0.2 / v0.1 files above (sha256 checked). Point the part-alignments
+  manifest `parts` pin and links_from at that dataset (repo + tag + sha) at the next heb update.
 bcv-query text faults 2026-11-23 (bcv-query 6ed8d17, shoresh/macula/text_faults/text_faults.tsv)
   pipeline/vendor/bcv-query-text-faults/2026-11-23/text_faults.tsv (git-ignored), sha256 bf3dba75b4370e80...; read by lexeme_aligner/text_faults.py
   (override $ALIGNER_TEXT_FAULTS). 95 rows: heb_mod F0001-F0010, heb_scg F0011, grc_bre F0012-F0015 (copied verses 1KI 8:58, 1CH 11:24,

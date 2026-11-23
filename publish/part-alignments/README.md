@@ -55,6 +55,31 @@ f/fra/fra_lsg/MRK_<fp8>.json   [..., "0:0 2:1-2 3:3 4:3-4 5:5 6:6 7:6 8:7 9:8 10
 `0:0` = unit 0 (Ἀρχ) links target word 0 (*Commencement*); `4:3-4` = unit 4 (the ending ου) links words 3-4 (*Évangile de*).
 Target positions count the verse's words as `bcv_tokenize.py` / `tokenize.js` (in this repo) cut them: `l’Évangile` is two words.
 
+## Where the files live: three repos, one path scheme
+
+As compact-alignments did, the dataset is split so no repo passes Hugging Face's recommended 100,000 files:
+
+| Repo | Holds |
+|---|---|
+| `bcv-commons/part-alignments` (this one) | README, manifest, `_index/`, every `<BOOK>_<fp8>.json`, `_fingerprints.txt`, the fold library, readers and tokenizers |
+| [`bcv-commons/part-alignments-meta`](https://huggingface.co/datasets/bcv-commons/part-alignments-meta) | every `<BOOK>_<fp8>.meta.json` (provenance per unit) |
+| [`bcv-commons/part-alignments-extra`](https://huggingface.co/datasets/bcv-commons/part-alignments-extra) | every `<BOOK>_<fp8>.extra.json` (the residual layer) |
+
+The relative path of a file is the same in all three. Download the ones you need into ONE folder and `fold.py` / `read_verse.py`
+find the sidecars beside the main files.
+
+## Grain: part or word
+
+An edition's manifest entry says how it was aligned:
+
+- no `grain` key: aligned on the parts. An ending, prefix or augment has links of its own.
+- `"grain": "word"`: aligned on whole words. The editions not re-run on the parts yet were converted from the last compact-alignments
+  release, with each word's links on its carrying unit (the stem, or the word's only unit) and nothing on its other units. They say
+  which target words render the whole source word, not which part renders what. Folding them gives back that compact release
+  exactly. Re-running an edition on the parts replaces its entry.
+
+This dataset replaces compact-alignments, which is frozen since 2026-11-23 and removed after 2026-11-30.
+
 ## Files
 
 ```

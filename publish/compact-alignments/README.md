@@ -12,6 +12,12 @@ license: cc0-1.0
 
 # compact-alignments — per-verse, per-book, content-addressed
 
+> **FROZEN on 2026-11-23, to be removed after 2026-11-30.** This dataset is no longer updated. It is replaced by
+> [bcv-commons/part-alignments](https://huggingface.co/datasets/bcv-commons/part-alignments), which links every Greek and Hebrew
+> word PART (stem, ending, prefix ...) instead of whole words, for every language published here. To keep reading files in this
+> format, make them from part-alignments with its `fold.py` / `fold.mjs` (same paths, same file names):
+> `python fold.py --parts PART_ALIGNMENTS_DIR --out COMPACT_DIR` (`--fold-rule stem` keeps the stem's links only).
+
 The token-**position** companion to [`lexeme-alignments`](../lexeme-alignments) (which is
 aggregated/type-level and can't tell you what happened in any *one* verse). This dataset restores
 **position**: for a given edition's Bible book, which Hebrew/Greek content word aligned to which

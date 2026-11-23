@@ -22,14 +22,21 @@ LAYERS: dict[str, dict[str, str]] = {
     "extra": {"repo": "bcv-commons/compact-alignments-extra", "suffix": ".extra.json"},
 }
 MAIN_REPO = "bcv-commons/compact-alignments"
+# part-alignments (2026-11-23) is split the same way and for the same reason (main + meta + extra = three files per book); its
+# _fingerprints.txt stays in the main repo (the files are read by fingerprint, so the map belongs with them)
+PART_LAYERS: dict[str, dict[str, str]] = {
+    "meta": {"repo": "bcv-commons/part-alignments-meta", "suffix": ".meta.json"},
+    "extra": {"repo": "bcv-commons/part-alignments-extra", "suffix": ".extra.json"},
+}
+LAYERS_OF = {"compact-alignments": LAYERS, "part-alignments": PART_LAYERS}
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGING = _REPO_ROOT / "pipeline/work/publish-staging"
 
 
-def layer_of(rel_path: str) -> str:
+def layer_of(rel_path: str, dataset: str = "compact-alignments") -> str:
     """'meta' / 'extra' for a sidecar file, else 'main'."""
     base = rel_path.rsplit("/", 1)[-1]
-    for name, spec in LAYERS.items():
+    for name, spec in LAYERS_OF[dataset].items():
         if rel_path.endswith(spec["suffix"]) or base in spec.get("names", ()):
             return name
     return "main"
@@ -42,16 +49,17 @@ def split_layers(files: list[str]) -> dict[str, list[str]]:
     return out
 
 
-def layer_readme(layer: str) -> Path:
-    """The tracked dataset card of a sidecar repo: publish/compact-alignments-<layer>/README.md."""
-    return _REPO_ROOT / "publish" / f"compact-alignments-{layer}" / "README.md"
+def layer_readme(layer: str, dataset: str = "compact-alignments") -> Path:
+    """The tracked dataset card of a sidecar repo: publish/<dataset>-<layer>/README.md."""
+    return _REPO_ROOT / "publish" / f"{dataset}-{layer}" / "README.md"
 
 
-def stage_layer(src_root: Path, layer: str, rel_paths: list[str], staging: Path | None = None) -> tuple[Path, list[str]]:
+def stage_layer(src_root: Path, layer: str, rel_paths: list[str], staging: Path | None = None,
+                dataset: str = "compact-alignments") -> tuple[Path, list[str]]:
     """Hard-link `rel_paths` (relative to src_root) plus the layer's own README.md into a persistent staging root and return (root, files to
     publish). The staging root keeps its `.publish_state.json` / `.publish_rate.json`, so a re-run skips what already went up. Hard links
     cost no disk; stale links from an earlier selection are harmless because only the returned file list is uploaded."""
-    stage = staging or (STAGING / f"compact-alignments-{layer}")
+    stage = staging or (STAGING / f"{dataset}-{layer}")
     stage.mkdir(parents=True, exist_ok=True)
     for rel in rel_paths:
         dst = stage / rel
@@ -61,7 +69,7 @@ def stage_layer(src_root: Path, layer: str, rel_paths: list[str], staging: Path 
                 continue
             dst.unlink()
         os.link(src_root / rel, dst)
-    readme = layer_readme(layer)
+    readme = layer_readme(layer, dataset)
     (stage / "README.md").write_bytes(readme.read_bytes())
     return stage, sorted(set(rel_paths) | {"README.md"})
 

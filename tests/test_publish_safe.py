@@ -181,7 +181,7 @@ def test_forget_pushed_drops_only_the_named_paths_from_the_cache(tmp_path):
 
 
 def test_default_datasets_use_the_ubs_senses_not_the_legacy_ones():
-    assert ps.DEFAULT == ["lexeme-alignments", "senses_attested", "compact-alignments"]
+    assert ps.DEFAULT == ["lexeme-alignments", "senses_attested", "part-alignments"]     # compact frozen 2026-11-23
     assert ps.DATASETS["senses_attested"] == ("bcv-commons/senses-attested", "partition")
     assert ps.DATASETS["senses_attested_bhsa"][0] == "bcv-commons/senses-attested-bhsa" and "senses_attested_bhsa" not in ps.DEFAULT          # legacy still reachable, only explicitly
     assert ps.NO_LEDGER == {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa", "full-alignments-llm"}
@@ -218,3 +218,25 @@ def test_full_alignment_manual_datasets_are_explicit_only_and_carry_every_layer_
     got = ps.selected_files("full-alignments-manual", "fullalign", ["eng"], root)
     assert got == ["e/eng/eng_BSB+manual+clear/GEN_1a2b3.json", "e/eng/eng_BSB+manual+clear/GEN_1a2b3.meta.json",
                    "e/eng/eng_BSB+manual+clear/_layer.json", "README.md"]           # main + meta + profile table in ONE repo
+
+
+def test_part_alignments_files_split_and_preflight(tmp_path):
+    root = tmp_path / "pa"
+    ed = root / "f" / "fra" / "x"
+    ed.mkdir(parents=True)
+    for n in ("MRK_0000abcd.json", "MRK_0000abcd.meta.json", "MRK_0000abcd.extra.json", "_fingerprints.txt"):
+        (ed / n).write_text("[]")
+    (root / "_index").mkdir()
+    (root / "_index" / "MRK_parts.json").write_text("{}")
+    (root / "fold.py").write_text("")
+    files = ps.selected_files("part-alignments", "parts", ["fra"], root)
+    assert files == ["_index/MRK_parts.json", "f/fra/x/MRK_0000abcd.json", "f/fra/x/_fingerprints.txt", "fold.py"]
+    assert ps.layer_files(["fra"], "meta", root, "part-alignments") == ["f/fra/x/MRK_0000abcd.meta.json"]
+    comp = {"languages": {"fra": {"editions": {"x": {"books": ["MRK"]}, "y": {"books": ["MRK"]}}}}}
+    pa = {"languages": {"fra": {"editions": {"x": {"books": ["MRK", "LUK"]}}}}}
+    why = ps.parts_problems("fra", comp, pa, root)
+    assert any("LUK" in w for w in why) and any("edition y" in w for w in why)
+
+
+def test_compact_is_frozen():
+    assert "compact-alignments" in ps.FROZEN and "compact-alignments" not in ps.DEFAULT

@@ -20,7 +20,7 @@ def test_stage_layer_hardlinks_and_adds_the_layer_readme(tmp_path, monkeypatch):
     f.write_text("{}")
     readme = tmp_path / "meta_readme.md"
     readme.write_text("# meta layer")
-    monkeypatch.setattr(cl, "layer_readme", lambda layer: readme)
+    monkeypatch.setattr(cl, "layer_readme", lambda layer, dataset="compact-alignments": readme)
     root, files = cl.stage_layer(src, "meta", ["a/aaz/aaz_C01/GEN_1a2b3.meta.json"], tmp_path / "stage")
     assert files == ["README.md", "a/aaz/aaz_C01/GEN_1a2b3.meta.json"]
     assert os.path.samefile(root / files[1], f)                       # hard link: no extra disk

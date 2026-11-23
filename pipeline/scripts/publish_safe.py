@@ -41,7 +41,8 @@ DATASETS = {                                   # local dir name -> (HF repo, kin
     "lexeme-alignments": ("bcv-commons/lexeme-alignments", "partition"),
     "senses_attested": ("bcv-commons/senses-attested", "partition"),           # keyed on UBS sense ids, CC BY-SA 4.0 (local folder renamed from senses_attested_ubs 2026-10-05)
     "senses_attested_bhsa": ("bcv-commons/senses-attested-bhsa", "partition"), # LEGACY, frozen (BHSA-derived sense numbers, retired 2026-10-03): explicit --datasets only
-    "compact-alignments": ("bcv-commons/compact-alignments", "compact"),
+    "compact-alignments": ("bcv-commons/compact-alignments", "compact"),             # FROZEN 2026-11-23 (see FROZEN)
+    "part-alignments": ("bcv-commons/part-alignments", "parts"),                      # main repo; sidecars in -meta / -extra (compact_layers)
     "aligned_mwe": ("bcv-commons/aligned-mwe", "partition"),
     # manual (gold) full alignments in the compact container format, one layer dir per gold source (fullalign_build.py; 2026-10-09).
     # Explicit --datasets only. The statistical full-align channels are NOT here: they live in compact's meta files (compact-alignments-meta).
@@ -49,7 +50,12 @@ DATASETS = {                                   # local dir name -> (HF repo, kin
     "full-alignments-manual-sa": ("bcv-commons/full-alignments-manual-sa", "fullalign"),   # Door43 (CC BY-SA 4.0)
     "full-alignments-llm": ("bcv-commons/full-alignments-llm", "fullalign"),               # LLM-checked layers (fullalign_build --llm-cell; 2026-10-21)
 }
-DEFAULT = ["lexeme-alignments", "senses_attested", "compact-alignments"]
+DEFAULT = ["lexeme-alignments", "senses_attested", "part-alignments"]
+# owner 2026-11-23: compact-alignments is frozen (no further publishes) and retired after 2026-11-30; part-alignments replaces it, and
+# fold.py / fold.mjs make the compact files from it. A frozen dataset is refused unless --allow-frozen names it.
+FROZEN = {"compact-alignments": "frozen 2026-11-23, retired after 2026-11-30: publish part-alignments instead"}
+PARTS_COMPANIONS = ("README.md", "fold.py", "fold.mjs", "read_verse.py", "read_verse.mjs", "bcv_tokenize.py", "tokenize.js",
+                    "pipeline_decisions.json")
 NO_LEDGER = {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa", "full-alignments-llm"}   # repos that carry no pipeline_decisions.json; do not add one
 STAGING = REPO / "pipeline/work/publish-staging"
 FA_PUBLISH = REPO / "config/fullalign_publish.json"            # which full-align layers may be published (open text licence, hold list)
@@ -80,7 +86,7 @@ def schema_conflict(hf: dict, local: dict, kind: str = "partition") -> str | Non
     a, b = hf.get("schema"), local.get("schema")
     if a == b:
         return None
-    if kind == "compact" and isinstance(a, list) and isinstance(b, list) and all(x in b for x in a):
+    if kind in ("compact", "parts") and isinstance(a, list) and isinstance(b, list) and all(x in b for x in a):
         return None
     return "schema differs between Hugging Face and local"
 
@@ -98,7 +104,7 @@ def schema_change_scope(hf: dict, local: dict, isos: list[str]) -> str | None:
 def merged_top_level(hf: dict, local: dict, kind: str) -> dict:
     """Top-level (non-language) keys for the merged manifest: HF's, except a purely additive compact documentation change, which is local's."""
     top = {k: v for k, v in hf.items() if k != "languages"}
-    if kind == "compact" and top.get("schema") != local.get("schema"):
+    if kind in ("compact", "parts") and top.get("schema") != local.get("schema"):
         top["schema"] = local["schema"]
     return top
 
@@ -136,8 +142,27 @@ def sha256_file(fp: Path) -> str:
 
 
 # ---- preflight ----------------------------------------------------------------------------------------------------------------
-def preflight(iso: str, ledger: dict, busy: set[str], lex: dict, comp: dict, allow_stale: bool) -> list[str]:
-    """Reasons this language must NOT be published now (empty = fine)."""
+def parts_problems(iso: str, comp: dict, pa: dict, root: Path | None = None) -> list[str]:
+    """part-alignments must hold every compact edition of the language, with the same books and their files present."""
+    root = root or REPO / "publish/part-alignments"
+    why = []
+    have = pa.get("languages", {}).get(iso, {}).get("editions", {})
+    for ed, info in comp.get("languages", {}).get(iso, {}).get("editions", {}).items():
+        if not info.get("books"):
+            continue
+        p = have.get(ed)
+        if p is None:
+            why.append(f"no part-alignments for edition {ed}")
+            continue
+        d = root / iso[0] / iso / ed
+        got = {f.name.split("_")[0] for f in d.glob("*.json") if not f.name.endswith((".meta.json", ".extra.json"))} if d.is_dir() else set()
+        if set(p.get("books", [])) - got:
+            why.append(f"part-alignments edition {ed} is missing book files {sorted(set(p['books']) - got)[:3]}")
+    return why
+
+
+def preflight(iso: str, ledger: dict, busy: set[str], lex: dict, comp: dict, allow_stale: bool, pa: dict | None = None) -> list[str]:
+    """Reasons this language must NOT be published now (empty = fine). `pa`: the local part-alignments manifest, when it is published."""
     why = []
     e = lex.get("languages", {}).get(iso)
     if not e:
@@ -181,6 +206,8 @@ def preflight(iso: str, ledger: dict, busy: set[str], lex: dict, comp: dict, all
             tmp = cache_fp.with_name(f".{cache_fp.name}.{os.getpid()}.tmp")
             tmp.write_text(json.dumps(cache), encoding="utf-8")
             os.replace(tmp, cache_fp)
+    if pa is not None:
+        why += parts_problems(iso, comp, pa)
     if not allow_stale and f.stat().st_mtime < STALE_BEFORE:
         why.append("stale (unchanged since the 14 Sept publish and about to be rewritten by the fleet refresh)")
     return why
@@ -247,6 +274,11 @@ def selected_files(name: str, kind: str, isos: list[str], local_root: Path, held
         return [f"iso={i}/{n}" for i in isos for n in ("data.parquet", "top.json") if (local_root / f"iso={i}/{n}").exists()] + \
                [f for f in ["README.md", *_COMPANION_RESOURCES] if (local_root / f).exists()]
     files = [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("*.json")]
+    if kind == "parts":                                                     # sidecars go to part-alignments-meta / -extra (publish_layer)
+        files = [f for f in files if compact_layers.layer_of(f, "part-alignments") == "main"]
+        files += [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("_fingerprints.txt")]
+        files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
+        return sorted(files) + [f for f in PARTS_COMPANIONS if (local_root / f).exists()]
     if kind == "fullalign":                                                 # one repo holds a layer's main + meta + _layer.json
         files = [f for f in files if Path(f).parts[2] not in held]          # <iso[0]>/<iso>/<layer id>/...
         return sorted(files) + [f for f in ("README.md",) if (local_root / f).exists()]
@@ -421,7 +453,7 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
         print(f"[publish_safe] {name}: none of the selected languages has a local entry — nothing to do", file=sys.stderr)
         return {"dataset": name, "pushed": []}
     create = False
-    if kind == "fullalign":
+    if kind in ("fullalign", "parts"):
         from huggingface_hub import HfApi
         create = not HfApi().repo_exists(repo, repo_type="dataset")
     if create:                                                 # a dataset that does not exist yet: the first publish
@@ -464,7 +496,7 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
                 sha = getattr(getattr(info, "lfs", None), "sha256", None)
                 if sha and sha != sha256_file(local_root / f"iso={i}/data.parquet"):
                     bad.append(f"{i} (partition sha differs on HF)")
-        if kind == "fullalign":                                # every pushed file present with the local byte size
+        if kind in ("fullalign", "parts"):                     # every pushed file present with the local byte size
             from huggingface_hub import HfApi
             infos = paths_info_batched(HfApi(), repo, [f for f in files if f != "manifest.json"], batch=200)
             bad += [f for f in files if f != "manifest.json" and (f not in infos or getattr(infos[f], "size", None) != (stage / f).stat().st_size)]
@@ -474,10 +506,10 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
     return result
 
 
-def layer_files(isos: list[str], layer: str, local_root: Path) -> list[str]:
+def layer_files(isos: list[str], layer: str, local_root: Path, dataset: str = "compact-alignments") -> list[str]:
     """Every `<BOOK>_<hash>.<layer>.json` of the selected languages, plus the layer's per-edition files (`names`: the meta repo's _layer.json and
-    _fingerprints.txt), relative to the compact root."""
-    spec = compact_layers.LAYERS[layer]
+    _fingerprints.txt), relative to the dataset root."""
+    spec = compact_layers.LAYERS_OF[dataset][layer]
     pats = [f"*{spec['suffix']}", *spec.get("names", ())]
     return sorted({str(p.relative_to(local_root)) for i in isos for pat in pats for p in (local_root / i[0] / i).rglob(pat)})
 
@@ -499,18 +531,18 @@ def forget_pushed(stage: Path, repo: str, paths: list[str]) -> int:
     return n
 
 
-def publish_layer(layer: str, isos: list[str], push: bool, chunk: int) -> dict:
+def publish_layer(layer: str, isos: list[str], push: bool, chunk: int, dataset: str = "compact-alignments") -> dict:
     """Push one sidecar layer of the selected languages to its own repo (same relative paths as the main repo). No manifest to merge: the repo
     holds only the sidecars plus its README. Verify = every pushed file exists on HF with the local byte size (batched, rate-limit safe)."""
     from lexeme_aligner.hf_bulk_publish import publish_chunked
-    repo = compact_layers.LAYERS[layer]["repo"]
-    local_root = REPO / "publish" / "compact-alignments"
-    rel = layer_files(isos, layer, local_root)
-    name = f"compact-alignments-{layer}"
+    repo = compact_layers.LAYERS_OF[dataset][layer]["repo"]
+    local_root = REPO / "publish" / dataset
+    rel = layer_files(isos, layer, local_root, dataset)
+    name = f"{dataset}-{layer}"
     if not rel:
         print(f"[publish_safe] {name}: no {layer} files for the selected languages", file=sys.stderr)
         return {"dataset": name, "pushed": [], "files": 0, "verified": True, "entry_mismatch": [], "other_entries_changed": []}
-    stage, files = compact_layers.stage_layer(local_root, layer, rel)
+    stage, files = compact_layers.stage_layer(local_root, layer, rel, dataset=dataset)
     print(f"[publish_safe] {name} -> {repo}: {len(isos)} language(s), {len(files)} file(s)", file=sys.stderr)
     publish_chunked(stage, repo, files, create=True, dry_run=not push, chunk_size=chunk, label=name, detect_deletions=False)
     result = {"dataset": name, "pushed": isos if push else [], "files": len(files)}
@@ -559,6 +591,7 @@ def main() -> int:
                     help="allow a schema change for this one dataset; refused unless every language on HF and local is in the publish")
     ap.add_argument("--allow-stale", action="store_true", help="also publish languages unchanged since 14 Sept")
     ap.add_argument("--push", action="store_true", help="actually publish (default is a dry run)")
+    ap.add_argument("--allow-frozen", default="", metavar="DATASET", help="publish this FROZEN dataset anyway (see FROZEN)")
     ap.add_argument("--tag", help="after a verified push, tag each pushed dataset's repo (e.g. v1.0); an existing tag is never moved")
     ap.add_argument("--list-ready", action="store_true",
                     help="no publishing: run the preflight over EVERY language in the local manifest, print why the others are blocked and "
@@ -591,14 +624,19 @@ def main() -> int:
     unknown = [n for n in names if n not in DATASETS]
     if unknown or not isos:
         ap.error(f"unknown dataset(s) {unknown}" if unknown else "no languages selected")
+    frozen = [n for n in names if n in FROZEN and n != args.allow_frozen]
+    if frozen:
+        ap.error("; ".join(f"{n} is {FROZEN[n]}" for n in frozen) + " (or --allow-frozen DATASET)")
 
     ledger = json.loads((REPO / "config/pipeline_decisions.json").read_text())
     busy = running_isos(subprocess.run(["ps", "-eo", "cmd"], capture_output=True, text=True).stdout)
     lex = json.loads((REPO / "publish/lexeme-alignments/manifest.json").read_text())
     comp = json.loads((REPO / "publish/compact-alignments/manifest.json").read_text())
+    pa_fp = REPO / "publish/part-alignments/manifest.json"
+    pa = json.loads(pa_fp.read_text()) if "part-alignments" in names and pa_fp.exists() else None
     ok, skipped = [], {}
     for iso in isos:
-        why = preflight(iso, ledger, busy, lex, comp, args.allow_stale)
+        why = preflight(iso, ledger, busy, lex, comp, args.allow_stale, pa)
         (skipped.__setitem__(iso, why) if why else ok.append(iso))
     print(f"[publish_safe] {len(isos)} requested -> {len(ok)} pass preflight, {len(skipped)} left out", file=sys.stderr)
     for iso, why in list(skipped.items())[:15]:
@@ -614,8 +652,9 @@ def main() -> int:
     if "compact-alignments" in names and (js := sync_js()):
         print(f"[publish_safe] refreshed {js} from the vendored bibles verse-text JS", file=sys.stderr)
     results = [publish_dataset(n, ok, args.push, args.chunk_size, scratch, schema_change=(n == args.schema_change)) for n in names]
-    if "compact-alignments" in names:                          # the two optional sidecar layers live in their own repos
-        results += [publish_layer(layer, ok, args.push, args.chunk_size) for layer in compact_layers.LAYERS]
+    for ds in ("compact-alignments", "part-alignments"):       # the two optional sidecar layers live in their own repos
+        if ds in names:
+            results += [publish_layer(layer, ok, args.push, args.chunk_size, ds) for layer in compact_layers.LAYERS_OF[ds]]
     if args.tag:
         results += [tag_repo(DATASETS[r["dataset"]][0], args.tag, args.push, ok_=r.get("verified", True)) for r in results
                     if r.get("dataset") in DATASETS]

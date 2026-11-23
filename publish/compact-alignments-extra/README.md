@@ -9,6 +9,12 @@ license: cc0-1.0
 
 # compact-alignments-extra — opt-in residual layer
 
+> **FROZEN on 2026-11-23, to be removed after 2026-11-30.** This dataset is no longer updated. It is replaced by
+> [bcv-commons/part-alignments](https://huggingface.co/datasets/bcv-commons/part-alignments), which links every Greek and Hebrew
+> word PART (stem, ending, prefix ...) instead of whole words, for every language published here. To keep reading files in this
+> format, make them from part-alignments with its `fold.py` / `fold.mjs` (same paths, same file names):
+> `python fold.py --parts PART_ALIGNMENTS_DIR --out COMPACT_DIR` (`--fold-rule stem` keeps the stem's links only).
+
 An optional, additive layer of [`compact-alignments`](https://huggingface.co/datasets/bcv-commons/compact-alignments). It holds ONLY the
 `<BOOK>_<hash>.extra.json` files, under the **same relative path** as in the main repo:
 

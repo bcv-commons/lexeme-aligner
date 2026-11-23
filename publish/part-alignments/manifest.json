@@ -40500,6 +40500,53 @@
             "REV12-17"
           ]
         },
+        "heb_mod+llm+jev-v4": {
+          "books": {
+            "1CO": "1CO_acb4aefb.json",
+            "1JN": "1JN_54c0d8ba.json",
+            "1PE": "1PE_74eceeb7.json",
+            "1TH": "1TH_2cddda22.json",
+            "1TI": "1TI_4316d40f.json",
+            "2CO": "2CO_7f62d84d.json",
+            "2JN": "2JN_5a1402e5.json",
+            "2PE": "2PE_5c2ccaa9.json",
+            "2TH": "2TH_055d5c63.json",
+            "2TI": "2TI_183448b6.json",
+            "3JN": "3JN_bec9f4f4.json",
+            "ACT": "ACT_ef9a350f.json",
+            "COL": "COL_a6771424.json",
+            "EPH": "EPH_512029db.json",
+            "GAL": "GAL_e7a26578.json",
+            "HEB": "HEB_7405e5a2.json",
+            "JAS": "JAS_c7526d75.json",
+            "JHN": "JHN_418948b7.json",
+            "JUD": "JUD_84bfbb58.json",
+            "LUK": "LUK_fba53df0.json",
+            "MAT": "MAT_29f0fba7.json",
+            "MRK": "MRK_19fd0850.json",
+            "PHM": "PHM_3632a072.json",
+            "PHP": "PHP_2e6d2f99.json",
+            "REV": "REV_b7f0bd26.json",
+            "ROM": "ROM_45d33a9a.json",
+            "TIT": "TIT_91497045.json"
+          },
+          "cell": "jevM.heb_mod.{BOOK}.v4.M1.jev-0",
+          "links_from": {
+            "bcv-query nt-part-level (2026-11-23)": "rule links (rule:one_greek_part, rule:one_hebrew_part, rule:verb_government, rule:om_case) kept",
+            "lexeme-aligner jev refine (level 2)": "everything else, incl. replacing bcv-query's Jev-decided links"
+          },
+          "name": "jev-v4",
+          "parts": {
+            "file": "heb_mod/words.parquet",
+            "numbering": "the split file's `part` (level 2: the Tanakh's cut inside hebrew-nt-analysis v0.2 level-1 parts)",
+            "sha256": "e9d2b1abd1cc1d6ec30ff19e3c27427206149dcaa62124123adc1a69f42ea9a6",
+            "table": "bcv-query aligner tables",
+            "table_version": "v0.1"
+          },
+          "source": "llm",
+          "tag": "heb_mod",
+          "tokenizer_version": 3
+        },
         "heb_scg": {
           "books": {
             "1CO": "1CO_9b6cc9ef.json",
@@ -40574,8 +40621,19 @@
             "ROM": "ROM_c1030130.json",
             "TIT": "TIT_a874f384.json"
           },
-          "cell": "jevR.heb_scg.{BOOK}.v4.R1.jev-0",
+          "cell": "jevM.heb_scg.{BOOK}.v4.M1.jev-0",
+          "links_from": {
+            "bcv-query nt-part-level (2026-11-23)": "rule links (rule:one_greek_part, rule:one_hebrew_part, rule:verb_government, rule:om_case) kept",
+            "lexeme-aligner jev refine (level 2)": "everything else, incl. replacing bcv-query's Jev-decided links"
+          },
           "name": "jev-v4",
+          "parts": {
+            "file": "heb_scg/words.parquet",
+            "numbering": "the split file's `part` (level 2: the Tanakh's cut inside hebrew-nt-analysis v0.2 level-1 parts)",
+            "sha256": "39410b7c9347c35f19d84899136e7fbfdf19a17b8a7f6b3592b442ecfeee28fd",
+            "table": "bcv-query aligner tables",
+            "table_version": "v0.1"
+          },
           "source": "llm",
           "tag": "heb_scg",
           "tokenizer_version": 3

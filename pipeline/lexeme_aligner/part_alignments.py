@@ -238,6 +238,9 @@ def main(argv=None) -> int:
     ap.add_argument("--methods", default="spanext," + ",".join(METHODS))
     ap.add_argument("--llm-cell", default=None, help="write the LLM layer from these cells instead (may hold {BOOK})")
     ap.add_argument("--llm-name", default="jev-v4")
+    ap.add_argument("--entry-extra", type=Path, default=None,
+                    help="JSON object merged into the LLM layer's manifest entry (e.g. `parts`: what the parts channel's part numbers "
+                         "refer to, `links_from`: other producers of the links)")
     a = ap.parse_args(argv)
     books = [b.upper() for b in a.book] if a.book else [b for b in ALL_BOOKS if any(a.usj_dir.glob(f"*-{b}.json"))]
     sources = json.loads(a.sources.read_text(encoding="utf-8")) if a.sources.exists() else {}
@@ -253,6 +256,8 @@ def main(argv=None) -> int:
             files.update(write_edition(a.iso, a.publish_iso, a.usj_dir, a.out_dir, a.dest, [b], lid, [f"llm:{a.llm_cell.format(BOOK=b)}"],
                                        SPINE_DB, llm_cell=a.llm_cell))
         entry = {"tag": a.iso, "source": "llm", "name": a.llm_name, "cell": a.llm_cell, "books": files}
+        if a.entry_extra:
+            entry.update(json.loads(a.entry_extra.read_text(encoding="utf-8")))
         update_manifest(a.dest, a.publish_iso, lid, entry, SPINE_DB)
     else:
         methods = [m for m in a.methods.split(",") if m]

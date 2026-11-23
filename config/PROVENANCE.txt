@@ -741,3 +741,9 @@ pipeline/vendor/language-analysis/b7b758a0/ — make-tanakh's language modules, 
   files of fe645bf6 kept. Checked: zin jev.md + split and dan jev.md byte-identical to fe645bf6's (answer caches hold); kvg b54d7f20 =
   every rule line of d8fdb53e (the module our published Kuni layers saw) + `existence`; no "Left out … N of M" line from format 4 on.
   jev_clauses TARGET_MODULE + config/align_inputs.json -> b7b758a0. Source modules unchanged.
+
+bcv-query aligner tables v0.1 (2026-11-23; local hand-over, not on HF until bcv-query's id release)
+  pipeline/vendor/bcv-query-aligner-tables/v0.1 (git-ignored), from bcv-query/internal-docs/aligner-tables/v0.1; SHA256SUMS sha256 7805eabc7f47e719...
+  grc_bre/positions.tsv: position -> bre word id (Brenton, word level; option (a): our links stop at Brenton WORDS, no GLAUx parts).
+  heb_scg/, heb_mod/: bcv-split/0.1 level-2 Hebrew parts (Tanakh cut + Jev-parsed pieces, level2_basis); tokenizer 3 (= 2 for these texts).
+  text_faults.tsv: tracked source-text faults (heb_mod F0001-F0010 Latin labels / stray 'w'; heb_scg F0011 lost final he).

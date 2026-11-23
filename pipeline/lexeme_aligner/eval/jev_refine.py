@@ -393,6 +393,7 @@ def main(argv=None) -> int:
     lang = jc.LANG.get(a.publish_iso, a.publish_iso)
     total = collections.Counter()
     est_all = collections.Counter()
+    spent = {"tokens": 0}
     for book in books:
         answers = load_answers(a.base_dir, a.base_cell, book)
         if not answers:
@@ -442,8 +443,19 @@ def main(argv=None) -> int:
             if est_all["usd (est., high side)"] > a.max_usd:
                 raise SystemExit(f"jev_refine: estimate so far ${round(est_all['usd (est., high side)'], 2)} is above --max-usd {a.max_usd}")
         key = "" if cache_only else jc.api_key()
+        lock = threading.Lock()
+
+        def ask(job):                                      # running cap over the whole run (every book), on billed input
+            with lock:
+                if a.max_usd is not None and spent["tokens"] / 1e6 * jv.PRICE_PER_M_INPUT >= a.max_usd:
+                    return {"_error": "not sent: --max-usd reached"}
+            r = jc.ask_split(job[1], key)
+            if not r.get("_cached"):
+                with lock:
+                    spent["tokens"] += (r.get("usage") or {}).get("input_tokens", 0)
+            return r
         with ThreadPoolExecutor(a.workers) as ex:
-            res = list(ex.map(lambda j: jc.ask_split(j[1], key), jobs))
+            res = list(ex.map(ask, jobs))
         results: dict = {}
         for (items, body, qmap, umap), r in zip(jobs, res):
             if "_error" in r:
@@ -463,6 +475,7 @@ def main(argv=None) -> int:
         cell = f"jevR.{a.tag}.{book}.v4.{a.variant}.jev-0"
         (a.out_dir / f"align_llm_{cell}_{book}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs),
                                                                     encoding="utf-8")
+    total["input tokens billed"] = spent["tokens"]
     print(json.dumps({"total": dict(total), "estimate": {k: round(v, 2) for k, v in est_all.items()}}, ensure_ascii=False))
     return 0
 

@@ -505,6 +505,27 @@ def apply_verse(p: le.Proposal, h_ed: list, t_ed: list) -> tuple:
 
 
 # --- main ---------------------------------------------------------------------------------------------------------------------
+def apply_accept(props: list, accept: dict, book: str) -> int:
+    """`--accept` (jev_refine accept, 2026-11-23): source words whose link another edition's Jev answer already confirms. Each one's
+    proposal is fixed to that link, its own question and the questions of its target words are dropped. Returns how many."""
+    n = 0
+    for p in props:
+        for h, ts in (accept.get("books", {}).get(book, {}).get(f"{p.ch}:{p.v}") or {}).items():
+            h = int(h)
+            if h not in {t.idx for t in p.heb} or any(j >= len(p.toks) for j in ts):
+                continue
+            for o in list(p.owner):
+                if o != h:
+                    p.owner[o] = [j for j in p.owner[o] if j not in ts]
+            p.owner[h] = list(ts)
+            p.method[h] = "reuse"
+            p.doubt_h.pop(h, None)
+            for j in ts:
+                p.doubt_t.pop(j, None); p.stop_t.discard(j)
+            n += 1
+    return n
+
+
 def _chain_ids(parts_parquet: Path | None):
     """(ref, j) of the view -> chain_ids of that unit (a parts view's unit = one part of a written word)."""
     if not parts_parquet:
@@ -530,6 +551,7 @@ def main() -> int:
     ap.add_argument("--update-module", type=Path,
                     help="with --conventions modules: a newer target jev.md, used only for the requests where one of its new or changed "
                          "rules applies (`updated_rules`); every other request keeps --target-module, so its answer comes from the cache")
+    ap.add_argument("--accept", type=Path, help="jev_refine accept output: links taken from another edition's Jev answers, not asked")
     ap.add_argument("--variant", required=True); ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--dry-run", action="store_true", help="build the requests, report their size and estimated cost; no call, no cell")
     ap.add_argument("--max-usd", type=float, default=None,
@@ -540,6 +562,7 @@ def main() -> int:
     usj = a.usj_dir or Path(f"pipeline/work/ingest-cache/usj-{a.iso}")
     tags = json.loads(a.tags.read_text(encoding="utf-8")) if a.tags else None
     props, _ = le.build_proposals(a.iso, a.publish_iso, usj, [a.book], signals=le.SIGNALS + ("uncovered-fn",), strong_tags=tags)
+    accepted = apply_accept(props, json.loads(a.accept.read_text(encoding="utf-8")), a.book) if a.accept else 0
     units_of = {}
     if a.parts:
         from lexeme_aligner import target_parts as tp
@@ -598,6 +621,7 @@ def main() -> int:
         size["requests on the update module"] += bool(w.get("updated"))
     verses = {r for w in ws for r, _ in w["hs"]}
     size["verses"] = len(verses)
+    size["source words accepted (not asked)"] = accepted
     raws = {json.dumps(j[4], ensure_ascii=False, sort_keys=True).encode(): j[4] for j in jobs}
     est = estimate(list(raws), lambda raw: _in_cache(raw, raws[raw]))
     if a.dry_run:
@@ -675,6 +699,9 @@ def main() -> int:
         for book_recs in recs.values():
             for r in book_recs:
                 r["llm"] = {**r["llm"], "answered_by": answered_by.get(r["ref"])}
+                for pr in r["pairs"]:                     # an accepted link that stayed as it was: provenance = the other edition
+                    if pr.get("proposal_method") == "reuse" and pr["prior"] == "llm_edit_kept":
+                        pr["prior"] = "llm_reuse"
         le.write_records(recs, cell, Path(OUT))
         summary["cells"][cell] = dict(tally)
     (LOG / f"{tag}.summary.json").write_text(json.dumps(summary, indent=1, ensure_ascii=False), encoding="utf-8")

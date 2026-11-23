@@ -495,7 +495,8 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
     create = False
     if kind in ("fullalign", "parts"):
         from huggingface_hub import HfApi
-        create = not HfApi().repo_exists(repo, repo_type="dataset")
+        api = HfApi()                                          # a repo created empty beforehand (to set it public) has no manifest yet
+        create = not api.repo_exists(repo, repo_type="dataset") or not api.file_exists(repo, "manifest.json", repo_type="dataset")
     if create:                                                 # a dataset that does not exist yet: the first publish
         hf = {"languages": {}}
         print(f"[publish_safe] {name}: {repo} does not exist yet — first publish{' (the repo is created)' if push else ''}", file=sys.stderr)

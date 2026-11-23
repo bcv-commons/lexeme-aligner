@@ -187,6 +187,26 @@ def _hi(m) -> bool:
 GLOSS_HOLD_FUNCTION = os.environ.get("ALIGNER_GLOSS_HOLD_FUNCTION", "1") != "0"
 
 
+# Parts spine (source_parts.py, part-alignments): a word's non-carrying part (key "<word key>.<n>": an ending, prefix, augment,
+# preverb) loses a target position that another WORD of the verse claims; its own word may share it. Measured on Clear gold
+# (pipeline/work/parts-src-ab/checks.json): halves the parts spine's word-level loss. No effect on the word spine (no such parts).
+PARTS_BLOCK = os.environ.get("ALIGNER_PARTS_BLOCK", "1") != "0"
+
+
+def part_blocked(heb: list, by_h: dict) -> dict[int, set[int]]:
+    """{h_idx of a non-carrying part: target positions it must give up}."""
+    word_of = {t.idx: t.keys[0].split(".")[0] for t in heb if t.keys}
+    subs = [t.idx for t in heb if t.keys and "." in t.keys[0] and t.idx in by_h]
+    if not subs:
+        return {}
+    owner: dict[int, set[str]] = collections.defaultdict(set)      # position -> words (word keys) whose carrying part claims it
+    for t in heb:
+        if t.idx in by_h and t.keys and "." not in t.keys[0]:
+            for j in by_h[t.idx].t_idx:
+                owner[j].add(word_of[t.idx])
+    return {h: {j for j in by_h[h].t_idx if owner.get(j, set()) - {word_of[h]}} for h in subs}
+
+
 def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path) -> list[dict]:
     by_book: dict[str, list[VerseRec]] = collections.defaultdict(list)
     for r in recs:
@@ -223,15 +243,19 @@ def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path
 
                 pairs, held = [], []
                 hold = GLOSS_HOLD_FUNCTION and tag == "gloss"
+                blocked = part_blocked(rec.heb, by_h) if PARTS_BLOCK else {}
                 for t in rec.heb:
                     m = by_h.get(t.idx)
                     if not m:
                         continue
-                    rendering = " ".join(rec.toks[j] for j in m.t_idx)
+                    t_idx = [j for j in m.t_idx if j not in blocked.get(t.idx, ())]
+                    if m.t_idx and not t_idx:
+                        continue
+                    rendering = " ".join(rec.toks[j] for j in t_idx)
                     pair = {"h_idx": t.idx, "lexeme": t.lexeme, "strong": t.strong,
                             "lemma": t.lemma, "stem": t.stem,
                             "surface": t.surface, "gloss_en": t.gloss_en, "sense": t.sense,
-                            "target": rendering, "t_idx": list(m.t_idx), "score": m.score,
+                            "target": rendering, "t_idx": t_idx, "score": m.score,
                             "method": m.method, "content": bool(t.is_content)}
                     if getattr(m, "light", False):
                         pair["light"] = True

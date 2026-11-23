@@ -183,6 +183,8 @@ class Book:
     word: list[int]
     key_to_h: dict[str, tuple[int, int]]
     units_of: dict[int, list | None]
+    # parts spine (source_parts.py): word key -> its other parts (key "<word key>.<n>"), in order; asked with the word
+    parts_of: dict[str, list[tuple[int, int]]] = dataclasses.field(default_factory=dict)
 
 
 def spine_trefs(tag: str, usj: Path, books: list[str]) -> dict[tuple, tuple]:
@@ -209,6 +211,7 @@ def parts_by_spine(props: list, unit_words: dict, vmap: dict, trefs: dict) -> tu
 def lay_out(props: list[le.Proposal], units_of: dict[int, list | None]) -> Book:
     seq, word, wid = [], [], -1
     key_to_h = {}
+    parts_of: dict[str, list[tuple[int, int]]] = collections.defaultdict(list)
     for p in sorted(props, key=lambda p: p.ref):
         us = units_of.get(p.ref)
         prev = None
@@ -219,8 +222,11 @@ def lay_out(props: list[le.Proposal], units_of: dict[int, list | None]) -> Book:
             seq.append((p.ref, j)); word.append(wid)
         for t in p.heb:
             for k in t.keys or ():
-                key_to_h[k] = (p.ref, t.idx)
-    return Book({p.ref: p for p in props}, seq, {x: i for i, x in enumerate(seq)}, word, key_to_h, units_of)
+                if "." in k:
+                    parts_of[k.split(".")[0]].append((p.ref, t.idx))
+                else:
+                    key_to_h[k] = (p.ref, t.idx)
+    return Book({p.ref: p for p in props}, seq, {x: i for i, x in enumerate(seq)}, word, key_to_h, units_of, dict(parts_of))
 
 
 def _whole_words(b: Book, lo: int, hi: int) -> tuple[int, int]:
@@ -253,8 +259,10 @@ def windows(b: Book, units: list[dict], margin: int) -> list[dict]:
     unit_of_h = {}
     out = []
     for ui, u in enumerate(units):
-        hs = [b.key_to_h[k] for k in u["words"] if k in b.key_to_h]
-        hs = list(dict.fromkeys(hs))
+        hs = [h for k in u["words"] for h in ([b.key_to_h[k]] if k in b.key_to_h else []) + b.parts_of.get(k, [])]
+        hs = list(dict.fromkeys(hs))                       # layout order, a word's parts right after it (word spine: unchanged)
+        if b.parts_of:
+            hs = sorted(hs)                                # parts spine: text order, so a prefix sits before its stem
         for h in hs:
             unit_of_h.setdefault(h, ui)
         pos = sorted(b.order[(ref, j)] for ref, h in hs for j in b.props[ref].owner.get(h, []))
@@ -593,6 +601,8 @@ def main() -> int:
     raws = {json.dumps(j[4], ensure_ascii=False, sort_keys=True).encode(): j[4] for j in jobs}
     est = estimate(list(raws), lambda raw: _in_cache(raw, raws[raw]))
     if a.dry_run:
+        if (dump := os.environ.get("JEV_DUMP_BODIES")) and jobs:   # look at what would be sent (the first few request bodies)
+            Path(dump).write_text(json.dumps([j[4] for j in jobs[:5]], ensure_ascii=False, indent=1), encoding="utf-8")
         print(json.dumps({"tag": tag, "dry_run": dict(size), "estimate": est}, ensure_ascii=False))
         return 0
     cache_only = bool(os.environ.get("JEV_CACHE_ONLY"))

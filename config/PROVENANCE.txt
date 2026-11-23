@@ -436,6 +436,11 @@ config/bibles_vrs/ — versification classification + per-verse crosswalk data, 
     bcv-commons/bcv-query/resources/versification/schemes/lxx.tsv`, 4532 rows, dated 2026-07-14);
     verified it is an EXACT STRICT SUBSET of our old 5386-row table (4532/4532 shared, 0 new/different
     rows) — a pure, safe removal. Swapped into `pipeline/vendor/versification/schemes/lxx.tsv`.
+  2026-11-22 re-vendored at bcv-query tag `versification-lxx-2026-11-22` (commit 99aa3ab), sha256 c8365d106d02527b2cf833ff1b932232856d8e86a29ea8b0bde69b68a003aecb
+    (was 6d3f335a…): +76 `Renumber verse (manual)` rows for Brenton's Daniel (DAN 3:91-97 -> 3:24-30, DAN 6:1 -> 5:31, 6:n -> 6:n-1) and
+    Nehemiah (NEH 10:1 -> 9:38, 10:n -> 10:n-1; read after our book map EZR 11-23 -> NEH 1-13), each checked by bcv-query against
+    Brenton + GLAUx; -1 row 1KI 5:18 -> 1KI 5:32 (not a KJV verse; their build drops it). Owner: re-vendor together with the Brenton
+    onboarding. Every lxx-scheme edition changes at its next re-run (DAN/NEH/1KI 5:18 only).
   Real, verified structural finding (not yet acted on further): rus_syn's own structural fingerprint
   (`detect_scheme()`) now resolves to `rso` at 99.68% confidence (previously indistinguishable in effect
   from `vul`/`lxx`, since all three collapsed to the same lxx.tsv-based table) — the new dedicated rso.tsv

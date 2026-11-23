@@ -5,8 +5,8 @@
     {"iso": "heb", "testament": "ot"}
   ],
   "exclude": [
-    {"iso": "grc", "testament": "all",
-     "reason": "grc's 9 NT catalog entries (grc_sbl, grc_gtr, grc_tis, etc.) are different scholarly/manuscript-tradition EDITIONS of the same original Greek New Testament our own spine already comes from (grc_sbl is the SBLGNT, the same text tradition Clear-Bible's own NT gold uses) — not translations. Aligning our Greek NT spine against another Greek NT text is source-against-itself, not a translation pair. The one OT entry (grc_bre, Brenton's Septuagint) IS a genuine Hebrew->Greek translation, but that overlaps with the existing LXX bridge in recipes.py (sourced from prior-pack) — a deliberate special case if ever wanted, not blanket auto-processing."},
+    {"iso": "grc", "testament": "nt",
+     "reason": "grc's 9 NT catalog entries (grc_sbl, grc_gtr, grc_tis, etc.) are different scholarly/manuscript-tradition EDITIONS of the same original Greek New Testament our own spine already comes from (grc_sbl is the SBLGNT, the same text tradition Clear-Bible's own NT gold uses) — not translations. Aligning our Greek NT spine against another Greek NT text is source-against-itself, not a translation pair. The OT is NOT excluded (owner 2026-11-23): grc_bre, Brenton's Septuagint, is a genuine Hebrew->Greek translation and is aligned like any other target (OT against MACULA Hebrew; Brenton's EZR 11-23 is mapped to NEH 1-13)."},
     {"iso": "heb", "testament": "ot",
      "reason": "heb's OT catalog entry (HEBM95) is the Hebrew Masoretic Text itself — the same source our own OT spine already comes from. Same self-alignment problem as grc/NT: aligning our Hebrew OT spine against another Hebrew OT edition is source-against-itself, not a translation signal. heb/NT is NOT excluded — those 4 entries (heb_lbm, heb_mod, heb_scg, HEBM95) are genuine Hebrew translations of the New Testament (Modern Hebrew, Delitzsch-tradition, etc.), a real translation product like any other target language."}
   ]

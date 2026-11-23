@@ -75,3 +75,26 @@ def test_content_units_match_word_spine_incl_merge(built):
         assert word == part
     rut = HebrewSource(out).verse_tokens("RUT", 1, 16)    # the ending of the first verb does not block the merge
     assert [t.surface for t in rut] == ["תֵּ", "לְכִ֗ אֵלֵ֔ךְ", "י"]
+
+
+def test_part_blocked_gives_up_other_words_positions():
+    from types import SimpleNamespace as N
+    from lexeme_aligner.run_pilot import part_blocked
+    heb = [N(idx=0, keys=["40001001001"]), N(idx=1, keys=["40001001001.2"]), N(idx=2, keys=["40001001002"])]
+    by_h = {0: N(t_idx=[3]), 1: N(t_idx=[3, 5, 7]), 2: N(t_idx=[7])}
+    assert part_blocked(heb, by_h) == {1: {7}}            # 3 is its own word's, 5 is free, 7 belongs to the next word
+    assert part_blocked([heb[0], heb[2]], {0: by_h[0], 2: by_h[2]}) == {}
+
+
+def test_jev_request_names_source_parts(built):
+    _spine, out, _ = built
+    from lexeme_aligner.eval import jev_check as jc, llm_edit as le
+    toks = HebrewSource(out).verse_tokens("MAT", 1, 1)
+    p = le.Proposal(40001001, "MAT", 1, 1, toks, ["The", "book", "of", "the", "genealogy"])
+    src = jc.build_request(p, {}, "eng", "", "v4")["state"]["source_words"]
+    assert src[1]["part"] == "ending" and src[1]["part_of"] == "h0" and src[1]["strong"] is None
+    assert src[0]["written_word"] == src[1]["written_word"] == "Βίβλος" and "part" not in src[0]
+    assert jc._src_label(p, toks[1], "") == "the ending ος of h0, written word Βίβλος"
+    assert jc._src_label(p, toks[0], "") == "the stem Βίβλ of the written word Βίβλος"
+    word = jc.build_request(le.Proposal(40001001, "MAT", 1, 1, HebrewSource(_spine).verse_tokens("MAT", 1, 1), ["x"]), {}, "eng", "", "v4")
+    assert all("part" not in s and "written_word" not in s for s in word["state"]["source_words"])

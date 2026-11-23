@@ -332,11 +332,13 @@ class Ours:
     vetoed: set[tuple[int, str, int]] = field(default_factory=set)                   # (ref, strong, k) an LLM rejected
 
 
-def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True) -> Ours:
+def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True,
+              fold_block: bool = False) -> Ours:
     """Our pairs keyed like the gold. `llm_skipped` entries with status rejected/unrepresented become vetoes:
     a verify cell that rejected eflomal's proposal means the token has NO alignment in the LLM's view.
     `fold` (parts spine only): a word's other parts' links count as the word's (`Spine.fold_of`); False scores the carrying
-    part alone."""
+    part alone. `fold_block`: a folded part's link to a position another word of the same record claims is dropped (the word that
+    owns that position keeps it)."""
     wanted = {BOOK_NUMBERS[b] for b in books}
     o = Ours()
     for fp in tag_files(out_dir, method, tag):
@@ -348,12 +350,19 @@ def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spi
                     continue
                 verse = o.spans.setdefault(ref, {})
                 fo = spine.fold_of.get(ref, {}) if fold else {}
+                owner: dict[int, set[int]] = collections.defaultdict(set)    # target position -> words (non-folded h_idx) claiming it
+                if fo and fold_block:
+                    for p in rec["pairs"]:
+                        if p["h_idx"] not in fo:
+                            for t in p.get("t_idx") or ():
+                                owner[t].add(p["h_idx"])
                 for p in rec["pairs"]:
                     h = p["h_idx"]
                     if h in fo:
                         key = spine.key_of[ref].get(fo[h])
-                        if key and p.get("t_idx"):
-                            verse[key] = verse.get(key, set()) | set(p["t_idx"])
+                        pos = {t for t in p.get("t_idx") or () if not (owner.get(t, set()) - {fo[h]})}
+                        if key and pos:
+                            verse[key] = verse.get(key, set()) | pos
                         continue
                     key = spine.key_of[ref].get(h)
                     if key and p.get("t_idx"):
@@ -378,12 +387,13 @@ def union(parts: list[Ours]) -> Ours:
     return out
 
 
-def load_spec(spec: str, default_tag: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True) -> Ours:
+def load_spec(spec: str, default_tag: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True,
+              fold_block: bool = False) -> Ours:
     """`eflomal` · `llm:<tag>` · `a+b+c` (union, first wins) — e.g. `llm:x.verify+eflomal+gloss+gapfill`."""
     parts = []
     for item in spec.split("+"):
         method, _, tag = item.partition(":")
-        parts.append(load_ours(tag or default_tag, method, out_dir, books, spine, fold=fold))
+        parts.append(load_ours(tag or default_tag, method, out_dir, books, spine, fold=fold, fold_block=fold_block))
     return union(parts) if len(parts) > 1 else parts[0]
 
 

@@ -30,3 +30,11 @@ def test_word_spine_unchanged(tmp_path, monkeypatch):
     monkeypatch.setattr(ps, "BOOK_NUMBERS", {"MAT": 0})
     out = _write(tmp_path, [{"h_idx": 0, "t_idx": [3]}, {"h_idx": 0, "t_idx": [4]}])
     assert ps.load_ours("x", "eflomal", out, ["MAT"], _spine({})).spans[1] == {("G0976", 0): {4}}   # last pair wins, as before
+
+
+def test_fold_block_drops_positions_other_words_claim(tmp_path, monkeypatch):
+    monkeypatch.setattr(ps, "tag_files", lambda out, method, tag: sorted(out.glob(f"align_{method}_{tag}_*.jsonl")))
+    monkeypatch.setattr(ps, "BOOK_NUMBERS", {"MAT": 0})
+    out = _write(tmp_path, [{"h_idx": 1, "t_idx": [3, 5, 7]}, {"h_idx": 0, "t_idx": [3]}, {"h_idx": 2, "t_idx": [7]}])
+    o = ps.load_ours("x", "eflomal", out, ["MAT"], _spine({1: {1: 0}}), fold_block=True)
+    assert o.spans[1] == {("G0976", 0): {3, 5}, ("G1078", 0): {7}}    # 7 belongs to the other word; 3 is the word's own

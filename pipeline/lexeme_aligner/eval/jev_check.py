@@ -150,6 +150,37 @@ def _written(p: le.Proposal, units: list | None) -> str:
     return " ".join(out)
 
 
+def _part(p: le.Proposal, t) -> tuple[str, str] | None:
+    """A non-carrying source part (parts spine, source_parts.py: key "<word key>.<n>", lexeme "<lang>:~<kind>[:...]"):
+    (kind, id of the part that carries its word in this request, or "")."""
+    k = (t.keys or [""])[0]
+    if "." not in k or ":~" not in (t.lexeme or ""):
+        return None
+    base = k.split(".")[0]
+    carrier = next((f"h{u.idx}" for u in p.heb if u.keys and u.keys[0] == base), "")
+    return t.lexeme.split(":~", 1)[1].split(":")[0], carrier
+
+
+def _written_words(p: le.Proposal) -> dict[int, str]:
+    """Parts spine: {idx: the whole written word} for every part of a word cut into several parts (empty for the word spine)."""
+    by: dict[str, list] = collections.defaultdict(list)
+    for t in p.heb:
+        if t.keys:
+            by[t.keys[0].split(".")[0]].append(t)
+    return {t.idx: "".join(u.surface for u in g) for g in by.values() if len(g) > 1 and any("." in (u.keys or [""])[0] for u in g)
+            for t in g}
+
+
+def _src_label(p: le.Proposal, t, gloss: str) -> str:
+    """How a question names source token t: a word, or (parts spine) e.g. `the ending ος of h3 (γενέσ)`."""
+    pt = _part(p, t)
+    ww = _written_words(p)
+    if not pt:
+        return f"{t.surface}{gloss}" if t.idx not in ww else f"the stem {t.surface} of the written word {ww[t.idx]}{gloss}"
+    kind, carrier = pt
+    return f"the {kind} {t.surface} of " + (f"{carrier}, written word {ww.get(t.idx, '')}" if carrier else f"the written word {ww.get(t.idx, '')}")
+
+
 def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, design: str = "v1",
                   skip_pairs: set | None = None, hints: dict | None = None, units: list | None = None, lean: str | None = None) -> dict:
     """`units` (a parts view, `target_parts.unit_words`): `translation_text` is the verse as written and every translation word that
@@ -158,14 +189,17 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
     src_lang = "Hebrew" if p.ref < 40_000_000 else "Greek"
     testament = "OT" if p.ref < 40_000_000 else "NT"
     owner_of = {j: h for h, s in p.owner.items() for j in s}
+    ww = _written_words(p)
     state = {
         "reference": f"{p.book} {p.ch}:{p.v}",
         "source_language": src_lang, "translation_language": lang,
         "conventions": conventions,
         "translation_text": _written(p, units),
-        "source_words": [{"id": f"h{t.idx}", "word": t.surface, "lemma": t.lemma, "strong": t.strong,
+        "source_words": [{"id": f"h{t.idx}", "word": t.surface, "lemma": t.lemma, "strong": None if _part(p, t) else t.strong,
                           "part_of_speech": lex_pos.get(t.lexeme), "grammar": _gram_tag(t).strip(" []") or None,
-                          "gloss": t.gloss_en, "proposed_rendering": _words(p, p.owner.get(t.idx, [])) or None}
+                          "gloss": t.gloss_en, "proposed_rendering": _words(p, p.owner.get(t.idx, [])) or None,
+                          **({"part": _part(p, t)[0], "part_of": _part(p, t)[1] or None} if _part(p, t) else {}),
+                          **({"written_word": ww[t.idx]} if t.idx in ww else {})}
                          for t in p.heb],
         "translation_words": [{"id": f"t{j}", "word": w, "proposed_source": f"h{owner_of[j]}" if j in owner_of else None,
                                **({"in_word": units[j]["in_word"], "part": units[j]["part"]} if units and units[j]["in_word"] else {})}
@@ -185,7 +219,7 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
             crit["none"] = "no word of the translation renders it on its own (it is left untranslated, or folded into another word's rendering)"
             crit.update(tw)
             qs[f"h{t.idx}"] = {"type": "choice", "criteria": crit, "instructions":
-                f"Source word h{t.idx} ({t.surface}{gloss}) in `source_words`: which word of `translation_words` is its main rendering "
+                f"Source word h{t.idx} ({_src_label(p, t, gloss)}) in `source_words`: which word of `translation_words` is its main rendering "
                 f"in this verse? Follow `conventions`."}
             continue
         # v2: the whole rendering as one choice among every run of 1..MAX_SPAN consecutive words; "is it rendered at all" asked apart
@@ -196,11 +230,11 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
             if s != own:
                 crit[_span_id(s)] = _words(p, s)
         qs[f"h{t.idx}"] = {"type": "choice", "criteria": crit, "instructions":
-            f"Assume source word h{t.idx} ({t.surface}{gloss}) in `source_words` is rendered in this verse. Which run of consecutive "
+            f"Assume source word h{t.idx} ({_src_label(p, t, gloss)}) in `source_words` is rendered in this verse. Which run of consecutive "
             f"words of `translation_words` is its complete rendering, including the function words that belong to it under `conventions` "
             f"and nothing that renders another source word?"}
         qs[f"r{t.idx}"] = {"type": "noul", "instructions":
-            f"Does any word of `translation_words` render source word h{t.idx} ({t.surface}{gloss}) in this verse, by its meaning or its "
+            f"Does any word of `translation_words` render source word h{t.idx} ({_src_label(p, t, gloss)}) in this verse, by its meaning or its "
             f"grammatical function, following `conventions`? Answer no when it is left untranslated or folded into the rendering of "
             f"another source word."}
     t_ask = sorted(p.doubt_t)
@@ -214,13 +248,14 @@ def build_request(p: le.Proposal, lex_pos: dict, lang: str, conventions: str, de
             if not os.environ.get("JEV_COMPAT_R"):       # (JEV_COMPAT_R: the body as before 2026-10-26, to rebuild older cells from cache)
                 qs.pop(f"r{t.idx}", None)                # decide() never reads it for a function word (2026-10-26: 9% of questions)
             q["criteria"] = {"none": "the translation leaves it out: no separate word and no prefix or suffix carries it", **tw}
-            q["instructions"] = (f"Source function word h{t.idx} ({t.surface}{gloss}) in `source_words`: which word of `translation_words` "
+            q["instructions"] = (f"Source function word h{t.idx} ({_src_label(p, t, gloss)}) in `source_words`: which word of `translation_words` "
                                  f"renders it, either as a separate word or as a prefix or suffix written inside that word"
                                  f"{INSIDE_EXAMPLES.get(lang, '')}? Follow `conventions`."
                                  + _hint(hints, "source", testament,
                                          f"{t.lemma} (suffix)" if testament == "OT" and t.lemma == "הוּא" else t.lemma))
     for j in t_ask:
-        crit = {f"h{t.idx}": f"{t.surface}" + (f" ({t.gloss_en})" if t.gloss_en else "") for t in p.heb}
+        crit = {f"h{t.idx}": (f"{t.surface}" + (f" ({t.gloss_en})" if t.gloss_en else "")) if not _part(p, t) else _src_label(p, t, "")
+                for t in p.heb}
         crit["none"] = "it renders no source word: supplied by the translator for style or grammar, or part of an added explanation"
         qs[f"t{j}"] = {"type": "choice", "criteria": crit, "instructions":
             f"Translation word t{j} ({_shown(p, j)!r}) in `translation_words`: which word of `source_words` does it render, by its "
@@ -313,7 +348,7 @@ def width_requests(p: le.Proposal, state: dict, answers: dict) -> list[dict]:
             if k == j:
                 continue
             qs[f"w{h}_{k}"] = {"type": "noul", "instructions":
-                f"Source word h{h} ({t.surface}{gloss}) in `source_words` is rendered by translation word t{j} ({_shown(p, j)!r}). "
+                f"Source word h{h} ({_src_label(p, t, gloss)}) in `source_words` is rendered by translation word t{j} ({_shown(p, j)!r}). "
                 f"Is translation word t{k} ({_shown(p, k)!r}) also part of the rendering of h{h}, under `conventions` (for example an "
                 f"article, auxiliary, postposition, preposition or particle that carries h{h}'s own meaning or grammatical function), "
                 f"rather than rendering another source word or nothing?"}

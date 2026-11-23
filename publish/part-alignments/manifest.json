@@ -40634,22 +40634,26 @@
             "ROM": "ROM_45d33a9a.json",
             "TIT": "TIT_91497045.json"
           },
-          "cell": "jevZ.heb_mod.{BOOK}.v4.Z1.jev-0",
+          "cell": "jevX.heb_mod.{BOOK}.v4.X1.jev-0",
           "links_from": {
-            "bcv-query fixed pairs v0.1": "two-word renderings added (pairs.tsv sha256 58e373f1fbcee439)",
+            "bcv-query fixed pairs v0.1": "two-word renderings added (bcv-commons/hebrew-nt-pieces-model v0.1 fixed_pairs.tsv, sha256 58e373f1fbcee439)",
+            "bcv-query fixed pairs v0.2": "two-word renderings added (pairs.tsv sha256 56fec4d9c033727e)",
             "bcv-query nt-part-level (2026-11-23)": "rule links (rule:one_greek_part, rule:one_hebrew_part, rule:verb_government, rule:om_case) kept",
-            "bcv-query piece rule v0.2": "piece choice inside a word pair (rule:piece_stem/person/number/none; piece_rule.parquet sha256 0e50c44bfb76a042)",
+            "bcv-query piece rule v0.2": "piece choice inside a word pair (rule:piece_stem/person/number/none; bcv-commons/hebrew-nt-pieces-model v0.1 piece_rule.parquet, sha256 0e50c44bfb76a042)",
+            "bcv-query piece rule v0.3": "remaining piece-rule rows on v0.4 (piece_rule.parquet sha256 e80618f40c1f3a7c)",
             "carried to v0.2": "links on v0.1 pieces carried over through piece_map_v0.1.parquet (2026-11-23)",
             "carried to v0.3": "links on v0.2 pieces carried over through piece_map_v0.2.parquet (2026-11-23)",
+            "carried to v0.4": "links on v0.3 pieces carried over through piece_map_v0.3.parquet (2026-11-23)",
+            "lexeme-aligner fix pass 2026-11-23": "pronoun / demonstrative stem -> Hebrew pronoun suffix piece on tables v0.3; hand corrections from bcv-query's grades",
             "lexeme-aligner jev refine (level 2)": "everything else, incl. replacing bcv-query's Jev-decided links"
           },
           "name": "jev-v4",
           "parts": {
             "file": "heb_mod/words.parquet",
             "numbering": "the split file's `part` (level 2: the Tanakh's cut inside hebrew-nt-analysis v0.2 level-1 parts)",
-            "sha256": "6105b55fb99d41dd47d714cea5633620c5be1440f0daa85af5ad3d89d88d5ab4",
+            "sha256": "82e34d231c2cd9dd1772f4b31442560e89bac977b5853a681399b71570b003e3",
             "table": "bcv-query aligner tables",
-            "table_version": "v0.3"
+            "table_version": "v0.4"
           },
           "source": "llm",
           "tag": "heb_mod",
@@ -40729,13 +40733,17 @@
             "ROM": "ROM_c1030130.json",
             "TIT": "TIT_a874f384.json"
           },
-          "cell": "jevZ.heb_scg.{BOOK}.v4.Z1.jev-0",
+          "cell": "jevX.heb_scg.{BOOK}.v4.X1.jev-0",
           "links_from": {
-            "bcv-query fixed pairs v0.1": "two-word renderings added (pairs.tsv sha256 58e373f1fbcee439)",
+            "bcv-query fixed pairs v0.1": "two-word renderings added (bcv-commons/hebrew-nt-pieces-model v0.1 fixed_pairs.tsv, sha256 58e373f1fbcee439)",
+            "bcv-query fixed pairs v0.2": "two-word renderings added (pairs.tsv sha256 56fec4d9c033727e)",
             "bcv-query nt-part-level (2026-11-23)": "rule links (rule:one_greek_part, rule:one_hebrew_part, rule:verb_government, rule:om_case) kept",
-            "bcv-query piece rule v0.2": "piece choice inside a word pair (rule:piece_stem/person/number/none; piece_rule.parquet sha256 0e50c44bfb76a042)",
+            "bcv-query piece rule v0.2": "piece choice inside a word pair (rule:piece_stem/person/number/none; bcv-commons/hebrew-nt-pieces-model v0.1 piece_rule.parquet, sha256 0e50c44bfb76a042)",
+            "bcv-query piece rule v0.3": "remaining piece-rule rows on v0.4 (piece_rule.parquet sha256 e80618f40c1f3a7c)",
             "carried to v0.2": "links on v0.1 pieces carried over through piece_map_v0.1.parquet (2026-11-23)",
             "carried to v0.3": "links on v0.2 pieces carried over through piece_map_v0.2.parquet (2026-11-23)",
+            "carried to v0.4": "links on v0.3 pieces carried over through piece_map_v0.3.parquet (2026-11-23)",
+            "lexeme-aligner fix pass 2026-11-23": "pronoun / demonstrative stem -> Hebrew pronoun suffix piece on tables v0.3; hand corrections from bcv-query's grades",
             "lexeme-aligner jev refine (level 2)": "everything else, incl. replacing bcv-query's Jev-decided links"
           },
           "name": "jev-v4",
@@ -40744,7 +40752,7 @@
             "numbering": "the split file's `part` (level 2: the Tanakh's cut inside hebrew-nt-analysis v0.2 level-1 parts)",
             "sha256": "31886dd8a9ed2ee936858bea8de3c76166e682ee24a414950f259622c7dd13bd",
             "table": "bcv-query aligner tables",
-            "table_version": "v0.3"
+            "table_version": "v0.4"
           },
           "source": "llm",
           "tag": "heb_scg",

@@ -766,6 +766,13 @@ bcv-query fixed pairs v0.1 (2026-11-23; two-word Hebrew renderings, 10 with Tana
   PUBLISHED 2026-11-23 by bcv-query as bcv-commons/hebrew-nt-pieces-model tag v0.1 (rev 1c514e32): tables/heb_mod|heb_scg/words.parquet,
   piece_rule.parquet and fixed_pairs.tsv are byte-identical to the vendored v0.3 / v0.2 / v0.1 files above (sha256 checked). Point the part-alignments
   manifest `parts` pin and links_from at that dataset (repo + tag + sha) at the next heb update.
+bcv-query aligner tables v0.4 + piece rule v0.3 + fixed pairs v0.2 (2026-11-23, local delivery, bcv-query commit to follow; the pin of the
+  heb layers since 2026-11-23 evening; NOT yet in hebrew-nt-pieces-model, so the manifest pin names the local table version + sha)
+  pipeline/vendor/bcv-query-aligner-tables/v0.4 (SHA256SUMS sha256 41b84827483817f7...): heb_scg byte-identical to v0.3; heb_mod 19 אתם words
+  re-cut (15 את+ם -> whole pronoun, 4 whole -> את + ם), heb_mod/piece_map_v0.3.parquet (38 rows, by letter offset).
+  pipeline/vendor/bcv-query-piece-rule/v0.3 (SHA256SUMS sha256 37914eedf3db1fa0...): 226 rows on v0.4 (only links that still differ).
+  pipeline/vendor/bcv-query-fixed-pairs/v0.2 (SHA256SUMS sha256 a44f2a164e14579b...): 52 pairs (37 new; בר נבא H1250, לקראת H7122).
+  Applied by pipeline/work/nt-part-compare/update_v04.py after the fix pass fix_v03.py (pronoun/demonstrative -> suffix piece, hand_fixes.tsv).
 bcv-query text faults 2026-11-23 (bcv-query 6ed8d17, shoresh/macula/text_faults/text_faults.tsv)
   pipeline/vendor/bcv-query-text-faults/2026-11-23/text_faults.tsv (git-ignored), sha256 bf3dba75b4370e80...; read by lexeme_aligner/text_faults.py
   (override $ALIGNER_TEXT_FAULTS). 95 rows: heb_mod F0001-F0010, heb_scg F0011, grc_bre F0012-F0015 (copied verses 1KI 8:58, 1CH 11:24,

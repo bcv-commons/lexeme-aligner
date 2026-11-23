@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 FORMAT = "part-alignments/0.1"
-CHANNELS = ("method", "conf", "contested", "rule", "parts")
+CHANNELS = ("method", "conf", "contested", "bonus", "rule", "rend", "parts")   # compact_align.SIDECAR_CHANNELS, per unit
 NONE = "_"
 
 
@@ -41,12 +41,51 @@ def part_ids(spine_db: Path, book: str) -> dict[str, str]:
         con.close()
 
 
-def book_index(heb, book: str, ids: dict[str, str]) -> dict[str, list[str]]:
-    """{"BOOK C:V": [unit id, ...]}: every unit of each raw spine verse, in source order."""
+_PART_INFO: dict[str, tuple[str, str, str]] = {}
+
+
+def part_info(parts_dir: Path | None = None) -> dict[str, tuple[str, str, str]]:
+    """{word-parts id: (kind, text, written word id)} from the pinned word-parts release (source_parts.PARTS_DIR)."""
+    if not _PART_INFO:
+        import csv
+        from lexeme_aligner.source_parts import PARTS_DIR
+        d = Path(parts_dir or PARTS_DIR)
+        for f in ("greek/parts.tsv", "hebrew/parts.tsv"):
+            with open(d / f, encoding="utf-8", newline="") as fh:
+                for r in csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE):
+                    _PART_INFO[r["part_id"]] = (r["kind"], r["text"], r["word_id"])
+    return _PART_INFO
+
+
+def book_index(heb, book: str, ids: dict[str, str]) -> dict[str, dict]:
+    """{"BOOK C:V": {"units": [[id, kind, text, tok], ...], "tokens": [[key, lexeme, content, carrier], ...]}} per raw spine verse.
+
+    `units`: every source unit in source order (srcOrd = position): word-parts id, kind, text, and `tok` = position of its
+    token in `tokens`. `tokens`: the MACULA tokens the units belong to (a Greek word; a Hebrew MACULA part, e.g. the
+    prefixed בְּ is its own token), in source order: MACULA key(s) (`+` for a merged token), lexeme without the `lang:` prefix,
+    content 1/0 (has a Strong's number and is a content word), and `carrier` = the srcOrd of the unit that carries the
+    token's lexeme. compact-alignments' srcOrd = position among the content tokens; its fnOrd = among the others. The
+    written word of a unit = the first 11 digits of its id (Greek ids are a word id + 1 digit, Hebrew a MACULA id + 1)."""
+    info = part_info()
     out = {}
     for ch in heb.chapters(book):
         for v in heb.verses(book, ch):
-            out[f"{book} {ch}:{v}"] = ["+".join(ids.get(k, "") for k in (t.keys or [])) for t in heb.verse_tokens(book, ch, v)]
+            utoks = heb.verse_tokens(book, ch, v)
+            tokens, tok_of_key = [], {}
+            for o, t in enumerate(utoks):
+                keys = t.keys or []
+                if keys and "." not in keys[0]:
+                    for k in keys:
+                        tok_of_key[k] = len(tokens)
+                    tokens.append(["+".join(keys), (t.lexeme or "").split(":", 1)[-1], int(bool(t.strong and t.is_content)), o])
+            units = []
+            for t in utoks:
+                keys = t.keys or []
+                pids = [ids.get(k, "") for k in keys]
+                rows = [info.get(p, ("", "", "")) for p in pids]
+                tok = tok_of_key.get(keys[0].split(".")[0], -1) if keys else -1
+                units.append(["+".join(pids), rows[0][0] if rows else "", " ".join(r[1] for r in rows), tok])
+            out[f"{book} {ch}:{v}"] = {"units": units, "tokens": tokens}
     return out
 
 
@@ -93,10 +132,13 @@ def write_edition(tag: str, iso: str, usj_dir: Path, out_dir: Path, dest: Path, 
     heb = heb or HebrewSource(spine_db=spine_db)
     remap = remapper(tag, str(usj_dir))
     by_ref, side = build_compact(tag, usj_dir, heb, out_dir, books, methods, contest, cross_edition_iso=iso, all_units=True)
+    from lexeme_aligner import takedown
+    from lexeme_aligner.compact_align import LAYER_METHODS, build_layer
+    layer = {} if llm_cell else build_layer(tag, usj_dir, heb, out_dir, books, base=by_ref, layer_methods=LAYER_METHODS, all_units=True)
     idx_dir = dest / "_index"
     idx_dir.mkdir(parents=True, exist_ok=True)
     edir = dest / iso[0] / iso / edition
-    written = {}
+    written, map_lines = {}, {}
     for book in books:
         usj_path = usj_dir / f"{_BOOK_FILE_NUM[book]}-{book}.json"
         if not usj_path.exists():
@@ -113,15 +155,22 @@ def write_edition(tag: str, iso: str, usj_dir: Path, out_dir: Path, dest: Path, 
         array = [_with_none(by_ref.get(r, ""), marks.get(r, [])) if marks.get(r) else by_ref.get(r, "") for r in refs]
         if not any(array):
             continue
-        digest = tf.file_hash(tf.usj_fingerprints(usj_path)[0])
+        book_fp, chapter_fps = tf.usj_fingerprints(usj_path)
+        digest = tf.file_hash(book_fp)
+        map_lines[book] = tf.map_line(book, book_fp, tf.today(), chapter_fps)
         edir.mkdir(parents=True, exist_ok=True)
         name = f"{book}_{digest}.json"
         (edir / name).write_text(json.dumps(array, ensure_ascii=False) + "\n", encoding="utf-8")
-        meta = {c: [side[c].get(r, "") for r in refs] for c in CHANNELS}
-        meta = {c: v for c, v in meta.items() if any(v)}
-        if meta:
+        extra = [layer.get(r, "") for r in refs]
+        if any(extra):
+            (edir / f"{book}_{digest}.extra.json").write_text(json.dumps(extra, ensure_ascii=False) + "\n", encoding="utf-8")
+        meta = {c: [side[c].get(r, "") for r in refs] for c in CHANNELS if not (c == "rend" and takedown.rend_scope(tag) == "none")}
+        meta = {c: v for c, v in meta.items() if c != "parts" or any(v)}       # compact's rule: every channel, `parts` only when used
+        if any(any(v) for v in meta.values()):
             (edir / f"{book}_{digest}.meta.json").write_text(json.dumps(meta, ensure_ascii=False) + "\n", encoding="utf-8")
         written[book] = name
+    if map_lines:
+        tf.update_map(edir, map_lines)                 # _fingerprints.txt, as compact
     return written
 
 

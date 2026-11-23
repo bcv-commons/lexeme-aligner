@@ -909,7 +909,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
 
 def build_layer(tag: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
                 books: list[str] = ALL_BOOKS, base: dict | None = None,
-                layer_methods=LAYER_METHODS) -> dict[str, str]:
+                layer_methods=LAYER_METHODS, all_units: bool = False) -> dict[str, str]:
     """The opt-in `residual` layer: same "srcOrd:span" strings, same ordinals, but ONLY for source
     tokens the base methods left unaligned. Ordinals are spine-derived (position among a verse's content
     lexemes), so they are identical in both files by construction — the layer is joinable without any
@@ -923,9 +923,10 @@ def build_layer(tag: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
     opt-in LLM run into the SAME layer file for one language/run, without touching `LAYER_METHODS` itself
     or any other language's build. Entries may use the `<method>:<out-tag>` spec `build_compact`/
     `_merged_pairs` already support."""
-    layer, _ = build_compact(tag, usj_dir, heb, out_dir, books, layer_methods)
+    kw = {"all_units": True} if all_units else {}
+    layer, _ = build_compact(tag, usj_dir, heb, out_dir, books, layer_methods, **kw)
     if base is None:
-        base, _ = build_compact(tag, usj_dir, heb, out_dir, books, METHODS)
+        base, _ = build_compact(tag, usj_dir, heb, out_dir, books, METHODS, **kw)
     out: dict[str, str] = {}
     for ref, entry in layer.items():
         if not entry:

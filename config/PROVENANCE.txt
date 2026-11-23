@@ -773,6 +773,8 @@ bcv-query aligner tables v0.4 + piece rule v0.3 + fixed pairs v0.2 (2026-11-23, 
   pipeline/vendor/bcv-query-piece-rule/v0.3 (SHA256SUMS sha256 37914eedf3db1fa0...): 226 rows on v0.4 (only links that still differ).
   pipeline/vendor/bcv-query-fixed-pairs/v0.2 (SHA256SUMS sha256 a44f2a164e14579b...): 52 pairs (37 new; בר נבא H1250, לקראת H7122).
   Applied by pipeline/work/nt-part-compare/update_v04.py after the fix pass fix_v03.py (pronoun/demonstrative -> suffix piece, hand_fixes.tsv).
+  PUBLISHED 2026-11-23 by bcv-query as bcv-commons/hebrew-nt-pieces-model tag v0.2 (rev b2f2ca15): the four files byte-identical (sha256 checked).
+  The heb manifest pin names that dataset from the next heb update (entry_extra.json in parts-jev/v04-<ed> already does).
 bcv-query text faults 2026-11-23 (bcv-query 6ed8d17, shoresh/macula/text_faults/text_faults.tsv)
   pipeline/vendor/bcv-query-text-faults/2026-11-23/text_faults.tsv (git-ignored), sha256 bf3dba75b4370e80...; read by lexeme_aligner/text_faults.py
   (override $ALIGNER_TEXT_FAULTS). 95 rows: heb_mod F0001-F0010, heb_scg F0011, grc_bre F0012-F0015 (copied verses 1KI 8:58, 1CH 11:24,

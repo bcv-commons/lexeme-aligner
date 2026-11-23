@@ -43,6 +43,8 @@ BHSA_BASELINE_SPINE = _PIPELINE / "lexeme-spine-bhsa-baseline.db"       # A/B ar
 HBO_DB = _p("ALIGNER_HBO_DB", _PIPELINE / "hbo.db")               # optional — per-occurrence sense sidecar
 RESOURCES = _p("ALIGNER_RESOURCES", _PIPELINE / "vendor" / "resources")  # optional — gloss priors (bcv-commons/strongs)
 OUT = _p("ALIGNER_OUT", _PIPELINE / "work" / "out")               # experiment output (gitignored, transient)
+# full_chain --source-parts: the parts run's own align files (parts spine positions); OUT then gets their word view (parts_fold)
+PARTS_OUT = _p("ALIGNER_PARTS_OUT", _PIPELINE / "work" / "out-parts")
 # on-disk response cache for the opt-in LLM-alignment experiment (llm_align.py): keyed by a hash of the
 # whole request, so re-running or re-scoring a finished cell never re-spends. Lives under work/ (gitignored).
 LLM_CACHE = _p("ALIGNER_LLM_CACHE", _PIPELINE / "work" / "llm-cache")

@@ -94,8 +94,12 @@ def target_text(rec: dict, toks: list[str]) -> None:
                 p["target"] = " ".join(toks[j] for j in p["t_idx"] if j < len(toks))
 
 
-def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Path, word_spine: Path, tag: str) -> dict:
-    """Every align_*.jsonl(.gz) of `books` in `src` -> word view in `dst` (plain .jsonl). Returns counts."""
+def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Path, word_spine: Path, tag: str,
+             only_tag: str | None = None) -> dict:
+    """Every align_*.jsonl(.gz) of `books` in `src` -> word view in `dst` (plain .jsonl). Returns counts.
+    `only_tag`: fold only that edition's files (a shared out dir, as full_chain's, holds every edition's); a `.jsonl.gz` of the same
+    name left in `dst` by an earlier run's --clean-out is removed first, so readers never see both."""
+    from lexeme_aligner.align_files import tag_files_any_method, unlink_stale_gz
     from lexeme_aligner.hebrew_source import HebrewSource
     from lexeme_aligner.refs import encode
     from lexeme_aligner.run_pilot import build_corpus
@@ -104,7 +108,10 @@ def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Pat
     dst.mkdir(parents=True, exist_ok=True)
     n = collections.Counter()
     for book in books:
-        files = sorted(f for f in src.glob("align_*.jsonl*") if f.name.split(".jsonl")[0].endswith(f"_{book}"))
+        if only_tag is not None:
+            files = [f for f in tag_files_any_method(src, only_tag) if f.name.split(".jsonl")[0].endswith(f"_{book}")]
+        else:
+            files = sorted(f for f in src.glob("align_*.jsonl*") if f.name.split(".jsonl")[0].endswith(f"_{book}"))
         if not files:
             continue
         recs_p = build_corpus([book], usj, HebrewSource(spine_db=parts_spine), remap=remap)
@@ -113,6 +120,7 @@ def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Pat
         Wd = {encode(r.book, r.ch, r.v): r for r in recs_w}
         for fp in files:
             name = fp.name[:-3] if fp.name.endswith(".gz") else fp.name
+            unlink_stale_gz(dst / name)
             with _open(fp) as fh, (dst / name).open("w", encoding="utf-8") as oh:
                 for line in fh:
                     if not line.strip():
@@ -141,10 +149,11 @@ def main(argv=None) -> int:
     ap.add_argument("--iso", required=True, help="the run's edition tag (its versification, as run_pilot --iso)")
     ap.add_argument("--parts-spine", type=Path, default=SPINE_DB)
     ap.add_argument("--word-spine", type=Path, default=WORD_SPINE_DB)
+    ap.add_argument("--tag", default=None, help="fold only this edition's files (default: every align file in --in)")
     a = ap.parse_args(argv)
     from lexeme_aligner.compact_align import ALL_BOOKS
     books = ALL_BOOKS if a.books == "ALL" else a.books.split(",")
-    print(json.dumps(fold_dir(a.usj, a.src, a.out, books, a.parts_spine, a.word_spine, a.iso)))
+    print(json.dumps(fold_dir(a.usj, a.src, a.out, books, a.parts_spine, a.word_spine, a.iso, a.tag)))
     return 0
 
 

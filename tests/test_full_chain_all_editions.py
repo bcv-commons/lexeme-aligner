@@ -138,3 +138,36 @@ def test_parts_route_uses_the_nt_bridge_for_a_thin_ot(monkeypatch, tmp_path):
 def test_parts_route_without_a_thin_ot_runs_eflomal_once(monkeypatch, tmp_path):
     ef = _parts_chain(monkeypatch, tmp_path, bridge=False)
     assert len(ef) == 1 and "--all" in ef[0] and "--nt-bridge" not in ef[0]
+
+
+def test_source_parts_route(monkeypatch, tmp_path):
+    """--source-parts: steps 2-5b on the parts spine into PARTS_OUT, folded per edition into OUT before the word-level steps, and
+    part-alignments written per edition from the parts run."""
+    from lexeme_aligner.config import OUT, PARTS_OUT
+    spine = tmp_path / "parts.db"
+    spine.write_bytes(b"")
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(fc, "_run", lambda mod, *a, env, **k: (calls.append((mod, [str(v) for v in a], env)), True)[1])
+    monkeypatch.setattr(fc, "allowed_testaments", lambda iso, exclusions: {"nt", "ot"})
+    monkeypatch.setattr(fc, "editions_for", lambda iso, testaments, cfg: [{"edition_code": "AAA"}, {"edition_code": "BBB"}])
+    monkeypatch.setattr(sys, "argv", ["full_chain", "--iso", "xyz", "--skip-ingest", "--source-parts", str(spine)])
+    tags = [fc._tag("xyz", e, is_primary=(i == 0)) for i, e in enumerate(["AAA", "BBB"])]
+    for t in tags:
+        d = tmp_path / "pipeline/work/ingest-cache" / f"usj-{t}"
+        d.mkdir(parents=True)
+        (d / "01-GEN.json").write_text("{}")
+    assert fc.main() == 0
+    mods = [m for m, _, _ in calls]
+    parts_env = {"onboard", "run_pilot", "span_extension", "gapfill", "residual_align", "part_alignments"}
+    for m, _, env in calls:
+        on_parts = env.get("ALIGNER_SPINE_DB") == str(spine.resolve())
+        assert on_parts == (m in parts_env), m
+        if on_parts:
+            assert env["ALIGNER_OUT"] == str(PARTS_OUT.resolve())
+    folds = [a for m, a, _ in calls if m == "parts_fold"]
+    assert [_arg(a, "--tag") for a in folds] == tags
+    assert all(_arg(a, "--in") == str(PARTS_OUT) and _arg(a, "--out") == str(OUT) for a in folds)
+    assert max(i for i, m in enumerate(mods) if m == "residual_align") < mods.index("parts_fold") < mods.index("export_lex")
+    pa = [a for m, a, _ in calls if m == "part_alignments"]
+    assert [_arg(a, "--iso") for a in pa] == tags and all(_arg(a, "--out-dir") == str(PARTS_OUT) for a in pa)

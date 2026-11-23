@@ -90,6 +90,11 @@ def main() -> int:
                     help="comma-separated edition TAGS: run the per-edition steps (ingest, eflomal, gloss, spanext, gapfill, "
                          "residual, compact) only for these; the pooled steps still fold in every edition's existing files. "
                          "For a pilot or a targeted re-run. Default: all editions.")
+    ap.add_argument("--source-parts", type=Path, default=None,
+                    help="align on SOURCE PARTS: the parts spine (source_parts.py, word-parts). Steps 2-5b run on it into PARTS_OUT "
+                         "(pipeline/work/out-parts); their word view is folded into OUT (parts_fold), so every word-level dataset reads "
+                         "what it always read; step 9d writes publish/part-alignments from the parts run. Editions with a target-parts "
+                         "view (config/target_parts.json) keep whole source words for now.")
     ap.add_argument("--no-ledger", action="store_true",
                     help="do not write this language's pipeline_decisions entry at the end (default: write it)")
     ap.add_argument("--clean-out", action="store_true",
@@ -100,6 +105,14 @@ def main() -> int:
     env = dict(os.environ)
     if args.spine_db:
         env["ALIGNER_SPINE_DB"] = str(args.spine_db)
+    from lexeme_aligner.config import OUT, PARTS_OUT, SPINE_DB
+    penv = env                                       # env of the per-edition alignment steps (2-5b)
+    if args.source_parts:
+        if not args.source_parts.is_file():
+            raise SystemExit(f"[full_chain] no parts spine at {args.source_parts}")
+        word_spine = (args.spine_db or SPINE_DB).resolve()
+        penv = dict(env, ALIGNER_SPINE_DB=str(args.source_parts.resolve()), ALIGNER_WORD_SPINE_DB=str(word_spine),
+                    ALIGNER_OUT=str(PARTS_OUT.resolve()))
 
     # steps 1-3: ingest + eflomal + eflomal-only export (onboard.py, unmodified/proven)
     onboard_args: list[object] = ["--iso", args.iso, "--method", "eflomal"]
@@ -110,9 +123,11 @@ def main() -> int:
     onboard_args += ["--exclusions", args.exclusions, "--editions-config", args.editions_config]
     if args.editions:
         onboard_args += ["--editions", args.editions]
-    if args.spine_db:
+    if args.spine_db and not args.source_parts:
         onboard_args += ["--spine-db", args.spine_db]
-    _run("onboard", *onboard_args, env=env)
+    # on source parts: eflomal (hybrid: words from a word-spine pass, parts from the parts pass, run_pilot PARTS_HYBRID) into PARTS_OUT;
+    # onboard's eflomal-only export reads those files — it only seeds step 4's gloss priors and step 6 rewrites the partition from OUT
+    _run("onboard", *onboard_args, env=penv)
 
     # re-derive the SAME tags onboard.py just used
     testaments = allowed_testaments(args.iso, args.exclusions)
@@ -159,7 +174,6 @@ def main() -> int:
     # (target_parts.content_priors: a small hand-check win, nothing else moves; whole-word priors forced e.g. μή onto the preposition אל,
     # unfiltered part priors lost the hand check).
     from lexeme_aligner import nt_bridge, target_parts
-    from lexeme_aligner.config import OUT
     part_tags = {tag: pinned for tag in run_tags if (pinned := target_parts.for_edition(tag))}
     for tag, (analysis, entry) in list(part_tags.items()):
         view, vout = target_parts.VIEW_ROOT / tag / "usj", target_parts.VIEW_ROOT / tag / "out"
@@ -189,6 +203,9 @@ def main() -> int:
             print(f"[full_chain] WARNING: {tag}: the parts view failed — the edition keeps its whole-word alignment", file=sys.stderr)
             del part_tags[tag]
     word_tags = [t for t in run_tags if t not in part_tags]
+    if args.source_parts and part_tags:
+        print(f"[full_chain] {sorted(part_tags)}: target-parts view — whole source words (source parts + target parts not combined yet)",
+              file=sys.stderr)
 
     # step 4: gloss (bootstraps from step 3's eflomal-only export, just written by onboard.py) —
     # --publish-iso is essential here: the bootstrap priors + #3 stopword filter must read/cache
@@ -196,7 +213,7 @@ def main() -> int:
     for tag in word_tags:
         _run("run_pilot", "--method", "gloss", scope_flag, "--usj-dir", usj_dirs[tag], "--iso", tag,
              "--publish-iso", args.iso,
-             *(["--lang-name", lang_name] if lang_name else []), env=env, soft=True)
+             *(["--lang-name", lang_name] if lang_name else []), env=penv, soft=True)
 
     # step 4b: span extension (see span_extension.py's own docstring) — reads eflomal+gloss's own
     # pairs, writes a SEPARATE align_spanext_<tag>_*.jsonl containing only the widened ones; never
@@ -204,7 +221,7 @@ def main() -> int:
     # language with no Grambank coverage or no phase-1-flagged anomaly, which is most languages.
     for tag in word_tags:
         _run("span_extension", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
-             scope_flag, "--methods", "eflomal,gloss", env=env, soft=True)
+             scope_flag, "--methods", "eflomal,gloss", env=penv, soft=True)
 
     # step 5: gapfill (needs eflomal+gloss(+spanext) jsonl; fills coverage gaps) — --publish-iso is
     # essential here too, same reason as step 4's gloss call: the #3 stopword filter + #4 cross-edition
@@ -214,7 +231,7 @@ def main() -> int:
     # construction (gapfill.load_covered unions t_idx across methods, never a first-wins overwrite).
     for tag in word_tags:
         _run("gapfill", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
-             "--methods", "eflomal,gloss,spanext", env=env, soft=True)
+             "--methods", "eflomal,gloss,spanext", env=penv, soft=True)
 
     # step 5b: residual re-alignment — a second eflomal pass over only what eflomal+gloss(+spanext)
     # could not explain, with target stopwords/light renderings/already-taken positions stripped out.
@@ -223,7 +240,14 @@ def main() -> int:
     # Runs after gapfill because it stratifies against gap-fill's own fills (combine_with_gapfill).
     for tag in word_tags:
         _run("residual_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
-             scope_flag, "--methods", "eflomal,gloss,spanext", env=env, soft=True)
+             scope_flag, "--methods", "eflomal,gloss,spanext", env=penv, soft=True)
+
+    # step 5c (source parts): the word view of the parts run -> OUT, where steps 6-9 read (parts_fold: a word = its carrying part's link
+    # plus its other parts' links no other word claims). Not soft: without it OUT would keep a previous run's files.
+    if args.source_parts:
+        for tag in word_tags:
+            _run("parts_fold", "--usj", usj_dirs[tag], "--in", PARTS_OUT, "--out", OUT, "--books", "ALL", "--iso", tag, "--tag", tag,
+                 "--parts-spine", args.source_parts, "--word-spine", penv["ALIGNER_WORD_SPINE_DB"], env=env)
 
     # step 6: final export — union of all three methods, same pooling onboard.py used for step 3
     export_args: list[object] = ["--iso", primary, "--publish-iso", args.iso, "--methods", _METHODS]
@@ -268,6 +292,12 @@ def main() -> int:
     for tag in run_tags:
         _run("fullalign_build", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], env=env, soft=True)
 
+    # step 9d (source parts): part-alignments (part_alignments.py) from the parts run's own files, keyed by word-parts ids; local write
+    if args.source_parts:
+        for tag in word_tags:
+            _run("part_alignments", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], "--out-dir", PARTS_OUT,
+                 "--dest", Path("publish/part-alignments"), env=penv, soft=True)
+
     # step 9c: lexeme-alignments/iso=<iso>/top.json — commonest renderings per lexeme, every edition of the language pooled, counted
     # once per occurrence from the same final decision compact_align publishes (lexeme_glosses.py; for make-tanakh-review, 2026-11-04).
     _run("lexeme_glosses", "--iso", args.iso, env=env, soft=True)
@@ -286,7 +316,6 @@ def main() -> int:
         import gzip
         import shutil
         from lexeme_aligner.align_files import tag_files_any_method
-        from lexeme_aligner.config import OUT
         # tag_files_any_method (not a raw glob) deliberately, for the same reason align_files.py's
         # module docstring documents: a raw `align_*_{tag}_*.jsonl` glob also matches a SIBLING tag
         # that happens to start with `tag + "_"` (e.g. tag "ind" matching "ind_ayt"'s own files) — the
@@ -305,8 +334,8 @@ def main() -> int:
         # `tag_files_any_method` (align_files.py) already read `.jsonl.gz` transparently via
         # `AlignPath`, so nothing downstream needed to change to make this safe.
         compressed = 0
-        for tag in tags:
-            for fp in tag_files_any_method(Path(OUT), tag):
+        for tag, out_dir in [(t, d) for t in tags for d in (OUT, *((PARTS_OUT,) if args.source_parts else ()))]:
+            for fp in tag_files_any_method(Path(out_dir), tag):
                 if fp.suffix == ".gz":
                     continue                       # already compressed (e.g. a --skip-ingest re-run)
                 with fp.open("rb") as src, gzip.open(fp.with_name(fp.name + ".gz"), "wb") as dst:

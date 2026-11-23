@@ -36,6 +36,9 @@ def _p(env: str, default: Path) -> Path:
 # The MACULA-ONLY spine (no BHSA-derived columns) since 2026-10-04. pipeline/lexeme-spine.db (the previous spine, BHSA columns included) and
 # pipeline/lexeme-spine-bhsa-baseline.db are PRIVATE measurement baselines — never the source of anything published (config/PROVENANCE.txt).
 SPINE_DB = _p("ALIGNER_SPINE_DB", _PIPELINE / "lexeme-spine-macula.db")  # required — lexeme-anchored (see config/PROVENANCE.txt)
+# The WORD spine a parts-spine run (source_parts.py, ALIGNER_SPINE_DB = the parts spine) aligns its whole words on (run_pilot
+# PARTS_HYBRID): eflomal on the parts spine aligns Hebrew words worse, so words come from a word-spine eflomal run, parts from the parts run.
+WORD_SPINE_DB = _p("ALIGNER_WORD_SPINE_DB", _PIPELINE / "lexeme-spine-macula.db")
 BHSA_BASELINE_SPINE = _PIPELINE / "lexeme-spine-bhsa-baseline.db"       # A/B arm only (measure_*.py tools), with ALIGNER_SYNTAX_SOURCE=bhsa
 HBO_DB = _p("ALIGNER_HBO_DB", _PIPELINE / "hbo.db")               # optional — per-occurrence sense sidecar
 RESOURCES = _p("ALIGNER_RESOURCES", _PIPELINE / "vendor" / "resources")  # optional — gloss priors (bcv-commons/strongs)

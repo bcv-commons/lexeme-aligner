@@ -1,0 +1,152 @@
+"""Word view of a parts-spine run (part-alignments, source_parts.py).
+
+A run on the parts spine writes align files whose `h_idx` are positions in the PARTS corpus: a word's carrying part (key = the word
+key) and its other parts (key "<word key>.<n>": an ending, prefix, augment, preverb, reduplication). Every word-level output (compact
+alignments, full-alignment layers, lexeme-alignments) is built on the WORD spine. This module writes word-view copies of those files:
+
+- a word unit takes its carrying part's pair, re-indexed to the word corpus (`h_idx`, `surface` = the whole word);
+- a non-carrying part's links are added to its word's span, minus target positions another word of the verse claims (the
+  claimed-target rule, as run_pilot.part_blocked); a word with no link of its own takes its first linked part's pair;
+- `held` is folded the same way; `llm_skipped` keeps the words' entries (re-indexed) and drops the parts' (a part with no rendering is
+  part-level information: it belongs in part-alignments, not in the word view); every other record field is copied.
+
+Then the word-level builders run unchanged with ALIGNER_SPINE_DB = the word spine on the folded folder.
+
+    python -m lexeme_aligner.parts_fold --usj DIR --in OUT --out OUT/words --books MRK,RUT --iso TAG [--parts-spine DB] [--word-spine DB]
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import gzip
+import json
+import sys
+from pathlib import Path
+
+
+def _open(fp: Path):
+    return gzip.open(fp, "rt", encoding="utf-8") if fp.name.endswith(".gz") else fp.open(encoding="utf-8")
+
+
+def fold_record(rec: dict, parts_toks: list, word_toks: list) -> dict:
+    """One align record of the parts corpus -> the same record on the word corpus (see the module docstring)."""
+    pkey = {t.idx: t.keys[0] for t in parts_toks if t.keys}
+    widx = {tuple(t.keys): t for t in word_toks if t.keys}
+    wfirst = {t.keys[0]: t for t in word_toks if t.keys}
+
+    def word_of(h):                       # parts h_idx -> word token (or None)
+        k = pkey.get(h)
+        if k is None:
+            return None
+        if "." in k:
+            return wfirst.get(k.split(".")[0])
+        ptok = next((t for t in parts_toks if t.idx == h), None)
+        return widx.get(tuple(ptok.keys)) if ptok is not None else wfirst.get(k)
+
+    out = {k: v for k, v in rec.items() if k not in ("pairs", "held", "llm_skipped")}
+    for field in ("pairs", "held"):
+        if field not in rec:
+            continue
+        words, subs = {}, []
+        for p in rec[field]:
+            w = word_of(p["h_idx"])
+            if w is None:
+                continue
+            if "." in pkey[p["h_idx"]]:
+                subs.append((w, p))
+            elif w.idx not in words:
+                words[w.idx] = dict(p, h_idx=w.idx, surface=w.surface)
+        owner: dict[int, set[int]] = collections.defaultdict(set)
+        for wi, p in words.items():
+            for j in p.get("t_idx") or ():
+                owner[j].add(wi)
+        for w, p in subs:
+            pos = [j for j in p.get("t_idx") or () if not (owner.get(j, set()) - {w.idx})]
+            if not pos:
+                continue
+            if w.idx in words:
+                q = words[w.idx]
+                if not set(pos) <= set(q.get("t_idx") or ()):
+                    t_idx = sorted(set(q.get("t_idx") or ()) | set(pos))
+                    words[w.idx] = dict(q, t_idx=t_idx)
+            else:
+                words[w.idx] = dict(p, h_idx=w.idx, surface=w.surface, lexeme=w.lexeme, strong=w.strong, lemma=w.lemma,
+                                    content=bool(w.is_content), t_idx=sorted(pos))
+        out[field] = [words[i] for i in sorted(words)]
+    if "llm_skipped" in rec:
+        sk = []
+        for s in rec["llm_skipped"]:
+            h = s.get("h_idx")
+            if h is None:
+                sk.append(s)
+                continue
+            w = word_of(h)
+            if w is not None and "." not in pkey[h]:
+                sk.append(dict(s, h_idx=w.idx))
+        out["llm_skipped"] = sk
+    return out
+
+
+def target_text(rec: dict, toks: list[str]) -> None:
+    for field in ("pairs", "held"):
+        for p in rec.get(field, ()):
+            if p.get("t_idx") is not None:
+                p["target"] = " ".join(toks[j] for j in p["t_idx"] if j < len(toks))
+
+
+def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Path, word_spine: Path, tag: str) -> dict:
+    """Every align_*.jsonl(.gz) of `books` in `src` -> word view in `dst` (plain .jsonl). Returns counts."""
+    from lexeme_aligner.hebrew_source import HebrewSource
+    from lexeme_aligner.refs import encode
+    from lexeme_aligner.run_pilot import build_corpus
+    from lexeme_aligner.versification import remapper
+    remap = remapper(tag, str(usj))                     # the run's own verse mapping (run_pilot: remapper(iso, usj_dir))
+    dst.mkdir(parents=True, exist_ok=True)
+    n = collections.Counter()
+    for book in books:
+        files = sorted(f for f in src.glob("align_*.jsonl*") if f.name.split(".jsonl")[0].endswith(f"_{book}"))
+        if not files:
+            continue
+        recs_p = build_corpus([book], usj, HebrewSource(spine_db=parts_spine), remap=remap)
+        recs_w = build_corpus([book], usj, HebrewSource(spine_db=word_spine), remap=remap)
+        P = {encode(r.book, r.ch, r.v): r for r in recs_p}
+        Wd = {encode(r.book, r.ch, r.v): r for r in recs_w}
+        for fp in files:
+            name = fp.name[:-3] if fp.name.endswith(".gz") else fp.name
+            with _open(fp) as fh, (dst / name).open("w", encoding="utf-8") as oh:
+                for line in fh:
+                    if not line.strip():
+                        continue
+                    rec = json.loads(line)
+                    p, w = P.get(rec["ref"]), Wd.get(rec["ref"])
+                    if p is None or w is None:
+                        oh.write(line if line.endswith("\n") else line + "\n")
+                        n["records copied"] += 1
+                        continue
+                    f = fold_record(rec, p.heb, w.heb)
+                    target_text(f, w.toks)
+                    oh.write(json.dumps(f, ensure_ascii=False) + "\n")
+                    n["records folded"] += 1
+            n["files"] += 1
+    return dict(n)
+
+
+def main(argv=None) -> int:
+    from lexeme_aligner.config import SPINE_DB, WORD_SPINE_DB
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--usj", type=Path, required=True)
+    ap.add_argument("--in", dest="src", type=Path, required=True)
+    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--books", required=True, help="comma-separated, or ALL")
+    ap.add_argument("--iso", required=True, help="the run's edition tag (its versification, as run_pilot --iso)")
+    ap.add_argument("--parts-spine", type=Path, default=SPINE_DB)
+    ap.add_argument("--word-spine", type=Path, default=WORD_SPINE_DB)
+    a = ap.parse_args(argv)
+    from lexeme_aligner.compact_align import ALL_BOOKS
+    books = ALL_BOOKS if a.books == "ALL" else a.books.split(",")
+    print(json.dumps(fold_dir(a.usj, a.src, a.out, books, a.parts_spine, a.word_spine, a.iso)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

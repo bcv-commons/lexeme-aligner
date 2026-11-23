@@ -98,3 +98,45 @@ def test_jev_request_names_source_parts(built):
     assert jc._src_label(p, toks[0], "") == "the stem Βίβλ of the written word Βίβλος"
     word = jc.build_request(le.Proposal(40001001, "MAT", 1, 1, HebrewSource(_spine).verse_tokens("MAT", 1, 1), ["x"]), {}, "eng", "", "v4")
     assert all("part" not in s and "written_word" not in s for s in word["state"]["source_words"])
+
+
+def test_hybrid_matches_takes_words_from_the_word_run():
+    from types import SimpleNamespace as NS
+    from lexeme_aligner.eflomal_align import EMatch
+    from lexeme_aligner.run_pilot import hybrid_matches
+    tok = lambda i, k: NS(idx=i, keys=[k])
+    parts = NS(heb=[tok(0, "w1"), tok(1, "w1.2"), tok(2, "w2"), tok(3, "w3")])
+    word = NS(heb=[tok(0, "w1"), tok(1, "w2"), tok(2, "w3")])
+    pm = [EMatch(0, [9], .6), EMatch(1, [4], .6), EMatch(2, [5], .6), EMatch(3, [6], .9)]
+    wm = [EMatch(0, [1], .9), EMatch(1, [2], .6)]                 # w3 unaligned in the word run
+    out = {m.h_idx: m.t_idx for m in hybrid_matches(parts, pm, word, wm)}
+    assert out == {0: [1], 1: [4], 2: [2]}                        # words from the word run, the part from the parts run, w3 none
+
+
+
+def test_parts_fold_record_word_view():
+    from types import SimpleNamespace as NS
+    from lexeme_aligner.parts_fold import fold_record
+    P = [NS(idx=0, keys=["w1"]), NS(idx=1, keys=["w1.2"]), NS(idx=2, keys=["w2"]), NS(idx=3, keys=["w3"]), NS(idx=4, keys=["w3.2"])]
+    W = [NS(idx=0, keys=["w1"], surface="ab", lexeme="x:1", strong="G1", lemma="a", is_content=1),
+         NS(idx=1, keys=["w2"], surface="c", lexeme="x:2", strong="G2", lemma="c", is_content=0),
+         NS(idx=2, keys=["w3"], surface="de", lexeme="x:3", strong="G3", lemma="d", is_content=1)]
+    pair = lambda h, t: {"h_idx": h, "t_idx": t, "surface": "?"}
+    rec = {"ref": 1, "pairs": [pair(0, [1]), pair(1, [2, 5]), pair(2, [5]), pair(4, [7])],
+           "llm_skipped": [{"h_idx": 1, "status": "unrepresented"}, {"h_idx": 2, "status": "rejected"}], "llm_none": [3]}
+    out = fold_record(rec, P, W)
+    got = {p["h_idx"]: p["t_idx"] for p in out["pairs"]}
+    assert got == {0: [1, 2], 1: [5], 2: [7]}               # w1 + its part (5 is w2's), w2 re-indexed, w3 from its part only
+    assert out["pairs"][0]["surface"] == "ab" and out["pairs"][2]["lexeme"] == "x:3"
+    assert out["llm_skipped"] == [{"h_idx": 1, "status": "rejected"}] and out["llm_none"] == [3]
+
+
+def test_align_text_plan_on_source_parts_folds_before_compact(tmp_path):
+    from pathlib import Path
+    from lexeme_aligner.align_text import plan
+    steps = plan(Path("/t/usj"), "eng_x", "eng", tmp_path, "--nt", False, None, None, None, Path("/s/word.db"))
+    names = [s[0] for s in steps]
+    assert names[-3:] == ["parts-fold", "compact", "part-alignments"]
+    compact = steps[-2]
+    assert compact[2] == {"ALIGNER_SPINE_DB": "/s/word.db"} and str(tmp_path / "words") in compact[1]
+    assert "parts-fold" not in [s[0] for s in plan(Path("/t/usj"), "eng_x", "eng", tmp_path, "--nt", False, None)]

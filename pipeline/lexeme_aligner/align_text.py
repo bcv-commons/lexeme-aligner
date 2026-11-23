@@ -179,11 +179,17 @@ INDEX = "_index"                           # OUT/compact/_index: the source inde
 POOL_ROOT = "lexroot-pool"                  # OUT/lexroot-pool: the text's own eflomal export + the language's published pool (gloss reads it)
 
 
+PART_ALIGNMENTS = "part-alignments"          # OUT/part-alignments: bcv-commons/part-alignments' layout (part_alignments.py)
+WORDS = "words"                              # OUT/words: the word view of a run on source parts (parts_fold), what compact + layers read
+
+
 def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool, lang_name: str | None,
-         pool: dict | None = None, index_root: Path | None = None) -> list[tuple]:
+         pool: dict | None = None, index_root: Path | None = None, word_spine: Path | None = None) -> list[tuple]:
     """[(step name, [module, args...][, extra env])] — pure, the tests call it. `pool` = {"path", "exclude"}: the language's published
     lexeme-alignments partition lends eflomal priors and the gloss seed (pool_priors.py); None = the text alone. `index_root`: where
-    compact writes the source index and verse map the compact files need (default OUT/compact/_index; extra runs share run 1's)."""
+    compact writes the source index and verse map the compact files need (default OUT/compact/_index; extra runs share run 1's).
+    `word_spine`: the chain runs on SOURCE PARTS (ALIGNER_SPINE_DB = the parts spine, source_parts.py); its align files are folded to
+    the word view in OUT/words (parts_fold) and compact is built from there on this word spine."""
     common = ["--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj)]
     name = ["--lang-name", lang_name] if lang_name else []
     pilot = ["lexeme_aligner.run_pilot", "--usj-dir", str(usj), "--iso", edition, "--publish-iso", iso, "--out", str(out), *name]
@@ -208,9 +214,18 @@ def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool,
         ("spanext", ["lexeme_aligner.span_extension", *common, scope, "--methods", "eflomal,gloss", "--out", str(out)]),
         ("gapfill", ["lexeme_aligner.gapfill", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
         ("residual", ["lexeme_aligner.residual_align", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
-        ("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(out), "--publish", str(out / "compact"),
-                     "--index-root", str(index_root or out / "compact" / INDEX)]),
     ]
+    cout = out
+    if word_spine is not None:
+        cout = out / WORDS
+        steps += [("parts-fold", ["lexeme_aligner.parts_fold", "--usj", str(usj), "--in", str(out), "--out", str(cout), "--books", "ALL",
+                                  "--iso", edition, "--word-spine", str(word_spine)])]
+    steps += [("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(cout), "--publish", str(out / "compact"),
+                           "--index-root", str(index_root or out / "compact" / INDEX)],
+               *([{"ALIGNER_SPINE_DB": str(word_spine)}] if word_spine is not None else []))]
+    if word_spine is not None:                     # the part-level output itself, from the parts run's own files (parts spine)
+        steps += [("part-alignments", ["lexeme_aligner.part_alignments", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj),
+                                       "--out-dir", str(out), "--dest", str(out / PART_ALIGNMENTS)])]
     return steps
 
 
@@ -344,8 +359,17 @@ def jev_stage(args, usj: Path, out: Path, data: Path | None, env: dict, books: l
         spent += u.get("input_tokens", 0) / 1e6 * PRICE_PER_M_INPUT
         record["jev"]["spent_usd"] = round(spent, 4)
         save()
+    lenv, sp = env, []
+    if getattr(args, "source_parts", None):                # the layer is word level: fold the cells, read them on the word spine
+        lenv = dict(env, ALIGNER_SPINE_DB=env["ALIGNER_WORD_SPINE_DB"])
+        sp = ["--source-parts", str(args.source_parts)]
     code, _ = run("jev-layer", ["lexeme_aligner.align_text", "--layer", "--usj", str(usj), "--edition", args.edition, "--iso", args.iso,
-                                "--out", str(out), "--books", ",".join(books), *(["--parts"] if split else [])], env)
+                                "--out", str(out), "--books", ",".join(books), *(["--parts"] if split else []), *sp], lenv)
+    if code == 0 and getattr(args, "source_parts", None):       # the part-level Jev layer (`srcOrd:_` = checked, no rendering)
+        code, _ = run("jev-part-alignments", ["lexeme_aligner.part_alignments", "--iso", args.edition, "--publish-iso", args.iso,
+                                              "--usj-dir", str(usj), "--out-dir", str(out), "--dest", str(out / PART_ALIGNMENTS),
+                                              *[x for b in books for x in ("--book", b)],
+                                              "--llm-cell", f"jevC.{args.edition}.{{BOOK}}.v4.{JEV_VARIANT}.jev-0"], env)
     if code == 0 and data is not None and (conv := modules_record(data, args.iso, books)):
         for layer_dir in (out / "full-alignments-llm").glob(f"?/{args.iso}/*+llm+jev-v4"):
             (layer_dir / "_conventions.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
@@ -384,12 +408,19 @@ def layer_main(argv: list[str]) -> int:
     ap.add_argument("--edition", required=True); ap.add_argument("--iso", required=True); ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--books", required=True)
     ap.add_argument("--parts", action="store_true", help="the cells were asked on the parts view (OUT/parts): fold them, morphed edition")
+    ap.add_argument("--source-parts", type=Path, default=None, help="the cells were asked on source parts (this parts spine): fold them "
+                    "to the word view in OUT/words first (this process runs on the word spine)")
     a = ap.parse_args(argv)
     from lexeme_aligner.fullalign_build import build_llm_layer
     cell = f"jevC.{a.edition}.{{BOOK}}.v4.{JEV_VARIANT}.jev-0"
     books = a.books.split(",")
     extra: dict = {}
     cells = a.out
+    if a.source_parts:
+        from lexeme_aligner import parts_fold
+        from lexeme_aligner.config import SPINE_DB
+        cells = a.out / WORDS
+        print(json.dumps(parts_fold.fold_dir(a.usj, a.out, cells, books, a.source_parts, SPINE_DB, a.edition)), file=sys.stderr)
     if a.parts:
         from lexeme_aligner import target_parts
         from lexeme_aligner.compact_align import marked_edition
@@ -435,6 +466,8 @@ def main(argv: list[str] | None = None) -> int:
                     "lxx, vul, rso, orgw, catm. Default: detected from the text; a text with gaps (most chapters missing verses) cannot be "
                     "detected and gets eng")
     ap.add_argument("--runs", type=int, default=1, help="run the chain N times; run 1's compact gets a `runs` agreement channel")
+    ap.add_argument("--source-parts", type=Path, default=None, help="align on SOURCE parts: the parts spine (source_parts.py, word-parts "
+                    "v1.0); compact and the Jev layer are built from the word view (OUT/words)")
     ap.add_argument("--books", default=None, help="with --jev: only these books (comma-separated codes, e.g. PHM,RUT); the chain still "
                     "aligns every book of the text")
     args = ap.parse_args(argv)
@@ -477,6 +510,15 @@ def main(argv: list[str] | None = None) -> int:
         split, split_pin = resolve_split(args.split, args.iso, data, usj)
     if args.runs < 1:
         raise SystemExit("align-text: --runs must be at least 1")
+    word_spine = None
+    if args.source_parts:
+        if split:
+            raise SystemExit("align-text: --source-parts with --split is not built yet")
+        args.source_parts = args.source_parts.expanduser().resolve()
+        if not args.source_parts.is_file():
+            raise SystemExit(f"align-text: no parts spine at {args.source_parts}")
+        word_spine = data_inputs(env)["spine"].resolve()
+        env.update(ALIGNER_SPINE_DB=str(args.source_parts), ALIGNER_WORD_SPINE_DB=str(word_spine))
     if split:
         pool, pool_rec = None, {"used": False, "why": "--split: the parts route takes part-level priors from its own view"}
     else:
@@ -490,8 +532,10 @@ def main(argv: list[str] | None = None) -> int:
             (rd / "parts-pin.json").write_text(json.dumps(split_pin, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
             rsteps = plan_parts(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, split, out / "compact" / INDEX)
         else:
-            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, pool, out / "compact" / INDEX)
+            rsteps = plan(usj, args.edition, args.iso, rd, scope, bridge, args.lang_name, pool, out / "compact" / INDEX, word_spine)
         renv = step_env(rd, data)
+        if word_spine is not None:
+            renv.update(ALIGNER_SPINE_DB=str(args.source_parts), ALIGNER_WORD_SPINE_DB=str(word_spine))
         if vers.get("forced"):
             renv["ALIGNER_VERSIFICATION"] = vers["forced"]
         runs_plan.append((rd, renv, rsteps))
@@ -506,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
         "scope": scope.lstrip("-"), "nt_bridge": bridge, "pool": pool_rec, "versification": vers,
         **({"split": {"path": str(split), "pin": split_pin}} if split else {}),
         **({"runs": args.runs} if args.runs > 1 else {}),
+        **({"source_parts": {**_file_entry(args.source_parts), "word_spine": str(word_spine)}} if word_spine is not None else {}),
         "data": {k: _file_entry(fp) for k, fp in inputs.items()},
         "settings": {p.replace("<iso>", args.iso): _file_entry(settings_path(p, args.iso, data)) for p in SETTINGS},
         "steps": [],

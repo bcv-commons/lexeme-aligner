@@ -207,6 +207,41 @@ def part_blocked(heb: list, by_h: dict) -> dict[int, set[int]]:
     return {h: {j for j in by_h[h].t_idx if owner.get(j, set()) - {word_of[h]}} for h in subs}
 
 
+# Parts spine, eflomal: whole words (a word's carrying part and every uncut word) take their links from an eflomal run on the WORD
+# spine (config.WORD_SPINE_DB), the non-carrying parts from the parts run; part_blocked then applies as before. On the parts spine alone
+# eflomal aligns Hebrew words worse (Clear gold, hin/arb OT -.023/-.025 all words); this hybrid: all 8 gold cells >= the word spine
+# except spa (its gold leaves de/a/se unaligned), sum +.045 vs -.024 (pipeline/work/parts-route/hybrid.py). ALIGNER_PARTS_HYBRID=0: off.
+PARTS_HYBRID = os.environ.get("ALIGNER_PARTS_HYBRID", "1") != "0"
+
+
+def is_parts_corpus(recs: list) -> bool:
+    return any(t.keys and "." in t.keys[0] for r in recs for t in r.heb)
+
+
+def hybrid_matches(rec, parts_matches: list, word_rec, word_matches: list) -> list:
+    """`rec`'s matches: a non-carrying part keeps its parts-run match; a word unit (keys without ".") takes the word run's match of the
+    word with the same keys (none if the word run left it unaligned); a unit the word corpus does not have keeps its parts match."""
+    from dataclasses import replace
+    by_keys = {}
+    if word_rec is not None:
+        wtok = {t.idx: t for t in word_rec.heb}
+        known = {tuple(t.keys) for t in word_rec.heb if t.keys}
+        by_keys = {tuple(wtok[m.h_idx].keys): m for m in word_matches if wtok.get(m.h_idx) is not None and wtok[m.h_idx].keys}
+    else:
+        known = set()
+    pm = {m.h_idx: m for m in parts_matches}
+    out = []
+    for t in rec.heb:
+        k = tuple(t.keys or ())
+        if k and "." not in k[0] and k in known:
+            m = by_keys.get(k)
+            if m is not None:
+                out.append(replace(m, h_idx=t.idx))
+        elif t.idx in pm:
+            out.append(pm[t.idx])
+    return sorted(out, key=lambda m: m.h_idx)
+
+
 def run_method(recs: list[VerseRec], align_fn, iso: str, tag: str, out_dir: Path) -> list[dict]:
     by_book: dict[str, list[VerseRec]] = collections.defaultdict(list)
     for r in recs:
@@ -654,7 +689,21 @@ def main() -> int:
         if args.eflomal_content_priority:
             print(f"[pilot] #1 content-priority: {eflo.n_reassigned} target position(s) reassigned "
                   f"from a non-content to an otherwise-unaligned content source token", file=sys.stderr)
-        runs["eflomal"] = run_method(recs, lambda r: eflo.decode(r), eflomal_out_iso, "eflomal", args.out)
+        decode = eflo.decode
+        if PARTS_HYBRID and is_parts_corpus(recs):
+            from lexeme_aligner.config import WORD_SPINE_DB
+            wrecs = build_corpus(books, args.usj_dir, HebrewSource(spine_db=WORD_SPINE_DB), remap)
+            weflo = EflomalAligner(anchor=args.anchor, stem=use_stem, content_only=args.eflomal_content_only,
+                                   content_priority=args.eflomal_content_priority, contiguous_only=not args.eflomal_allow_scattered,
+                                   displace_weak=args.eflomal_displace_weak)
+            weflo.run(wrecs, norm, priors_pairs=prior_pairs, fertility_priors=fert_priors)
+            wby = {(w.book, w.ch, w.v): w for w in wrecs}
+            print(f"[pilot] parts hybrid: whole words from a word-spine eflomal run ({WORD_SPINE_DB.name}, {len(wrecs)} verses)",
+                  file=sys.stderr)
+            def decode(r, _w=wby):
+                w = _w.get((r.book, r.ch, r.v))
+                return hybrid_matches(r, eflo.decode(r), w, weflo.decode(w) if w is not None else [])
+        runs["eflomal"] = run_method(recs, decode, eflomal_out_iso, "eflomal", args.out)
 
     if args.tag_suffix and want["eflomal"] and not want["gloss"]:
         _link_gloss_under_suffix(args.iso, eflomal_out_iso, args.out)

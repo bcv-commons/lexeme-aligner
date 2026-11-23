@@ -573,7 +573,7 @@ def _resolve(mp: dict, methods, contest: dict | None):
 
 def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OUT,
                   books: list[str] = ALL_BOOKS, methods=METHODS,
-                  contest: dict | None = None, cross_edition_iso: str | None = None) -> tuple[dict, dict]:
+                  contest: dict | None = None, cross_edition_iso: str | None = None, all_units: bool = False) -> tuple[dict, dict]:
     """Per-language compact array, position-parallel to build_index()'s canonical ordinal index.
 
     Target-token positions (`span` in "srcOrd:span") are published in RAW-TEXT coordinates — indices
@@ -618,7 +618,8 @@ def build_compact(iso: str, usj_dir: Path, heb: HebrewSource, out_dir: Path = OU
         for ch in heb.chapters(book):
             for anchor_v, vs, ve, text, members in pooled_verse_groups(book, ch, heb, ranges, remap):
                 pairs = pairs_by_verse.get((ch, anchor_v), {})
-                anchor_content = [tok for orig_v, tok in members if orig_v == anchor_v and tok.strong and tok.is_content]
+                anchor_content = [tok for orig_v, tok in members           # all_units (part_alignments): every source unit gets an ordinal
+                                  if orig_v == anchor_v and (all_units or (tok.strong and tok.is_content))]
                 # Same (tc, vs) key pooled_verse_groups used internally to fetch `text` (see its
                 # docstring/source) — re-derived here to fetch the RAW counterpart of the exact same
                 # target block, so the two texts being diffed are guaranteed to correspond.

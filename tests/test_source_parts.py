@@ -124,9 +124,11 @@ def test_parts_fold_record_word_view():
     pair = lambda h, t: {"h_idx": h, "t_idx": t, "surface": "?"}
     rec = {"ref": 1, "pairs": [pair(0, [1]), pair(1, [2, 5]), pair(2, [5]), pair(4, [7])],
            "llm_skipped": [{"h_idx": 1, "status": "unrepresented"}, {"h_idx": 2, "status": "rejected"}], "llm_none": [3]}
-    out = fold_record(rec, P, W)
+    out = fold_record(rec, P, W, rule="fold")
     got = {p["h_idx"]: p["t_idx"] for p in out["pairs"]}
     assert got == {0: [1, 2], 1: [5], 2: [7]}               # w1 + its part (5 is w2's), w2 re-indexed, w3 from its part only
+    stem = fold_record(rec, P, W)                           # default rule "stem": carrying parts only
+    assert {p["h_idx"]: p["t_idx"] for p in stem["pairs"]} == {0: [1], 1: [5]}        # w3's only link is its ending's: no pair
     assert out["pairs"][0]["surface"] == "ab" and out["pairs"][2]["lexeme"] == "x:3"
     assert out["llm_skipped"] == [{"h_idx": 1, "status": "rejected"}] and out["llm_none"] == [3]
 
@@ -152,6 +154,6 @@ def test_parts_fold_carries_target_parts():
          NS(idx=1, keys=["w2"], surface="cd", lexeme="x:2", strong="G2", lemma="c", is_content=1)]
     rec = {"ref": 1, "pairs": [{"h_idx": 0, "t_idx": [1], "t_parts": [[1, 2]]}, {"h_idx": 1, "t_idx": [1, 4], "t_parts": [[1, 1], [4, 0]]},
                                {"h_idx": 3, "t_idx": [6], "t_parts": [[6, 1]]}]}
-    out = {p["h_idx"]: p for p in fold_record(rec, P, W)["pairs"]}
+    out = {p["h_idx"]: p for p in fold_record(rec, P, W, rule="fold")["pairs"]}
     assert out[0]["t_idx"] == [1, 4] and out[0]["t_parts"] == [[1, 1], [1, 2], [4, 0]]
     assert out[1]["t_idx"] == [6] and out[1]["t_parts"] == [[6, 1]]

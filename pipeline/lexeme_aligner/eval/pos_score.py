@@ -387,6 +387,28 @@ def union(parts: list[Ours]) -> Ours:
     return out
 
 
+GOLD_FOLD_RULES = Path(__file__).resolve().parents[3] / "config" / "gold_fold_rules.json"
+
+
+def gold_fold_rule(gold_edition: str | None, testament: str | None = None, path: Path = GOLD_FOLD_RULES) -> tuple[str, bool]:
+    """(rule, from the table) for scoring a parts-spine run against this gold edition (config/gold_fold_rules.json): "stem" or "fold".
+    `testament` "NT" / "OT" picks a per-testament entry (a mixed scope takes the NT rule). Not in the table -> its `default`, False."""
+    d = json.loads(Path(path).read_text(encoding="utf-8")) if Path(path).exists() else {}
+    v = d.get(gold_edition) if gold_edition else None
+    if v is None:
+        return d.get("default", "fold"), False
+    if isinstance(v, dict):
+        v = v.get(testament or "NT", v.get("NT"))
+    return v, True
+
+
+def fold_args(rule: str) -> dict:
+    """load_spec / load_ours keywords for a fold rule: stem = the carrying part alone; fold = + unclaimed part links."""
+    if rule not in ("stem", "fold"):
+        raise ValueError(f"fold rule must be stem or fold, not {rule!r}")
+    return {"fold": rule == "fold", "fold_block": rule == "fold"}
+
+
 def load_spec(spec: str, default_tag: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True,
               fold_block: bool = False) -> Ours:
     """`eflomal` · `llm:<tag>` · `a+b+c` (union, first wins) — e.g. `llm:x.verify+eflomal+gloss+gapfill`."""
@@ -644,6 +666,9 @@ def main(argv=None) -> int:
                     help="score per spine token (default), per source word (prefix/suffix morphemes pooled into their word; see "
                          "word_bridge) or both; word rows are labelled `[word]`")
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--fold-rule", choices=["auto", "stem", "fold"], default="auto",
+                    help="a parts-spine run: how its parts fold to words for the word-level gold (auto = config/gold_fold_rules.json "
+                         "for the gold edition; ignored on the word spine)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     a = ap.parse_args(argv)
     from lexeme_aligner.eval.contest_rule import gold_base_text, gold_usj_dir
@@ -665,6 +690,17 @@ def main(argv=None) -> int:
           f"{stats['links']} links ({stats['links_punct_only']} punctuation-only dropped, "
           f"{stats['links_beyond_text']} beyond text)", file=sys.stderr)
     spine = load_spine(books, a.usj_dir, a.iso)
+    rule = "fold"
+    if spine.fold_of:                                    # a parts-spine run: its parts fold to words by the gold edition's rule
+        from lexeme_aligner.compact_align import ALL_BOOKS
+        nt = {b in ALL_BOOKS[39:] for b in books}
+        testament = "NT" if nt == {True} else "OT" if nt == {False} else None
+        from lexeme_aligner.eval.contest_rule import gold_edition
+        ged = gold_edition(a.publish_iso, gold_method=gold_methods[0])
+        rule, listed = (a.fold_rule, True) if a.fold_rule != "auto" else gold_fold_rule(ged, testament)
+        print(f"[pos_score] parts spine: fold rule {rule} ({'given' if a.fold_rule != 'auto' else 'table' if listed else 'default: '
+              + str(ged) + ' not in config/gold_fold_rules.json'}{', mixed testaments: NT rule' if testament is None else ''})",
+              file=sys.stderr)
     neutral = None
     profile = None
     if a.convention_aware:
@@ -681,7 +717,7 @@ def main(argv=None) -> int:
             neutral = neutral_positions(gold, toks, stop.is_function)
     results = {}
     for spec in (a.method or ["eflomal", "gloss", "eflomal+gloss+gapfill"]):
-        ours = load_spec(spec, a.iso, a.out, books, spine)
+        ours = load_spec(spec, a.iso, a.out, books, spine, **fold_args(rule))
         if not ours.spans:
             print(f"[pos_score] nothing found for {spec} — skipped", file=sys.stderr)
             continue

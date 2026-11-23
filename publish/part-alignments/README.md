@@ -107,6 +107,22 @@ const [main, meta, extra] = foldBook(index, partMain, partMeta, partExtra);
 words its other units link that no other word's carrier claims; provenance comes from the carrier (else the first linked unit).
 See the docstring of `fold.py`.
 
+**Two fold rules.** The rule above is `fold` (the default, and what compact-alignments is made with: each compact manifest entry
+says so in `fold_rule`). `stem` keeps only the carrier unit: Υἱοῦ in the example becomes *Fils*, not *Fils de*; the ending's link
+to *de* stays here in part-alignments. Choose `stem` if you follow the convention of gold standards that leave such words (French
+*de*, Spanish *se*) unaligned; it equals the whole-word alignments made before part-alignments. The links are the same either way;
+only the word view differs.
+
+```python
+main, meta, extra = fold_book(index, part_main, part_meta, part_extra, fold_rule="stem")
+```
+
+```js
+const [main, meta, extra] = foldBook(index, partMain, partMeta, partExtra, "stem");
+```
+
+`python fold.py --parts DIR --out DIR --fold-rule stem` (and `node fold.mjs ... --fold-rule stem`) does a whole tree that way.
+
 ## Licences
 
 Data: CC BY 4.0 — source analysis from MACULA Greek and Hebrew (Clear Bible, CC BY 4.0) through the spine and word-parts v1.1

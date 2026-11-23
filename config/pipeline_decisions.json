@@ -4443,8 +4443,70 @@
   }
  },
  "fra": {
+  "articles": {
+   "direction": "before",
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost",
+    "frasbl"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB020,GB021,GB022",
+   "value": false
+  },
+  "case_marking": {
+   "direction": "before",
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost",
+    "frasbl"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB074",
+   "value": false
+  },
   "fertility_priors": {
    "source": "measured vs gold — see config/fertility_flags.json",
+   "value": false
+  },
+  "subject_indexing": {
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost",
+    "frasbl"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB090",
+   "value": false
+  },
+  "tam_auxiliary": {
+   "gated_off_editions": [
+    "fra_jnd",
+    "fra_lsg",
+    "fra_ncl",
+    "fra_ost",
+    "frasbl"
+   ],
+   "gated_source": "cross-edition verification (E6) — see config/spanext_flags.json",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB119,GB120,GB121",
    "value": false
   },
   "target_normalization": {

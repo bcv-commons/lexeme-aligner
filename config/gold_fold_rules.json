@@ -1,0 +1,9 @@
+{
+ "_doc": "How a parts-spine alignment is folded to WORDS when we score it against an onboarded gold edition (our own verification only; nothing published reads this). Keyed by the gold edition's tag (config/gold_langs.json `edition`), not by language: the rule follows the GOLD's convention, which is an edition's (Clear's French and Spanish gold leave the words that render a Greek ending, e.g. de / se, unaligned). Rules: `stem` = the word's carrying part only; `fold` = carrying part + its other parts' links that no other word's carrying part claims (the claimed-target rule, as part-alignments' fold.py). A value is either one rule or {\"NT\": rule, \"OT\": rule}. An edition with no entry is scored with `default` and pos_score says so. Measured 2026-11-23 (pipeline/work/parts-route/*_score_parts.json, one full-chain run per edition, content-word link F1, stem vs fold): fra-lsg NT .873 vs .780; engbsb NT .524 vs .569, OT .508 vs .533; spa_r09 NT .849 vs .810, OT .760 vs .755; hinirv NT .612 vs .655, OT .508 vs .522; arb_vdv NT .700 vs .704, OT .884 vs .883 (level). Re-measure after a change to the parts route: pipeline/work/parts-route/gold_score.py parts ISO TAG PARTS_OUT.",
+ "default": "fold",
+ "fra-lsg": "stem",
+ "spa_r09": "stem",
+ "engbsb": "fold",
+ "hinirv": "fold",
+ "arb_vdv": {"NT": "fold", "OT": "stem"}
+}

@@ -812,10 +812,12 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
                     sources_path: Path = Path("config/sources.json"),
                     with_layer: bool = True, contest: dict | None = None,
                     with_sidecars: bool = True, layer_methods=LAYER_METHODS,
-                    superseded_root: Path = SUPERSEDED, from_parts: Path | None = None) -> dict[str, Path]:
+                    superseded_root: Path = SUPERSEDED, from_parts: Path | None = None,
+                    fold_rule: str = "fold") -> dict[str, Path]:
     """`from_parts`: a part-alignments root (part_alignments.py) holding this edition: every book's main / meta / extra arrays are the FOLD of
     its part-alignments files (pa_fold.fold_book) instead of a resolution of the align files — compact is derived from part-alignments
-    (owner 2026-11-23), so what clients get and what fold.py / fold.mjs compute are the same by construction.
+    (owner 2026-11-23), so what clients get and what fold.py / fold.mjs compute are the same by construction. `fold_rule`: pa_fold's
+    rule ("fold" = carrier + unclaimed links of the other units; "stem" = the carrier unit only); recorded in the manifest entry.
 
     Writes one compact-alignment JSON per (edition, book) at
     `<out_root>/<iso[0]>/<iso>/<edition>/<BOOK>_<fp8>.json` (fp8 = the book's text fingerprint, `text_fingerprint`) — `iso` is
@@ -894,7 +896,7 @@ def publish_compact(tag: str, iso: str, usj_dir: Path, heb: HebrewSource, out_ro
             array, fmeta, fextra = pa_fold.fold_book(
                 pidx, json.loads(pa_main.read_text(encoding="utf-8")),
                 json.loads(pmeta_fp.read_text(encoding="utf-8")) if pmeta_fp.exists() else {},
-                json.loads(pextra_fp.read_text(encoding="utf-8")) if pextra_fp.exists() else None)
+                json.loads(pextra_fp.read_text(encoding="utf-8")) if pextra_fp.exists() else None, fold_rule)
         else:
             array = [by_ref.get(ref, "") for ref in book_index]
         if not any(array):                                   # text but no alignment (a testament outside the chain's scope,
@@ -1023,6 +1025,8 @@ def main() -> int:
     ap.add_argument("--from-parts", type=Path, default=None,
                     help="a part-alignments root holding this edition (part_alignments.py): the arrays are its fold (pa_fold), not a "
                          "resolution of the align files; --methods/--layer-methods then only describe the manifest entry")
+    ap.add_argument("--fold-rule", choices=("fold", "stem"), default="fold",
+                    help="with --from-parts: pa_fold's rule (fold = carrier + unclaimed links of the other units; stem = carrier only)")
     args = ap.parse_args()
 
     heb = HebrewSource()
@@ -1059,7 +1063,8 @@ def main() -> int:
                                   with_layer=not args.no_layer, contest=contest,
                                   with_sidecars=not args.no_sidecars,
                                   edition=resolved_edition, sources_path=args.sources,
-                                  index_root=args.index_root, layer_methods=layer_methods, from_parts=args.from_parts)
+                                  index_root=args.index_root, layer_methods=layer_methods, from_parts=args.from_parts,
+                                  fold_rule=args.fold_rule)
         for book, fp in sorted(written.items()):
             print(f"[compact_align] {publish_iso}/{book} → {fp}", file=sys.stderr)
         scheme = edition_scheme(args.iso, str(usj_dir))
@@ -1079,6 +1084,7 @@ def main() -> int:
         if args.from_parts is not None:
             from lexeme_aligner.part_alignments import FORMAT as _PA_FORMAT
             manifest_entry["derived_from"] = _PA_FORMAT          # the arrays are the fold of the edition's part-alignments
+            manifest_entry["fold_rule"] = args.fold_rule         # which pa_fold rule made them (fold.py / fold.mjs --fold-rule)
             pa_man = args.from_parts / "manifest.json"
             pa_ed = (json.loads(pa_man.read_text(encoding="utf-8")).get("languages", {}).get(publish_iso, {}).get("editions", {})
                      .get(resolved_edition, {}) if pa_man.exists() else {})

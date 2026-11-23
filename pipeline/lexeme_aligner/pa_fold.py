@@ -20,7 +20,13 @@ The fold, per verse:
   4. extra (the opt-in residual layer): for content tokens with no main entry, the union of their units' extra words.
   `srcOrd:_` (an LLM layer: checked, no rendering) gives no words.
 
-    python -m lexeme_aligner.pa_fold --parts DIR --out DIR [--edition PATH ...]    # a part-alignments tree -> compact files
+Fold rule (`fold_rule`, default "fold"): "fold" is rule 1 above. "stem" keeps only the carrier unit: a token's words are its carrier's
+words, and a token whose carrier has no link gets no entry (its other units' links stay in part-alignments only). "stem" is the
+convention of gold standards that leave e.g. French "de" for a Greek genitive ending unaligned; it equals the whole-word alignments
+of before part-alignments within measurement noise. The rule an edition's published compact files were made with is its manifest
+entry's `fold_rule`.
+
+    python -m lexeme_aligner.pa_fold --parts DIR --out DIR [--edition PATH ...] [--fold-rule fold|stem]   # -> compact files
     python -m lexeme_aligner.pa_fold --index-only --parts DIR --out DIR            # compact's _index files from _parts.json
 """
 from __future__ import annotations
@@ -33,6 +39,7 @@ from pathlib import Path
 CHANNELS = ("method", "conf", "contested", "bonus", "rule", "rend", "parts", "runs")   # compact's meta channels, in compact's order
 DENSE = ("method", "conf", "rend", "runs")       # one char (rend: one id) per linked entry; runs = run_agreement.py
 NONE = "_"
+FOLD_RULES = ("fold", "stem")
 
 
 def positions(span: str) -> list[int]:
@@ -71,8 +78,11 @@ def _sparse(s: str) -> dict[int, list[str]]:
     return out
 
 
-def fold_verse(verse: dict, main: str, meta: dict[str, str] | None = None, extra: str = "") -> tuple[str, dict[str, str], str]:
+def fold_verse(verse: dict, main: str, meta: dict[str, str] | None = None, extra: str = "",
+               fold_rule: str = "fold") -> tuple[str, dict[str, str], str]:
     """One verse of part-alignments -> (compact entry, {channel: compact meta entry}, compact extra entry)."""
+    if fold_rule not in FOLD_RULES:
+        raise ValueError(f"fold_rule must be one of {FOLD_RULES}, not {fold_rule!r}")
     units, tokens = verse["units"], verse["tokens"]
     meta = meta or {}
     links = {o: sp for o, sp in entries(main).items() if sp != NONE}
@@ -99,7 +109,7 @@ def fold_verse(verse: dict, main: str, meta: dict[str, str] | None = None, extra
             continue
         cord += 1
         c = t[3]
-        units_k = [c] + [o for o in members.get(k, []) if o != c]
+        units_k = [c] if fold_rule == "stem" else [c] + [o for o in members.get(k, []) if o != c]
         got, givers = [], []
         for o in units_k:
             if o not in links:
@@ -144,13 +154,13 @@ def fold_verse(verse: dict, main: str, meta: dict[str, str] | None = None, extra
 
 
 def fold_book(index: dict, main: list[str], meta: dict[str, list[str]] | None = None,
-              extra: list[str] | None = None) -> tuple[list[str], dict[str, list[str]], list[str]]:
+              extra: list[str] | None = None, fold_rule: str = "fold") -> tuple[list[str], dict[str, list[str]], list[str]]:
     """A book: `_index/<BOOK>_parts.json` + the edition's three files (lists position-parallel to the index's verses)."""
     meta = meta or {}
     refs = list(index)
     cm, cmeta, cx = [], {c: [] for c in CHANNELS if c in meta}, []
     for i, ref in enumerate(refs):
-        m, md, x = fold_verse(index[ref], main[i], {c: v[i] for c, v in meta.items()}, extra[i] if extra else "")
+        m, md, x = fold_verse(index[ref], main[i], {c: v[i] for c, v in meta.items()}, extra[i] if extra else "", fold_rule)
         cm.append(m)
         cx.append(x)
         for c in cmeta:
@@ -179,7 +189,7 @@ def _dump(fp: Path, data, compact_sep: bool = False) -> None:
     fp.write_text(json.dumps(data, ensure_ascii=False, **({"separators": (",", ":")} if compact_sep else {})) + "\n", encoding="utf-8")
 
 
-def fold_edition(parts_root: Path, edition_dir: Path, out_root: Path) -> list[str]:
+def fold_edition(parts_root: Path, edition_dir: Path, out_root: Path, fold_rule: str = "fold") -> list[str]:
     """Every book file of one part-alignments edition folder -> compact files at the same relative path under out_root."""
     rel = edition_dir.relative_to(parts_root)
     done = []
@@ -193,7 +203,7 @@ def fold_edition(parts_root: Path, edition_dir: Path, out_root: Path) -> list[st
         meta_fp, extra_fp = fp.with_name(stem + ".meta.json"), fp.with_name(stem + ".extra.json")
         meta = _load(meta_fp) if meta_fp.exists() else {}
         extra = _load(extra_fp) if extra_fp.exists() else None
-        cm, cmeta, cx = fold_book(index, _load(fp), meta, extra)
+        cm, cmeta, cx = fold_book(index, _load(fp), meta, extra, fold_rule)
         dest = out_root / rel
         _dump(dest / name, cm)
         if any(cx):
@@ -225,13 +235,15 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, required=True, help="where the compact files go (same relative paths)")
     ap.add_argument("--edition", type=Path, action="append", help="edition folder(s) (default: every one under --parts)")
     ap.add_argument("--index-only", action="store_true")
+    ap.add_argument("--fold-rule", choices=FOLD_RULES, default="fold",
+                    help="fold: carrier + unclaimed links of the other units (default); stem: the carrier unit only")
     a = ap.parse_args(argv)
     if a.index_only:
         print(json.dumps({"index books": len(write_compact_index(a.parts, a.out))}))
         return 0
     eds = a.edition or sorted({fp.parent for fp in a.parts.glob("?/*/*/*.json")})
     n = {str(e.relative_to(a.parts) if e.is_absolute() or e.parts[:len(a.parts.parts)] == a.parts.parts else e):
-         len(fold_edition(a.parts, e if e.parts[:len(a.parts.parts)] == a.parts.parts else a.parts / e, a.out)) for e in eds}
+         len(fold_edition(a.parts, e if e.parts[:len(a.parts.parts)] == a.parts.parts else a.parts / e, a.out, a.fold_rule)) for e in eds}
     print(json.dumps(n))
     return 0
 

@@ -5,12 +5,15 @@
 //   const index = await (await fetch(".../_index/MRK_parts.json")).json();
 //   const [main, meta, extra] = foldBook(index, partMain, partMeta, partExtra);   // compact's three arrays
 //
-// CLI (Node): node fold.mjs --parts DIR --out DIR [--index-only]
+//   foldBook(index, partMain, partMeta, partExtra, "stem")                          // fold rule "stem": carrier unit only
+//
+// CLI (Node): node fold.mjs --parts DIR --out DIR [--index-only] [--fold-rule fold|stem]
 
 export const CHANNELS = ["method", "conf", "contested", "bonus", "rule", "rend", "parts", "runs"];
 const DENSE = ["method", "conf", "rend", "runs"];
 const SPARSE = ["contested", "bonus", "rule", "parts"];
 const NONE = "_";
+export const FOLD_RULES = ["fold", "stem"];
 
 export function positions(span) {
   const out = [];
@@ -65,7 +68,8 @@ function cmpKey(a, b) {
   return 0;
 }
 
-export function foldVerse(verse, main, meta = {}, extra = "") {
+export function foldVerse(verse, main, meta = {}, extra = "", foldRule = "fold") {
+  if (!FOLD_RULES.includes(foldRule)) throw new Error(`foldRule must be one of ${FOLD_RULES}, not ${foldRule}`);
   const { units, tokens } = verse;
   const all = entries(main);
   const links = new Map([...all].filter(([, sp]) => sp !== NONE));
@@ -99,7 +103,7 @@ export function foldVerse(verse, main, meta = {}, extra = "") {
     if (!t[2]) return;
     cord += 1;
     const c = t[3];
-    const unitsK = [c, ...(members.get(k) || []).filter((o) => o !== c)];
+    const unitsK = foldRule === "stem" ? [c] : [c, ...(members.get(k) || []).filter((o) => o !== c)];
     const got = [], givers = [];
     for (const o of unitsK) {
       if (!links.has(o)) continue;
@@ -141,14 +145,14 @@ export function foldVerse(verse, main, meta = {}, extra = "") {
   return [out.join(" "), m, outX.join(" ")];
 }
 
-export function foldBook(index, main, meta = {}, extra = null) {
+export function foldBook(index, main, meta = {}, extra = null, foldRule = "fold") {
   const refs = Object.keys(index);
   const cm = [], cx = [], cmeta = {};
   for (const c of CHANNELS) if (c in meta) cmeta[c] = [];
   refs.forEach((ref, i) => {
     const vm = {};
     for (const c of Object.keys(meta)) vm[c] = meta[c][i];
-    const [m, md, x] = foldVerse(index[ref], main[i], vm, extra ? extra[i] : "");
+    const [m, md, x] = foldVerse(index[ref], main[i], vm, extra ? extra[i] : "", foldRule);
     cm.push(m);
     cx.push(x);
     for (const c of Object.keys(cmeta)) cmeta[c].push(md[c] ?? "");
@@ -173,7 +177,7 @@ async function cli(argv) {
   const fs = await import("node:fs");
   const path = await import("node:path");
   const arg = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
-  const parts = arg("--parts"), outRoot = arg("--out");
+  const parts = arg("--parts"), outRoot = arg("--out"), foldRule = arg("--fold-rule") || "fold";
   const load = (fp) => JSON.parse(fs.readFileSync(fp, "utf8"));
   // Python's json.dumps(ensure_ascii=False) default separators: ", " and ": "
   const dump = (fp, data) => {
@@ -203,7 +207,7 @@ async function cli(argv) {
       const mfp = path.join(dir, stem + ".meta.json"), xfp = path.join(dir, stem + ".extra.json");
       const meta = fs.existsSync(mfp) ? load(mfp) : {};
       const extra = fs.existsSync(xfp) ? load(xfp) : null;
-      const [cm, cmeta, cx] = foldBook(index, load(path.join(dir, name)), meta, extra);
+      const [cm, cmeta, cx] = foldBook(index, load(path.join(dir, name)), meta, extra, foldRule);
       dump(path.join(outRoot, rel, name), cm);
       if (cx.some(Boolean)) dump(path.join(outRoot, rel, stem + ".extra.json"), cx);
       if (cmeta.parts && !cmeta.parts.some(Boolean)) delete cmeta.parts;

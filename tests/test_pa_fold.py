@@ -40,6 +40,16 @@ def test_bonus_and_extra_for_gaps():
     assert extra == "1:5-6"                            # its units' residual words together
 
 
+def test_stem_rule_keeps_the_carrier_only():
+    main, meta, _ = pa_fold.fold_verse(VERSE, "0:2 1:1 2:0,3 3:3", {"method": "EEeE", "conf": "2112"}, fold_rule="stem")
+    assert main == "0:1 1:3"                           # the ending's "he" (0) is not folded into λέγει
+    assert meta == {"method": "EE", "conf": "12"}
+    main, _, _ = pa_fold.fold_verse(VERSE, "1:_ 2:4", {"method": "l"}, fold_rule="stem")
+    assert main == ""                                  # carrier unlinked: no entry (the ending's link stays in part-alignments)
+    with pytest.raises(ValueError):
+        pa_fold.fold_verse(VERSE, "1:1", fold_rule="ending")
+
+
 def test_compact_index():
     ix = pa_fold.compact_index({"MAT 1:1": VERSE})
     assert ix == {"lexemes": {"MAT 1:1": ["3004", "0846"]}, "keys": {"MAT 1:1": ["40001001002", "40001001003"]},
@@ -68,6 +78,14 @@ def test_javascript_fold_matches_python(tmp_path):
     for f in files:
         assert (py / f).read_bytes() == (js / f).read_bytes(), f
     assert json.loads((py / "e/eng/x/MAT_0000abcd.json").read_text()) == ["0:0-1 1:3", "0:4"]
+    py_s, js_s = tmp_path / "py_stem", tmp_path / "js_stem"
+    pa_fold.fold_edition(parts, ed, py_s, fold_rule="stem")
+    subprocess.run(["node", str(mjs), "--parts", str(parts), "--out", str(js_s), "--fold-rule", "stem"], check=True)
+    files = sorted(p.relative_to(py_s) for p in py_s.rglob("*") if p.is_file())
+    assert files == sorted(p.relative_to(js_s) for p in js_s.rglob("*") if p.is_file())
+    for f in files:
+        assert (py_s / f).read_bytes() == (js_s / f).read_bytes(), f
+    assert json.loads((py_s / "e/eng/x/MAT_0000abcd.json").read_text()) == ["0:1 1:3", ""]
 
 
 def test_parts_fold_replaces_an_editions_old_files(tmp_path, monkeypatch):

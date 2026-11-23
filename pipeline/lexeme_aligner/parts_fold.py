@@ -12,7 +12,13 @@ alignments, full-alignment layers, lexeme-alignments) is built on the WORD spine
 
 Then the word-level builders run unchanged with ALIGNER_SPINE_DB = the word spine on the folded folder.
 
+`rule` (FOLD_RULE, default "stem"; owner 2026-11-23): "stem" keeps only the carrying part's pair (a word whose carrying part has no
+link gets no pair; its parts' links stay in part-alignments). This word view feeds the LEXICAL outputs (lexeme-alignments, senses,
+aligned_mwe, gloss and pooled priors, the NT bridge), where an ending's "de" / "je" is not a rendering of the lexeme: with "fold"
+fra_lsg's NT eflomal surfaces went from 3.1% to 26.7% multi-word (θεός -> "dieu a", λέγω -> "je"). "fold" = the rules above.
+
     python -m lexeme_aligner.parts_fold --usj DIR --in OUT --out OUT/words --books MRK,RUT --iso TAG [--parts-spine DB] [--word-spine DB]
+                                        [--rule stem|fold]
 """
 from __future__ import annotations
 
@@ -29,7 +35,11 @@ def _open(fp: Path):
     return gzip.open(fp, "rt", encoding="utf-8") if fp.name.endswith(".gz") else fp.open(encoding="utf-8")
 
 
-def fold_record(rec: dict, parts_toks: list, word_toks: list) -> dict:
+FOLD_RULE = "stem"
+RULES = ("stem", "fold")
+
+
+def fold_record(rec: dict, parts_toks: list, word_toks: list, rule: str = FOLD_RULE) -> dict:
     """One align record of the parts corpus -> the same record on the word corpus (see the module docstring)."""
     pkey = {t.idx: t.keys[0] for t in parts_toks if t.keys}
     widx = {tuple(t.keys): t for t in word_toks if t.keys}
@@ -54,7 +64,8 @@ def fold_record(rec: dict, parts_toks: list, word_toks: list) -> dict:
             if w is None:
                 continue
             if "." in pkey[p["h_idx"]]:
-                subs.append((w, p))
+                if rule == "fold":
+                    subs.append((w, p))
             elif w.idx not in words:
                 words[w.idx] = dict(p, h_idx=w.idx, surface=w.surface)
         owner: dict[int, set[int]] = collections.defaultdict(set)
@@ -102,7 +113,7 @@ def target_text(rec: dict, toks: list[str]) -> None:
 
 
 def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Path, word_spine: Path, tag: str,
-             only_tag: str | None = None) -> dict:
+             only_tag: str | None = None, rule: str = FOLD_RULE) -> dict:
     """Every align_*.jsonl(.gz) of `books` in `src` -> word view in `dst` (plain .jsonl). Returns counts.
     `only_tag`: fold only that edition's files (a shared out dir, as full_chain's, holds every edition's); a `.jsonl.gz` of the same
     name left in `dst` by an earlier run's --clean-out is removed first, so readers never see both."""
@@ -147,7 +158,7 @@ def fold_dir(usj: Path, src: Path, dst: Path, books: list[str], parts_spine: Pat
                         oh.write(line if line.endswith("\n") else line + "\n")
                         n["records copied"] += 1
                         continue
-                    f = fold_record(rec, p.heb, w.heb)
+                    f = fold_record(rec, p.heb, w.heb, rule)
                     target_text(f, w.toks)
                     oh.write(json.dumps(f, ensure_ascii=False) + "\n")
                     n["records folded"] += 1
@@ -166,10 +177,11 @@ def main(argv=None) -> int:
     ap.add_argument("--parts-spine", type=Path, default=SPINE_DB)
     ap.add_argument("--word-spine", type=Path, default=WORD_SPINE_DB)
     ap.add_argument("--tag", default=None, help="fold only this edition's files (default: every align file in --in)")
+    ap.add_argument("--rule", choices=RULES, default=FOLD_RULE, help="stem: the carrying part only (default); fold: + unclaimed part links")
     a = ap.parse_args(argv)
     from lexeme_aligner.compact_align import ALL_BOOKS
     books = ALL_BOOKS if a.books == "ALL" else a.books.split(",")
-    print(json.dumps(fold_dir(a.usj, a.src, a.out, books, a.parts_spine, a.word_spine, a.iso, a.tag)))
+    print(json.dumps(fold_dir(a.usj, a.src, a.out, books, a.parts_spine, a.word_spine, a.iso, a.tag, a.rule)))
     return 0
 
 

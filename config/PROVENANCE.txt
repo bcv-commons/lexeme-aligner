@@ -751,7 +751,18 @@ bcv-query aligner tables v0.2 (2026-11-23; local hand-over; the pin of the publi
   pipeline/vendor/bcv-query-aligner-tables/v0.2 (git-ignored), from bcv-query/internal-docs/aligner-tables/v0.2; SHA256SUMS sha256 acd88d215dd55b66...
   heb_mod/words.parquet 81c7eeb83db114fb..., heb_scg/words.parquet b0d2ff8a44feb769... Level-2 cut fixed (2,985 / 2,617 level-1 parts get other
   pieces); level-1 ids unchanged. <ed>/piece_map_v0.1.parquet: v0.1 piece -> v0.2 pieces sharing letters; links carried over through it
-  (pipeline/work/nt-part-compare/carry_v02.py), no new Jev run. grc_bre/ and text faults as in v0.1.
+  (pipeline/work/nt-part-compare/carry_v02.py), no new Jev run. grc_bre/ and text faults as in v0.1. SUPERSEDED by v0.3 below.
+bcv-query aligner tables v0.3 (2026-11-23, bcv-query 4eba475; the pin of the heb_scg / heb_mod LLM layers since 2026-11-23)
+  pipeline/vendor/bcv-query-aligner-tables/v0.3 (git-ignored); SHA256SUMS sha256 2b22c2cabd581508...; heb_mod/words.parquet 6105b55fb99d41dd...,
+  heb_scg/words.parquet 31886dd8a9ed2ee9... 69 Salkinson / 43 Delitzsch level-1 parts changed (a final ה/ת kept in the stem, e.g. אוֹת whole);
+  the 3 fault rows of real words got a part2_id. <ed>/piece_map_v0.2.parquet: links carried over (pipeline/work/nt-part-compare/update_v03.py).
+bcv-query piece rule v0.2 (2026-11-23, on tables v0.3; CC BY 4.0 as stated in bcv-query's v0.1 README; v0.2 README says the same rule)
+  pipeline/vendor/bcv-query-piece-rule/v0.2/piece_rule.parquet (git-ignored), sha256 0e50c44bfb76a042..., SHA256SUMS sha256 bc4aaf017893f21c...
+  63,849 rows (edition, greek_part_id = word-parts v1.1, hebrew_part_id level 1, hebrew_piece_id v0.3, basis rule:piece_stem/person/number/none).
+  A row replaces our pieces of that level-1 part for that Greek part; empty piece id = no link. Basis shows in meta `rule` (bcvq_piece_*).
+bcv-query fixed pairs v0.1 (2026-11-23; two-word Hebrew renderings, 10 with Tanakh support counted in MACULA Hebrew)
+  pipeline/vendor/bcv-query-fixed-pairs/v0.1/pairs.tsv (git-ignored; folder has no SHA256SUMS), sha256 58e373f1fbcee439... 15 pairs keyed by Greek
+  lemma + Strong's; applied in update_v03.py (ἀκολουθέω only with אחרי directly after).
 bcv-query text faults 2026-11-23 (bcv-query 6ed8d17, shoresh/macula/text_faults/text_faults.tsv)
   pipeline/vendor/bcv-query-text-faults/2026-11-23/text_faults.tsv (git-ignored), sha256 bf3dba75b4370e80...; read by lexeme_aligner/text_faults.py
   (override $ALIGNER_TEXT_FAULTS). 95 rows: heb_mod F0001-F0010, heb_scg F0011, grc_bre F0012-F0015 (copied verses 1KI 8:58, 1CH 11:24,

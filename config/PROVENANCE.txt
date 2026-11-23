@@ -664,7 +664,16 @@ pipeline/vendor/hebrew-clause-layout/v0.37/ — Hebrew OT clause layout (bcv-com
     (data only; nothing derived from it is published: it only cuts Jev requests). Used by lexeme_aligner.eval.jev_clauses (OT requests by
     clause). Gitignored.
 
-pipeline/vendor/word-parts/v1.0/ — Greek NT + Hebrew Bible source word parts (bcv-commons/word-parts, HF tag v1.0, commit 9733875e, 2026-11-22)
+pipeline/vendor/word-parts/v1.1/ — Greek NT + Hebrew Bible source word parts (bcv-commons/word-parts, HF tag v1.1, commit 18098988, 2026-11-23) — CURRENT PIN
+  source: huggingface.co/datasets/bcv-commons/word-parts @ 1809898895f684ca15f6981bf3e78c353d986d20 (code 89a1081): 29 files, SHA256SUMS sha256
+    356f87fd24a6860d…, all 27 listed files checked OK 2026-11-23. Greek byte-identical to v1.0 (parts.tsv ba699e3c…, 220,871 parts, 0 ids changed);
+    hebrew/parts.tsv dcf7b1b8e8170f7b… = v1.0 + the Aramaic parts cut by Aramaic tables (DAN 2:4b-7:28, EZR 4:8-6:18 + 7:12-26, JER 10:11,
+    GEN 31:47): 1,356 MACULA parts split, 580,202 pieces; every other id unchanged (map hebrew/churn-from-v1.0/id_map.tsv). Licence CC BY 4.0.
+    Asked for by bcv-query (on the owner's word) 2026-11-23: pin v1.1 for all part-based runs. Parts spine rebuilt:
+    pipeline/work/parts-spine/lexeme-spine-macula-parts-v1.1.db (801,073 units; NT rows and every content unit identical to the v1.0 build;
+    +1,416 sub-parts: DAN 1,079, EZR 330, JER 7). Further corrections only in announced releases with an id_map.tsv. Gitignored.
+
+pipeline/vendor/word-parts/v1.0/ — (superseded by v1.1, kept for the 2026-11-22/23 measurements) Greek NT + Hebrew Bible source word parts (bcv-commons/word-parts, HF tag v1.0, commit 9733875e, 2026-11-22)
   source: huggingface.co/datasets/bcv-commons/word-parts @ 9733875e4bb3361b1240d9814611c7535bf3480b: all 27 files (SHA256SUMS sha256
     e34d278e3ea05d88…, every file checked OK 2026-11-22). greek/parts.tsv ba699e3c2cf51ca3… (220,871 parts of 137,779 Nestle 1904 words; kinds
     stem 103,503, ending 70,740, particle 29,929, preverb 7,009, augment 4,365, fused 4,347, reduplication 978), hebrew/parts.tsv cfd5ce9542acf48a…

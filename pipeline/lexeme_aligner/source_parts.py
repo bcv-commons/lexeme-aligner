@@ -18,7 +18,7 @@ Every step of the chain reads it unchanged through ALIGNER_SPINE_DB (HebrewSourc
     the carrying part, after_idx -> the word's last part);
   - extra columns: part_id (word-parts id), part_kind, word_key (the spine key of the word / MACULA part it belongs to).
 
-    python -m lexeme_aligner.source_parts --out pipeline/work/parts-spine/lexeme-spine-macula-parts-v1.0.db
+    python -m lexeme_aligner.source_parts --out pipeline/work/parts-spine/lexeme-spine-macula-parts-v1.1.db
 """
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-PARTS_DIR = REPO / "pipeline/vendor/word-parts/v1.0"
-PARTS_PIN = {"dataset": "bcv-commons/word-parts", "tag": "v1.0", "revision": "9733875e4bb3361b1240d9814611c7535bf3480b",
-             "sha256sums": "e34d278e3ea05d88"}
+PARTS_DIR = REPO / "pipeline/vendor/word-parts/v1.1"   # v1.1 (2026-11-23): v1.0 + the Aramaic parts cut by Aramaic tables; Greek unchanged
+PARTS_PIN = {"dataset": "bcv-commons/word-parts", "tag": "v1.1", "revision": "1809898895f684ca15f6981bf3e78c353d986d20",
+             "sha256sums": "356f87fd24a6860d"}
 ANCHOR_BASE = 100000
 CARRIERS = {"stem", "fused", "particle"}
 EXTRA = ("part_id", "part_kind", "word_key")

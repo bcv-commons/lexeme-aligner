@@ -467,7 +467,7 @@ def main(argv: list[str] | None = None) -> int:
                     "detected and gets eng")
     ap.add_argument("--runs", type=int, default=1, help="run the chain N times; run 1's compact gets a `runs` agreement channel")
     ap.add_argument("--source-parts", type=Path, default=None, help="align on SOURCE parts: the parts spine (source_parts.py, word-parts "
-                    "v1.0); compact and the Jev layer are built from the word view (OUT/words)")
+                    "v1.1); compact and the Jev layer are built from the word view (OUT/words)")
     ap.add_argument("--books", default=None, help="with --jev: only these books (comma-separated codes, e.g. PHM,RUT); the chain still "
                     "aligns every book of the text")
     args = ap.parse_args(argv)

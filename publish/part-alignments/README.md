@@ -78,7 +78,7 @@ An edition's manifest entry says how it was aligned:
   which target words render the whole source word, not which part renders what. Folding them gives back that compact release
   exactly. Re-running an edition on the parts replaces its entry.
 
-This dataset replaces compact-alignments, which is frozen since 2026-11-23 and removed after 2026-11-30.
+This dataset replaces compact-alignments, which is frozen since 2026-11-23 and removed one week after this dataset was first published (the date is on compact-alignments' card).
 
 ## Files
 
@@ -147,6 +147,21 @@ const [main, meta, extra] = foldBook(index, partMain, partMeta, partExtra, "stem
 ```
 
 `python fold.py --parts DIR --out DIR --fold-rule stem` (and `node fold.mjs ... --fold-rule stem`) does a whole tree that way.
+
+**Choosing a fold rule.** It is a convention, not a quality setting: does a word like French *de* or English *of*, which renders
+a Greek or Hebrew ending, belong to the noun's rendering? Measured against manual gold alignments (content words, link F1; New
+Testament unless noted), each gold standard prefers the rule that matches its own convention:
+
+| Gold alignment | `stem` | `fold` |
+|---|---|---|
+| English, BSB | .524 | **.569** |
+| Hindi, IRV | .612 | **.655** |
+| French, Louis Segond (leaves *de* unaligned) | **.873** | .780 |
+| Spanish, Reina-Valera 1909 (leaves *de*, *se* unaligned) | **.849** | .810 |
+| Arabic, Van Dyck (NT / OT) | .700 / **.884** | **.704** / .883 |
+
+Two in-between rules were measured as well: folding only the parts' links that touch the word's own words, and folding everything
+but endings. Neither beat the better of `stem` and `fold` for any of these gold alignments, so the fold library ships just the two.
 
 ## Licences
 

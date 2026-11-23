@@ -99,7 +99,14 @@ priors, below), which matters most for a small text.
 
 **Source words or source parts** (from version 0.4.0). The run aligns your words to the PARTS of the Hebrew and Greek words (a Greek
 verb's stem and its ending, a Hebrew noun's prefix, stem and suffix), not to whole words: `OUT/part-alignments` has a link per part,
-and `OUT/compact` is the same folded to whole words. `--no-source-parts` aligns to whole source words, as before 0.4.0 (then there is
+and `OUT/compact` is the same folded to whole words.
+
+> **`OUT/compact` is deprecated (2026-11-23).** The published compact-alignments is frozen and will be removed one week after
+> part-alignments is published; align-text stops writing `OUT/compact` in the first release after that. Read `OUT/part-alignments`
+> instead, and if you need the compact files, make them with `python fold.py --parts OUT/part-alignments --out DIR` (`fold.mjs` the
+> same). The run record `align-text-run.json` says so under `deprecated`.
+
+`--no-source-parts` aligns to whole source words, as before 0.4.0 (then there is
 no `part-alignments`). With `--split` (below) the run aligns whole source words for now.
 
 **Confidence from repeated runs.** The statistical aligner samples, so two runs on the same text differ a little. `--runs 3` runs the

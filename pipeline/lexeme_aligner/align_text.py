@@ -175,6 +175,9 @@ def resolve_split(arg: str, iso: str, data: Path | None, usj: Path) -> tuple[Pat
     return fp, pin
 
 
+COMPACT_DEPRECATION = ("OUT/compact is deprecated (2026-11-23): compact-alignments is frozen and will be removed one week after "
+                       "part-alignments is published. Read OUT/part-alignments instead; fold.py / fold.mjs make the compact files from it. "
+                       "align-text stops writing OUT/compact in the first release after compact-alignments is removed.")
 INDEX = "_index"                           # OUT/compact/_index: the source index (per book) + verse map the compact files are read with
 POOL_ROOT = "lexroot-pool"                  # OUT/lexroot-pool: the text's own eflomal export + the language's published pool (gloss reads it)
 
@@ -612,6 +615,9 @@ def main(argv: list[str] | None = None) -> int:
             jbooks = want
         ok = jev_stage(args, usj, out, data, env, jbooks, record, run, save, split)
     log.close()
+    if (out / "compact").is_dir():                         # owner 2026-11-23: compact-alignments is frozen; OUT/compact goes with it
+        record["deprecated"] = {"compact": COMPACT_DEPRECATION}
+        print(f"[align-text] note: {COMPACT_DEPRECATION}", file=sys.stderr)
     record["finished"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     record["ok"] = ok
     record["guard_refusals"] = len((out / "guard.log").read_text(encoding="utf-8").splitlines()) if (out / "guard.log").exists() else 0

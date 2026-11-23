@@ -289,6 +289,8 @@ class Spine:
     # ref -> h_idx of a word's non-carrying part (parts spine, source_parts.py: key "<word key>.<n>") -> h_idx of the part that
     # carries the word. Empty for the word spine. load_ours folds those parts' links into the word (gold is by word).
     fold_of: dict[int, dict[int, int]] = field(default_factory=dict)
+    # ref -> h_idx of a non-carrying part -> its kind (ending, augment, preverb, prefix ...; from the unit lexeme `<lang>:~<kind>`)
+    kind_of: dict[int, dict[int, str]] = field(default_factory=dict)
 
 
 def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
@@ -303,6 +305,7 @@ def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
     content: dict[int, set[tuple[str, int]]] = {}
     counts: dict[int, collections.Counter] = {}
     fold_of: dict[int, dict[int, int]] = {}
+    kind_of: dict[int, dict[int, str]] = {}
     for r in recs:
         ref = encode(r.book, r.ch, r.v)
         seen: collections.Counter = collections.Counter()
@@ -323,7 +326,9 @@ def load_spine(books: list[str], usj_dir: Path, iso: str) -> Spine:
         sub = {t.idx: carrier.get(t.keys[0].split(".")[0]) for t in r.heb if t.keys and "." in t.keys[0]}
         if sub:
             fold_of[ref] = {i: c for i, c in sub.items() if c is not None}
-    return Spine(key_of, content, counts, word_of, fold_of)
+            kind_of[ref] = {t.idx: (t.lexeme.split(":~", 1)[1].split(":")[0] if ":~" in (t.lexeme or "") else "part")
+                            for t in r.heb if t.idx in sub}
+    return Spine(key_of, content, counts, word_of, fold_of, kind_of)
 
 
 @dataclass
@@ -333,12 +338,13 @@ class Ours:
 
 
 def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True,
-              fold_block: bool = False) -> Ours:
+              fold_block: bool = False, fold_adjacent: bool = False, fold_skip: frozenset = frozenset()) -> Ours:
     """Our pairs keyed like the gold. `llm_skipped` entries with status rejected/unrepresented become vetoes:
     a verify cell that rejected eflomal's proposal means the token has NO alignment in the LLM's view.
     `fold` (parts spine only): a word's other parts' links count as the word's (`Spine.fold_of`); False scores the carrying
     part alone. `fold_block`: a folded part's link to a position another word of the same record claims is dropped (the word that
-    owns that position keeps it)."""
+    owns that position keeps it). `fold_adjacent`: a folded part's positions count only where they touch the word's positions (its
+    carrier's, grown one step at a time). `fold_skip`: part kinds never folded (e.g. {"ending"})."""
     wanted = {BOOK_NUMBERS[b] for b in books}
     o = Ours()
     for fp in tag_files(out_dir, method, tag):
@@ -356,17 +362,31 @@ def load_ours(tag: str, method: str, out_dir: Path, books: list[str], spine: Spi
                         if p["h_idx"] not in fo:
                             for t in p.get("t_idx") or ():
                                 owner[t].add(p["h_idx"])
+                kinds = spine.kind_of.get(ref, {})
+                pending: dict = collections.defaultdict(set)            # adjacent: folded positions waiting for a touch
                 for p in rec["pairs"]:
                     h = p["h_idx"]
                     if h in fo:
+                        if kinds.get(h) in fold_skip:
+                            continue
                         key = spine.key_of[ref].get(fo[h])
                         pos = {t for t in p.get("t_idx") or () if not (owner.get(t, set()) - {fo[h]})}
-                        if key and pos:
+                        if key and pos and fold_adjacent:
+                            pending[key] |= pos
+                        elif key and pos:
                             verse[key] = verse.get(key, set()) | pos
                         continue
                     key = spine.key_of[ref].get(h)
                     if key and p.get("t_idx"):
                         verse[key] = (verse.get(key, set()) | set(p["t_idx"])) if fo else set(p["t_idx"])
+                for key, pos in pending.items():                         # grow the word's span by touching positions only
+                    have = set(verse.get(key, set()))
+                    grew = bool(have)
+                    while grew:
+                        add = {t for t in pos - have if t - 1 in have or t + 1 in have}
+                        have |= add; grew = bool(add)
+                    if have:
+                        verse[key] = have
                 for sk in rec.get("llm_skipped", []):
                     key = spine.key_of[ref].get(sk.get("h_idx", -1))
                     if key and sk.get("status") in ("rejected", "unrepresented"):
@@ -402,20 +422,30 @@ def gold_fold_rule(gold_edition: str | None, testament: str | None = None, path:
     return v, True
 
 
+FOLD_RULE_ARGS = {
+    "stem": {"fold": False, "fold_block": False},
+    "fold": {"fold": True, "fold_block": True},
+    "fold-adjacent": {"fold": True, "fold_block": True, "fold_adjacent": True},     # measured 2026-11-23, see measure_fold_rules.py
+    "fold-no-ending": {"fold": True, "fold_block": True, "fold_skip": frozenset({"ending"})},
+}
+
+
 def fold_args(rule: str) -> dict:
-    """load_spec / load_ours keywords for a fold rule: stem = the carrying part alone; fold = + unclaimed part links."""
-    if rule not in ("stem", "fold"):
-        raise ValueError(f"fold rule must be stem or fold, not {rule!r}")
-    return {"fold": rule == "fold", "fold_block": rule == "fold"}
+    """load_spec / load_ours keywords for a fold rule: stem = the carrying part alone; fold = + unclaimed part links;
+    fold-adjacent = only those touching the word's own positions; fold-no-ending = no ending folded."""
+    if rule not in FOLD_RULE_ARGS:
+        raise ValueError(f"fold rule must be one of {sorted(FOLD_RULE_ARGS)}, not {rule!r}")
+    return dict(FOLD_RULE_ARGS[rule])
 
 
 def load_spec(spec: str, default_tag: str, out_dir: Path, books: list[str], spine: Spine, fold: bool = True,
-              fold_block: bool = False) -> Ours:
+              fold_block: bool = False, fold_adjacent: bool = False, fold_skip: frozenset = frozenset()) -> Ours:
     """`eflomal` · `llm:<tag>` · `a+b+c` (union, first wins) — e.g. `llm:x.verify+eflomal+gloss+gapfill`."""
     parts = []
     for item in spec.split("+"):
         method, _, tag = item.partition(":")
-        parts.append(load_ours(tag or default_tag, method, out_dir, books, spine, fold=fold, fold_block=fold_block))
+        parts.append(load_ours(tag or default_tag, method, out_dir, books, spine, fold=fold, fold_block=fold_block,
+                               fold_adjacent=fold_adjacent, fold_skip=fold_skip))
     return union(parts) if len(parts) > 1 else parts[0]
 
 
@@ -666,7 +696,7 @@ def main(argv=None) -> int:
                     help="score per spine token (default), per source word (prefix/suffix morphemes pooled into their word; see "
                          "word_bridge) or both; word rows are labelled `[word]`")
     ap.add_argument("--out", type=Path, default=OUT)
-    ap.add_argument("--fold-rule", choices=["auto", "stem", "fold"], default="auto",
+    ap.add_argument("--fold-rule", choices=["auto", *FOLD_RULE_ARGS], default="auto",
                     help="a parts-spine run: how its parts fold to words for the word-level gold (auto = config/gold_fold_rules.json "
                          "for the gold edition; ignored on the word spine)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")

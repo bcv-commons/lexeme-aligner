@@ -54,11 +54,11 @@ def publish_to_hf(root: Path, repo_id: str, create: bool, dry_run: bool, chunk_s
     e.g. `--iso dan --publish-hf ...` push ONLY Danish instead of the entire accumulated local
     backlog for every other language that happens to already be sitting under `root`.
 
-    compact-alignments is FROZEN since 2026-11-23 (owner; retired after 2026-11-30): a real push to it is refused (set
+    compact-alignments is FROZEN since 2026-11-23 (owner; removed one week after part-alignments is first published, which follows the parts fleet re-run): a real push to it is refused (set
     ALIGNER_ALLOW_FROZEN=compact-alignments to override); publish part-alignments with publish_safe.py instead."""
     import os
     if not dry_run and repo_id == compact_layers.MAIN_REPO and os.environ.get("ALIGNER_ALLOW_FROZEN") != "compact-alignments":
-        raise SystemExit("compact_align_batch: bcv-commons/compact-alignments is frozen (2026-11-23) and retired after 2026-11-30; "
+        raise SystemExit("compact_align_batch: bcv-commons/compact-alignments is frozen (2026-11-23) and removed one week after part-alignments is published; "
                          "publish part-alignments (publish_safe.py) instead")
     # Shared, non-per-language companions. `tokenize.js` is part of the DATASET CONTRACT, not a
     # convenience: compact_align's own _SCHEMA tells consumers "Use the published tokenize.js" to

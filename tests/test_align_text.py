@@ -106,3 +106,8 @@ def test_compact_writes_its_index_into_out_and_extra_runs_share_run_1s(tmp_path)
     parts = align_text.plan_parts(tmp_path / "usj", "zin_wbt", "zin", tmp_path / "o", "--nt", False, None, tmp_path / "w.parquet")
     cp = dict((s[0], s[1]) for s in parts)["compact"]
     assert cp[cp.index("--index-root") + 1] == str(tmp_path / "o" / "compact" / "_index")
+
+
+def test_compact_deprecation_note_names_the_replacement():
+    from lexeme_aligner import align_text as at
+    assert "deprecated" in at.COMPACT_DEPRECATION and "part-alignments" in at.COMPACT_DEPRECATION and "fold.py" in at.COMPACT_DEPRECATION

@@ -240,3 +240,18 @@ def test_part_alignments_files_split_and_preflight(tmp_path):
 
 def test_compact_is_frozen():
     assert "compact-alignments" in ps.FROZEN and "compact-alignments" not in ps.DEFAULT
+
+
+def test_part_alignments_llm_layers_follow_hold_and_licence(tmp_path):
+    local = {"languages": {"heb": {"editions": {"heb_scg": {}, "heb_scg+llm+jev-v4": {}, "HEBM95+llm+jev-v4": {}, "x_ed+llm+jev-v4": {}}}}}
+    cfg = {"open_licence": r"public\s*domain", "hold": {"HEBM95+llm+jev-v4": {"reason": "internal"}},
+           "text_licences": {"heb_scg": {"licence": "Public Domain"}}}
+    held = ps.pa_held_layers(local, cfg, {}, repo=tmp_path)
+    assert set(held) == {"HEBM95+llm+jev-v4", "x_ed+llm+jev-v4"}
+    assert set(ps.pa_drop_held(local, set(held))["languages"]["heb"]["editions"]) == {"heb_scg", "heb_scg+llm+jev-v4"}
+    root = tmp_path / "pa"
+    for ed in ("heb_scg+llm+jev-v4", "HEBM95+llm+jev-v4"):
+        (root / "h" / "heb" / ed).mkdir(parents=True)
+        (root / "h" / "heb" / ed / "MRK_00000000.json").write_text("[]")
+    files = ps.selected_files("part-alignments", "parts", ["heb"], root, set(held))
+    assert files == ["h/heb/heb_scg+llm+jev-v4/MRK_00000000.json"]

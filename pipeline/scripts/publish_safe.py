@@ -51,9 +51,9 @@ DATASETS = {                                   # local dir name -> (HF repo, kin
     "full-alignments-llm": ("bcv-commons/full-alignments-llm", "fullalign"),               # LLM-checked layers (fullalign_build --llm-cell; 2026-10-21)
 }
 DEFAULT = ["lexeme-alignments", "senses_attested", "part-alignments"]
-# owner 2026-11-23: compact-alignments is frozen (no further publishes) and retired after 2026-11-30; part-alignments replaces it, and
+# owner 2026-11-23: compact-alignments is frozen (no further publishes); part-alignments replaces it, published once after the parts fleet re-run, and compact is removed one week after that publish, and
 # fold.py / fold.mjs make the compact files from it. A frozen dataset is refused unless --allow-frozen names it.
-FROZEN = {"compact-alignments": "frozen 2026-11-23, retired after 2026-11-30: publish part-alignments instead"}
+FROZEN = {"compact-alignments": "frozen 2026-11-23, removed one week after part-alignments is published: publish part-alignments instead"}
 PARTS_COMPANIONS = ("README.md", "fold.py", "fold.mjs", "read_verse.py", "read_verse.mjs", "bcv_tokenize.py", "tokenize.js",
                     "pipeline_decisions.json")
 NO_LEDGER = {"senses_attested", "full-alignments-manual", "full-alignments-manual-sa", "full-alignments-llm"}   # repos that carry no pipeline_decisions.json; do not add one
@@ -256,6 +256,39 @@ def unpublishable_layers(local: dict, cfg: dict, tag_of: dict, repo: Path = REPO
     return out
 
 
+def pa_held_layers(local: dict, cfg: dict, tag_of: dict, repo: Path = REPO) -> dict[str, str]:
+    """{edition id: why} for every LLM layer of a part-alignments manifest (`<edition>+llm+<name>`) that must stay local: the same rules as
+    the full-alignments layers (hold list, open text licence), so a layer moved into part-alignments is never published unchecked."""
+    pat = re.compile(cfg.get("open_licence", r"$^"), re.I)
+    out = {}
+    for e in local.get("languages", {}).values():
+        for ed in e.get("editions", {}):
+            if "+llm+" not in ed:
+                continue
+            if ed in cfg.get("hold", {}):
+                out[ed] = "hold: " + cfg["hold"][ed].get("reason", "")
+                continue
+            base = ed.split("+")[0]
+            lic = text_licence(base, cfg, tag_of, repo)
+            if not pat.search(lic):
+                out[ed] = f"no open text licence recorded for {base} ({lic or 'none'})"
+    return out
+
+
+def pa_drop_held(local: dict, held: set[str]) -> dict:
+    out = {k: v for k, v in local.items() if k != "languages"}
+    out["languages"] = {iso: {**e, "editions": {ed: v for ed, v in e.get("editions", {}).items() if ed not in held}}
+                        for iso, e in local.get("languages", {}).items()}
+    return out
+
+
+def _parts_held(local_root: Path) -> dict[str, str]:
+    cfg = json.loads(FA_PUBLISH.read_text(encoding="utf-8"))
+    comp = json.loads((REPO / "publish/compact-alignments/manifest.json").read_text(encoding="utf-8"))["languages"]
+    tag_of = {ed: info.get("tag", ed) for e in comp.values() for ed, info in e.get("editions", {}).items()}
+    return pa_held_layers(json.loads((local_root / "manifest.json").read_text(encoding="utf-8")), cfg, tag_of)
+
+
 def drop_held(local: dict, held: set[str]) -> dict:
     """A copy of a full-align manifest without the held layers; a language left with no layer is removed."""
     out = {k: v for k, v in local.items() if k != "languages"}
@@ -275,8 +308,9 @@ def selected_files(name: str, kind: str, isos: list[str], local_root: Path, held
                [f for f in ["README.md", *_COMPANION_RESOURCES] if (local_root / f).exists()]
     files = [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("*.json")]
     if kind == "parts":                                                     # sidecars go to part-alignments-meta / -extra (publish_layer)
-        files = [f for f in files if compact_layers.layer_of(f, "part-alignments") == "main"]
-        files += [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("_fingerprints.txt")]
+        files = [f for f in files if compact_layers.layer_of(f, "part-alignments") == "main" and Path(f).parts[2] not in held]
+        files += [str(p.relative_to(local_root)) for i in isos for p in (local_root / i[0] / i).rglob("_fingerprints.txt")
+                  if p.relative_to(local_root).parts[2] not in held]
         files += [str(p.relative_to(local_root)) for p in (local_root / "_index").glob("*.json")]
         return sorted(files) + [f for f in PARTS_COMPANIONS if (local_root / f).exists()]
     if kind == "fullalign":                                                 # one repo holds a layer's main + meta + _layer.json
@@ -448,6 +482,12 @@ def publish_dataset(name: str, isos: list[str], push: bool, chunk: int, scratch:
             print(f"[publish_safe] {name}: NOT published {lid} — {w} ({FA_PUBLISH.name})", file=sys.stderr)
         held = set(why)
         local = drop_held(local, held)
+    if kind == "parts":                                        # its LLM layers: the same hold / licence rules as full-alignments
+        why = _parts_held(local_root)
+        for lid, w in sorted(why.items()):
+            print(f"[publish_safe] {name}: NOT published {lid} — {w} ({FA_PUBLISH.name})", file=sys.stderr)
+        held = set(why)
+        local = pa_drop_held(local, held)
     isos = [i for i in isos if i in local.get("languages", {})]
     if not isos:
         print(f"[publish_safe] {name}: none of the selected languages has a local entry — nothing to do", file=sys.stderr)
@@ -538,6 +578,9 @@ def publish_layer(layer: str, isos: list[str], push: bool, chunk: int, dataset: 
     repo = compact_layers.LAYERS_OF[dataset][layer]["repo"]
     local_root = REPO / "publish" / dataset
     rel = layer_files(isos, layer, local_root, dataset)
+    if dataset == "part-alignments":
+        held = set(_parts_held(local_root))
+        rel = [f for f in rel if Path(f).parts[2] not in held]
     name = f"{dataset}-{layer}"
     if not rel:
         print(f"[publish_safe] {name}: no {layer} files for the selected languages", file=sys.stderr)

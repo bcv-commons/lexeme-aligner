@@ -78,7 +78,13 @@ An edition's manifest entry says how it was aligned:
   which target words render the whole source word, not which part renders what. Folding them gives back that compact release
   exactly. Re-running an edition on the parts replaces its entry.
 
-This dataset replaces compact-alignments, which is frozen since 2026-11-23 and removed one week after this dataset was first published (the date is on compact-alignments' card).
+This dataset will replace compact-alignments, which is frozen since 2026-11-23. compact-alignments stays available until the full release
+of this dataset; its removal date will be announced on its card then, not before.
+
+**Pre-release (2026-11-23).** This is a pre-release with two languages: Hebrew (`heb`, the Hebrew New Testaments, with LLM-checked layers
+for heb_scg and heb_mod) and Greek (`grc`, Brenton's Septuagint, Old Testament only, with an LLM-checked layer). Files and format may still
+change before the full release, which adds the other languages after their re-run on the parts; until then use compact-alignments for them.
+`manifest.json` lists what is here.
 
 ## Files
 

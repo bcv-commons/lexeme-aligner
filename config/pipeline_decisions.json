@@ -306,14 +306,6 @@
   }
  },
  "agt": {
-  "case_marking": {
-   "direction": "before",
-   "pos": [
-    "noun"
-   ],
-   "source": "grambank:GB074",
-   "value": true
-  },
   "subject_indexing": {
    "gated_source": "audit finding only: no alignment mechanism implements this risk",
    "pos": [
@@ -1134,6 +1126,7 @@
   "case_marking": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB074",
@@ -2320,6 +2313,22 @@
   }
  },
  "cao": {
+  "subject_indexing": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB090",
+   "value": false
+  },
+  "tam_auxiliary": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB119,GB120,GB121",
+   "value": false
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=14.59)",
    "value": "surface"
@@ -3087,18 +3096,9 @@
   "case_marking": {
    "direction": "after",
    "pos": [
-    "name",
-    "noun"
+    "name"
    ],
    "source": "grambank:GB072,GB075",
-   "value": true
-  },
-  "possession_affix": {
-   "direction": "before",
-   "pos": [
-    "noun"
-   ],
-   "source": "grambank:GB431,GB433",
    "value": true
   },
   "target_normalization": {
@@ -4401,6 +4401,14 @@
   }
  },
  "ffm": {
+  "tam_auxiliary": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB120",
+   "value": false
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=11.06)",
    "value": "stem"
@@ -4823,22 +4831,6 @@
   }
  },
  "glw": {
-  "articles": {
-   "direction": "after",
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB020,GB023",
-   "value": true
-  },
-  "case_marking": {
-   "direction": "before",
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB074",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=8.49)",
    "value": "stem"
@@ -4918,11 +4910,8 @@
  },
  "gok": {
   "target_normalization": {
-   "edition_overrides": {
-    "gokdpi": "surface"
-   },
-   "source": "self-derived (target_morph.py tokens/type=8.10)",
-   "value": "stem"
+   "source": "self-derived (target_morph.py tokens/type=18.26)",
+   "value": "surface"
   }
  },
  "gor": {
@@ -5398,6 +5387,7 @@
   "articles": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB022",
@@ -5541,14 +5531,6 @@
   }
  },
  "hot": {
-  "case_marking": {
-   "direction": "before",
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB074",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=49.43)",
    "value": "surface"
@@ -6333,6 +6315,7 @@
   "case_marking": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB074",
@@ -6756,12 +6739,8 @@
  },
  "khj": {
   "target_normalization": {
-   "edition_overrides": {
-    "khj_2": "stem",
-    "khj_lis": "stem"
-   },
-   "source": "self-derived (target_morph.py tokens/type=16.37)",
-   "value": "surface"
+   "source": "self-derived (target_morph.py tokens/type=8.20)",
+   "value": "stem"
   }
  },
  "khk": {
@@ -6823,6 +6802,14 @@
   }
  },
  "kik": {
+  "case_marking": {
+   "gated_source": "no direction known for this language, so nothing is extended",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB072,GB074,GB075",
+   "value": false
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=8.75)",
    "value": "stem"
@@ -6884,10 +6871,19 @@
   "case_marking": {
    "direction": "after",
    "pos": [
-    "name"
+    "name",
+    "noun"
    ],
    "source": "grambank:GB070,GB072,GB075",
    "value": true
+  },
+  "possession_affix": {
+   "gated_source": "no direction known for this language, so nothing is extended",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB432",
+   "value": false
   },
   "subject_indexing": {
    "gated_source": "audit finding only: no alignment mechanism implements this risk",
@@ -7169,6 +7165,22 @@
   }
  },
  "kpj": {
+  "articles": {
+   "direction": "after",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB021,GB023",
+   "value": true
+  },
+  "case_marking": {
+   "direction": "after",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB075",
+   "value": true
+  },
   "subject_indexing": {
    "gated_source": "audit finding only: no alignment mechanism implements this risk",
    "pos": [
@@ -7267,12 +7279,8 @@
  },
  "kqa": {
   "target_normalization": {
-   "edition_overrides": {
-    "kqa_pbt": "stem",
-    "mumnp": "stem"
-   },
-   "source": "self-derived (target_morph.py tokens/type=14.57)",
-   "value": "surface"
+   "source": "self-derived (target_morph.py tokens/type=7.28)",
+   "value": "stem"
   }
  },
  "kqc": {
@@ -7298,6 +7306,14 @@
    ],
    "source": "grambank:GB074",
    "value": true
+  },
+  "subject_indexing": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089,GB090",
+   "value": false
   },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=25.79)",
@@ -8254,6 +8270,22 @@
   }
  },
  "lzz": {
+  "articles": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB022",
+   "value": true
+  },
+  "case_marking": {
+   "gated_source": "no direction known for this language, so nothing is extended",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB070,GB072,GB074,GB075",
+   "value": false
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=3.44)",
    "value": "stem"
@@ -9022,6 +9054,23 @@
   }
  },
  "mkj": {
+  "articles": {
+   "direction": "after",
+   "gated_source": "derived (article_bound): the definite article is fused into the noun, so there is no free word to append",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB020,GB023",
+   "value": false
+  },
+  "case_marking": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB074",
+   "value": true
+  },
   "subject_indexing": {
    "gated_source": "audit finding only: no alignment mechanism implements this risk",
    "pos": [
@@ -9409,14 +9458,6 @@
   }
  },
  "msk": {
-  "articles": {
-   "direction": "before",
-   "pos": [
-    "noun"
-   ],
-   "source": "grambank:GB020,GB022",
-   "value": true
-  },
   "subject_indexing": {
    "gated_source": "audit finding only: no alignment mechanism implements this risk",
    "pos": [
@@ -9438,7 +9479,7 @@
  },
  "msy": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=17.17)",
+   "source": "self-derived (target_morph.py tokens/type=17.54)",
    "value": "surface"
   }
  },
@@ -9845,6 +9886,14 @@
    "source": "grambank:GB070,GB072,GB074,GB075",
    "value": false
   },
+  "subject_indexing": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB090",
+   "value": false
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=5.85)",
    "value": "stem"
@@ -9970,14 +10019,6 @@
   }
  },
  "ndj": {
-  "case_marking": {
-   "gated_source": "no direction known for this language, so nothing is extended",
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB072",
-   "value": false
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=7.80)",
    "value": "stem"
@@ -10089,6 +10130,22 @@
   }
  },
  "nhg": {
+  "articles": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB022",
+   "value": true
+  },
+  "case_marking": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB072,GB074",
+   "value": true
+  },
   "tam_auxiliary": {
    "gated_source": "audit finding only: no alignment mechanism implements this risk",
    "pos": [
@@ -10118,6 +10175,14 @@
   }
  },
  "nhm": {
+  "subject_indexing": {
+   "gated_source": "audit finding only: no alignment mechanism implements this risk",
+   "pos": [
+    "verb"
+   ],
+   "source": "grambank:GB089",
+   "value": false
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=5.48)",
    "value": "stem"
@@ -11001,6 +11066,7 @@
   "articles": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB022",
@@ -11009,6 +11075,7 @@
   "case_marking": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB072,GB074",
@@ -11037,7 +11104,6 @@
   "articles": {
    "direction": "before",
    "pos": [
-    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB022",
@@ -11206,12 +11272,8 @@
  },
  "pdo": {
   "target_normalization": {
-   "edition_overrides": {
-    "pdo_2": "stem",
-    "pdo_sco": "stem"
-   },
-   "source": "self-derived (target_morph.py tokens/type=14.74)",
-   "value": "surface"
+   "source": "self-derived (target_morph.py tokens/type=7.37)",
+   "value": "stem"
   }
  },
  "pdt": {
@@ -11295,7 +11357,7 @@
   "case_marking": {
    "gated_source": "no direction known for this language, so nothing is extended",
    "pos": [
-    "name"
+    "noun"
    ],
    "source": "grambank:GB074,GB075",
    "value": false
@@ -11565,22 +11627,6 @@
    "scale": 2.0,
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
-  },
-  "subject_indexing": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB089,GB090",
-   "value": false
-  },
-  "tam_auxiliary": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB120",
-   "value": false
   },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=22.95)",
@@ -12206,14 +12252,6 @@
   }
  },
  "rol": {
-  "case_marking": {
-   "direction": "before",
-   "pos": [
-    "noun"
-   ],
-   "source": "grambank:GB070,GB074",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=22.35)",
    "value": "surface"
@@ -12265,6 +12303,22 @@
   }
  },
  "ruf": {
+  "articles": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB020,GB022",
+   "value": true
+  },
+  "case_marking": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB074",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=7.97)",
    "value": "stem"
@@ -12607,22 +12661,6 @@
    "source": "self-derived (edition has 1..max_ot_books OT books and an NT) — see config/nt_bridge.json",
    "value": true
   },
-  "subject_indexing": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB089,GB090",
-   "value": false
-  },
-  "tam_auxiliary": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB119,GB120,GB121",
-   "value": false
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=30.94)",
    "value": "surface"
@@ -12756,7 +12794,7 @@
  },
  "six": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=11.72)",
+   "source": "self-derived (target_morph.py tokens/type=7.83)",
    "value": "stem"
   }
  },
@@ -13183,14 +13221,6 @@
    ],
    "source": "grambank:GB433",
    "value": true
-  },
-  "subject_indexing": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB090",
-   "value": false
   },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=21.19)",
@@ -13825,7 +13855,7 @@
  },
  "tif": {
   "target_normalization": {
-   "source": "self-derived (target_morph.py tokens/type=20.56)",
+   "source": "self-derived (target_morph.py tokens/type=20.54)",
    "value": "surface"
   }
  },
@@ -14595,14 +14625,6 @@
    "source": "grambank:GB070,GB075",
    "value": true
   },
-  "subject_indexing": {
-   "gated_source": "audit finding only: no alignment mechanism implements this risk",
-   "pos": [
-    "verb"
-   ],
-   "source": "grambank:GB089",
-   "value": false
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=15.24)",
    "value": "surface"
@@ -14862,6 +14884,7 @@
   "articles": {
    "direction": "before",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB020,GB021,GB022",
@@ -14870,6 +14893,7 @@
   "case_marking": {
    "gated_source": "no direction known for this language, so nothing is extended",
    "pos": [
+    "name",
     "noun"
    ],
    "source": "grambank:GB070,GB072,GB074,GB075",
@@ -14919,6 +14943,22 @@
   }
  },
  "wbi": {
+  "articles": {
+   "direction": "after",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB020,GB023",
+   "value": true
+  },
+  "case_marking": {
+   "direction": "before",
+   "pos": [
+    "name"
+   ],
+   "source": "grambank:GB070,GB072,GB074",
+   "value": true
+  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=5.68)",
    "value": "stem"
@@ -15025,10 +15065,19 @@
   "case_marking": {
    "direction": "before",
    "pos": [
-    "name"
+    "name",
+    "noun"
    ],
    "source": "grambank:GB074",
    "value": true
+  },
+  "possession_affix": {
+   "gated_source": "no direction known for this language, so nothing is extended",
+   "pos": [
+    "noun"
+   ],
+   "source": "grambank:GB433",
+   "value": false
   },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=1.85)",
@@ -15326,14 +15375,6 @@
   }
  },
  "xog": {
-  "case_marking": {
-   "direction": "before",
-   "pos": [
-    "name"
-   ],
-   "source": "grambank:GB074",
-   "value": true
-  },
   "target_normalization": {
    "source": "self-derived (target_morph.py tokens/type=7.06)",
    "value": "stem"
@@ -15624,7 +15665,8 @@
   "case_marking": {
    "direction": "after",
    "pos": [
-    "name"
+    "name",
+    "noun"
    ],
    "source": "grambank:GB070,GB072,GB075",
    "value": true

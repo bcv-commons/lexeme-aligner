@@ -263,8 +263,11 @@ def main(argv=None) -> int:
         methods = [m for m in a.methods.split(",") if m]
         files = write_edition(a.iso, a.publish_iso, a.usj_dir, a.out_dir, a.dest, books, edition, methods, SPINE_DB,
                               contest=load_contest_rule())
+        from lexeme_aligner.target_parts import parts_pin
+        pin = parts_pin(a.iso)                            # target parts: what the meta `parts` channel's part numbers refer to
         update_manifest(a.dest, a.publish_iso, edition, {"tag": a.iso, "methods": methods, "books": files,
-                                                         "source": sources.get(a.iso, {})}, SPINE_DB)   # the text's licence pointer
+                                                         "source": sources.get(a.iso, {}),   # the text's licence pointer
+                                                         **({"parts": pin} if pin else {})}, SPINE_DB)
     print(json.dumps({"edition": edition, "books": len(files)}))
     return 0
 

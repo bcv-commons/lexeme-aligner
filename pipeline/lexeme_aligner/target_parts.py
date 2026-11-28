@@ -45,6 +45,8 @@ def for_edition(tag: str, config: Path = CONFIG, vendor: Path = VENDOR) -> tuple
     entry = json.loads(Path(config).read_text(encoding="utf-8")).get(tag) if Path(config).exists() else None
     if not entry or entry.get("chain") is False:          # chain: false = pinned for parts_pin / hand runs, not used by the chain
         return None
+    if "vendor" in entry:                                 # another vendored dataset, e.g. "language-analysis" (make-tanakh's splits)
+        vendor = Path(__file__).resolve().parents[2] / "pipeline/vendor" / entry["vendor"]
     local = Path(vendor) / entry["revision"] / entry["file"] if "local" not in entry else Path(__file__).resolve().parents[2] / entry["local"]
     if not local.exists() and "local" in entry:
         raise SystemExit(f"[target_parts] {tag}: the pinned local file {entry['local']} is missing ({config})")

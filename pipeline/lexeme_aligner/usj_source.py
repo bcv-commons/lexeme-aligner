@@ -33,6 +33,12 @@ _SKIP_PARA_RE = re.compile(r"^i\w+$")          # every introduction marker (\ip 
 _SKIP_CHAR = {"rq", "qac", "fm", "vp", "va", "ca", "fig"}
 # Inline element types that never carry verse text.
 _SKIP_TYPE = {"note", "figure", "ms", "optbreak"}
+# EXPERIMENT (2026-11-27, bible-song-builder's request; off by default): ALIGNER_PSALM_TITLES=1 reads an UNNUMBERED \d psalm title (a \d
+# paragraph before the chapter's first verse number) as verse 0 of its chapter, so the spine's superscription (Hebrew verse 1, which
+# versification maps to verse 0 in an English-numbered edition) has text to pair with. NOT bibles' verse-text rule (that drops \d):
+# with it on, a Psalms book's verse text, and so its fingerprint, differs from what clients compute. Local A/B only until bibles agrees.
+import os as _os
+PSALM_TITLES = _os.environ.get("ALIGNER_PSALM_TITLES", "") not in ("", "0")
 
 _WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 
@@ -421,7 +427,9 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
     `read_raw_verses`/the text_strip_candidates report to see an edition's un-stripped text even if a
     strip decision is already on file for it."""
     usj = json.loads(Path(usj_path).read_text(encoding="utf-8"))
-    state = {"ch": 0, "vs": 0, "ve": 0}
+    state = {"ch": 0, "vs": 0, "ve": 0, "title": False}
+    book_code = next((it.get("code") for it in usj.get("content", []) if isinstance(it, dict) and it.get("type") == "book"), None)
+    titles = PSALM_TITLES and book_code == "PSA"
     seen_unknown: set[str] = set()
     if rules is None:
         rules = _rules_for(usj_path)
@@ -451,13 +459,13 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
 
     def emit(text: str):
         if alt:
-            if state["ch"] and state["vs"] and text:
+            if state["ch"] and (state["vs"] or state["title"]) and text:
                 if buffered and buffered[0][:2] != (state["ch"], state["vs"]):
                     yield from flush()
                 buffered.append((state["ch"], state["vs"], state["ve"], text))
             return
         text = clean(text)
-        if state["ch"] and state["vs"] and text:
+        if state["ch"] and (state["vs"] or state["title"]) and text:
             yield (state["ch"], state["vs"], state["ve"], text)
 
     if book_format(usj) != "usj":                           # Sofria / plain verses: bibles' extractor gives each verse's text
@@ -524,6 +532,12 @@ def _walk_verses(usj_path: Path, warn=sys.stderr, rules: dict | None = None):
             if base in _SKIP_PARA or _SKIP_PARA_RE.match(marker or ""):
                 return
             heading = base in _HEADING_PARA
+            if titles and base == "d" and state["ch"] and not seen and not state["vs"]:
+                state["title"] = True                       # unnumbered psalm title -> verse 0 (experiment, see PSALM_TITLES)
+                yield from inline(it.get("content") or [], {"heading": False, "verse_here": False})
+                yield from emit(" ")
+                state["title"] = False
+                return
             if not heading and base not in _KNOWN_PARA and base not in seen_unknown:
                 seen_unknown.add(base)
                 print(f"[usj] note: unknown para marker '{marker}' — included", file=warn)

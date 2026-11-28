@@ -1,24 +1,53 @@
-from pathlib import Path
+"""ALIGNER_PSALM_TITLES (experiment, off by default): an unnumbered \\d psalm title is read as verse 0 of its chapter."""
+import json
 
-import lexeme_aligner.psalm_titles as pt
-
-
-def test_classify_ratio_bands():
-    assert pt.classify_ratio(0.97) == "heading"
-    assert pt.classify_ratio(1.04) == "heading"
-    assert pt.classify_ratio(1.08) == "unknown"
-    assert pt.classify_ratio(1.12) == "unknown"
-    assert pt.classify_ratio(1.22) == "inline"
-    assert pt.classify_ratio(None) == "unknown"
+from lexeme_aligner import usj_source
 
 
-def test_a_numbered_scheme_is_decided_from_the_vrs_alone(monkeypatch, tmp_path):
-    monkeypatch.setattr("lexeme_aligner.versification.edition_scheme", lambda tag, d: "rso")
-    r = pt.title_mode("whatever", tmp_path)                     # no Psalms file needed: the scheme already says the title is a verse
-    assert r["mode"] == "numbered" and r["ratio"] is None
+def _book(tmp_path, code, paras):
+    doc = {"type": "USJ", "version": "3.0", "content": [{"type": "book", "marker": "id", "code": code, "content": []},
+                                                         {"type": "chapter", "marker": "c", "number": "3"}, *paras]}
+    p = tmp_path / f"19-{code}.json"
+    p.write_text(json.dumps(doc), encoding="utf-8")
+    return p
 
 
-def test_an_eng_scheme_edition_without_psalms_is_unknown(monkeypatch, tmp_path):
-    monkeypatch.setattr("lexeme_aligner.versification.edition_scheme", lambda tag, d: "eng")
-    assert pt.title_mode("whatever", tmp_path)["mode"] == "unknown"
-    assert "eng" not in pt.NUMBERED_SCHEMES and {"org", "orgw", "catm", "rso", "lxx", "vul"} <= pt.NUMBERED_SCHEMES
+def _v(n, text):
+    return [{"type": "verse", "marker": "v", "number": str(n)}, text]
+
+
+TITLE = {"type": "para", "marker": "d", "content": ["A psalm of David."]}
+BODY = {"type": "para", "marker": "q1", "content": [*_v(1, "O LORD, how many are my foes! "), *_v(2, "Many say of me")]}
+
+
+def test_off_by_default_drops_title(tmp_path, monkeypatch):
+    monkeypatch.setattr(usj_source, "PSALM_TITLES", False)
+    v = usj_source.read_verses(_book(tmp_path, "PSA", [TITLE, BODY]))
+    assert (3, 0) not in v and v[(3, 1)].startswith("O LORD")
+
+
+def test_on_title_is_verse_zero(tmp_path, monkeypatch):
+    monkeypatch.setattr(usj_source, "PSALM_TITLES", True)
+    p = _book(tmp_path, "PSA", [TITLE, BODY])
+    v = usj_source.read_verses(p)
+    assert v[(3, 0)] == "A psalm of David."
+    monkeypatch.setattr(usj_source, "PSALM_TITLES", False)
+    off = usj_source.read_verses(p)
+    assert {k: x for k, x in v.items() if k != (3, 0)} == off      # every other verse unchanged
+
+
+def test_on_numbered_title_and_title_after_verse_unchanged(tmp_path, monkeypatch):
+    numbered = {"type": "para", "marker": "d", "content": [*_v(1, "A psalm of David.")]}
+    late = {"type": "para", "marker": "d", "content": ["Selah heading"]}
+    paras = [numbered, {"type": "para", "marker": "q1", "content": _v(2, "O LORD")}, late]
+    monkeypatch.setattr(usj_source, "PSALM_TITLES", True)
+    on = usj_source.read_verses(_book(tmp_path, "PSA", paras))
+    monkeypatch.setattr(usj_source, "PSALM_TITLES", False)
+    off = usj_source.read_verses(_book(tmp_path, "PSA", paras))
+    assert on == off and (3, 0) not in on
+
+
+def test_on_other_books_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setattr(usj_source, "PSALM_TITLES", True)
+    v = usj_source.read_verses(_book(tmp_path, "HAB", [TITLE, BODY]))
+    assert (3, 0) not in v

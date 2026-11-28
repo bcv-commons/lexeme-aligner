@@ -585,7 +585,10 @@ def remapper_for_scheme(scheme: str, nt_variants: tuple[str, ...] | None = None,
     def ot_block(key):
         if key in ot_h2ed:
             return ot_h2ed[key]
-        return (key[0], key[1], 0) if key in ot_moved else key
+        if key in ot_moved:     # no place in the edition: verse 0 = no text; -1 with ALIGNER_PSALM_TITLES (verse 0 may hold a title there)
+            from lexeme_aligner.usj_source import PSALM_TITLES
+            return (key[0], key[1], -1 if PSALM_TITLES else 0)
+        return key
     hebrew_ot = _SCHEME_FILE.get(scheme) == _SPINE_OT_TABLE
     spine_nt = spine_nt_variants()
     ed_nt = spine_nt if nt_variants is None else tuple(nt_variants)   # None = unknown (no NT text): keep spine numbering

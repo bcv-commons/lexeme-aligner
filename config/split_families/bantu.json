@@ -1,8 +1,8 @@
 {
- "_doc": "Family split template (lexeme_aligner.split_gen --family). Slots give the ORDER and what each slot may render; the forms are learned per language from its own text and word alignment (grounding: an affix is kept only where its words link to one of the slot's features). Prefix slots are counted from the word start, suffix slots from the stem outward. `one_letter`: a one-letter form may fill the slot. `renders`: feature prefixes (neg, pn=, person=, tense=, mood=, voice=, fn=<lemma>, obj, case=, plural). Nouns are not cut: noun class prefixes are agreement, and cutting them lost link stability on Zinza (2026-11-28). Reference: make-tanakh's Zinza bundle zin/d33c99ab (ni-/ti-/ku- 1, subject 2, a-/ka- 3, object 4; -il 1, -w 2, -a/-e/-ile 3). With `vote`: slots are filled by lexeme_aligner.split_vote (paradigm vote after make-tanakh-research's Swahili analyser); `seeds` = Swahili's closed lists (make-tanakh-research lab/training/grammar/swh.json (MIT), closed lists from Ashton 1944 / Mohammed 2001), starting forms only, each still grounded per language. Settings measured 2026-11-28 (internal-docs/split-generator-plan-2026-11-28.md): seeds only (text_forms false), final vowel cut by the vote alone (ground false).",
+ "_doc": "Family split template (lexeme_aligner.split_gen --family). Slots give the ORDER and what each slot may render; the forms are learned per language from its own text and word alignment (grounding: an affix is kept only where its words link to one of the slot's features). Prefix slots are counted from the word start, suffix slots from the stem outward. `one_letter`: a one-letter form may fill the slot. `renders`: feature prefixes (neg, pn=, person=, tense=, mood=, voice=, fn=<lemma>, obj, case=, plural). Nouns are not cut: noun class prefixes are agreement, and cutting them lost link stability on Zinza (2026-11-28). Reference: make-tanakh's Zinza bundle zin/d33c99ab (ni-/ti-/ku- 1, subject 2, a-/ka- 3, object 4; -il 1, -w 2, -a/-e/-ile 3). With `vote`: slots are filled by lexeme_aligner.split_vote (paradigm vote after make-tanakh-research's Swahili analyser); `seeds` = Swahili's closed lists (make-tanakh-research lab/training/grammar/swh.json (MIT), closed lists from Ashton 1944 / Mohammed 2001), starting forms only, each still grounded per language. Settings measured 2026-11-28 (internal-docs/split-generator-plan-2026-11-28.md): seeds only (text_forms false), final vowel cut by the vote alone (ground false). v5 (2026-11-28): subject seeds + glide forms before a vowel (y b tw mw w z l g: Zinza y-aá-, b-aá-); object slot cut by the vote alone (ground false: object pronouns are linked to the verb's object marker too rarely to ground it); host words = verb class leads and has >= 30% of the links (copula forms). v6: object seeds without the one-vowel forms i u e (with ground false they cut n|i|we); extension + Proto-Bantu applicative/causative/passive forms (il el ul is es ibw ilw) and cut by the vote alone. glottolog: narr1281 = Narrow Bantu (Glottolog 5.4 classification; was the whole Atlantic-Congo family atla1278, which also took Yoruba, Igbo, Fula ...).",
  "family": "bantu",
  "glottolog": [
-  "atla1278"
+  "narr1281"
  ],
  "chains": [
   {
@@ -42,29 +42,37 @@
      "one_letter": true,
      "seeds": [
       "a",
+      "b",
       "ba",
       "bi",
       "bu",
       "e",
+      "g",
       "ga",
       "gu",
       "i",
       "ka",
       "ki",
       "ku",
+      "l",
       "li",
       "lu",
       "m",
       "mu",
+      "mw",
       "n",
       "ni",
       "o",
       "pa",
       "tu",
+      "tw",
       "u",
       "vi",
+      "w",
       "wa",
+      "y",
       "ya",
+      "z",
       "zi"
      ]
     },
@@ -105,10 +113,8 @@
       "ba",
       "bi",
       "bu",
-      "e",
       "ga",
       "gu",
-      "i",
       "ji",
       "ka",
       "ki",
@@ -122,13 +128,13 @@
       "ni",
       "pa",
       "tu",
-      "u",
       "vi",
       "w",
       "wa",
       "ya",
       "zi"
-     ]
+     ],
+     "ground": false
     }
    ]
   },
@@ -147,11 +153,18 @@
       "an",
       "e",
       "ek",
+      "el",
+      "es",
       "esh",
       "ew",
       "ez",
       "i",
+      "ibw",
       "ik",
+      "il",
+      "iliz",
+      "ilw",
+      "is",
       "ish",
       "iw",
       "iz",
@@ -166,9 +179,11 @@
       "sh",
       "u",
       "uk",
+      "ul",
       "w",
       "z"
-     ]
+     ],
+     "ground": false
     },
     {
      "name": "final",

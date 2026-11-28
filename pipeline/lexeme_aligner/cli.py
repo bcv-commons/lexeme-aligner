@@ -15,6 +15,7 @@ remaining argument through unchanged. Nothing here re-implements a step, so the 
     lexeme-aligner text-strip ...                                     bracket/paren evidence report            (= scripts/text_strip_candidates.py)
     lexeme-aligner align-text --text PATH --edition ID --iso ISO --out OUT align one edition's text, writing only into OUT (= align_text)
     lexeme-aligner fetch-inputs --iso ISO [--data DIR] [--jev]               download the pinned data align-text needs (= fetch_inputs)
+    lexeme-aligner split-detect --all | --edition TAG --iso ISO        per language: family -> generated split -> check -> config entry (= split_detect)
 
 `python -m lexeme_aligner ...` is the same thing. Run `lexeme-aligner <subcommand> --help` for that entry point's own options.
 """
@@ -94,7 +95,10 @@ def plan(argv: list[str]) -> list[list[str]]:
         return [_module("align_text", *rest)]
     if sub == "fetch-inputs":
         return [_module("fetch_inputs", *rest)]
-    raise SystemExit(f"unknown subcommand '{sub}'. Subcommands: run, batch, grammar, publish, status, eval, text-strip, align-text, fetch-inputs")
+    if sub == "split-detect":
+        return [_module("split_detect", *rest)]
+    raise SystemExit(f"unknown subcommand '{sub}'. Subcommands: run, batch, grammar, publish, status, eval, text-strip, align-text, fetch-inputs, "
+                     "split-detect")
 
 
 def _exec(cmd: list[str]) -> int:

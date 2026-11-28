@@ -73,22 +73,30 @@ def _subset(usj: Path, books: list[str], dest: Path) -> Path:
     return dest
 
 
+def run_arm(usj: Path, iso: str, edition: str, out: Path, runs: int, split: Path | None = None, data: Path | None = None) -> None:
+    """One arm: align-text on `usj` into `out` (whole words, or by parts with `split`), `runs` runs, whole source words, no pool."""
+    cmd = [sys.executable, "-m", "lexeme_aligner", "align-text", "--usj", str(usj), "--iso", iso, "--edition", edition,
+           "--no-source-parts", "--no-pool", "--runs", str(runs), "--force", *(["--data", str(data)] if data else []),
+           "--out", str(out), *(["--split", str(Path(split).resolve())] if split else [])]
+    print(f"[split-check] {out.name}: {' '.join(cmd)}", file=sys.stderr, flush=True)
+    if subprocess.run(cmd, cwd=REPO, env=os.environ.copy()).returncode != 0:
+        raise SystemExit(f"target_split_check: align-text ({out.name}) failed; see {out / 'run.log'}")
+
+
+def write_meta(out: Path, edition: str, iso: str, usj: Path, split: Path, books, runs: int) -> None:
+    meta = {"edition": edition, "iso": iso, "usj": str(Path(usj).resolve()), "split": str(Path(split).resolve()), "books": books, "runs": runs}
+    (out / "split-check-run.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
+
+
 def run(args) -> int:
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     usj = args.usj.resolve()
     if args.books:
         usj = _subset(usj, [b.strip().upper() for b in args.books.split(",") if b.strip()], out / "text")
-    common = ["--usj", str(usj), "--iso", args.iso, "--edition", args.edition, "--no-source-parts", "--no-pool",
-              "--runs", str(args.runs), "--force"] + (["--data", str(args.data)] if args.data else [])
-    for arm, more in (("words", []), ("parts", ["--split", str(args.split.resolve())])):
-        cmd = [sys.executable, "-m", "lexeme_aligner", "align-text", *common, "--out", str(out / arm), *more]
-        print(f"[split-check] {arm}: {' '.join(cmd)}", file=sys.stderr, flush=True)
-        if subprocess.run(cmd, cwd=REPO, env=os.environ.copy()).returncode != 0:
-            raise SystemExit(f"target_split_check: align-text ({arm}) failed; see {out / arm / 'run.log'}")
-    meta = {"edition": args.edition, "iso": args.iso, "usj": str(args.usj.resolve()), "split": str(args.split.resolve()),
-            "books": args.books, "runs": args.runs}
-    (out / "split-check-run.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
+    for arm, split in (("words", None), ("parts", args.split)):
+        run_arm(usj, args.iso, args.edition, out / arm, args.runs, split, args.data)
+    write_meta(out, args.edition, args.iso, args.usj, args.split, args.books, args.runs)
     return score(argparse.Namespace(out=out))
 
 

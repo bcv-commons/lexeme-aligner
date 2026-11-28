@@ -22,6 +22,8 @@ pipeline/work/
 pipeline/vendor/gbt/
 # Grambank + Glottolog CLDF snapshots (pinned by commit in grambank_fetch.py)
 pipeline/vendor/grambank/
+# Glottolog 5.4 classification (glottolog/glottolog-cldf v5.4, CC BY 4.0) -> lineage.tsv; pin in config/PROVENANCE.txt
+pipeline/vendor/glottolog/
 # BSB-publishing/bsb-data-output fetched copy — pinned commit in config/PROVENANCE.txt
 pipeline/vendor/bsb/
 # copied-in bcv-commons/strongs datasets (gold attestations, gloss priors)
@@ -138,3 +140,6 @@ publish/gram-struct/
 
 # alignment-conventions: rebuilt from config/llm_conventions (+ versions/, measured/) by `python -m lexeme_aligner.conventions --build`
 publish/alignment-conventions/[a-z]*/
+
+# split_detect.py's generated target splits (hold the editions' words: local only, never published); the pin is in config/target_parts.json
+pipeline/generated-splits/

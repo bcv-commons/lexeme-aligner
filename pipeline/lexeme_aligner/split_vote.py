@@ -41,7 +41,10 @@ def _host_words(linked, host: str) -> dict[str, list]:
     out = {}
     for w, rows in by.items():
         cls = collections.Counter(SG.word_class(fs) for fs, _h in rows)
-        if cls[host] * 2 >= len(rows) and w.isalpha():
+        # the host class must lead the other class and reach 30% of the word's links: a copula form (Zinza akaba "he was") is linked
+        # to the predicate noun about as often as to the verb, and a strict majority left every one of them whole (2026-11-28)
+        other = sum(v for k, v in cls.items() if k not in (host, None))
+        if cls[host] >= other and cls[host] >= 0.3 * len(rows) and w.isalpha():
             out[w] = rows
     return out
 

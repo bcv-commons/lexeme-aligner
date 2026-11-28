@@ -317,14 +317,28 @@ def own_candidates(vocab, top: int = 150, max_len: int = 4) -> dict[str, list[st
 FAMILIES = REPO / "config/split_families"
 
 
-def family_of(iso: str) -> str | None:
-    """The family template for a language: config/split_families/<name>.json whose `glottolog` lists the language's Glottolog family
-    (pipeline/vendor/grambank/glottolog_languages.csv), or None."""
+LINEAGE = REPO / "pipeline/vendor/glottolog/v5.4/lineage.tsv"
+
+
+def lineage_of(iso: str) -> list[str]:
+    """The language's Glottolog classification, family first (pipeline/vendor/glottolog/v5.4/lineage.tsv), else just its family
+    from the Grambank-shipped Glottolog table; [] when unknown."""
     import csv
+    if LINEAGE.exists():
+        for r in csv.DictReader(open(LINEAGE, encoding="utf-8"), delimiter="\t"):
+            if r["iso"] == iso:
+                return [x for x in r["lineage"].split("/") if x] or ([r["family"]] if r["family"] else [])
     fam = next((r["Family_ID"] for r in csv.DictReader(open(REPO / "pipeline/vendor/grambank/glottolog_languages.csv", encoding="utf-8"))
                 if r["ISO639P3code"] == iso), None)
+    return [fam] if fam else []
+
+
+def family_of(iso: str) -> str | None:
+    """The family template for a language: config/split_families/<name>.json whose `glottolog` lists a node of the language's Glottolog
+    classification (a family, e.g. nucl1709 Nuclear Trans New Guinea, or a subgroup, e.g. narr1281 Narrow Bantu), or None."""
+    lin = set(lineage_of(iso))
     for f in sorted(FAMILIES.glob("*.json")):
-        if fam and fam in json.loads(f.read_text(encoding="utf-8")).get("glottolog", []):
+        if lin & set(json.loads(f.read_text(encoding="utf-8")).get("glottolog", [])):
             return f.stem
     return None
 

@@ -1,0 +1,83 @@
+{
+ "_doc": "Family split template (lexeme_aligner.split_gen --family), Trans-New Guinea. Verbs carry suffix chains: tense/aspect/mood next to the stem, then subject person-number, then medial/final markers; a small set of prefixes (negation, object, sometimes subject). Nouns take case / postposition suffixes that render a source preposition. Slots give order and what each may render; forms are learned per language (grounding). No hand-made TNG reference exists (Kuni-Boazi, our nearest hand bundle, is Anim family): validated by the gold-free check only.",
+ "family": "tng",
+ "glottolog": [
+  "nucl1709"
+ ],
+ "chains": [
+  {
+   "host": "verb",
+   "side": "prefix",
+   "slots": [
+    {
+     "name": "negation",
+     "renders": [
+      "neg"
+     ],
+     "one_letter": false
+    },
+    {
+     "name": "subject",
+     "renders": [
+      "pn=",
+      "person="
+     ],
+     "one_letter": false
+    },
+    {
+     "name": "object",
+     "renders": [
+      "obj"
+     ],
+     "one_letter": true
+    }
+   ]
+  },
+  {
+   "host": "verb",
+   "side": "suffix",
+   "slots": [
+    {
+     "name": "tam",
+     "renders": [
+      "tense=",
+      "mood=",
+      "voice="
+     ],
+     "one_letter": true
+    },
+    {
+     "name": "subject",
+     "renders": [
+      "pn=",
+      "person="
+     ],
+     "one_letter": true
+    },
+    {
+     "name": "final",
+     "renders": [
+      "neg",
+      "mood="
+     ],
+     "one_letter": false
+    }
+   ]
+  },
+  {
+   "host": "noun",
+   "side": "suffix",
+   "slots": [
+    {
+     "name": "case",
+     "renders": [
+      "fn=",
+      "case="
+     ],
+     "one_letter": false
+    }
+   ]
+  }
+ ],
+ "vote": true
+}

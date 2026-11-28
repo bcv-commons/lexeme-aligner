@@ -63,6 +63,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 _METHODS = "spanext,eflomal,gloss,gapfill"           # = full_chain._METHODS (compact's main array)
+_RESOLVE_METHODS = _METHODS + ",fnrule"              # = full_chain._RESOLVE_METHODS (+ function_rule.py's placements)
 RECORD = "align-text-run.json"
 # Settings and data the chain reads besides the text (the inventory run's audit log, 2026-10-27), hashed into the run record. Also the first
 # draft of the future package-data list. <iso> is filled in; a missing file is recorded as missing (e.g. no Grambank entry for the language).
@@ -142,9 +143,10 @@ def plan_parts(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge:
         ("spanext", ["lexeme_aligner.span_extension", *common, scope, "--methods", "eflomal,gloss"], venv),
         ("gapfill", ["lexeme_aligner.gapfill", *common, scope, "--methods", "eflomal,gloss,spanext"], venv),
         ("residual", ["lexeme_aligner.residual_align", *common, scope, "--methods", "eflomal,gloss,spanext"], venv),
+        ("function-rule", ["lexeme_aligner.function_rule", *common, scope, "--methods", _METHODS], venv),
         ("fold", ["lexeme_aligner.target_parts", "fold", "--tag", edition, "--view-out", str(vout), "--out", str(out), "--view", str(view),
                   "--usj", str(usj)], {}),
-        ("compact", ["lexeme_aligner.compact_align", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj), "--methods", _METHODS,
+        ("compact", ["lexeme_aligner.compact_align", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj), "--methods", _RESOLVE_METHODS,
                      "--out-dir", str(out), "--publish", str(out / "compact"), "--index-root", str(index_root or out / "compact" / INDEX),
                      "--morphed", "--parts-pin", str(out / "parts-pin.json")], {}),
     ]
@@ -218,6 +220,7 @@ def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool,
         ("spanext", ["lexeme_aligner.span_extension", *common, scope, "--methods", "eflomal,gloss", "--out", str(out)]),
         ("gapfill", ["lexeme_aligner.gapfill", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
         ("residual", ["lexeme_aligner.residual_align", *common, scope, "--methods", "eflomal,gloss,spanext", "--out", str(out)]),
+        ("function-rule", ["lexeme_aligner.function_rule", *common, scope, "--methods", _METHODS, "--out", str(out)]),
     ]
     cout = out
     if word_spine is not None:
@@ -226,8 +229,8 @@ def plan(usj: Path, edition: str, iso: str, out: Path, scope: str, bridge: bool,
                                   "--iso", edition, "--word-spine", str(word_spine)])]
     if word_spine is not None:                     # the part-level output itself, from the parts run's own files (parts spine)
         steps += [("part-alignments", ["lexeme_aligner.part_alignments", "--iso", edition, "--publish-iso", iso, "--usj-dir", str(usj),
-                                       "--out-dir", str(out), "--dest", str(out / PART_ALIGNMENTS)])]
-    steps += [("compact", ["lexeme_aligner.compact_align", *common, "--methods", _METHODS, "--out-dir", str(cout), "--publish", str(out / "compact"),
+                                       "--out-dir", str(out), "--dest", str(out / PART_ALIGNMENTS), "--methods", _RESOLVE_METHODS])]
+    steps += [("compact", ["lexeme_aligner.compact_align", *common, "--methods", _RESOLVE_METHODS, "--out-dir", str(cout), "--publish", str(out / "compact"),
                            "--index-root", str(index_root or out / "compact" / INDEX),
                            *(["--from-parts", str(out / PART_ALIGNMENTS)] if word_spine is not None else [])],
                *([{"ALIGNER_SPINE_DB": str(word_spine)}] if word_spine is not None else []))]

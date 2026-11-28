@@ -9,7 +9,7 @@ def _names(steps):
 
 def test_plan_bridge_and_order(tmp_path):
     steps = align_text.plan(tmp_path / "usj", "kvg_draft", "kvg", tmp_path / "out", "--all", True, "Kuni")
-    assert _names(steps) == ["eflomal-nt", "eflomal-ot", "export", "gloss", "spanext", "gapfill", "residual", "compact"]
+    assert _names(steps) == ["eflomal-nt", "eflomal-ot", "export", "gloss", "spanext", "gapfill", "residual", "function-rule", "compact"]
     d = dict(steps)
     assert d["eflomal-ot"][-2:] == ["--ot", "--nt-bridge"] and d["eflomal-nt"][-1] == "--nt"
     assert all(["--publish-iso", "kvg"] == c[c.index("--publish-iso"):c.index("--publish-iso") + 2] for _, c in steps)
@@ -69,7 +69,7 @@ def test_jev_plan_asks_book_by_book_with_modules_and_the_fixed_variant(tmp_path)
 def test_plan_parts_runs_the_view_route_then_folds_and_compacts_morphed(tmp_path):
     steps = align_text.plan_parts(tmp_path / "usj", "zin_wbt", "zin", tmp_path, "--nt", False, None, tmp_path / "words.parquet")
     names = [s[0] for s in steps]
-    assert names == ["parts-view", "eflomal", "part-priors", "gloss", "spanext", "gapfill", "residual", "fold", "compact"]
+    assert names == ["parts-view", "eflomal", "part-priors", "gloss", "spanext", "gapfill", "residual", "function-rule", "fold", "compact"]
     env = dict((s[0], s[2]) for s in steps)
     assert env["eflomal"]["ALIGNER_OUT"] == str(tmp_path / "parts" / "out")
     assert env["gloss"]["ALIGNER_LEX_ROOT"] == str(tmp_path / "parts" / "priors")

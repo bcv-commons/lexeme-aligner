@@ -209,7 +209,7 @@ _PRIOR_POS = re.compile(r":(\d+)$")
 
 
 def fold(tag: str, view_out: Path, out: Path, view_dir: Path, usj_dir: Path, methods: tuple[str, ...] = ("eflomal", "gloss", "spanext",
-         "gapfill", "residual"), trefs: dict | None = None) -> collections.Counter:
+         "gapfill", "residual", "fnrule"), trefs: dict | None = None) -> collections.Counter:
     """Map every align_<method>_<tag>_<BOOK>.jsonl(.gz) a parts-view run wrote into `view_out` back to the edition's real tokens,
     written to `out` under the same names: `t_idx` = the tokens the units belong to, `t_parts` = [[token, part], ...] (part None =
     whole word), `target` re-rendered from the real tokens, a span-extension prior's target position (`spanext_x:<n>`) mapped too.

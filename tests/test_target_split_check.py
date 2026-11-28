@@ -6,16 +6,20 @@ import pytest
 from lexeme_aligner import target_split_check as sc
 
 
-def f(content, function, stable):
-    return {"content": content, "function": function, "stable": stable}
+def f(cs, fs):
+    return {"content_stable": cs, "function_stable": fs, "content": .9, "function": .7, "stable": .8}
 
 
-@pytest.mark.parametrize("words,parts,want", [
-    (f(.943, .559, .795), f(.955, .820, .838), "split"),     # heb_scg, 2026-10-23
-    (f(.966, .698, .580), f(.967, .762, .574), "split"),     # Zinza P vs Wr, 2026-10-26
-    (f(.958, .692, .600), f(.953, .708, .600), "unclear"),   # Kuni-like: +1.6 function, content -0.5
-    (f(.958, .692, .600), f(.958, .695, .600), "words"),     # no function gain
-    (f(.958, .692, .600), f(.930, .800, .600), "words"),     # big function gain, content falls 2.8 points
+@pytest.mark.parametrize("words,parts,want", [         # figures measured 2026-11-28 (internal-docs/split-generator-plan-2026-11-28.md)
+    (f(.6759, .4557), f(.6893, .4753), "split"),       # Zinza, make-tanakh hand bundle
+    (f(.8231, .5548), f(.8294, .6254), "split"),       # Swahili, generated (vote)
+    (f(.9355, .3727), f(.9577, .7362), "split"),       # Arabic, rule split (gold F1 .888 -> .901)
+    (f(.9355, .3727), f(.9347, .7609), "words"),       # Arabic, one extra cut per word (gold F1 .882): function stable up, content not
+    (f(.6759, .4557), f(.6680, .4632), "words"),       # Zinza generated (vote + Proto-Bantu seeds): content -0.8
+    (f(.6759, .4557), f(.6190, .4070), "words"),       # Zinza placebo
+    (f(.8231, .5548), f(.7842, .5729), "words"),       # Swahili placebo: function up, content down
+    (f(.6759, .4557), f(.6792, .4598), "unclear"),     # content +0.3: between noise and gain
+    (f(.4713, .3352), f(.4946, .3110), "split"),       # Kuni MRK: content +2.3; function stability -2.4 is no veto (a later pass)
 ])
 def test_verdict(words, parts, want):
     assert sc.verdict(words, parts)[0] == want

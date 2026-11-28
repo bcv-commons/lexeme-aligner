@@ -1,0 +1,195 @@
+{
+ "_doc": "Family split template (lexeme_aligner.split_gen --family). Slots give the ORDER and what each slot may render; the forms are learned per language from its own text and word alignment (grounding: an affix is kept only where its words link to one of the slot's features). Prefix slots are counted from the word start, suffix slots from the stem outward. `one_letter`: a one-letter form may fill the slot. `renders`: feature prefixes (neg, pn=, person=, tense=, mood=, voice=, fn=<lemma>, obj, case=, plural). Nouns are not cut: noun class prefixes are agreement, and cutting them lost link stability on Zinza (2026-11-28). Reference: make-tanakh's Zinza bundle zin/d33c99ab (ni-/ti-/ku- 1, subject 2, a-/ka- 3, object 4; -il 1, -w 2, -a/-e/-ile 3). With `vote`: slots are filled by lexeme_aligner.split_vote (paradigm vote after make-tanakh-research's Swahili analyser); `seeds` = Swahili's closed lists (make-tanakh-research lab/training/grammar/swh.json (MIT), closed lists from Ashton 1944 / Mohammed 2001), starting forms only, each still grounded per language. Settings measured 2026-11-28 (internal-docs/split-generator-plan-2026-11-28.md): seeds only (text_forms false), final vowel cut by the vote alone (ground false).",
+ "family": "bantu",
+ "glottolog": [
+  "atla1278"
+ ],
+ "chains": [
+  {
+   "host": "verb",
+   "side": "prefix",
+   "slots": [
+    {
+     "name": "pre-initial",
+     "renders": [
+      "neg",
+      "mood=infinitive",
+      "tense="
+     ],
+     "one_letter": false,
+     "seeds": [
+      "ha",
+      "ham",
+      "hatu",
+      "hawa",
+      "hu",
+      "ka",
+      "ku",
+      "kuto",
+      "kw",
+      "nti",
+      "si",
+      "ta",
+      "ti"
+     ]
+    },
+    {
+     "name": "subject",
+     "renders": [
+      "pn=",
+      "person="
+     ],
+     "one_letter": true,
+     "seeds": [
+      "a",
+      "ba",
+      "bi",
+      "bu",
+      "e",
+      "ga",
+      "gu",
+      "i",
+      "ka",
+      "ki",
+      "ku",
+      "li",
+      "lu",
+      "m",
+      "mu",
+      "n",
+      "ni",
+      "o",
+      "pa",
+      "tu",
+      "u",
+      "vi",
+      "wa",
+      "ya",
+      "zi"
+     ]
+    },
+    {
+     "name": "tam",
+     "renders": [
+      "tense=",
+      "mood="
+     ],
+     "one_letter": true,
+     "seeds": [
+      "a",
+      "aa",
+      "ga",
+      "ja",
+      "ka",
+      "kaa",
+      "ki",
+      "la",
+      "laa",
+      "li",
+      "me",
+      "na",
+      "ngali",
+      "nge",
+      "ra",
+      "raa",
+      "ta"
+     ]
+    },
+    {
+     "name": "object",
+     "renders": [
+      "obj"
+     ],
+     "one_letter": true,
+     "seeds": [
+      "ba",
+      "bi",
+      "bu",
+      "e",
+      "ga",
+      "gu",
+      "i",
+      "ji",
+      "ka",
+      "ki",
+      "ku",
+      "li",
+      "lu",
+      "m",
+      "mu",
+      "mw",
+      "n",
+      "ni",
+      "pa",
+      "tu",
+      "u",
+      "vi",
+      "w",
+      "wa",
+      "ya",
+      "zi"
+     ]
+    }
+   ]
+  },
+  {
+   "host": "verb",
+   "side": "suffix",
+   "slots": [
+    {
+     "name": "extension",
+     "renders": [
+      "voice=",
+      "fn="
+     ],
+     "one_letter": true,
+     "seeds": [
+      "an",
+      "e",
+      "ek",
+      "esh",
+      "ew",
+      "ez",
+      "i",
+      "ik",
+      "ish",
+      "iw",
+      "iz",
+      "le",
+      "lek",
+      "lew",
+      "li",
+      "lik",
+      "liw",
+      "o",
+      "ok",
+      "sh",
+      "u",
+      "uk",
+      "w",
+      "z"
+     ]
+    },
+    {
+     "name": "final",
+     "renders": [
+      "mood=",
+      "tense=",
+      "person=",
+      "pn="
+     ],
+     "one_letter": true,
+     "seeds": [
+      "a",
+      "e",
+      "i"
+     ],
+     "ground": false
+    }
+   ]
+  }
+ ],
+ "vote": true,
+ "seeds_credit": "make-tanakh-research lab/training/grammar/swh.json (MIT), closed lists from Ashton 1944 / Mohammed 2001; plus common Proto-Bantu concords and tense/negative forms (after Meeussen 1967, Bantu Grammatical Reconstructions)",
+ "text_forms": false
+}

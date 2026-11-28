@@ -88,8 +88,9 @@ def _merge_tier(mode: str, p: dict) -> str:
 #   e/E = eflomal at score 0.6 / 0.9      g/G = gloss weak (head,fuzzy,prefix,multi) / strong (exact,stem)
 #   f   = gapfill (already gated to the strong/name priors)      r = residual (opt-in layer)
 #   x   = spanext (opt-in layer, like residual — see LAYER_METHODS/build_layer's docstring for why)
+#   w   = function_rule (function tokens only; written only where it differs from the chain, else the chain's char + one more `conf`)
 _METHOD_CHAR = {"eflomal": "e", "gloss": "g", "gapfill": "f", "residual": "r", "stat": "s", "llm": "l",
-               "spanext": "x"}
+               "spanext": "x", "fnrule": "w"}
 SIDECAR_CHANNELS = ("method", "conf", "contested", "bonus", "rule", "rend", "parts")
 # "parts" (2026-10-28) — sparse, srcOrd:tok.part[,tok.part ...], for an edition aligned by PARTS (target_parts.py): which part of
 # each linked token the source word went to, numbered as the edition's pinned part analysis numbers them (manifest `parts`). A
@@ -556,6 +557,14 @@ def _resolve(mp: dict, methods, contest: dict | None):
     "disagreement" to resolve. Found live testing compact_align's own opt-in layer mechanism as a home
     for spanext instead (build_layer drops any layer entry a position the base array already covers,
     which is EVERY spanext entry by construction — that route is a dead end, this is the real fix)."""
+    if "fnrule" in mp:
+        # function_rule.py (2026-11-28): a function token the window rule placed. Same link as the chain's -> the chain's pair stays the
+        # winner (the rule's agreement shows in `agree`); a different link -> the rule wins, the chain's pair is the alternative.
+        fr = mp["fnrule"]
+        win, alt = _resolve({m: p for m, p in mp.items() if m != "fnrule"}, methods, contest) if len(mp) > 1 else (None, None)
+        if win is not None and list(win.get("t_idx") or []) == list(fr.get("t_idx") or []):
+            return win, alt
+        return fr, win
     if "spanext" in mp:
         return mp["spanext"], None
     ef, gl = mp.get("eflomal"), mp.get("gloss")

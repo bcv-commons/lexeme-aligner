@@ -19,6 +19,8 @@ edition-discovery logic, no risk of drift between the two.
                                           session) and why it's narrowly gated, not a blind rule
   5. gapfill                             fills eflomal+gloss(+spanext) coverage gaps
   5b. residual align                     2nd eflomal pass on the remainder -> compact's opt-in layer
+  5d. function-word window rule          function_rule.py: settles function-word links between the content links (free; wins where
+                                          it differs from the chain, an agreement vote where it does not); --no-function-rule skips it
   6. export (final)                      re-aggregates eflomal+gloss+spanext+gapfill -> same partition
   7. aligned_mwe                         multi-word expressions (EVERY edition pooled, rows tagged by base_text)
   8. senses_attested                     OT/Hebrew sense attestation keyed on UBS sense ids (degrades to a no-op off-OT); the legacy BHSA-numbered scheme is retired
@@ -57,6 +59,7 @@ from lexeme_aligner.onboard import _EDITIONS_CONFIG, _EXCLUSIONS, _tag, allowed_
 # position it touches unconditionally regardless of list order (fixed 2026-09-23), but listing it first
 # here keeps this one constant honest about priority for anything that DOES read it positionally.
 _METHODS = "spanext,eflomal,gloss,gapfill"
+_RESOLVE_METHODS = _METHODS + ",fnrule"      # compact / part-alignments resolution: + function_rule.py's placements (function tokens only)
 PART_ALIGNMENTS_ROOT = Path("publish/part-alignments")
 
 
@@ -101,6 +104,8 @@ def main() -> int:
     ap.add_argument("--from-fold", action="store_true",
                     help="with --source-parts: reuse the parts run already in PARTS_OUT (no ingest, no alignment) and start at step 5c "
                          "(fold), e.g. after a change to the fold, part-alignments or compact")
+    ap.add_argument("--no-function-rule", action="store_true",
+                    help="skip step 5d (function_rule.py, the free function-word window rule)")
     ap.add_argument("--no-ledger", action="store_true",
                     help="do not write this language's pipeline_decisions entry at the end (default: write it)")
     ap.add_argument("--clean-out", action="store_true",
@@ -208,6 +213,8 @@ def main() -> int:
             _run("span_extension", *common, scope_flag, "--methods", "eflomal,gloss", env=venv, soft=True)
             _run("gapfill", *common, scope_flag, "--methods", "eflomal,gloss,spanext", env=venv, soft=True)
             _run("residual_align", *common, scope_flag, "--methods", "eflomal,gloss,spanext", env=venv, soft=True)
+            if not args.no_function_rule:
+                _run("function_rule", *common, scope_flag, "--methods", _METHODS, env=venv, soft=True)
             # target parts -> the edition's own tokens; on source parts into PARTS_OUT (source positions stay parts-spine positions), where
             # the source fold (step 5c) and part-alignments read it like any edition's: Greek part -> Hebrew part, both first-class
             tdest = PARTS_OUT if args.source_parts else OUT
@@ -256,6 +263,13 @@ def main() -> int:
         _run("residual_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
              scope_flag, "--methods", "eflomal,gloss,spanext", env=penv, soft=True)
 
+    # step 5d: function-word window rule (function_rule.py; after bible-song-builder's rule, lists learned from the edition's own links).
+    # On source parts it runs in PARTS_OUT on the parts spine (penv), so part-alignments get it and parts_fold carries it to the word view.
+    if not args.no_function_rule:
+        for tag in align_tags:
+            _run("function_rule", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], scope_flag,
+                 "--methods", _METHODS, env=penv, soft=True)
+
     # step 5c (source parts): the word view of the parts run -> OUT, where steps 6-9 read (parts_fold: a word = its carrying part's link
     # plus its other parts' links no other word claims). Not soft: without it OUT would keep a previous run's files.
     if args.source_parts:
@@ -302,13 +316,13 @@ def main() -> int:
     if args.source_parts:
         for tag in fold_tags:
             if _run("part_alignments", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag], "--out-dir", PARTS_OUT,
-                    "--dest", PART_ALIGNMENTS_ROOT, env=penv, soft=True):
+                    "--dest", PART_ALIGNMENTS_ROOT, "--methods", _RESOLVE_METHODS, env=penv, soft=True):
                 pa_ok.add(tag)
             else:
                 print(f"[full_chain] WARNING: {tag}: part-alignments failed — compact from the word view", file=sys.stderr)
     for tag in run_tags:
         _run("compact_align", "--iso", tag, "--publish-iso", args.iso, "--usj-dir", usj_dirs[tag],
-             "--methods", _METHODS, *(() if tag in stat_tags else ("--not-in-statistics-pool",)),
+             "--methods", _RESOLVE_METHODS, *(() if tag in stat_tags else ("--not-in-statistics-pool",)),
              *(("--from-parts", PART_ALIGNMENTS_ROOT) if tag in pa_ok else ()), env=env, soft=True)
 
     # step 9a: full alignments (fullalign_build.py) — one layer per published gold source (publish/full-alignments-manual[-sa]). The

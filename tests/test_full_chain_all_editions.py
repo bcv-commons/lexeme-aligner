@@ -161,7 +161,7 @@ def test_source_parts_route(monkeypatch, tmp_path):
         (d / "01-GEN.json").write_text("{}")
     assert fc.main() == 0
     mods = [m for m, _, _ in calls]
-    parts_env = {"onboard", "run_pilot", "span_extension", "gapfill", "residual_align", "part_alignments"}
+    parts_env = {"onboard", "run_pilot", "span_extension", "gapfill", "residual_align", "function_rule", "part_alignments"}
     for m, _, env in calls:
         on_parts = env.get("ALIGNER_SPINE_DB") == str(spine.resolve())
         assert on_parts == (m in parts_env), m

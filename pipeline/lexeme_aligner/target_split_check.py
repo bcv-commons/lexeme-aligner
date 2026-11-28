@@ -8,18 +8,23 @@ hebrew-nt-analysis words.parquet) pinned per edition in config/target_parts.json
          random). Both arms: whole source words (--no-source-parts: align-text cannot yet combine source parts with a split) and no
          pooled priors (--split turns the pool off, so the words arm does too: a fair pair, see the 2026-10-26 Wr lesson).
   score  per arm, averaged over runs, on the final links as compact resolves them (every method):
-           content   share of source content tokens with a link
-           function  share of source function tokens with a link
-           stable    share of links that are identical in every run of the arm
-           affix_own (parts arm) share of the split's affix parts (prefix / suffix / infix) that a source token links by the part itself
-         and a verdict (THRESHOLDS): "split" when function rises by >= FUNCTION_GAIN while content and stable fall by no more than
-         MAX_LOSS; "words" when function rises by less than MIN_GAIN or content / stable fall by more than 2 x MAX_LOSS; else "unclear".
+           content_stable   share of ALL source content tokens linked to the same target tokens in every run of the arm
+           function_stable  the same for source function tokens
+         and, reported only: content / function (share linked), stable (identical links / the arm's links), affix_own (parts arm:
+         share of the split's affix parts a source token links by the part itself).
+         Verdict (THRESHOLDS), from content_stable alone (parts - words):
+           "split"   rises by >= CONTENT_GAIN;  "words"  rises by less than CONTENT_NOISE;  else "unclear".
+         function_stable is reported, never a veto (owner, 2026-11-28): a split gives function words more places to link, and
+         settling those links is the job of a later pass (Jev, or a free rule pass), not a reason to keep whole words.
          Writes OUT/split-check.json.
+         Why these figures (2026-11-28, internal-docs/split-generator-plan-2026-11-28.md "Investigation"): over eight Arabic arms of
+         known different quality scored against Clear gold, content_stable ranked the arms as gold F1 does (Spearman +0.98), the old
+         headline "function linked" did not (-0.07: a placebo split with cuts at the wrong places raised it by 28 points), and the
+         old "stable" (divided by the arm's own links) penalised a split for its extra function links. Thresholds fixed before the
+         Finnish (HELFI) check, which is their held-out test; noise between two whole-word arms of the same text was 0.2 points.
   apply  copy a verdict into config/target_parts.json for an edition that already has an entry there: `chain` true (split) /
          false (words) + a `split_check` record. Never run by `run`/`score`: the production setting changes only when you ask.
 
-The thresholds are set from the editions measured by hand (heb_scg function +24 points, stability +4: split; Zinza +6 / -0.6:
-split; Kuni +1.6 / content -0.5: words) and are a starting point, not a fitted rule.
 
     python -m lexeme_aligner.target_split_check run --usj DIR --split FILE --iso ISO --edition ED --out DIR [--runs 2] [--books MRK,ROM]
     python -m lexeme_aligner.target_split_check score --out DIR
@@ -39,19 +44,18 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 RESULT = "split-check.json"
-FUNCTION_GAIN = 0.03        # "split" needs function words linked to rise by at least this
-MIN_GAIN = 0.01             # "words" when they rise by less than this
-MAX_LOSS = 0.01             # content linked and stability may fall by at most this for "split" (2x this -> "words")
-THRESHOLDS = {"function_gain": FUNCTION_GAIN, "min_gain": MIN_GAIN, "max_loss": MAX_LOSS}
+CONTENT_GAIN = 0.005       # "split" needs content_stable to rise by at least this (noise between two whole-word arms: 0.002)
+CONTENT_NOISE = 0.002      # "words" when it rises by less than this
+THRESHOLDS = {"rule": "content-stability-2026-11-28", "content_gain": CONTENT_GAIN, "content_noise": CONTENT_NOISE}
 ARMS = ("words", "parts")
 
 
 def verdict(words: dict, parts: dict) -> tuple[str, dict]:
     """("split" | "words" | "unclear", the deltas parts - words) from the two arms' averaged figures."""
-    d = {k: round(parts[k] - words[k], 4) for k in ("content", "function", "stable")}
-    if d["function"] >= FUNCTION_GAIN and d["content"] >= -MAX_LOSS and d["stable"] >= -MAX_LOSS:
+    d = {k: round(parts[k] - words[k], 4) for k in ("content_stable", "function_stable", "content", "function", "stable") if k in words}
+    if d["content_stable"] >= CONTENT_GAIN:
         return "split", d
-    if d["function"] < MIN_GAIN or d["content"] < -2 * MAX_LOSS or d["stable"] < -2 * MAX_LOSS:
+    if d["content_stable"] < CONTENT_NOISE:
         return "words", d
     return "unclear", d
 
@@ -121,6 +125,11 @@ def measure(edition: str, usj: Path, run_dirs: list[Path], affixes: set | None =
     runs = [_final_links(edition, rd, books, contest) for rd in run_dirs]
     common = set.intersection(*({(k, v[0]) for k, v in ls.items()} for ls in runs)) if runs else set()
     acc = collections.defaultdict(list)
+    same = collections.Counter()                         # source tokens linked to the same target tokens in every run
+    for k, ts in common:
+        rec = recs.get(k[:3])
+        if rec is not None and k[3] < len(rec.heb):
+            same["content" if rec.heb[k[3]].is_content else "function"] += 1
     for links in runs:
         c = collections.Counter()
         own = set()
@@ -138,7 +147,9 @@ def measure(edition: str, usj: Path, run_dirs: list[Path], affixes: set | None =
         acc["stable"].append(c["stable"] / max(1, c["content"] + c["function"]))
         if affixes:
             acc["affix_own"].append(len(own & affixes) / len(affixes))
-    return {k: round(sum(v) / len(v), 4) for k, v in acc.items()} | {"runs": len(runs)}
+    return {k: round(sum(v) / len(v), 4) for k, v in acc.items()} | {
+        "content_stable": round(same["content"] / max(1, tot["content"]), 4),
+        "function_stable": round(same["function"] / max(1, tot["function"]), 4), "runs": len(runs)}
 
 
 def _run_dirs(arm_dir: Path) -> list[Path]:
@@ -157,9 +168,10 @@ def score(args) -> int:
     (out / RESULT).write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for arm in ARMS:
         f = figs[arm]
-        print(f"{arm:5} ({f['runs']} runs): content {f['content']:.1%}  function {f['function']:.1%}  stable {f['stable']:.1%}"
+        print(f"{arm:5} ({f['runs']} runs): content stable {f['content_stable']:.1%}  function stable {f['function_stable']:.1%}  "
+              f"| linked content {f['content']:.1%}  function {f['function']:.1%}  old stable {f['stable']:.1%}"
               + (f"  affix own {f['affix_own']:.1%}" if "affix_own" in f else ""))
-    print(f"verdict: {v}  (parts - words: content {d['content']:+.3f}, function {d['function']:+.3f}, stable {d['stable']:+.3f})")
+    print(f"verdict: {v}  (parts - words: content stable {d['content_stable']:+.3f}, function stable {d['function_stable']:+.3f})")
     return 0
 
 

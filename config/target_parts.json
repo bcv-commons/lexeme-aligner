@@ -41,32 +41,38 @@
     "sha256": "0f6fef9e6b33847f7e501e71dbdef7dee3635148a92eea130e97297f6285c6b6",
     "split_check": {
       "books": null,
-      "checked": "2026-11-27",
+      "checked": "2026-11-28",
       "delta": {
         "content": -0.0037,
+        "content_stable": 0.0117,
         "function": 0.0438,
+        "function_stable": 0.02,
         "stable": 0.0016
       },
       "figures": {
         "parts": {
           "affix_own": 0.2525,
           "content": 0.9313,
+          "content_stable": 0.6893,
           "function": 0.7468,
+          "function_stable": 0.4753,
           "runs": 2,
           "stable": 0.6913
         },
         "words": {
           "content": 0.935,
+          "content_stable": 0.6776,
           "function": 0.703,
+          "function_stable": 0.4553,
           "runs": 2,
           "stable": 0.6897
         }
       },
       "runs": 2,
       "thresholds": {
-        "function_gain": 0.03,
-        "max_loss": 0.01,
-        "min_gain": 0.01
+        "content_gain": 0.005,
+        "content_noise": 0.002,
+        "rule": "content-stability-2026-11-28"
       },
       "verdict": "split"
     },

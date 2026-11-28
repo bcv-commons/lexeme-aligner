@@ -60,7 +60,7 @@ def test_plan_with_pool_adds_priors_merge_and_points_gloss_at_the_merged_root(tm
     pool = {"path": tmp_path / "p.parquet", "exclude": ["BSB"]}
     steps = align_text.plan(tmp_path / "usj", "eng_film", "eng", tmp_path / "o", "--ot", False, None, pool)
     names = [s[0] for s in steps]
-    assert names == ["eflomal", "export", "pool-merge", "gloss", "spanext", "gapfill", "residual", "compact"]
+    assert names == ["eflomal", "export", "pool-merge", "gloss", "spanext", "gapfill", "residual", "function-rule", "compact"]
     d = {s[0]: s for s in steps}
     ef = d["eflomal"][1]
     assert ef[ef.index("--pool-priors") + 1] == str(tmp_path / "p.parquet") and ef[ef.index("--pool-exclude") + 1] == "BSB"

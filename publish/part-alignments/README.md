@@ -120,6 +120,12 @@ bcv_tokenize.py / tokenize.js             the tokenizer every target position re
   = the whole token). Only entries with a part link are listed; an empty string = none in that verse. The edition's `parts` entry in
   `manifest.json` names the split the part numbers refer to (dataset, revision, file, sha256, or a segmenter bundle + numbering rule).
   Editions without a `parts` entry are aligned on whole target words.
+- **Meta `method` `w`** (from the next update of each edition): a function unit placed by the function-word window rule, a free pass
+  after the statistical chain (lexeme-aligner `function_rule.py`, after a rule proposed by bible-song-builder). Between the links of
+  the content words around it, the rule takes the unlinked target words this edition's links use most for that source word, when
+  their number matches. `w` appears only where the rule moved the chain's link; where the two agree, the chain's character stays and
+  `conf` counts the rule as one more agreeing method. Measured against Clear (Arabic) and HELFI (Finnish) gold: function-word F1
+  +0.1 to +0.6 points, content links unchanged; where the rule moves a link, gold backs the rule about twice as often as the chain.
 
 ## The word view = compact-alignments
 

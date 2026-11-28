@@ -1,3 +1,8 @@
+---
+license: mit
+pretty_name: bcv-commons split engine
+---
+
 # bcv-commons split engine
 
 Splits a written word into parts (prefixes, stem, infixes, reduplication, tone, suffixes, clitics) from a `bcv-segfacts/0.1` bundle

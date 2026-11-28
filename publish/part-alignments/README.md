@@ -78,13 +78,12 @@ An edition's manifest entry says how it was aligned:
   which target words render the whole source word, not which part renders what. Folding them gives back that compact release
   exactly. Re-running an edition on the parts replaces its entry.
 
-This dataset will replace compact-alignments, which is frozen since 2026-11-23. compact-alignments stays available until the full release
-of this dataset; its removal date will be announced on its card then, not before.
+This dataset replaces compact-alignments, which is frozen since 2026-11-23. The full release was published on 2026-11-27, and
+compact-alignments will be removed one week later, on 2026-12-04. Clients that need compact's word-level shape can make it from these
+files with the fold library (`fold.py` / `fold.mjs`, below).
 
-**Pre-release (2026-11-23).** This is a pre-release with two languages: Hebrew (`heb`, the Hebrew New Testaments, with LLM-checked layers
-for heb_scg and heb_mod) and Greek (`grc`, Brenton's Septuagint, Old Testament only, with an LLM-checked layer). Files and format may still
-change before the full release, which adds the other languages after their re-run on the parts; until then use compact-alignments for them.
-`manifest.json` lists what is here.
+**Editions still on whole words.** 17 editions (of 2,378) are still `"grain": "word"`; `manifest.json` marks each one. They will be
+re-run on the parts, and each entry is replaced when that happens.
 
 ## Files
 
@@ -96,7 +95,8 @@ _index/_source.json                       format, the word-parts pin, the parts 
 <iso[0]>/<iso>/<edition>/<BOOK>_<fp8>.extra.json  the residual layer (links for units the main array leaves out)
 <iso[0]>/<iso>/<edition>/_fingerprints.txt        book and chapter text fingerprints of the aligned text
 <iso[0]>/<iso>/<edition>+llm+<name>/...           an LLM-checked layer, same shape; `srcOrd:_` = checked, renders nothing
-manifest.json                             per edition: books (file names), methods, tokenizer_version, text licence pointer
+manifest.json                             per edition: books (file names), methods, tokenizer_version, text licence pointer[, grain,
+                                          parts (the target split, see below)]
 fold.py / fold.mjs                        the fold library: part-alignments -> compact-alignments (no dependencies)
 read_verse.py / read_verse.mjs            the example above
 bcv_tokenize.py / tokenize.js             the tokenizer every target position refers to (bcv-commons/bibles, CC0)
@@ -115,6 +115,11 @@ bcv_tokenize.py / tokenize.js             the tokenizer every target position re
 - **`<fp8>`** = the text fingerprint of the edition's book (as compact): fingerprint YOUR copy of the text (`text_fingerprint.mjs` in
   compact-alignments) and take the file with that name; a revised text finds no file rather than a wrong one.
 - Units with no link are left out. In an LLM layer `srcOrd:_` means: checked, the unit renders nothing in this translation.
+- **Target parts** (meta `parts`): for an edition aligned on the PARTS of its own words (prefixes, stem, suffixes; today heb_scg and
+  zin_wbt), `parts` lists, per entry, which part of each linked target token the unit links to: `srcOrd:tok.part[,tok.part]` (a bare `tok`
+  = the whole token). Only entries with a part link are listed; an empty string = none in that verse. The edition's `parts` entry in
+  `manifest.json` names the split the part numbers refer to (dataset, revision, file, sha256, or a segmenter bundle + numbering rule).
+  Editions without a `parts` entry are aligned on whole target words.
 
 ## The word view = compact-alignments
 
